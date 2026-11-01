@@ -124,6 +124,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	h := &hlsVODServe{
 		keyframeWarmer:        s.KeyframeWarmer,
 		videoAdmission:        videoAdmissionOf(s.VideoLimiter),
+		videoFitsIdle:         videoFitsIdleOf(s.VideoLimiter),
 		calibrating:           calibratingOf(s.CalibrationSvc),
 		admissionRoute:        admissionRouteOf(s.VideoAdmissionShaper),
 		admissionPinnedClass:  pinnedClassOf(s.VideoAdmissionShaper),

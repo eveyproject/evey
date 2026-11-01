@@ -7,6 +7,7 @@ const remove = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false }));
 const startTokenDownload = vi.hoisted(() => vi.fn());
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 const auth = vi.hoisted(() => ({ accessToken: "tok" as string | null }));
+const play = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (def: { component: React.ComponentType }) => ({ ...def, useParams: () => ({ playlistId: "pl-1" }) }),
@@ -25,6 +26,7 @@ vi.mock("@/utils/downloadToken", () => ({ startTokenDownload: (...a: unknown[]) 
 vi.mock("@evey/store", () => ({
   toast,
   useAuthStore: (sel: (s: { accessToken: string | null }) => unknown) => sel(auth),
+  useMusicPlayerStore: (sel: (s: { play: typeof play }) => unknown) => sel({ play }),
 }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k: string, o?: { count?: number }) => (o ? `${k}:${o.count}` : k) }),
@@ -102,5 +104,30 @@ describe("PlaylistDetail rows and actions", () => {
     loaded({ name: "Full", type: "manual", items: [{ media_item_id: "m1" }] });
     await renderPage();
     expect(screen.queryByTestId("playlist-download-btn")).toBeNull();
+  });
+
+  // A track of a mixed playlist linked to /media/<track id>, which answers
+  // 404: it plays in the music player with the playlist's other tracks, and
+  // its row names the artist.
+  it("plays a music track in the music player instead of linking to the video page", async () => {
+    loaded({
+      name: "Mixed", type: "manual",
+      items: [
+        { media_item_id: "t-1", media_type: "music", title: "First song", artist: "An artist", sort_order: 0 },
+        { media_item_id: "m-1", media_type: "video", title: "A film", sort_order: 1 },
+        { media_item_id: "t-2", media_type: "music", title: "Second song", artist: "Another artist", cover_art_url: "/art/t-2", duration: 180, sort_order: 2 },
+      ],
+    });
+    await renderPage();
+
+    expect(screen.getByText("An artist")).toBeInTheDocument();
+    expect(screen.getByText("Second song").closest("a")).toBeNull();
+    expect(screen.getByText("A film").closest("a")?.getAttribute("href")).toBe("/media/m-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Second song" }));
+    expect(play).toHaveBeenCalledTimes(1);
+    const [track, queue] = play.mock.calls[0];
+    expect(track).toMatchObject({ ID: "t-2", Title: "Second song", Artist: "Another artist", CoverArtURL: "/art/t-2", Duration: 180 });
+    expect(queue.map((q: { ID: string }) => q.ID)).toEqual(["t-1", "t-2"]);
   });
 });

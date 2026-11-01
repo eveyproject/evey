@@ -1,5 +1,5 @@
 ---
-source_sha: 7be5d2c69f31e5a809a830f40949f2c4242950d173dfc5bf681d26c5be44e87f
+source_sha: e10872a44bc7a4594b78350969813e3dffa0a11bd28a8acc97dcfb617e5b019b
 reviewed: true
 ---
 # Berechtigungen und Slots { #permissions-and-slots }
@@ -90,13 +90,14 @@ die ganze Installation ab.
 
 Ein Eintrag ist ein **Hostname**. Ein vorangestelltes Schema und ein
 abschließender Pfad werden beim Einlesen verworfen; nur der Hostname bleibt.
-Hosts müssen exakt passen, ein Platzhalter `*.example.com` wird bei der Installation abgelehnt
-und ein Port-Suffix wird ignoriert.
+Hosts müssen exakt passen und ein Platzhalter `*.example.com` wird bei der Installation abgelehnt.
+Ein Eintrag ohne Port erlaubt nur die Ports 80 und 443; `host:port` erlaubt nur diesen Port.
 
 | Eintrag | Gültig | Grund |
 |---|---|---|
 | `api.tmdb.org` | Ja | Genauer Hostname, die normale Form |
 | `https://api.tmdb.org` | Ja | Schema und Pfad beim Einlesen verworfen, Hostname bleibt |
+| `api.example.com:8443` | Ja | Dieser Host nur auf Port 8443 |
 | `*.tmdb.org` | Nein | Platzhalter werden bei der Installation abgelehnt; jeden Host einzeln auflisten |
 | `*` | Nein | Ein einzelner Platzhalter wird abgelehnt |
 | `192.168.1.1`, `::1` | Nein | IP-Adressen werden abgelehnt, beide Familien |
@@ -104,10 +105,11 @@ und ein Port-Suffix wird ignoriert.
 Zur Laufzeit setzt der Vermittler des Hosts eigene Grenzen, die das
 Manifest nicht erweitern kann: nur `http` und `https`, nur `GET` und `HEAD`,
 der Zielhost wird ohne Beachtung von Groß- und Kleinschreibung mit Ihrer
-Liste verglichen (ein Zusatz `:port` in einem Eintrag wird ignoriert),
-private oder reservierte Adressen werden nach der DNS-Auflösung abgelehnt,
+Liste verglichen, der Zielport mit dem Eintrag (80 oder 443 ohne angegebenen
+Port), private oder reservierte Adressen werden nach der DNS-Auflösung abgelehnt,
 ein Inhalt ist auf 8 MiB begrenzt und eine Anfrage auf 20 Sekunden.
-Weiterleitungen werden erneut gegen die Liste und die Adressregel geprüft.
+Weiterleitungen werden erneut gegen die Liste, die Portregel und die
+Adressregel geprüft.
 
 Dieselbe Hostliste ist das `connect-src` des Frames des Plugins, jeweils mit
 `https://` davor: Ein Widget darf diese Hosts direkt aufrufen, nur über

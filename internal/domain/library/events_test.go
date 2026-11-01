@@ -15,10 +15,12 @@ func TestEventNames(t *testing.T) {
 	}{
 		{library.LibraryCreated{}, "library.created"},
 		{library.LibraryDeleted{}, "library.deleted"},
+		{library.LibraryUpdated{}, "library.updated"},
 		{library.LibraryScanStarted{}, "library.scan.started"},
 		{library.LibraryScanCompleted{}, "library.scan.completed"},
 		{library.MediaItemAdded{}, "media.item.added"},
 		{library.MediaItemRemoved{}, "media.item.removed"},
+		{library.PruneSuspended{}, "library.prune.suspended"},
 	}
 
 	for _, c := range cases {

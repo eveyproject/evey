@@ -399,8 +399,10 @@ users:
   libraryAccessUpdated: Library access updated
   failedLibraryAccess: Failed to update library access
   clearAllUnrestricted: Clear all (unrestricted)
+  accessAll: "All libraries"
+  accessSelected: "Selected libraries only"
   noLibraries: "No library"
-  noLibrariesDesc: "This user is restricted but no library is left: every grant was revoked or the libraries were deleted. Tick libraries to grant access, or save with none selected to lift the restriction."
+  noLibrariesDesc: "No library is ticked: this user will see no library. Choose All libraries to lift the restriction."
   bitrate: Bitrate
   maxBitrateTitle: "Max Bitrate - {{name}}"
   maxBitrateDesc: "Limit the maximum streaming bitrate for this user. 0 = unlimited."
@@ -512,6 +514,12 @@ libraries:
   relinkCollections: "Repair sagas"
   relinkCollectionsTooltip: "Joins movies that belong to no collection back to their saga: the sequels are already in the library, but membership was only ever written while enriching. Runs in the background."
   relinkCollectionsStarted: "Saga repair started - titles will join their saga as TMDB answers"
+  pruneSuspended: "{{missing}} files missing under {{root}}, deletion suspended"
+  pruneSuspendedHint: "Too many files vanished in one scan. If a disk or share is offline, reconnect it and the next scan resumes by itself. If they are really gone, confirm the deletion."
+  confirmPrune: "Confirm deletion"
+  confirmPruneTitle: "Confirm deletion"
+  confirmPruneBody: "Delete the {{missing}} items whose files are missing under {{root}}? Their watch progress, favorites and playlist entries go with them. This cannot be undone."
+  pruneConfirmStarted: "Deletion confirmed - the library is scanning"
   deleteTitle: Delete Library
   deleteConfirm: "Delete library \"{{name}}\"? This cannot be undone."
   noLibraries: No libraries. Add one to get started.
@@ -551,7 +559,6 @@ libraries:
     customCron: "Custom cron..."
   items_one: "{{count}} item"
   items_other: "{{count}} items"
-  "off": "Off"
   paths: Paths
   pathsHint: "(enter the full path inside the container, e.g. /media/movies)"
   selectDirectory: "- select a directory -"
@@ -562,6 +569,9 @@ libraries:
   namePlaceholder: "Library name"
   pathRequired: "At least one path is required"
   realtimeMonitoring: "Realtime monitoring"
+  realtimeMonitoringHint: "Added and deleted files show up within seconds instead of at the next periodic scan."
+  autoScan: "Automatic"
+  autoScanHint: "No schedule: the server still scans this library on its own every few minutes, and within seconds with real-time monitoring."
   scanFailed: "Scan failed"
   scanOnStartup: "Scan on startup"
 

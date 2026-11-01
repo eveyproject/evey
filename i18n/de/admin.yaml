@@ -399,8 +399,10 @@ users:
   libraryAccessUpdated: Bibliothekszugriff aktualisiert
   failedLibraryAccess: Bibliothekszugriff konnte nicht aktualisiert werden
   clearAllUnrestricted: Alle entfernen (uneingeschränkt)
+  accessAll: "Alle Bibliotheken"
+  accessSelected: "Nur ausgewählte Bibliotheken"
   noLibraries: "Keine Bibliothek"
-  noLibrariesDesc: "Dieser Benutzer ist eingeschränkt, hat aber keine Bibliothek mehr: alle Freigaben wurden entzogen oder die Bibliotheken gelöscht. Bibliotheken ankreuzen, um Zugriff zu geben, oder ohne Auswahl speichern, um die Einschränkung aufzuheben."
+  noLibrariesDesc: "Keine Bibliothek angekreuzt: dieser Benutzer sieht keine Bibliothek. Alle Bibliotheken wählen, um die Einschränkung aufzuheben."
   bitrate: Bitrate
   maxBitrateTitle: "Maximale Bitrate - {{name}}"
   maxBitrateDesc: "Maximale Streaming-Bitrate für diesen Benutzer begrenzen. 0 = unbegrenzt."
@@ -512,6 +514,12 @@ libraries:
   relinkCollections: "Reihen reparieren"
   relinkCollectionsTooltip: "Ordnet Filme ohne Sammlung wieder ihrer Reihe zu: Die Fortsetzungen sind bereits in der Bibliothek, die Zugehörigkeit wurde aber nur beim Anreichern geschrieben. Läuft im Hintergrund."
   relinkCollectionsStarted: "Reihen-Reparatur gestartet - Titel treten ihrer Reihe bei, sobald TMDB antwortet"
+  pruneSuspended: "{{missing}} Dateien unter {{root}} fehlen, Löschen ausgesetzt"
+  pruneSuspendedHint: "Zu viele Dateien sind in einem Scan verschwunden. Ist ein Laufwerk oder eine Freigabe offline, verbinden Sie sie neu, der nächste Scan setzt dann von selbst fort. Sind die Dateien wirklich weg, bestätigen Sie das Löschen."
+  confirmPrune: "Löschen bestätigen"
+  confirmPruneTitle: "Löschen bestätigen"
+  confirmPruneBody: "Die {{missing}} Einträge löschen, deren Dateien unter {{root}} fehlen? Wiedergabefortschritt, Favoriten und Playlist-Einträge gehen damit verloren. Das lässt sich nicht rückgängig machen."
+  pruneConfirmStarted: "Löschen bestätigt - die Bibliothek wird gescannt"
   deleteTitle: Bibliothek löschen
   deleteConfirm: "Bibliothek \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
   noLibraries: Keine Bibliotheken. Fügen Sie eine hinzu, um zu beginnen.
@@ -551,7 +559,6 @@ libraries:
     customCron: "Benutzerdefinierter Cron..."
   items_one: "{{count}} Element"
   items_other: "{{count}} Elemente"
-  "off": Aus
   paths: Pfade
   pathsHint: "(vollständigen Pfad im Container eingeben, z.B. /media/movies)"
   selectDirectory: "- Verzeichnis auswählen -"
@@ -562,6 +569,9 @@ libraries:
   namePlaceholder: "Bibliotheksname"
   pathRequired: "Mindestens ein Pfad ist erforderlich"
   realtimeMonitoring: "Echtzeit-Überwachung"
+  realtimeMonitoringHint: "Hinzugefügte und gelöschte Dateien erscheinen innerhalb von Sekunden statt erst beim nächsten regelmäßigen Scan."
+  autoScan: "Automatisch"
+  autoScanHint: "Ohne Zeitplan scannt der Server diese Mediathek trotzdem von selbst alle paar Minuten, mit Echtzeit-Überwachung innerhalb von Sekunden."
   scanFailed: "Scan fehlgeschlagen"
   scanOnStartup: "Beim Start scannen"
 

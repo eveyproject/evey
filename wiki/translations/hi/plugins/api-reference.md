@@ -1,5 +1,5 @@
 ---
-source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
+source_sha: e016d46cbfda306ec5cb1c9dbbdef535ee12acea8711452911a11d22e66d34b1
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -56,7 +56,7 @@ config_schema:               # प्लगइन के कार्ड पर 
 | `language` | `kind: plugin` के लिए ज़रूरी: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` या `go`। इससे तय होता है कि कौन सा runtime जाँचा जाए और कौन से stub entrypoint के बगल में कॉपी हों; यह कुछ शुरू नहीं करता। |
 | `entrypoint` | `kind: plugin` के लिए ज़रूरी। पहला शब्द interpreter है (या `native-binary` के साथ binary), बाकी उसके arguments; प्रोसेस प्लगइन के फ़ोल्डर में चलता है। |
 | `permissions` | हर मान [अनुमतियों की सूची](security-model.md#permissions-catalog) में होना चाहिए। `network` के लिए `external_fetch` खाली नहीं होना चाहिए। |
-| `external_fetch` | होस्ट के नाम। scheme और अंत का path पार्स के समय हटा दिए जाते हैं; होस्ट ठीक-ठीक मिलने चाहिए, `*.example.com` जैसा wildcard इंस्टॉल पर मना हो जाता है और port का suffix अनदेखा किया जाता है; IP लिखने पर इंस्टॉल मना होता है ([नियम](security-model.md#external-fetch-rules))। |
+| `external_fetch` | होस्ट के नाम। scheme और अंत का path पार्स के समय हटा दिए जाते हैं; होस्ट ठीक-ठीक मिलने चाहिए, `*.example.com` जैसा wildcard इंस्टॉल पर मना हो जाता है; बिना port वाली एंट्री सिर्फ़ port 80 और 443 की अनुमति देती है, `host:port` सिर्फ़ उसी port की; IP लिखने पर इंस्टॉल मना होता है ([नियम](security-model.md#external-fetch-rules))। |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` या `notification.sender`; बाकी सब मना है। थीम कोई क्षमता नहीं बता सकती। |
 | `web_root` | `frontend` खाली न हो तो ज़रूरी; relative, बिना `..`, बिना backslash। `.` प्लगइन का पूरा फ़ोल्डर देता है और सिर्फ़ एक चेतावनी लॉग करता है। |
 | `frontend[]` | `slot` [स्लॉट की सूची](#slots) में होना चाहिए; `src` `web_root` के अंदर होना चाहिए। |
@@ -114,7 +114,7 @@ EVEY_HOST_SOCK=<path>     # आपका प्रोसेस HostService क�
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` या `media.read` | मीडिया का पूरा रिकॉर्ड, `file_path`, `provider_ids` और `genres` के साथ। |
 | `Fetch(url, method, headers)` | `network` | सैंडबॉक्स से बाहर जाने का अकेला रास्ता: `http` या `https`, `GET` या `HEAD`, `external_fetch` का कोई होस्ट; पता निकालने के बाद और redirect में भी निजी पते मना हैं। body 8 MiB तक सीमित है (`truncated` यह बताता है) और पूरा request 20 सेकंड तक। सर्वर अपनी तरफ़ से कोई credential नहीं जोड़ता। |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` या `media.read` | *दिया नहीं जाता।* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` या `media.write`, और `metadata.provider` क्षमता | बिना पूछे किसी फ़िल्म या सीरीज़ के लिए आपका टेक्स्ट देता है, जैसे [मेटाडेटा जवाब](#metadata-requests) देता। `fields` में `locale` (ज़रूरी) और `title`, `overview`, `tagline` में से कोई भी होता है; टेक्स्ट उस भाषा के लिए आपके पहले दिए टेक्स्ट की जगह लेता है, और सिर्फ़ `locale` वाला `fields` उसे हटा देता है। `provider_ids` मना है: आइटम की पहचान TMDB करता है। |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` या `media.write`, और `metadata.provider` क्षमता | बिना पूछे किसी फ़िल्म या सीरीज़ के लिए आपका टेक्स्ट देता है, जैसे [मेटाडेटा जवाब](#metadata-requests) देता। `fields` में `locale` (ज़रूरी) और `title`, `overview`, `tagline` में से कोई भी होता है; टेक्स्ट उस भाषा के लिए आपके पहले दिए टेक्स्ट की जगह लेता है, और सिर्फ़ `locale` वाला `fields` उसे हटा देता है। `provider_ids` मना है: आइटम की पहचान TMDB करता है। एक प्लगइन जो सहेजता है उसकी सीमा है: हर आइटम पर 16 भाषाएँ, कुल 200 000 टेक्स्ट और 128 MiB। इससे ऊपर कॉल `RESOURCE_EXHAUSTED` लौटाता है; पहले दिया गया टेक्स्ट बदलना या हटाना फिर भी संभव रहता है। |
 | `GetUserPreferences` | `api.user` | *दिया नहीं जाता।* |
 | `SendNotification` | `notification.sender` | *दिया नहीं जाता।* |
 

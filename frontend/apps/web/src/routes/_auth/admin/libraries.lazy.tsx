@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { LibraryForm } from "@/features/admin/LibraryForm";
+import { PruneSuspendedBanner } from "@/features/admin/PruneSuspendedBanner";
 import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/libraries")({
@@ -321,7 +322,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
             {schedule.nextRunAt ? formatDate(schedule.nextRunAt) : t("common.enabled")}
           </span>
         ) : (
-          <span className="opacity-50">{t("admin.libraries.off")}</span>
+          <span title={t("admin.libraries.autoScanHint")}>{t("admin.libraries.autoScan")}</span>
         )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap" data-label={t("admin.libraries.tableHeaders.actions")}>
@@ -461,6 +462,8 @@ function LibrariesPage() {
           </div>
         }
       />
+
+      <PruneSuspendedBanner libraries={libraries} />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

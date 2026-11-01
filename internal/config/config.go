@@ -553,6 +553,12 @@ type MetricsConfig struct {
 type LibraryConfig struct {
 	PeriodicScanInterval time.Duration // fallback polling when inotify misses events
 	WatcherEnabled       bool
+	// PruneMaxMissingPercent and PruneMinMissing hold a library root's
+	// deletions when more than that share of its items (and at least that many)
+	// vanish in one scan - a pool missing a branch disk, not a real cleanup.
+	// An admin confirms the deletion from the library page.
+	PruneMaxMissingPercent float64
+	PruneMinMissing        int
 	// SeekIndexStateDir persists the admin seek-index scan cache and the
 	// running-job marker across restarts (a full scan is minutes of per-file
 	// probes; an in-memory job dies silently with the process). Empty
@@ -1012,9 +1018,11 @@ func Load() (*Config, error) {
 			ScrapeToken:       envStr("EVEY_METRICS_SCRAPE_TOKEN", ""),
 		},
 		Library: LibraryConfig{
-			PeriodicScanInterval: envDuration("EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL", 2*time.Minute),
-			WatcherEnabled:       envBool("EVEY_LIBRARY_WATCHER_ENABLED", true),
-			SeekIndexStateDir:    envStr("EVEY_SEEKINDEX_STATE_DIR", "/data/seek-index"),
+			PeriodicScanInterval:   envDuration("EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL", 2*time.Minute),
+			WatcherEnabled:         envBool("EVEY_LIBRARY_WATCHER_ENABLED", true),
+			PruneMaxMissingPercent: envFloat("EVEY_LIBRARY_PRUNE_MAX_MISSING_PERCENT", 5),
+			PruneMinMissing:        envInt("EVEY_LIBRARY_PRUNE_MIN_MISSING", 20),
+			SeekIndexStateDir:      envStr("EVEY_SEEKINDEX_STATE_DIR", "/data/seek-index"),
 		},
 		Playback: PlaybackConfig{
 			SkipForwardSeconds:   envInt("EVEY_PLAYBACK_SKIP_FORWARD", 30),

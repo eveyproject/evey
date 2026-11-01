@@ -1,7 +1,7 @@
 .PHONY: dash-harness directplay-harness dash-web dash-exoplayer proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
-	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene ci-secrets pre-push pre-push-dev ci-fast-frontend-static gate-dev gate-dev-status hooks \
-	gate gate-status verify-commit \
+	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene ci-secrets pre-push pre-push-dev ci-fast-frontend-static ci-fast-unit-changed gate-dev gate-dev-status hooks \
+	gate gate-status gate-full gate-full-status verify-commit \
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go \
@@ -145,8 +145,15 @@ bench:
 # ffmpeg-image change: real producer + real ffmpeg/ffprobe on a synthetic
 # B-frame MKV, asserting served segments match the keyframe plan (timeline
 # AND audio content correlation).
+#
+# TRANSCODE_ITEST_SKIP names tests to leave out (go test -skip): the branch gate
+# skips the encoder sweep, which software-encodes every rung up to 4K HEVC
+# (~4 min on a laptop) and checks codec strings rather than the plan/ffmpeg
+# contract; gate-full runs it. The timeout covers that sweep plus the rest.
+TRANSCODE_ITEST_SKIP ?=
+TRANSCODE_ITEST_TIMEOUT ?= 900s
 transcode-itest:
-	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ ./internal/adapters/driven/prober/ -run Integration -count=1 -v -timeout=300s && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driving/http/ -run SourceReplacedIntegration -count=1 -v -timeout=300s'
+	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ ./internal/adapters/driven/prober/ -run Integration $(if $(TRANSCODE_ITEST_SKIP),-skip $(TRANSCODE_ITEST_SKIP)) -count=1 -v -timeout=$(TRANSCODE_ITEST_TIMEOUT) && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driving/http/ -run "SourceReplacedIntegration|AudioGridIntegration" -count=1 -v -timeout=300s'
 
 # dash-harness: plays manifest.mpd in REAL DASH players (Shaka, dash.js) in a
 # headless, muted Google Chrome (Playwright's Chromium has no H.264/AAC), against
@@ -374,6 +381,33 @@ ci-fast-unit:
 		-v "$$HOME/.cache/evey-gocache":/gocache -e GOCACHE=/gocache -e HOME=/tmp \
 		$(GO_CI_IMAGE) sh -c 'go test $$(go list $(GO_UNIT_PKGS) | grep -v "adapters/driven/postgres" | grep -v /gen/) -timeout=600s -race'
 
+# ci-fast-unit-changed: ci-fast-unit restricted to the packages the branch
+# changes since its fork point with dev (scripts/gate-go-pkgs.py: the package of
+# each changed file, the packages whose tests read a changed data tree such as
+# i18n/, everything on a go.mod or go.sum change). The full suite re-tests every
+# package that IMPORTS a changed one, under -race: one line in app/user cost
+# driving/http alone 342 s. Those dependents are left to the pull request's CI,
+# which runs the full suite on the same commits; what breaks in them at compile
+# time still fails here, in go build ./... and go vet ./..., which stay
+# whole-module. Same throwaway container and flags as ci-fast-unit.
+ci-fast-unit-changed:
+	@python3 scripts/gate-go-pkgs.py --selftest
+	@pkgs=$$(python3 scripts/gate-go-pkgs.py | tr '\n' ' '); \
+	if [ -z "$$pkgs" ]; then \
+	  echo "→ go test skipped (no Go-relevant change since the fork point with dev)"; exit 0; \
+	fi; \
+	if [ "$$pkgs" = "./... " ]; then \
+	  echo "→ go.mod/go.sum changed - every package"; exec $(MAKE) --no-print-directory ci-fast-unit; \
+	fi; \
+	echo "→ go test (unit, -race) on the $$(echo $$pkgs | wc -w) changed package(s) - throwaway $(GO_CI_IMAGE), non-root, as CI"; \
+	echo "    $$pkgs"; \
+	mkdir -p "$$HOME/.cache/evey-gocache" "$$HOME/go/pkg/mod"; \
+	docker run --rm --user $$(id -u):$$(id -g) \
+		-v "$(CURDIR)":/app -w /app \
+		-v "$$HOME/go/pkg/mod":/go/pkg/mod \
+		-v "$$HOME/.cache/evey-gocache":/gocache -e GOCACHE=/gocache -e HOME=/tmp \
+		$(GO_CI_IMAGE) sh -c "go test $$pkgs -timeout=600s -race"
+
 # ci-fast-frontend: mirror of the CI `frontend` job, which gates the docker
 # build just like the backend jobs do - yet nothing frontend-side ran in
 # pre-push before, so a broken typecheck was only ever found on GitHub. Runs in
@@ -455,11 +489,13 @@ pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend c
 # pre-push-dev: the gate for a push to dev or to a work branch (the hook picks it
 # from the destination). Everything above except what the pull request's CI
 # reruns on the exact same commits and costs minutes here: govulncheck, the
-# frontend tests and build, the Postgres suite, the TV audit. dev merges only on
-# a green "CI passed", so those still stand between a branch and the merge; this
-# target catches a red push in minutes instead of an hour.
-pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit ci-fast-frontend-static ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout transcode-itest-gate
-	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race + frontend typecheck/lint + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + transcode contract). The pull request's CI runs the rest."
+# frontend tests and build, the Postgres suite, the TV audit - and the unit tests
+# of packages the branch does not change (ci-fast-unit-changed). dev merges only
+# on a green "CI passed", so those still stand between a branch and the merge;
+# this target catches a red push in minutes instead of an hour.
+pre-push-dev: TRANSCODE_ITEST_SKIP = TestCodecStringIntegration
+pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit-changed ci-fast-frontend-static ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout transcode-itest-gate
+	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race on changed packages + frontend typecheck/lint + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + transcode contract). The pull request's CI runs the rest."
 
 # ci-hygiene: the house rules a regex can decide - plain dashes, no AI attribution
 # trailer, no conflict marker, no elision placeholder, no .claude/ in
@@ -480,24 +516,28 @@ ci-secrets:
 	@./scripts/secrets-scan.sh
 
 # gate / gate-status: "the gate is green" stops being something you remember and
-# becomes something you can re-check. `make gate` runs the real pre-push and
-# records the command, its exit code, the HEAD and a fingerprint of the working
-# tree; `make gate-status` re-derives the last two and exits non-zero the moment
-# either moved. Receipts live under ~/.claude/projects/<slug>/gate/, never in
-# the repo.
+# becomes something you can re-check. `make gate` runs pre-push-dev, the branch
+# gate, and records the command, its exit code, the HEAD and a fingerprint of
+# the working tree; `make gate-status` re-derives the last two and exits
+# non-zero the moment either moved. Receipts live under
+# ~/.claude/projects/<slug>/gate/, never in the repo.
 gate:
-	@python3 scripts/gate-receipt.py --label pre-push run -- $(MAKE) --no-print-directory pre-push
-
-gate-status:
-	@python3 scripts/gate-receipt.py --label pre-push status
-
-# gate-dev / gate-dev-status: the same receipt for `make pre-push-dev`. The hook
-# accepts either receipt for a push to dev, only the full one for master.
-gate-dev:
 	@python3 scripts/gate-receipt.py --label pre-push-dev run -- $(MAKE) --no-print-directory pre-push-dev
 
-gate-dev-status:
+gate-status:
 	@python3 scripts/gate-receipt.py --label pre-push-dev status
+
+# gate-full / gate-full-status: the same receipt for the full `make pre-push`,
+# the only one the hook accepts for a push to master or a tag (either does for
+# dev). gate-dev / gate-dev-status are the former names of gate / gate-status.
+gate-full:
+	@python3 scripts/gate-receipt.py --label pre-push run -- $(MAKE) --no-print-directory pre-push
+
+gate-full-status:
+	@python3 scripts/gate-receipt.py --label pre-push status
+
+gate-dev: gate
+gate-dev-status: gate-status
 
 # verify-commit: what a fresh clone of REF sees, checked in a detached worktree
 # outside the repo (see scripts/verify-commit.sh for the coverage and its limits).
@@ -630,7 +670,7 @@ TRANSCODE_PATHS := internal/app/transcoding internal/domain/transcoding \
   internal/adapters/driven/ffmpeg \
   internal/adapters/driven/mkvgo \
   internal/adapters/driving/http/transcode_handler_vod.go \
-  internal/adapters/driving/http/transcode_audio_handler.go \
+  internal/adapters/driving/http/transcode_audio*.go \
   internal/adapters/driving/http/transcode_ondemand*.go \
   internal/adapters/driving/http/transcode_vod_manifest_rebake.go \
   go.mod go.sum \
@@ -646,7 +686,7 @@ transcode-itest-gate:
 	    echo "  test is the only gate that sees plan↔ffmpeg contract regressions.)"; \
 	    exit 1; \
 	  fi; \
-	  $(MAKE) --no-print-directory transcode-itest; \
+	  $(MAKE) --no-print-directory transcode-itest TRANSCODE_ITEST_SKIP="$(TRANSCODE_ITEST_SKIP)"; \
 	else \
 	  echo "→ no transcode-stack changes since $$base - skipping transcode-itest"; \
 	fi

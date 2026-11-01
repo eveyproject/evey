@@ -133,6 +133,7 @@ user:
   cannot_delete_default_profile: "The default profile cannot be deleted"
 
 media:
+  file_missing: "This file is no longer on the server"
   not_found: "Media not found"
   restricted_profile_edit: "Switch to a profile without parental controls to edit titles and artwork"
   id_required: "A media id is required"

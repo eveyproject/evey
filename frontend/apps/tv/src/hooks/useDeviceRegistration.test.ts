@@ -188,4 +188,63 @@ describe("useDeviceRegistration (tv)", () => {
     expect(wsInstances.length).toBe(opened);
     vi.useRealTimers();
   });
+
+  // A socket the network never lets through (a proxy on the way that drops
+  // the Upgrade header: the server can only answer 400) is not an outage that
+  // ends. Retrying every 30 s for as long as the television is on only fills
+  // the server's logs with refused handshakes, which an intrusion detection in
+  // front of it can read as probing.
+  it("slows to a long cadence once the socket has never opened after a few attempts", async () => {
+    vi.useFakeTimers();
+    renderHook(() => useDeviceRegistration());
+    await act(async () => { await vi.runOnlyPendingTimersAsync(); });
+    for (let elapsed = 0; elapsed < 10 * 60_000; elapsed += 1_000) {
+      if (ws().onclose && !(ws() as unknown as { closedOnce?: boolean }).closedOnce) {
+        (ws() as unknown as { closedOnce?: boolean }).closedOnce = true;
+        act(() => { ws().simulateClose(); });
+      }
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    }
+    // 1 + 2 + 4 + 8 + 16 s of short backoff, then the long cadence: a handful
+    // of attempts in ten minutes, not one every 30 s.
+    expect(wsInstances.length).toBeLessThanOrEqual(8);
+    vi.useRealTimers();
+  });
+
+  // The access token is refreshed every few minutes and the socket follows it,
+  // but a refresh must not restart the short backoff of a socket that has
+  // never got through: that was a burst of handshakes after every refresh.
+  it("keeps the long cadence across a token refresh", async () => {
+    vi.useFakeTimers();
+    const { rerender } = renderHook(() => useDeviceRegistration());
+    await act(async () => { await vi.runOnlyPendingTimersAsync(); });
+    for (let i = 0; i < 8; i++) {
+      act(() => { ws().simulateClose(); });
+      await act(async () => { await vi.runOnlyPendingTimersAsync(); });
+    }
+    const before = wsInstances.length;
+    mockAccessToken = "refreshed-token";
+    rerender();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(wsInstances.length).toBe(before);
+    vi.useRealTimers();
+  });
+
+  // A socket that did open once is a reachable server: a later drop is an
+  // outage and gets the short backoff again.
+  it("returns to the short backoff once the socket opens", async () => {
+    vi.useFakeTimers();
+    renderHook(() => useDeviceRegistration());
+    await act(async () => { await vi.runOnlyPendingTimersAsync(); });
+    for (let i = 0; i < 8; i++) {
+      act(() => { ws().simulateClose(); });
+      await act(async () => { await vi.runOnlyPendingTimersAsync(); });
+    }
+    act(() => { ws().simulateOpen(); });
+    const before = wsInstances.length;
+    act(() => { ws().simulateClose(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_500); });
+    expect(wsInstances.length).toBe(before + 1);
+    vi.useRealTimers();
+  });
 });

@@ -40,9 +40,9 @@ type audioServe struct {
 	manifestGen   *apptranscoding.ManifestGenerator
 	cache         *apptranscoding.SegmentCache
 	audioOrch     AudioSegmentEnsurer
-	// startHint is the segment the master request said playback starts at
-	// (transcode_start_hint.go), 0 when unknown; it takes a startHintKey.
-	startHint func(mediaID string) int
+	// startHint is the second the master request said playback starts at
+	// (transcode_start_hint.go); it takes a startHintKey.
+	startHint func(key string) (float64, bool)
 
 	// audioNormalizeGetter mirrors the video pipeline knob.
 	audioNormalizeGetter func(ctx context.Context) bool
@@ -117,10 +117,20 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		return
 	}
 
+	// The playlist declares the grid the segments are cut on, read from the
+	// fingerprint that cuts them: a player in sequence mode (Shaka, the cast
+	// receiver's engine) places segment N at the sum of the EXTINF before it,
+	// so 3.000 declared over 3.003 cut ran the audio 3 ms early per segment.
+	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay, copyCodec)
+
 	token := RawTokenFromContext(r.Context())
 	in := apptranscoding.ManifestInput{
 		MediaID:     mediaID,
 		DurationSec: float64(item.File.Duration.Milliseconds()) / 1000.0,
+		Grid:        fp.Grid,
+		// The resync rides the init and segment URIs like the plan's pins: they
+		// re-derive the fingerprint and the copy-or-encode verdict from it.
+		AudioOffsetMs: audioOffsetMsQuery(r),
 		// Profiles must be non-empty for ManifestInput.Validate().
 		// AudioPlaylist doesn't use the profiles list but Validate() requires
 		// at least one entry. We inject a placeholder that matches what a
@@ -166,17 +176,23 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 
 	// The player's next request is the segment at its position: start encoding it now.
 	if pw, ok := h.audioOrch.(audioStartAware); ok {
-		if seg := h.hintFor(r, mediaID); seg > 0 {
-			pw.PreWarmAudio(h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay, copyCodec), seg)
+		if seg := h.hintFor(r, mediaID, fp.Grid); seg > 0 {
+			pw.PreWarmAudio(fp, seg)
 		}
 	}
 }
 
-func (h *audioServe) hintFor(r *http.Request, mediaID string) int {
+// hintFor is the announced start as a segment of the rendition's grid, 0 when
+// none was announced.
+func (h *audioServe) hintFor(r *http.Request, mediaID string, grid domaintranscoding.SegmentGrid) int {
 	if h.startHint == nil {
 		return 0
 	}
-	return h.startHint(startHintKey(r, mediaID))
+	sec, ok := h.startHint(startHintKey(r, mediaID))
+	if !ok || sec <= 0 {
+		return 0
+	}
+	return grid.SegmentIndexAt(sec)
 }
 
 func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64, copyCodec string) {
@@ -212,7 +228,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	ensureInit := h.audioOrch.EnsureAudioInit
 	if at, ok := h.audioOrch.(audioStartAware); ok {
 		ensureInit = func(ctx context.Context, fp apptranscoding.AudioFingerprint) error {
-			return at.EnsureAudioInitAt(ctx, fp, h.hintFor(r, mediaID))
+			return at.EnsureAudioInitAt(ctx, fp, h.hintFor(r, mediaID, fp.Grid))
 		}
 	}
 	if err := ensureInit(waitCtx, fp); err != nil {
@@ -395,6 +411,9 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 		// Non-zero only when the video is packaged by the ffmpeg copy fallback
 		// instead of mkvgo - see transcode_audio_sync.go.
 		VideoCompositionDelay: videoCompositionDelay,
+		// The user's resync: a rendition is the only audio such a playback
+		// has, so the shift is applied here or nowhere.
+		AudioOffsetMs: audioOffsetMsQuery(r),
 	}
 }
 

@@ -166,6 +166,22 @@ func (s *CommandService) WithIngestActivePlayback(count func() int) {
 	s.scan.WithIngestActivePlayback(count)
 }
 
+// WithPruneGuard sets the thresholds past which a root's deletions are held.
+func (s *CommandService) WithPruneGuard(g PruneGuard) {
+	s.scan.WithPruneGuard(g)
+}
+
+// PruneSuspensions lists the library roots whose deletions are held back.
+func (s *CommandService) PruneSuspensions() []PruneSuspension {
+	return s.scan.pruner.AllSuspensions()
+}
+
+// ConfirmPrune lets the next scan of the library delete under its suspended
+// roots; false when none is suspended.
+func (s *CommandService) ConfirmPrune(libraryID string) bool {
+	return s.scan.pruner.ConfirmPrune(libraryID)
+}
+
 // WithPlayingMedia lets a version re-probe skip the files being watched.
 func (s *CommandService) WithPlayingMedia(list func(ctx context.Context) (map[shared.MediaItemID]bool, error)) {
 	s.scan.WithPlayingMedia(list)
@@ -445,6 +461,12 @@ func (s *CommandService) UpdateLibrary(ctx context.Context, lib *library.Library
 	if err := s.libraries.Update(ctx, lib); err != nil {
 		return fmt.Errorf("update library: %w", err)
 	}
+	// The watcher re-arms on it: new paths or a monitoring switch take effect
+	// without a restart.
+	evt := library.LibraryUpdated{LibraryID: lib.ID, OccurredAt: lib.UpdatedAt}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -513,6 +535,14 @@ func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
 		if idxErr := s.search.RemoveMediaItem(ctx, id); idxErr != nil {
 			slog.WarnContext(ctx, "library: search index remove failed",
 				slog.String("mediaItemID", id), slog.Any("err", idxErr))
+		}
+	}
+	// The same event as a scan prune: playlists, caches and notifications
+	// let go of the item. An admin delete used to tell none of them.
+	if s.events != nil {
+		evt := library.MediaItemRemoved{MediaItemID: shared.MediaItemID(id), OccurredAt: time.Now()}
+		if err := s.events.Publish(ctx, evt); err != nil {
+			slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 		}
 	}
 	return nil

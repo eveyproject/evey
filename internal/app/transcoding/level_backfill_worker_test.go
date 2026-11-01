@@ -294,7 +294,7 @@ func TestLevelBackfill_StartStopClean(t *testing.T) {
 	w.Start(context.Background())
 	require.Eventually(t, func() bool {
 		return len(store.setTargets()) == 1
-	}, time.Second, 2*time.Millisecond, "the worker should process the one pending item")
+	}, eventuallyWait, 2*time.Millisecond, "the worker should process the one pending item")
 
 	done := make(chan struct{})
 	go func() { w.Stop(); close(done) }()

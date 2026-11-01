@@ -1,8 +1,9 @@
-import { TriangleAlert } from "lucide-react";
+import { CircleSlash, Trash2, TriangleAlert } from "lucide-react";
 import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { shedI18nKey } from "@evey/client";
 import { episodeLabel, libraryServiceGetMediaItem, libraryServiceListMediaItems, playerAudioStreams, playerSubtitleStreams } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
@@ -139,7 +140,8 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   }, [shareOpen]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // The track picked on the title page rides the first verdict.
-  const { streamInfo, sessionId, streamToken, fetchStreamToken, isLoading, isError, progress, stopSession, selectAudioStream } =
+  const queryClient = useQueryClient();
+  const { streamInfo, sessionId, streamToken, fetchStreamToken, isLoading, isError, goneReason, progress, stopSession, selectAudioStream } =
     usePlaySession(mediaId, undefined, { audioStreamIndex: pickedAudio });
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   useEffect(() => {
@@ -337,7 +339,20 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
       <div className="flex-1 relative flex items-center justify-center">
         {/* Watch Together moved into HLSPlayer's top-right cluster (next to the
             cast icon); the trigger + visibility are passed down below. */}
-        {isError ? (
+        {goneReason ? (
+          // Gone from disk or from the catalogue: nothing to retry. The lists
+          // that still show the title are refetched on the way out.
+          <div className="flex flex-col items-center gap-4 text-white text-center px-6">
+            {goneReason === "file_missing"
+              ? <Trash2 size={48} strokeWidth={1.5} aria-hidden />
+              : <CircleSlash size={48} strokeWidth={1.5} aria-hidden />}
+            <p className="text-lg font-medium">{t(shedI18nKey(goneReason, "title"))}</p>
+            <p className="text-sm text-white/70 max-w-md">{t(shedI18nKey(goneReason, "body"))}</p>
+            <Button variant="overlay" onClick={() => { void queryClient.invalidateQueries(); handleClose(); }}>
+              {t("player.goBack")}
+            </Button>
+          </div>
+        ) : isError ? (
           <div className="flex flex-col items-center gap-4 text-white">
             <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
             <p className="text-lg font-medium">{t("player.failedToStart")}</p>

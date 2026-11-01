@@ -22,6 +22,15 @@ type LibraryDeleted struct {
 
 func (e LibraryDeleted) EventName() string { return "library.deleted" }
 
+// LibraryUpdated is published after a library's name, paths or real-time
+// monitoring switch changed.
+type LibraryUpdated struct {
+	LibraryID  shared.LibraryID
+	OccurredAt time.Time
+}
+
+func (e LibraryUpdated) EventName() string { return "library.updated" }
+
 type LibraryScanStarted struct {
 	LibraryID  shared.LibraryID
 	OccurredAt time.Time
@@ -102,3 +111,17 @@ type TrickplayGenerated struct {
 }
 
 func (e TrickplayGenerated) EventName() string { return "trickplay.generated" }
+
+// PruneSuspended is published when an orphan prune refuses to delete the
+// items under one library root because too many of them are gone at once (a
+// pool missing a branch disk, not a real mass deletion). Missing and Total
+// count the items of that root. Published once per suspension, not per pass.
+type PruneSuspended struct {
+	LibraryID  shared.LibraryID
+	Root       string
+	Missing    int
+	Total      int
+	OccurredAt time.Time
+}
+
+func (e PruneSuspended) EventName() string { return "library.prune.suspended" }

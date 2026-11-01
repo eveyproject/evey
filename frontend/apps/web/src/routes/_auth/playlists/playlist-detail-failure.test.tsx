@@ -30,6 +30,7 @@ vi.mock("@/features/playlist/SmartPlaylistRulesEditor", () => ({ SmartPlaylistRu
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   useAuthStore: (sel: (s: { accessToken: string | null }) => unknown) => sel({ accessToken: "tok" }),
+  useMusicPlayerStore: (sel: (s: { play: () => void }) => unknown) => sel({ play: vi.fn() }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 

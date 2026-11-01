@@ -9,7 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
+	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -21,7 +22,21 @@ import (
 
 const (
 	maxConcurrentDeliveries = 10
-	deliveryTimeout         = 30 * time.Second
+	// deliveryTimeout bounds an admin's Test click, who waits on the answer.
+	deliveryTimeout = 30 * time.Second
+	// attemptTimeout bounds one send, so an event delivery's budget can cover
+	// every attempt of the retry schedule (see asyncDeliveryBudget).
+	attemptTimeout = 10 * time.Second
+)
+
+const (
+	signatureHeader = "X-Evey-Signature"
+	deliveryHeader  = "X-Evey-Delivery"
+	// timestampHeader and signatureV2Header carry the replay-protected proof:
+	// the v2 HMAC covers "<timestamp>.<delivery id>.<body>". The legacy
+	// signature stays body-only so existing receivers keep verifying.
+	timestampHeader   = "X-Evey-Timestamp"
+	signatureV2Header = "X-Evey-Signature-V2"
 )
 
 var defaultRetryDelays = []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second}
@@ -99,12 +114,21 @@ func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
 						s.log.Error("webhook: goroutine panic", slog.Any("recover", r), slog.String("webhook", c.ID))
 					}
 				}()
-				dCtx, cancel := context.WithTimeout(ctx, deliveryTimeout)
+				dCtx, cancel := context.WithTimeout(ctx, s.asyncDeliveryBudget())
 				defer cancel()
 				_, _ = s.deliver(dCtx, c, ev.EventName(), ev)
 			}(cfg)
 		default:
 			s.log.Warn("webhook: delivery queue full, dropping", slog.String("webhook", cfg.ID))
+			// Record the drop where the admin reads deliveries: otherwise a
+			// saturated pool loses events with no trace outside the server log.
+			s.recordDelivery(ctx, &webhook.Delivery{
+				ID:        uuid.New().String(),
+				WebhookID: cfg.ID,
+				Event:     ev.EventName(),
+				Error:     "dropped: delivery queue full",
+				SentAt:    time.Now(),
+			})
 		}
 	}
 }
@@ -137,34 +161,57 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 	deliveryID := uuid.New().String()
 	lastErr, statusCode = s.attemptDeliver(ctx, cfg, deliveryID, body)
 
-	// Persist the audit on a context detached from the delivery deadline. The
-	// retry budget (1+5+30s) can exceed deliveryTimeout (30s), so when retries
-	// are exhausted ctx is already expired by the time we get here - and the
-	// exhausted-retry record is exactly the one worth keeping. Writing under the
-	// dead ctx would silently drop it; give the write its own short budget.
-	auditCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-	if err := s.deliveries.Create(auditCtx, &webhook.Delivery{
+	s.recordDelivery(ctx, &webhook.Delivery{
 		ID:         deliveryID,
 		WebhookID:  cfg.ID,
 		Event:      eventName,
 		StatusCode: statusCode,
 		Error:      lastErr,
 		SentAt:     time.Now(),
-	}); err != nil {
-		s.log.Warn("store webhook delivery failed", slog.String("webhookID", cfg.ID), slog.Any("err", err))
-	}
+	})
 	return lastErr, statusCode
+}
+
+// recordDelivery persists the audit on a context detached from the delivery
+// deadline. A Test call's retries can outlast deliveryTimeout, so when retries
+// are exhausted ctx is already expired by the time we get here - and the
+// exhausted-retry record is exactly the one worth keeping. Writing under the
+// dead ctx would silently drop it; give the write its own short budget.
+func (s *Service) recordDelivery(ctx context.Context, d *webhook.Delivery) {
+	auditCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := s.deliveries.Create(auditCtx, d); err != nil {
+		s.log.Warn("store webhook delivery failed", slog.String("webhookID", d.WebhookID), slog.Any("err", err))
+	}
+}
+
+// asyncDeliveryBudget is the deadline of an event delivery: every attempt at
+// its own timeout plus every backoff, so the last retry is actually sent.
+func (s *Service) asyncDeliveryBudget() time.Duration {
+	budget := time.Duration(len(s.retryDelays)+1) * attemptTimeout
+	for _, d := range s.retryDelays {
+		budget += d
+	}
+	return budget
 }
 
 func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, deliveryID string, body []byte) (string, int) {
 	var lastErr string
 	var statusCode int
 
-	headers := make(map[string]string, len(cfg.Headers)+2)
-	headers["X-Evey-Signature"] = sign(cfg.Secret, body)
-	headers["X-Evey-Delivery"] = deliveryID
-	maps.Copy(headers, cfg.Headers)
+	// Configured headers go first and never under the signature or delivery
+	// names, in any case: the sender canonicalises keys in map order, so a
+	// "x-evey-signature" entry would otherwise replace the HMAC at random.
+	headers := make(map[string]string, len(cfg.Headers)+4)
+	for k, v := range cfg.Headers {
+		switch http.CanonicalHeaderKey(k) {
+		case signatureHeader, deliveryHeader, timestampHeader, signatureV2Header:
+			continue
+		}
+		headers[k] = v
+	}
+	headers[signatureHeader] = sign(cfg.Secret, body)
+	headers[deliveryHeader] = deliveryID
 
 	for attempt := 0; attempt <= len(s.retryDelays); attempt++ {
 		if attempt > 0 {
@@ -175,7 +222,14 @@ func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, deliv
 			}
 		}
 
-		sc, err := s.sender.Send(ctx, cfg.URL, headers, body)
+		// Stamped per attempt: a retry after the longest delay must still be fresh.
+		ts := strconv.FormatInt(time.Now().Unix(), 10)
+		headers[timestampHeader] = ts
+		headers[signatureV2Header] = signV2(cfg.Secret, ts, deliveryID, body)
+
+		attemptCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
+		sc, err := s.sender.Send(attemptCtx, cfg.URL, headers, body)
+		cancel()
 		if err != nil {
 			lastErr = err.Error()
 			s.log.Warn("webhook delivery failed", slog.String("webhook", cfg.ID), slog.Int("attempt", attempt+1), slog.Any("err", err))
@@ -195,6 +249,13 @@ func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, deliv
 
 func sign(secret string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	return fmt.Sprintf("sha256=%x", mac.Sum(nil))
+}
+
+func signV2(secret, timestamp, deliveryID string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(timestamp + "." + deliveryID + "."))
 	mac.Write(body)
 	return fmt.Sprintf("sha256=%x", mac.Sum(nil))
 }

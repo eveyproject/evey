@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createPlayerEventReporter,
   itemLabel,
@@ -22,6 +23,8 @@ import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
+import { diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
+import { subscribePlayerStatus } from "@evey/client/native/playerStatus";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
@@ -32,7 +35,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { noteViewerActivity, resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
+import { canRetryShed, noteViewerActivity, resolveStartPositionMs, isTitleGone, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { useInterruptedPlaybackMarker } from "../../../src/hooks/useInterruptedPlaybackMarker";
@@ -146,6 +149,10 @@ export default function PlayerScreen() {
       restart: restart === "1",
       ...(Number(start) > 0 ? { startSec: Number(start) } : {}),
     });
+  // Read by the error listener, which outlives renders: how the stream that
+  // failed was being played, for the error beacon.
+  const playMethodRef = useRef("");
+  playMethodRef.current = playMethodName(streamInfo?.playMethod);
 
   // The running profile's languages and "auto-play next episode" choice, the
   // same reading on every player (usePlayerProfilePrefs). A track picked in
@@ -458,7 +465,7 @@ export default function PlayerScreen() {
         }
       });
     });
-    const statusSub = player.addListener("statusChange", (ev) => {
+    const statusSub = subscribePlayerStatus(player, (ev) => {
       withPlayer((p) => {
         setIsPlaying(p.playing);
         setDuration(p.duration);
@@ -503,6 +510,7 @@ export default function PlayerScreen() {
           details: ev.error?.message ?? "",
           fatal: true,
           posSec,
+          diag: diagnoseNativePlayerError(ev.error?.message ?? "", playMethodRef.current),
         });
         setNativeError(ev.error?.message ?? "playback error");
       }
@@ -954,6 +962,19 @@ export default function PlayerScreen() {
     if (nextEp.previousEpisode?.id) handleNavigateEpisode(nextEp.previousEpisode.id);
   }, [nextEp.previousEpisode, handleNavigateEpisode]);
 
+  // A title whose file was deleted: every list this television holds may still
+  // carry it (the server drops it at the rescan it just started), so they are
+  // refetched; and with autoplay on, the series carries on with the next
+  // episode instead of stopping on the deleted one.
+  const queryClient = useQueryClient();
+  const fileMissingHandledRef = useRef(false);
+  useEffect(() => {
+    if (!isTitleGone(shedReason) || fileMissingHandledRef.current) return;
+    fileMissingHandledRef.current = true;
+    void queryClient.invalidateQueries();
+    if (autoplayNext && nextEp.nextEpisode?.id) gatedNavigateEpisode(nextEp.nextEpisode.id);
+  }, [shedReason, queryClient, autoplayNext, nextEp.nextEpisode, gatedNavigateEpisode]);
+
   const sleepTimer = useSleepTimer({ onMinutesFire: () => withPlayer((p) => p.pause()) });
   // Both hooks return a fresh object every render; their cancel callbacks are
   // stable, so effects depend on those instead of the whole object.
@@ -1308,6 +1329,35 @@ export default function PlayerScreen() {
   // icon (not a red error) and copy that names neither "transcoding" nor any
   // other internal term.
   if (asleep) return <PlayerSleepScreen onWake={wake} />;
+
+  if (shedReason && isTitleGone(shedReason)) {
+    // Nothing to retry: the way out is the next episode, when there is one.
+    const next = nextEp.nextEpisode;
+    return (
+      <PlayerStatusScreen
+        icon={shedReason === "file_missing" ? "trash-outline" : "remove-circle-outline"}
+        title={t(shedI18nKey(shedReason, "title"))}
+        body={t(shedI18nKey(shedReason, "body"))}
+        actionLabel={next ? t("player.controls.nextEpisode") : t("player.goBack")}
+        onAction={next ? handleManualNextEpisode : handleBack}
+        onBack={handleBack}
+      />
+    );
+  }
+
+  if (shedReason && !canRetryShed(shedReason)) {
+    // This server can never prepare the file for this device: no retry.
+    return (
+      <PlayerStatusScreen
+        icon="alert-circle-outline"
+        title={t(shedI18nKey(shedReason, "title"))}
+        body={t(shedI18nKey(shedReason, "body"))}
+        actionLabel={t("player.goBack")}
+        onAction={handleBack}
+        onBack={handleBack}
+      />
+    );
+  }
 
   if (shedReason) {
     return (

@@ -611,6 +611,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", streamAuth(snapshotH))
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.LibCmdSvc, s.ServerCtx))))
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.LibCmdSvc))))
+	mux.HandleFunc("GET /api/v1/admin/libraries/prune-suspended", admin(pruneSuspensionsHandler(s.LibCmdSvc)))
+	mux.HandleFunc("POST /api/v1/admin/libraries/{id}/prune/confirm", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, pruneConfirmHandler(s.LibCmdSvc, s.ServerCtx, s.LibraryAccessRepo))))
 	mux.HandleFunc("POST /api/v1/admin/search/reindex", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, searchReindexHandler(s.LibCmdSvc, s.ServerCtx))))
 
 	// Encode calibration: read the current capability + force a rebench
@@ -666,7 +668,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 				manifestGen:          apptranscoding.NewManifestGenerator(),
 				cache:                s.HLSVODCache,
 				audioOrch:            aOrch,
-				startHint:            func(key string) int { seg, _ := vodHandler.prewarmSegment(key, 0, time.Now()); return seg },
+				startHint:            func(key string) (float64, bool) { return vodHandler.startHints.peek(key, time.Now()) },
 				audioNormalizeGetter: s.AudioNormalizeGetter,
 				audioEncoderIDGetter: s.AudioEncoderIDGetter,
 				segmentWaitTimeout:   30 * time.Second,
@@ -811,7 +813,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		}
 		registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL, cfgSvc)
 	}()
-	parental := registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen)
+	var parentalOpts []parentalOption
+	if s.UserAuthSvc != nil {
+		parentalOpts = append(parentalOpts, withPasswordReauth(s.UserAuthSvc))
+	}
+	parental := registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen, parentalOpts...)
 	registerScheduleRoutes(mux, parental, s.ProfileHours)
 	// The web + mobile admin panels both call GET/PATCH
 	// .../admin/users/{id}/bitrate-limit, but neither the proto nor this mux

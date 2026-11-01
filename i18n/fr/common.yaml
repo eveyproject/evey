@@ -128,6 +128,7 @@ notifications:
   episodeCount_other: "{{count}} épisodes"
   backupFailed: "Échec de la sauvegarde planifiée"
   cacheFull: "Cache des sous-titres plein"
+  pruneSuspended: "Suppression de bibliothèque suspendue"
   mediaRequest: "Nouvelle demande de média : {{name}}"
   requestAnswered: "Votre demande de média a été mise à jour : {{name}}"
   clearConfirm: Supprimer toutes les notifications ?

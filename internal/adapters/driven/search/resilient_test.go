@@ -306,3 +306,58 @@ func TestResilient_RemoveLibraryReachesThePrimary(t *testing.T) {
 		t.Fatalf("primary purged %v, want [lib-1]", rm.removed)
 	}
 }
+
+type recordingQueue struct{ ops []string }
+
+func (q *recordingQueue) Enqueue(_ context.Context, id, op string) error {
+	q.ops = append(q.ops, op+":"+id)
+	return nil
+}
+func (q *recordingQueue) List(context.Context, int) ([]library.PendingSearchWrite, error) {
+	return nil, nil
+}
+func (q *recordingQueue) Delete(context.Context, library.PendingSearchWrite) error { return nil }
+
+// With a submit-only writer, the request and scan paths never wait on the
+// engine's task (that wait is up to minutes under load): writes go to the
+// writer, and every upsert is queued so the drain confirms it on primary.
+func TestResilient_SubmitOnlyWriterQueuesEveryUpsertForTheDrain(t *testing.T) {
+	var primaryWrites, writerWrites int
+	primary := &fakeSearchIndex{
+		indexFunc:      func(context.Context, *library.MediaItem) error { primaryWrites++; return nil },
+		indexBatchFunc: func(context.Context, []*library.MediaItem) error { primaryWrites++; return nil },
+	}
+	rm := &libraryRemover{}
+	writer := struct {
+		*fakeSearchIndex
+		*libraryRemover
+	}{&fakeSearchIndex{
+		indexFunc:      func(context.Context, *library.MediaItem) error { writerWrites++; return nil },
+		indexBatchFunc: func(context.Context, []*library.MediaItem) error { writerWrites++; return nil },
+	}, rm}
+	q := &recordingQueue{}
+	r := search.NewResilient(primary, &fakeSearchIndex{}).WithQueue(q).WithSubmitOnlyWriter(writer)
+	ctx := context.Background()
+
+	require.NoError(t, r.IndexMediaItem(ctx, &library.MediaItem{ID: "a"}))
+	require.NoError(t, r.IndexMediaItemsBatch(ctx, []*library.MediaItem{{ID: "b"}, {ID: "c"}}))
+	require.NoError(t, r.RemoveLibrary(ctx, "lib-1"))
+
+	assert.Equal(t, 0, primaryWrites, "the waiting adapter is the drain's, not the request's")
+	assert.Equal(t, 2, writerWrites)
+	assert.Equal(t, []string{"lib-1"}, rm.removed)
+	assert.Equal(t, []string{"upsert:a", "upsert:b", "upsert:c"}, q.ops, "every submitted upsert is confirmed by the drain")
+}
+
+// Without the outbox a submit-only write could be lost: the writer is ignored.
+func TestResilient_SubmitOnlyWriterNeedsTheQueue(t *testing.T) {
+	var primaryWrites int
+	primary := &fakeSearchIndex{indexFunc: func(context.Context, *library.MediaItem) error { primaryWrites++; return nil }}
+	writer := &fakeSearchIndex{indexFunc: func(context.Context, *library.MediaItem) error {
+		t.Fatal("submit-only writer used without an outbox")
+		return nil
+	}}
+	r := search.NewResilient(primary, &fakeSearchIndex{}).WithSubmitOnlyWriter(writer)
+	require.NoError(t, r.IndexMediaItem(context.Background(), &library.MediaItem{ID: "a"}))
+	assert.Equal(t, 1, primaryWrites)
+}

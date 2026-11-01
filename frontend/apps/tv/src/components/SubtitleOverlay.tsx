@@ -1,12 +1,7 @@
 import { memo } from "react";
-import { usePlayhead } from "@evey/client";
+import { useSubtitleCue } from "@evey/client";
 import { useTranslation } from "react-i18next";
 import { View, Text, StyleSheet, Image, useWindowDimensions } from "react-native";
-import {
-  findActivePGSCue,
-  findActiveCueIndex,
-} from "@evey/api";
-import { useSubtitleTrack } from "@evey/client";
 import {
   DEFAULT_SUBTITLE_STYLE,
   subtitleBgRgba,
@@ -24,9 +19,10 @@ import {
  * a BITMAP track the server burnt it into the video, which denies the copy rung
  * and turns a direct-playing remux into a full transcode.
  *
- * One component covers both, exactly as on mobile: the same route answers WebVTT
- * for a text track and a decoded-image blob for a bitmap one, and the first
- * bytes say which.
+ * The fetch and the cue selection (text or bitmap) live in @evey/client's
+ * useSubtitleCue, shared with the phone and the browser television and written
+ * so the overlay re-renders only when the active cue changes, not on every
+ * playhead tick. Only the painting below is this platform's.
  */
 
 interface Props {
@@ -39,18 +35,18 @@ interface Props {
   style?: SubtitleStyle;
 }
 
-function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec: givenTime, style }: Props) {
-  const playhead = usePlayhead();
-  const currentTimeSec = givenTime ?? playhead;
+function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: Props) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  // The fetch and the text/bitmap sniff live in @evey/client, shared with the
-  // browser television; only the painting below is this platform's.
-  const { cues, pgs, preparing } = useSubtitleTrack(mediaId, subtitleIndex, currentTimeSec);
+  const { preparing, text, pgs } = useSubtitleCue(
+    mediaId,
+    subtitleIndex,
+    currentTimeSec !== undefined ? { currentTimeSec } : {},
+  );
   const { t } = useTranslation();
 
   // The server is still producing the track (202 + Retry-After): said in the
   // subtitle's place rather than a menu entry that shows nothing for minutes.
-  if (preparing && !pgs && cues.length === 0) {
+  if (preparing) {
     return (
       <View pointerEvents="none" style={styles.textContainer}>
         <Text style={styles.text}>{t("player.subtitlesPreparing")}</Text>
@@ -59,28 +55,23 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec: givenTime
   }
 
   if (pgs) {
-    const { track, uris } = pgs;
-    const idx = findActivePGSCue(track.cues, currentTimeSec * 1000);
-    if (idx === -1 || track.screenW <= 0 || track.screenH <= 0) return null;
-    const cue = track.cues[idx];
     // Scaled from the SUBTITLE plane, which is not the video resolution: every
     // 2160p disc measured carries a 1920x1080 plane, so using the media's
     // dimensions would offset and mis-size every cue by a factor of two.
-    const sx = screenWidth / track.screenW;
-    const sy = screenHeight / track.screenH;
+    const sx = screenWidth / pgs.screenW;
+    const sy = screenHeight / pgs.screenH;
     return (
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <Image
-          source={{ uri: uris[idx] }}
+          source={{ uri: pgs.uri }}
           resizeMode="stretch"
-          style={{ position: "absolute", left: cue.x * sx, top: cue.y * sy, width: cue.w * sx, height: cue.h * sy }}
+          style={{ position: "absolute", left: pgs.cue.x * sx, top: pgs.cue.y * sy, width: pgs.cue.w * sx, height: pgs.cue.h * sy }}
         />
       </View>
     );
   }
 
-  const active = findActiveCueIndex(cues, currentTimeSec);
-  if (active === -1) return null;
+  if (text === null) return null;
   const cueStyle = style ?? DEFAULT_SUBTITLE_STYLE;
   const fontSize = subtitleCueFontSizePx(screenHeight, cueStyle.fontSize);
   return (
@@ -104,14 +95,14 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec: givenTime
           },
         ]}
       >
-        {cues[active].text}
+        {text}
       </Text>
     </View>
   );
 }
 
-// Memoized: this is the one piece of the TV player that re-renders on every
-// playhead tick, so it stays out of the screen's own render.
+// Memoized: with the cue selection behind usePlayheadSelector, this re-renders
+// only when the active cue changes, not on every playhead tick.
 export const SubtitleOverlay = memo(SubtitleOverlayImpl);
 
 const styles = StyleSheet.create({

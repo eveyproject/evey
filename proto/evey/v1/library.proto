@@ -414,6 +414,8 @@ message UpdateLibraryRequest {
   string id = 1;
   optional string name = 2;
   repeated string paths = 3;
+  // Absent leaves the setting as it is.
+  optional bool realtime_monitoring = 4;
 }
 
 message DeleteLibraryResponse {}

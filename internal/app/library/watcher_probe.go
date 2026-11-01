@@ -62,12 +62,17 @@ type probeState struct {
 	waiting map[string]chan struct{}
 	// unhealthy holds the libraries whose last probe went unanswered.
 	unhealthy map[string]bool
+	// blind holds the libraries whose "cannot write a probe file" notice was
+	// already logged, so a permanently read-only root says it once rather than
+	// every round. Cleared when the library gets any other verdict.
+	blind map[string]bool
 }
 
 func newProbeState() *probeState {
 	return &probeState{
 		waiting:   make(map[string]chan struct{}),
 		unhealthy: make(map[string]bool),
+		blind:     make(map[string]bool),
 	}
 }
 
@@ -107,6 +112,33 @@ func (p *probeState) setHealth(libID string, healthy bool) {
 		return
 	}
 	p.unhealthy[libID] = true
+}
+
+// forget drops a library's verdict when its watch is removed: the next probe
+// round judges the watch that replaces it, as it does at boot.
+func (p *probeState) forget(libID string) {
+	p.mu.Lock()
+	delete(p.unhealthy, libID)
+	delete(p.blind, libID)
+	p.mu.Unlock()
+}
+
+// noteBlind records that the library cannot be probed and reports whether this
+// is a change worth logging (false when it was already noted).
+func (p *probeState) noteBlind(libID string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.blind[libID] {
+		return false
+	}
+	p.blind[libID] = true
+	return true
+}
+
+func (p *probeState) clearBlind(libID string) {
+	p.mu.Lock()
+	delete(p.blind, libID)
+	p.mu.Unlock()
 }
 
 // UnhealthyLibraries returns the IDs whose watch failed its last probe. The
@@ -213,16 +245,14 @@ func (ws *WatcherService) safeProbeRound(ctx context.Context) {
 	ws.probeRound(ctx)
 }
 
-// probeRound probes one directory per watched library.
+// probeRound probes every watched root of every watched library.
 func (ws *WatcherService) probeRound(ctx context.Context) {
 	ws.mu.Lock()
-	// One representative path per library is enough: a library whose watches
-	// were dropped loses them together (same inotify instance, same limit).
-	perLib := make(map[string]string, len(ws.pathToLib))
+	// Every root is probed: a library can have several, on different mounts, and
+	// one deaf root is invisible if only a sibling is tested.
+	perLib := make(map[string][]string, len(ws.pathToLib))
 	for path, libID := range ws.pathToLib {
-		if _, seen := perLib[libID]; !seen {
-			perLib[libID] = path
-		}
+		perLib[libID] = append(perLib[libID], path)
 	}
 	ws.mu.Unlock()
 
@@ -251,44 +281,49 @@ func (ws *WatcherService) probeRound(ctx context.Context) {
 		return
 	}
 
-	for libID, dir := range perLib {
-		// A network share defeats the probe by construction: our own write
-		// raises the local event, so the probe passes while writes from any
-		// other client stay invisible. Don't even write the file - just decline
-		// to vouch, so this library keeps the frequent scan cadence.
-		if ws.networkFS != nil {
+	for libID, dirs := range perLib {
+		if !ws.probeLibrary(ctx, libID, dirs) {
+			return
+		}
+	}
+}
+
+// probeLibrary judges one library from all its watched roots: it is alive only
+// if every root answers. Returns false when ctx ended and the round must stop.
+func (ws *WatcherService) probeLibrary(ctx context.Context, libID string, dirs []string) bool {
+	// A network share defeats the probe by construction: our own write
+	// raises the local event, so the probe passes while writes from any
+	// other client stay invisible. Don't even write the file - just decline
+	// to vouch, so this library keeps the frequent scan cadence.
+	if ws.networkFS != nil {
+		for _, dir := range dirs {
 			if fsType, isNet := ws.networkFS(dir); isNet {
 				ws.probes.setHealth(libID, false)
+				ws.probes.clearBlind(libID)
 				metrics.WatcherProbeTotal.WithLabelValues(libID, "network_fs").Inc()
 				metrics.WatcherAlive.WithLabelValues(libID).Set(0)
 				ws.log.Debug("watcher probe: network share - inotify cannot see other clients' writes, keeping periodic scans",
 					slog.String("library_id", libID), slog.String("dir", dir), slog.String("fs_type", fsType))
-				continue
+				return true
 			}
 		}
+	}
 
+	var dead, inconclusive bool
+	for _, dir := range dirs {
 		started := time.Now()
 		err := ws.probeOnce(ctx, dir)
 		elapsed := time.Since(started)
 		switch {
 		case err == nil:
-			wasDead := ws.probes.UnhealthyLibraries()[libID]
-			ws.probes.setHealth(libID, true)
 			metrics.WatcherProbeTotal.WithLabelValues(libID, "alive").Inc()
-			metrics.WatcherAlive.WithLabelValues(libID).Set(1)
-			if wasDead {
-				// Recovery is a state CHANGE - worth an Info even in a quiet log.
-				ws.log.Info("watcher probe: watch is answering again, real-time monitoring restored",
-					slog.String("library_id", libID), slog.Duration("rtt", elapsed))
-				continue
-			}
 			// Steady-state success stays at Debug (it fires every round, per
-			// library) but it MUST be emitted: without it there is no way to
+			// root) but it MUST be emitted: without it there is no way to
 			// tell a healthy probe from one that never started.
 			ws.log.Debug("watcher probe: watch is alive",
 				slog.String("library_id", libID), slog.String("dir", dir), slog.Duration("rtt", elapsed))
 		case ctx.Err() != nil:
-			return
+			return false
 		case strings.Contains(err.Error(), "probe write"):
 			// Could not write (read-only mount, permissions). Inconclusive:
 			// leave the previous verdict alone rather than guessing.
@@ -296,27 +331,50 @@ func (ws *WatcherService) probeRound(ctx context.Context) {
 			// Warn, not Debug: this means the probe is permanently unable to
 			// vouch for this library, and an operator debugging "my new files
 			// do not show up" needs to see that the health signal is blind
-			// rather than green.
+			// rather than green. Once per library though: the state does not
+			// change between rounds, so repeating it only buries other signals.
+			inconclusive = true
 			metrics.WatcherProbeTotal.WithLabelValues(libID, "inconclusive").Inc()
-			ws.log.Warn("watcher probe: cannot write a probe file, watch health is UNKNOWN for this library (read-only root?)",
-				slog.String("library_id", libID), slog.String("dir", dir), slog.Any("err", err))
+			if ws.probes.noteBlind(libID) {
+				ws.log.Warn("watcher probe: cannot write a probe file, watch health is UNKNOWN for this library (read-only root?)",
+					slog.String("library_id", libID), slog.String("dir", dir), slog.Any("err", err))
+			}
 		default:
+			dead = true
 			metrics.WatcherProbeTotal.WithLabelValues(libID, "dead").Inc()
-			metrics.WatcherAlive.WithLabelValues(libID).Set(0)
 			ws.log.Warn("watcher probe: no event came back - treating this library as unwatched, falling back to scanning",
 				slog.String("library_id", libID), slog.String("dir", dir),
 				slog.Duration("waited", elapsed), slog.Any("err", err))
-			ws.probes.setHealth(libID, false)
-			// Changes may already have been missed while the watch was dead.
-			if scanErr := ws.triggerScan(ctx, libID); scanErr != nil {
-				ws.log.Warn("watcher probe: recovery scan could not start - this library may stay stale until the next pass",
-					slog.String("library_id", libID), slog.Any("err", scanErr))
-			} else {
-				ws.log.Info("watcher probe: recovery scan started after a failed probe",
-					slog.String("library_id", libID))
-			}
 		}
 	}
+
+	switch {
+	case dead:
+		ws.probes.clearBlind(libID)
+		metrics.WatcherAlive.WithLabelValues(libID).Set(0)
+		ws.probes.setHealth(libID, false)
+		// Changes may already have been missed while the watch was dead.
+		if scanErr := ws.triggerScan(ctx, libID); scanErr != nil {
+			ws.log.Warn("watcher probe: recovery scan could not start - this library may stay stale until the next pass",
+				slog.String("library_id", libID), slog.Any("err", scanErr))
+		} else {
+			ws.log.Info("watcher probe: recovery scan started after a failed probe",
+				slog.String("library_id", libID))
+		}
+	case inconclusive:
+		// Previous verdict stands.
+	default:
+		ws.probes.clearBlind(libID)
+		wasDead := ws.probes.UnhealthyLibraries()[libID]
+		ws.probes.setHealth(libID, true)
+		metrics.WatcherAlive.WithLabelValues(libID).Set(1)
+		if wasDead {
+			// Recovery is a state CHANGE - worth an Info even in a quiet log.
+			ws.log.Info("watcher probe: watch is answering again, real-time monitoring restored",
+				slog.String("library_id", libID))
+		}
+	}
+	return true
 }
 
 // ProbeRoundForTest runs one probe round synchronously. Exported for the

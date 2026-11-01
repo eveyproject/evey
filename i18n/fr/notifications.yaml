@@ -33,6 +33,9 @@ push:
     title: "Sauvegarde planifiée échouée"
   cache_full:
     title: "Cache des sous-titres plein"
+  prune_suspended:
+    title: "Suppression de bibliothèque suspendue"
+    body: "{count} fichiers manquants sous {root}, suppression suspendue"
   plugin_error:
     title: "Erreur du plugin"
   plugin_error_id:

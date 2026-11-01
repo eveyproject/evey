@@ -66,7 +66,7 @@ describe("LibrariesPage", () => {
     vi.clearAllMocks();
     mockUseQuery.mockImplementation((opts: { queryKey: unknown[] }) => {
       const key = opts?.queryKey?.[0];
-      if (key === "/api/v1/admin/library-stats") return { data: [], isLoading: false };
+      if (key === "/api/v1/admin/library-stats" || key === "/api/v1/admin/libraries/prune-suspended") return { data: [], isLoading: false };
       if (key === "/api/v1/admin/library-stats" || String(key).includes("schedule")) return { data: null, isLoading: false };
       // media items query
       return { data: { pagination: { totalItems: 5 } }, isLoading: false };
@@ -114,6 +114,16 @@ describe("LibrariesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Delete$/i }));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // No cron schedule does not mean no scan: the server walks every library on
+  // its own periodic pass. The column said "Off", which read as never scanned.
+  it("shows an unscheduled library as scanned automatically, not off", async () => {
+    mockListLibraries.mockReturnValue({ data: { libraries: [mockLibrary] }, isLoading: false });
+    const LibrariesPage = await getLibrariesPage();
+    render(React.createElement(LibrariesPage), { wrapper: createWrapper() });
+    expect(screen.getByText("Automatic")).toBeInTheDocument();
+    expect(screen.queryByText("Off")).not.toBeInTheDocument();
   });
 
   it("shows scan and schedule buttons for library row", async () => {

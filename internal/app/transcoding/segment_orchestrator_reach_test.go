@@ -29,7 +29,7 @@ func TestOrchestrator_CoveringRafaleTooFarBehindGetsAFreshOneAtTheRequest(t *tes
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 23))
 	require.Eventually(t, func() bool {
 		return proc.startCount() == 2 && o.ActiveCount() == 2
-	}, time.Second, 10*time.Millisecond)
+	}, eventuallyWait, 10*time.Millisecond)
 	assert.Equal(t, 23, proc.lastOpts().StartNumber, "the fresh rafale starts AT the request")
 	assert.InDelta(t, 23.0*3.0, proc.lastOpts().StartSec, 0.001)
 }

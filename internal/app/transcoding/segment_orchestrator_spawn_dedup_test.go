@@ -170,7 +170,7 @@ func TestOrchestrator_UnreadPreWarm_ReapedBeforeAReadRafale(t *testing.T) {
 
 	// Keep the resume rafale read while the sweeper runs, so only the unread
 	// one can qualify.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(eventuallyWait)
 	for time.Now().Before(deadline) {
 		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 122))
 		if o.ActiveCount() == 1 {
@@ -181,4 +181,58 @@ func TestOrchestrator_UnreadPreWarm_ReapedBeforeAReadRafale(t *testing.T) {
 
 	assert.Equal(t, 1, o.ActiveCount(), "the unread pre-warm must be reaped, the read rafale kept")
 	assert.Equal(t, 2, proc.startCount(), "no respawn: the survivor is the original resume rafale")
+}
+
+// A spawn that panics must still settle its claim: the settle used to run
+// after spawnSession returned, so a panic left every later request inside the
+// window parked on a claim nobody would settle.
+func TestOrchestrator_PanickingSpawnReleasesItsClaim(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := &panicOnceProcess{fakeProcess: newFakeProcess()}
+	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, testOpts(), discardLogger())
+	defer o.Close()
+	fp := minimalFingerprint(t)
+
+	func() {
+		defer func() { _ = recover() }()
+		_ = o.EnsureSegmentRange(context.Background(), fp, 0, 0)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, o.EnsureSegmentRange(ctx, fp, 0, 0), "the second request must spawn, not wait on a stranded claim")
+	assert.Equal(t, 1, o.ActiveCount())
+}
+
+// The claimant's own context ending is not an outcome for the requests
+// parked on its claim: a waiter whose context is alive spawns for itself.
+func TestOrchestrator_ClaimantContextErrorIsNotTheWaitersOutcome(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	claimed := make(chan struct{})
+	var once sync.Once
+	slowSource := SourceResolverFunc(func(ctx context.Context, _ DecisionFingerprint) (string, []SourceStream, error) {
+		once.Do(func() { close(claimed) })
+		time.Sleep(50 * time.Millisecond)
+		if err := ctx.Err(); err != nil {
+			return "", nil, err
+		}
+		return "/media/test.mkv", nil, nil
+	})
+	o := NewSegmentOrchestrator(cache, proc, slowSource, testOpts(), discardLogger())
+	defer o.Close()
+	fp := minimalFingerprint(t)
+
+	claimantCtx, cancelClaimant := context.WithCancel(context.Background())
+	claimantErr := make(chan error, 1)
+	go func() { claimantErr <- o.EnsureSegmentRange(claimantCtx, fp, 0, 0) }()
+	<-claimed
+	waiterErr := make(chan error, 1)
+	go func() { waiterErr <- o.EnsureSegmentRange(context.Background(), fp, 0, 0) }()
+	time.Sleep(10 * time.Millisecond)
+	cancelClaimant()
+
+	require.ErrorIs(t, <-claimantErr, context.Canceled)
+	require.NoError(t, <-waiterErr, "the waiter's context is alive: it must not inherit the claimant's cancellation")
+	assert.Equal(t, 1, o.ActiveCount())
 }

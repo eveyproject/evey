@@ -48,20 +48,27 @@ func audioStartDelayFor(ctx context.Context, opts transcoding.HLSProcessOpts) fl
 	if !hasAudio(opts) || opts.AudioDecision != "transcode" {
 		return 0
 	}
-	fi, err := os.Stat(opts.FilePath)
+	return probedAudioStartDelay(ctx, opts.FilePath, opts.AudioTrackIndex)
+}
+
+// probedAudioStartDelay is the start delay of the audioIdx-th audio track
+// (0:a:N), memoized per file identity; 0 on a probe failure or an audio track
+// starting first. The muxed ladder and the audio renditions read the same one.
+func probedAudioStartDelay(ctx context.Context, filePath string, audioIdx int) float64 {
+	fi, err := os.Stat(filePath)
 	if err != nil {
 		return 0
 	}
-	key := fmt.Sprintf("%s|%d|%d|%d", opts.FilePath, opts.AudioTrackIndex, fi.Size(), fi.ModTime().UnixNano())
+	key := fmt.Sprintf("%s|%d|%d|%d", filePath, audioIdx, fi.Size(), fi.ModTime().UnixNano())
 	if v, ok := audioDelayCache.Load(key); ok {
 		return v.(float64)
 	}
-	d, err := probeAudioStartDelaySec(ctx, audioDelayProbeBinary, opts.FilePath, opts.AudioTrackIndex)
+	d, err := probeAudioStartDelaySec(ctx, audioDelayProbeBinary, filePath, audioIdx)
 	if err != nil {
 		// Not cached: a transient failure (context cancel, IO hiccup) must not
 		// pin "no delay" for the file's whole process lifetime.
 		slog.Warn("hls: audio start-delay probe failed, session keeps the source delay",
-			slog.String("media_path", opts.FilePath), slog.Any("err", err))
+			slog.String("media_path", filePath), slog.Any("err", err))
 		return 0
 	}
 	if d < 0 {
@@ -70,9 +77,9 @@ func audioStartDelayFor(ctx context.Context, opts transcoding.HLSProcessOpts) fl
 		d = 0
 	}
 	if d > audioDelayCancelMinSec {
-		slog.Info("hls: source audio start delay detected, cancelling via shifted second input",
-			slog.String("media_path", opts.FilePath),
-			slog.Int("audio_track", opts.AudioTrackIndex),
+		slog.Info("hls: source audio start delay detected, cancelling it",
+			slog.String("media_path", filePath),
+			slog.Int("audio_track", audioIdx),
 			slog.Float64("delay_sec", d))
 	}
 	if audioDelayCacheLen.Add(1) > audioDelayCacheCap {

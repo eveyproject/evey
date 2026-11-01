@@ -1,5 +1,5 @@
 ---
-source_sha: 6363fc4fc30f333ce87a44681eb0db3e41164d111846551eb9a028b3cd37b61f
+source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
 reviewed: true
 ---
 # Plugin-Sandbox und Bedrohungsmodell { #plugin-sandbox-and-threat-model }
@@ -198,7 +198,7 @@ Berechtigung `network` ruft die Methode `Fetch` des Hosts über seinen
 Unix-Socket auf. Der Host, in
 `internal/adapters/driving/pluginhost/fetch.go`:
 
-- prüft das Ziel gegen die Liste `external_fetch` des Plugins (genaue Hosts, ohne Beachtung von Groß- und Kleinschreibung; ein Platzhalter `*.example.com` wird bei der Installation abgelehnt; ein Port-Suffix wird ignoriert);
+- prüft das Ziel gegen die Liste `external_fetch` des Plugins (genaue Hosts, ohne Beachtung von Groß- und Kleinschreibung; ein Platzhalter `*.example.com` wird bei der Installation abgelehnt; ein Eintrag ohne Port erlaubt nur die Ports 80 und 443, `host:port` nur diesen Port);
 - erlaubt nur `http` und `https` und nur `GET` und `HEAD`;
 - verbindet sich über einen SSRF-sicheren Client (`internal/pkg/ssrf`), der
   private, reservierte und link-lokale Adressen nach der DNS-Auflösung
@@ -242,6 +242,7 @@ Abgelehnte Systemaufrufe:
 |---|---|
 | Debugging | `ptrace`, `process_vm_readv`, `process_vm_writev` |
 | Signale | `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo` an jeden Prozess außer dem Plugin selbst (beide Filter); `kill` ebenso im Kernel-Filter, an jedes Ziel im `LD_PRELOAD`-Filter; `tkill` im Kernel-Filter (der `LD_PRELOAD`-Filter erlaubt es an das Plugin selbst); `pidfd_send_signal`, `pidfd_getfd` (stiehlt einen Dateideskriptor). Eine Laufzeit, die ein Signal erneut auslöst oder ihre eigenen Threads unterbricht, funktioniert weiter. Ab Landlock ABI 6 kann ein Plugin außerdem keinem Prozess außerhalb seiner Sandbox ein Signal schicken |
+| Signal-Besitzer eines Dateideskriptors (Kernel-Filter) | `fcntl` `F_SETOWN` auf jeden anderen Prozess als das Plugin selbst, `F_SETSIG` auf jedes andere Signal als das voreingestellte `SIGIO`, `F_SETOWN_EX` sowie `ioctl` `FIOSETOWN`/`SIOCSPGRP`: Ohne das würde ein Deskriptor, dessen Besitzer der Server ist und dessen Signal `SIGKILL` ist, den Server beim nächsten Schreiben beenden |
 | Mounts | `mount`, `umount2`, `pivot_root`, `chroot` |
 | Namespaces | `unshare`, `setns` und `clone` mit einem Flag `CLONE_NEW*` (unshare unter anderem Namen), für jedes Plugin |
 | Kernel-Module | `init_module`, `finit_module`, `delete_module` |
@@ -267,9 +268,13 @@ Namespaces und die Liste erlaubter Mounts begrenzt.
 
 ### Ein eigener Benutzer { #a-separate-user }
 
-Ein Plugin kann als Benutzer 1001 (`evey-plugin`) laufen, getrennt vom
-Server (1000). Dann kann es die Geheimnisse des Servers allein wegen der
-Dateirechte nicht lesen. `EVEY_PLUGINS_UID_SEPARATION` steuert das:
+Ein Plugin kann als eigener Benutzer laufen, getrennt vom Server (1000).
+Dann kann es die Geheimnisse des Servers allein wegen der Dateirechte nicht
+lesen. Jedes Plugin leitet seine UID aus seiner ID ab, im Bereich 40000 bis
+59999, über Neustarts hinweg gleich; es behält die Gruppe des Servers, die
+die installierten Dateien nur liest. Zwei IDs können auf dieselbe UID fallen:
+Diese beiden Plugins teilen sie dann. `EVEY_PLUGINS_UID_SEPARATION` steuert
+das:
 
 | Wert | Wann der Wechsel passiert |
 |---|---|
@@ -287,8 +292,10 @@ Warnung als Benutzer des Servers läuft. In `bubblewrap` und `strict`
 Ist der Wechsel aktiv, sind der Signierschlüssel (`0600`) und die
 Sicherungen (Verzeichnis `0700`, Dateien `0600`) zur Laufzeit nur für den
 Besitzer lesbar, und das gilt auch für ein per Bind-Mount eingehängtes
-`/data`. Alle Plugins teilen sich den Benutzer 1001: Voneinander getrennt
-sind sie durch die Dateisystem-Schicht, nicht durch den Benutzer.
+`/data`. Voneinander getrennt sind die Plugins durch ihre UID, zusätzlich
+zur Dateisystem-Schicht. Ein als root laufender Server (nicht empfohlen)
+lässt dagegen jedes Plugin zum einzigen Benutzer 1001 wechseln: Dort trennt
+nur die Dateisystem-Schicht die Plugins.
 
 ### Authentifizierung am Host-Socket { #host-socket-authentication }
 
@@ -301,6 +308,13 @@ wurde. Die Identität des Plugins kommt aus dem Socket, nie aus einem Header.
 Ein Plugin kann sich also nicht als ein anderes ausgeben, nicht den Socket
 eines anderen Plugins aufrufen und keine Aufrufe über einen Kindprozess
 leiten. Eine abweichende PID wird als Warnung protokolliert.
+
+Die andere Richtung wird genauso geprüft: Der Server spricht mit dem Plugin
+über `plugin.sock` im selben Verzeichnis und lehnt die Verbindung ab, wenn
+der darauf lauschende Prozess nicht das Plugin selbst ist (wieder
+`SO_PEERCRED`). Mit einem eigenen Benutzer pro Plugin trägt das Verzeichnis
+das Sticky-Bit, sodass ein benachbartes Plugin der gemeinsamen Gruppe diesen
+Socket nicht löschen kann, um seinen eigenen zu binden.
 
 ### Ressourcenlimits { #resource-limits }
 
@@ -471,7 +485,7 @@ Maschine passt, in einfachen Worten:
 | Grenze | Auswirkung | Was sie heute begrenzt |
 |---|---|---|
 | Keine Beschränkung pro Pfad in `basic` auf einem Kernel ohne Landlock | Ein Plugin kann nicht sensible, für alle lesbare Dateien und die Verzeichnisse anderer Plugins lesen | Geheimnisse geschützt durch den eigenen Benutzer und `PR_SET_DUMPABLE`; `auto` bevorzugt Landlock oder bubblewrap |
-| Alle Plugins teilen sich den Benutzer 1001 | Im Modus `basic` kann ein Plugin Dateien lesen, die anderen Plugins gehören | Signale an andere Prozesse sind blockiert (seccomp, `LD_PRELOAD` und bubblewrap blockieren sie alle); `PR_SET_DUMPABLE` verhindert das Lesen anderer Prozesse über `/proc`; Landlock und bubblewrap trennen die Plugin-Verzeichnisse |
+| Plugin-UIDs stammen aus einem Hash der ID; ein als root laufender Server lässt jedes Plugin zum Benutzer 1001 wechseln | Zwei Plugins mit kollidierenden IDs oder alle Plugins unter einem root-Server teilen sich eine UID: Im Modus `basic` kann eines die Dateien des anderen lesen | Signale an andere Prozesse sind blockiert (seccomp, `LD_PRELOAD` und bubblewrap blockieren sie alle); `PR_SET_DUMPABLE` verhindert das Lesen anderer Prozesse über `/proc`; Landlock und bubblewrap trennen die Plugin-Verzeichnisse |
 | Seccomp ist eine Sperrliste | Datei- und Unix-Socket-Aufrufe bleiben erlaubt | Pfade sind durch Landlock oder bubblewrap beschränkt; IP-Sockets werden abgelehnt |
 | Der Vermittler verlagert die SSRF-Angriffsfläche auf den Host | Ein Fehler in der Prüfung des Vermittlers könnte eine interne Adresse erreichen | Freigabeliste und SSRF-sicherer Client in Go; eine Ausgangsregel auf dem Container als unabhängige Schicht |
 | Der Vermittler bestimmt, wohin ein Aufruf geht, nicht was er mitnimmt | Daten können zu einem Host auf der Liste des Plugins abfließen | Erlauben Sie nur Hosts, denen Sie diese Daten anvertrauen |

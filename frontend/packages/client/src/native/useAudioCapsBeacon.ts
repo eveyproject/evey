@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { eveyFetch } from "@evey/api";
 import { formatAbnormalExit, formatDecoderCheck, getAudioProbe, reportAudioProbeOnce, type DecoderCheck } from "@evey/media-caps";
+import { formatVideoCaps, type VideoCapsReport } from "./videoCapsReport";
 
 let checkSent = false;
 
@@ -26,9 +27,31 @@ export async function reportDecoderCheckOnce(
   }
 }
 
+let videoCapsSent = false;
+
+/**
+ * Once per launch: what the video decoders declared (level, largest frames,
+ * size-rate answers), so a decoder error reported later is read against it.
+ */
+export async function reportVideoCapsOnce(
+  report: Promise<VideoCapsReport | null>,
+  post: (body: { type: string; details: string; fatal: boolean }) => Promise<unknown>,
+): Promise<void> {
+  if (videoCapsSent) return;
+  videoCapsSent = true;
+  const r = await report;
+  if (!r) return;
+  try {
+    await post({ type: "video_caps", details: formatVideoCaps(r), fatal: false });
+  } catch {
+    /* latched anyway: a refused beacon is refused again on retry */
+  }
+}
+
 /** Test seam. */
 export function resetDecoderCheckLatch(): void {
   checkSent = false;
+  videoCapsSent = false;
 }
 
 /**
@@ -61,6 +84,9 @@ export function useAudioCapsBeacon(mediaId: string): void {
       });
     void reportAudioProbeOnce(getAudioProbe, post);
     // Lazy: deviceCodecs probes the device as it loads.
-    void import("./deviceCodecs").then((m) => reportDecoderCheckOnce(m.getDecoderCheck(), post));
+    void import("./deviceCodecs").then((m) => {
+      void reportDecoderCheckOnce(m.getDecoderCheck(), post);
+      void reportVideoCapsOnce(m.getVideoCapsReport(), post);
+    });
   }, [mediaId]);
 }

@@ -60,7 +60,7 @@ func TestProbe_AgainstRealWatcher_ReportsAlive(t *testing.T) {
 		applibrary.WatcherWithProbeTimeout(5*time.Second),
 	)
 	ctx := t.Context()
-	if startErr := ws.Start(ctx); startErr != nil {
+	if startErr := startSync(ws, ctx); startErr != nil {
 		t.Fatalf("watcher start: %v", startErr)
 	}
 	defer ws.Stop()

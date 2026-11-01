@@ -92,13 +92,15 @@ var errFetchRedirectOffList = errors.New("redirect target not in external_fetch 
 // private/metadata target slip past the IP filter.
 var newFetchClient = func() *http.Client { return ssrf.SafeHTTPClientNoProxy(fetchTimeout) }
 
-// hostAllowed reports whether host (already lower-cased, no port) is covered by
-// the plugin's external_fetch allow-list. An entry may be a bare host
-// ("api.open-meteo.com") matched case-insensitively and exactly, or a wildcard
-// ("*.example.com") matching any single-or-deeper subdomain but NOT the apex.
-// Ports in an allow-list entry are ignored for matching (the SSRF dialer and
-// the scheme check bound the reachable ports).
-func hostAllowed(host string, allowList []string) bool {
+// hostAllowed reports whether host (already lower-cased, no port) on port is
+// covered by the plugin's external_fetch allow-list. An entry may be a bare
+// host ("api.open-meteo.com") matched case-insensitively and exactly, or a
+// wildcard ("*.example.com") matching any single-or-deeper subdomain but NOT
+// the apex. A bare entry grants the standard web ports only (80 and 443); an
+// entry with a ":port" suffix grants that port only. The SSRF dialer keeps
+// private addresses out of reach but checks no port, so without this an entry
+// would open every port of the host to the plugin.
+func hostAllowed(host, port string, allowList []string) bool {
 	if host == "" {
 		return false
 	}
@@ -107,12 +109,20 @@ func hostAllowed(host string, allowList []string) bool {
 		if entry == "" {
 			continue
 		}
-		// Drop a ":port" suffix if present so "example.com:8443" still matches
-		// on host. Bracketed IPv6 literals have no bare-port ambiguity here.
+		// Split a ":port" suffix off the host. Bracketed IPv6 literals have no
+		// bare-port ambiguity here.
+		entryPort := ""
 		if i := strings.LastIndex(entry, ":"); i > 0 && !strings.Contains(entry[i:], "]") {
-			if _, err := netSplitPort(entry); err == nil {
-				entry = entry[:i]
+			if p, err := netSplitPort(entry); err == nil {
+				entry, entryPort = entry[:i], p
 			}
+		}
+		if entryPort == "" {
+			if port != "80" && port != "443" {
+				continue
+			}
+		} else if port != entryPort {
+			continue
 		}
 		if strings.HasPrefix(entry, "*.") {
 			suffix := entry[1:] // ".example.com"
@@ -126,6 +136,18 @@ func hostAllowed(host string, allowList []string) bool {
 		}
 	}
 	return false
+}
+
+// targetPort is the port a request to u dials: the explicit one, or the
+// scheme's default.
+func targetPort(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	if strings.EqualFold(u.Scheme, "https") {
+		return "443"
+	}
+	return "80"
 }
 
 // netSplitPort reports an error unless entry ends in a numeric ":port".
@@ -185,10 +207,10 @@ func (h *HostServer) Fetch(ctx context.Context, req *pluginv1.FetchRequest) (*pl
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "plugin %s not found", pluginID)
 	}
-	if !hostAllowed(host, p.ExternalFetch) {
+	if !hostAllowed(host, targetPort(u), p.ExternalFetch) {
 		// Indistinguishable-ish from a genuine denial; the plugin declared its
 		// hosts at install, so this only trips on an off-list target.
-		return nil, status.Errorf(codes.PermissionDenied, "host %q not in external_fetch allow-list", host)
+		return nil, status.Errorf(codes.PermissionDenied, "host %q port %s not in external_fetch allow-list", host, targetPort(u))
 	}
 
 	var headerBytes int
@@ -220,7 +242,7 @@ func (h *HostServer) Fetch(ctx context.Context, req *pluginv1.FetchRequest) (*pl
 
 	// Re-apply the allow-list on EVERY redirect hop. The SSRF dialer re-checks
 	// the resolved IP on each connect (so the internal network stays out of
-	// reach) but never re-checks the HOST, so without this a 302 from an
+	// reach) but never re-checks the HOST or the port, so without this a 302 from an
 	// allow-listed open-redirect to an arbitrary external host would let a
 	// plugin exfiltrate anywhere - defeating the whole point of the allow-list.
 	client := newFetchClient()
@@ -230,7 +252,7 @@ func (h *HostServer) Fetch(ctx context.Context, req *pluginv1.FetchRequest) (*pl
 		if len(via) >= maxFetchRedirects {
 			return errors.New("stopped after too many redirects")
 		}
-		if !hostAllowed(strings.ToLower(req.URL.Hostname()), allow) {
+		if !hostAllowed(strings.ToLower(req.URL.Hostname()), targetPort(req.URL), allow) {
 			return errFetchRedirectOffList
 		}
 		return nil

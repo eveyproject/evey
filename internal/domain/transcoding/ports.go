@@ -118,6 +118,13 @@ type AudioProcessOpts struct {
 	// Output bytes are unchanged. 0 = no pacing.
 	ReadRate float64
 
+	// AudioUserOffsetSec is the user's audio resync (s, positive = audio later)
+	// and AudioStartDelaySec how far the source track starts after the video:
+	// the same pair as HLSProcessOpts, combined into one input shift the same
+	// way (a re-encode only).
+	AudioUserOffsetSec float64
+	AudioStartDelaySec float64
+
 	// SilenceDurationSec > 0 makes the session a bounded silence generator
 	// (`-f lavfi -i anullsrc`, FilePath ignored), numbered like a real session:
 	// an audio track ending before the container's declared duration would

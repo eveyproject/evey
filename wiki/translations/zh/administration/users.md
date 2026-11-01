@@ -1,5 +1,5 @@
 ---
-source_sha: a4932bd9b417f0f18be610734a595c186387167b23522b0dbd34267c0fc17fc7
+source_sha: 6e76969ff95c1e39240ccc551c83d1cf46ca20ebd5bc3c3544267ad5ed7b37a4
 reviewed: true
 ---
 # 用户、个人资料和家长控制 { #users-profiles-and-parental-control }
@@ -61,6 +61,8 @@ reviewed: true
 
     - 第一次设置 PIN 码时需要输入账户密码。修改 PIN 码时需要输入当前的 PIN 码。**设置 → 家长控制**用来设置当前所用个人资料的 PIN 码。
     - 只有在非儿童个人资料里，才能管理个人资料和家长控制设置。
+    - 输错 PIN 码会让个人资料锁定一段时间，继续猜就锁得更久。在儿童个人资料锁定画面上输入的家长 PIN，会计入它所尝试的那些成人个人资料。
+      要提前解除锁定，管理员，或者凭账户密码的账户所有者，可以调用 `POST /api/v1/profiles/{id}/parental/reset-lockout`（所有者需带上 `{"currentPassword": "..."}`）。在儿童个人资料里会被拒绝。
     - 管理员账户不能有儿童个人资料：否则年龄限制会隐藏管理员自己的一部分媒体库。
 
 ## 年龄限制 { #age-limits }
@@ -162,6 +164,7 @@ downloads: internal/adapters/driving/http/compat_download_handler.go (checkParen
 library access: internal/app/user/access_service.go (GrantMany, RevokeAllLibraryAccess) ; UserRow hides the Libraries button for admins
 requests: i18n admin.mediaRequests.* (approve, reject, later, tabAccess, accessDefaultLabel, accessOverridesTitle) ; requests.*
 share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
+PIN lockout: internal/app/user/pin_attempts.go - Attempt (lock check, compare and count as one step), pinTiers, Reset ; internal/adapters/driving/http/auth_handler.go - resetLockout ; profile_schedule.go Unlock counts on the adult profiles tried
 opening hours: internal/domain/user/schedule.go - AccessSchedule, DefaultKidsSchedule, Window, AccessAt, OverrideUntil ; internal/app/user/profile_schedule.go - Unlock (adult PIN only) ; internal/adapters/driving/http/profile_closed.go (httpAuthMiddleware, httpStreamAuthMiddleware) ; grpcapi/interceptors/profile_hours.go ; grpcapi/playback_closing_soon.go (closingWarnLead 10 min) ; internal/app/config/timezone.go - KeyServerTimezone ; postgres profile_repo.go - scheduleFromJSON (unreadable = closed) ; i18n auth.profile.schedule.*, auth.profile.locked.*, admin.serverConfig.timezone
 home: internal/app/feed/* ; i18n admin.serverConfig.feedConfig.*, media.home.*
 first profile named after the username: internal/app/user/user_service.go, access_service.go - RegisterWithInvite (NewProfile with u.Username)

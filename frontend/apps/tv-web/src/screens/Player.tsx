@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   formatAudioTrackLabel,
   trackDisplayName,
@@ -24,6 +25,8 @@ import {
   SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive,
   resolveStartPositionMs,
   shedI18nKey,
+  canRetryShed,
+  isTitleGone,
   playingFromHlsLevel,
   servedVariant,
   noteViewerActivity,
@@ -84,6 +87,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   const { audioLangs: profileAudioLangs, subtitleLangs: profileSubLangs, autoplayNext: autoAdvance, setAutoplayNext } = usePlayerProfilePrefs();
+  const queryClient = useQueryClient();
   const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, progress, restartWithTracks } =
     useTvPlaySession(mediaId, TV_DEVICE, {
       ...(audio !== undefined ? { audioStreamIndex: audio } : {}),
@@ -770,6 +774,21 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
     : null;
   const pendingDelta = preview !== null ? preview - time : 0;
 
+  if (shedReason && isTitleGone(shedReason)) {
+    // Nothing to retry: the lists that still show the title are refetched.
+    return (
+      <div className="player">
+        <FocusRoot autoFocus className="screen screen-center">
+          <h1 className="title">{t(shedI18nKey(shedReason, "title"))}</h1>
+          <p className="subtitle">{t(shedI18nKey(shedReason, "body"))}</p>
+          <div className="actions">
+            <Button variant="primary" autoFocus onPress={() => { void queryClient.invalidateQueries(); goBack(); }}>{t("common.back", "Back")}</Button>
+          </div>
+        </FocusRoot>
+      </div>
+    );
+  }
+
   if (shedReason) {
     return (
       <div className="player">
@@ -777,8 +796,14 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
           <h1 className="title">{t(shedI18nKey(shedReason, "title"))}</h1>
           <p className="subtitle">{t(shedI18nKey(shedReason, "body"))}</p>
           <div className="actions">
-            <Button variant="primary" autoFocus onPress={() => restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality)}>{t("player.retry", "Retry")}</Button>
-            <Button onPress={goBack}>{t("common.back", "Back")}</Button>
+            {canRetryShed(shedReason) ? (
+              <>
+                <Button variant="primary" autoFocus onPress={() => restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality)}>{t("player.retry", "Retry")}</Button>
+                <Button onPress={goBack}>{t("common.back", "Back")}</Button>
+              </>
+            ) : (
+              <Button variant="primary" autoFocus onPress={goBack}>{t("common.back", "Back")}</Button>
+            )}
           </div>
         </FocusRoot>
       </div>

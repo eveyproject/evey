@@ -1,5 +1,5 @@
 ---
-source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
+source_sha: e016d46cbfda306ec5cb1c9dbbdef535ee12acea8711452911a11d22e66d34b1
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -57,7 +57,7 @@ config_schema:               # los campos del panel Config de la tarjeta del plu
 | `language` | Obligatorio para `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` o `go`. Elige la comprobación del runtime y los stubs que se copian junto al entrypoint; no lanza nada. |
 | `entrypoint` | Obligatorio para `kind: plugin`. La primera palabra es el intérprete (o el binario, con `native-binary`) y el resto son sus argumentos; el proceso se ejecuta en la carpeta del plugin. |
 | `permissions` | Cada valor tiene que estar en el [catálogo de permisos](security-model.md#permissions-catalog). `network` exige un `external_fetch` no vacío. |
-| `external_fetch` | Nombres de host. Un esquema y una ruta final se descartan al analizar; los hosts coinciden exactamente, un comodín `*.example.com` se rechaza en la instalación y un sufijo de puerto se ignora; una IP literal hace que se rechace la instalación ([reglas](security-model.md#external-fetch-rules)). |
+| `external_fetch` | Nombres de host. Un esquema y una ruta final se descartan al analizar; los hosts coinciden exactamente, un comodín `*.example.com` se rechaza en la instalación; una entrada sin puerto solo permite los puertos 80 y 443, `host:port` solo ese puerto; una IP literal hace que se rechace la instalación ([reglas](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` o `notification.sender`; todo lo demás se rechaza. Un tema no puede declarar ninguna. |
 | `web_root` | Obligatorio si `frontend` no está vacío; relativo, sin `..` ni barra invertida. `.` sirve toda la carpeta del plugin y solo anota un aviso. |
 | `frontend[]` | `slot` tiene que estar en la [lista de slots](#slots); `src` tiene que estar dentro de `web_root`. |
@@ -116,7 +116,7 @@ enumeran para que un stub no te confunda.
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` o `media.read` | La ficha completa del medio, con `file_path`, `provider_ids` y `genres`. |
 | `Fetch(url, method, headers)` | `network` | La única salida del sandbox: `http` o `https`, `GET` o `HEAD`, un host de `external_fetch`, las direcciones privadas rechazadas después de la resolución y a través de las redirecciones. El cuerpo se limita a 8 MiB (`truncated` lo indica) y la petición entera a 20 segundos. El servidor no añade ninguna credencial propia. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` o `media.read` | *No servido.* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` o `media.write`, y la capacidad `metadata.provider` | Aporta tu texto para una película o una serie sin que te lo pidan, como lo haría una [respuesta de metadatos](#metadata-requests). `fields` lleva `locale` (obligatorio) y cualquiera de `title`, `overview`, `tagline`; el texto sustituye lo que aportaste para ese idioma, y un `fields` que solo lleva `locale` lo quita. `provider_ids` se rechaza: TMDB identifica el elemento. |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` o `media.write`, y la capacidad `metadata.provider` | Aporta tu texto para una película o una serie sin que te lo pidan, como lo haría una [respuesta de metadatos](#metadata-requests). `fields` lleva `locale` (obligatorio) y cualquiera de `title`, `overview`, `tagline`; el texto sustituye lo que aportaste para ese idioma, y un `fields` que solo lleva `locale` lo quita. `provider_ids` se rechaza: TMDB identifica el elemento. Lo que un plugin guarda tiene un límite: 16 idiomas por elemento, 200 000 textos y 128 MiB en total. Por encima, la llamada responde `RESOURCE_EXHAUSTED`; sustituir o quitar un texto que ya aportaste sigue siendo posible. |
 | `GetUserPreferences` | `api.user` | *No servido.* |
 | `SendNotification` | `notification.sender` | *No servido.* |
 

@@ -1,5 +1,5 @@
 ---
-source_sha: a4932bd9b417f0f18be610734a595c186387167b23522b0dbd34267c0fc17fc7
+source_sha: 6e76969ff95c1e39240ccc551c83d1cf46ca20ebd5bc3c3544267ad5ed7b37a4
 reviewed: true
 ---
 # Benutzer, Profile und Kindersicherung { #users-profiles-and-parental-control }
@@ -96,6 +96,14 @@ Was das Kind dann sieht:
       Profils fest.
     - Profile und Einstellungen der Kindersicherung lassen sich nur von einem
       Profil aus verwalten, das kein Kinderprofil ist.
+    - Falsche PINs sperren das Profil eine Weile, jedes Mal länger, wenn das
+      Raten weitergeht. Eine Eltern-PIN, die auf dem Sperrbildschirm eines
+      Kinderprofils eingegeben wird, wird den Erwachsenenprofilen angerechnet,
+      an denen sie versucht wurde. Um eine Sperre früher aufzuheben, ruft ein
+      Administrator oder der Kontoinhaber mit dem Kontopasswort
+      `POST /api/v1/profiles/{id}/parental/reset-lockout` auf (Inhalt
+      `{"currentPassword": "..."}` für den Inhaber). Von einem Kinderprofil
+      aus wird das abgelehnt.
     - Das Konto eines Administrators kann kein Kinderprofil haben: Die Grenze
       würde einen Teil der eigenen Bibliothek des Administrators verbergen.
 
@@ -257,6 +265,7 @@ downloads: internal/adapters/driving/http/compat_download_handler.go (checkParen
 library access: internal/app/user/access_service.go (GrantMany, RevokeAllLibraryAccess) ; UserRow hides the Libraries button for admins
 requests: i18n admin.mediaRequests.* (approve, reject, later, tabAccess, accessDefaultLabel, accessOverridesTitle) ; requests.*
 share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
+PIN lockout: internal/app/user/pin_attempts.go - Attempt (lock check, compare and count as one step), pinTiers, Reset ; internal/adapters/driving/http/auth_handler.go - resetLockout ; profile_schedule.go Unlock counts on the adult profiles tried
 opening hours: internal/domain/user/schedule.go - AccessSchedule, DefaultKidsSchedule, Window, AccessAt, OverrideUntil ; internal/app/user/profile_schedule.go - Unlock (adult PIN only) ; internal/adapters/driving/http/profile_closed.go (httpAuthMiddleware, httpStreamAuthMiddleware) ; grpcapi/interceptors/profile_hours.go ; grpcapi/playback_closing_soon.go (closingWarnLead 10 min) ; internal/app/config/timezone.go - KeyServerTimezone ; postgres profile_repo.go - scheduleFromJSON (unreadable = closed) ; i18n auth.profile.schedule.*, auth.profile.locked.*, admin.serverConfig.timezone
 home: internal/app/feed/* ; i18n admin.serverConfig.feedConfig.*, media.home.*
 first profile named after the username: internal/app/user/user_service.go, access_service.go - RegisterWithInvite (NewProfile with u.Username)

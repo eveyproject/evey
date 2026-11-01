@@ -534,4 +534,41 @@ describe("LogsExplorer", () => {
     expect(await screen.findByText("hls: ffmpeg exited with error")).toBeInTheDocument();
     expect(await screen.findByTestId("log-media-label")).toHaveTextContent("Some Series · S01E01 · Pilot");
   });
+
+  // A refusal is an answer, not an outage: on the demo every log route is a
+  // 403, and a tail that reconnected every 2 s turned one click on Logs into a
+  // stream of refused admin requests that got the visitor's address banned by
+  // the reverse proxy's intrusion detection.
+  it("stops the live tail on a 4xx and shows the server's refusal instead of reconnecting", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({ code: "errors.demo.locked", message: "Locked on the demo" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    try {
+      renderExplorer();
+      expect(await screen.findByText("Locked on the demo")).toBeInTheDocument();
+      // Past the 2 s reconnect delay: a retrying tail would have asked again.
+      await new Promise((r) => setTimeout(r, 2_500));
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  // An outage is worth waiting out: a 5xx or a dropped connection reconnects.
+  it("reconnects the live tail after a 5xx", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValue(sseResponse([{ level: "INFO", msg: "back again" }]));
+    try {
+      renderExplorer();
+      expect(await screen.findByText("back again", undefined, { timeout: 4_000 })).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });

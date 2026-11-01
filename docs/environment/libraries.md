@@ -11,6 +11,8 @@ there; the panel side is described in
 | --- | --- | --- | --- |
 | `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | Realtime file watching. | Server Config → Libraries → **Library file watcher**, restart |
 | `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | How often the folders are checked for what the watcher missed (network shares). | Server Config → Libraries → **Periodic scan interval**, restart |
+| `EVEY_LIBRARY_PRUNE_MAX_MISSING_PERCENT` | `5` | Share of a folder's items that may be gone in one scan. Above it (and past the minimum below), nothing under that folder is deleted until an admin confirms, which protects against a pool that lost a disk. | none |
+| `EVEY_LIBRARY_PRUNE_MIN_MISSING` | `20` | Fewest missing files that can hold a folder's deletions, so a small library can still lose a few titles. | none |
 | `EVEY_LIBRARY_SCAN_WORKERS` | from the CPU share | Files analysed in parallel during a scan. Set by hand, it bypasses the **Processing power** share for scans. | none |
 | `EVEY_SEEKINDEX_STATE_DIR` | `/data/seek-index` | Where the Media Health scan keeps its results and its running job across restarts. Empty: not kept. | none |
 

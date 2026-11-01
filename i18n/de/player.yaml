@@ -115,6 +115,15 @@ shed:
   fileNeedsRemux:
     title: "Dieses Video muss repariert werden"
     body: "Diese Datei wurde so zusammengesetzt, dass dieses Gerät sie nicht bis zum Ende lesen kann (Ton und Bild liegen in getrennten Blöcken). Ein Administrator kann sie unter Medien-Gesundheit reparieren; bis dahin bringt ein erneuter Versuch nichts."
+  sourceTooHeavy:
+    title: "Dieser Server ist für diese Datei nicht leistungsstark genug"
+    body: "Der Server hat nicht die nötige Leistung, um diese Datei auf diesem Gerät abzuspielen, auch wenn sonst nichts läuft. Versuchen Sie es auf einem anderen Gerät: Manche können sie direkt abspielen."
+  fileMissing:
+    title: "Diese Datei wurde gelöscht"
+    body: "Diese Datei ist nicht mehr auf dem Server und kann daher nicht abgespielt werden. Die Listen werden aktualisiert."
+  mediaUnavailable:
+    title: "Dieser Titel ist nicht mehr verfügbar"
+    body: "Er ist nicht mehr in der Mediathek und kann daher nicht abgespielt werden. Die Listen werden aktualisiert."
 retry: Erneut versuchen
 goBack: Zurück
 shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"

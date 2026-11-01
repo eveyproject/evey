@@ -1,5 +1,5 @@
 ---
-source_sha: 6363fc4fc30f333ce87a44681eb0db3e41164d111846551eb9a028b3cd37b61f
+source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
 reviewed: true
 ---
 # Sandbox de plugins y modelo de amenazas { #plugin-sandbox-and-threat-model }
@@ -191,7 +191,7 @@ de nombres de red en `bubblewrap` y `strict`). Un plugin con el permiso
 `network` llama al método `Fetch` del servidor por su socket Unix. El
 servidor, en `internal/adapters/driving/pluginhost/fetch.go`:
 
-- comprueba el destino con la lista `external_fetch` del plugin (hosts exactos, sin distinguir mayúsculas de minúsculas; un comodín `*.example.com` se rechaza en la instalación; un sufijo de puerto se ignora);
+- comprueba el destino con la lista `external_fetch` del plugin (hosts exactos, sin distinguir mayúsculas de minúsculas; un comodín `*.example.com` se rechaza en la instalación; una entrada sin puerto solo permite los puertos 80 y 443, `host:port` solo ese puerto);
 - solo permite `http` y `https`, y solo `GET` y `HEAD`;
 - se conecta con un cliente protegido contra SSRF (`internal/pkg/ssrf`) que
   rechaza las direcciones privadas, reservadas y de enlace local después de
@@ -234,6 +234,7 @@ Llamadas al sistema rechazadas:
 |---|---|
 | Depuración | `ptrace`, `process_vm_readv`, `process_vm_writev` |
 | Señales | `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo` hacia cualquier proceso que no sea el propio plugin (los dos filtros); `kill` igual en el filtro del núcleo, y hacia cualquier destino en el filtro `LD_PRELOAD`; `tkill` en el filtro del núcleo (el filtro `LD_PRELOAD` lo permite hacia el propio plugin); `pidfd_send_signal`, `pidfd_getfd` (roba un descriptor de archivo). Un runtime que vuelve a lanzar una señal o interrumpe sus propios hilos sigue funcionando. Con Landlock ABI 6 o posterior, un plugin tampoco puede enviar señales a un proceso fuera de su sandbox |
+| Dueño de las señales de un descriptor de archivo (filtro del núcleo) | `fcntl` `F_SETOWN` hacia cualquier proceso que no sea el propio plugin, `F_SETSIG` hacia cualquier señal que no sea `SIGIO`, la de por defecto, `F_SETOWN_EX`, e `ioctl` `FIOSETOWN`/`SIOCSPGRP`: sin esto, un descriptor cuyo dueño fuera el servidor, con `SIGKILL` como señal, mataría al servidor en la siguiente escritura |
 | Montajes | `mount`, `umount2`, `pivot_root`, `chroot` |
 | Espacios de nombres | `unshare`, `setns`, y `clone` con un indicador `CLONE_NEW*` (unshare con otro nombre), para todos los plugins |
 | Módulos del núcleo | `init_module`, `finit_module`, `delete_module` |
@@ -259,9 +260,13 @@ nombres y la lista blanca de montajes.
 
 ### Un usuario aparte { #a-separate-user }
 
-Un plugin puede funcionar como el usuario 1001 (`evey-plugin`), distinto del
-servidor (1000), así que los secretos del servidor le resultan ilegibles solo
-por los permisos de los archivos. Lo controla `EVEY_PLUGINS_UID_SEPARATION`:
+Un plugin puede funcionar como un usuario propio, distinto del servidor
+(1000), así que los secretos del servidor le resultan ilegibles solo por los
+permisos de los archivos. Cada plugin saca su uid de su identificador, en el
+rango 40000 a 59999, estable entre reinicios; conserva el grupo del servidor,
+que solo lee los archivos instalados. Dos identificadores pueden caer en el
+mismo uid: esos dos plugins lo comparten entonces. Lo controla
+`EVEY_PLUGINS_UID_SEPARATION`:
 
 | Valor | Cuándo se hace el cambio |
 |---|---|
@@ -279,8 +284,10 @@ este papel lo cumple el espacio de nombres de usuario.
 Cuando está activo, la clave de firma (`0600`) y las copias de seguridad
 (carpeta `0700`, archivos `0600`) solo son accesibles para su dueño mientras
 el servidor funciona, y eso se mantiene incluso con un `/data` montado desde
-el equipo anfitrión. Todos los plugins comparten el usuario 1001: los aísla
-entre sí la capa del sistema de archivos, no el usuario.
+el equipo anfitrión. Los plugins quedan aislados entre sí por su uid, además
+de por la capa del sistema de archivos. Un servidor que funciona como root (no
+recomendado) pasa en cambio todos los plugins al único usuario 1001: ahí solo
+la capa del sistema de archivos separa a los plugins.
 
 ### Autenticación del socket del servidor { #host-socket-authentication }
 
@@ -292,6 +299,12 @@ con el PID guardado al arrancar el plugin. La identidad del plugin sale del
 socket, nunca de una cabecera. Así que un plugin no puede hacerse pasar por
 otro, llamar al socket de otro plugin ni hacer pasar llamadas por un proceso
 hijo. Un PID que no coincide se anota como aviso.
+
+El otro sentido se comprueba igual: el servidor habla con el plugin por
+`plugin.sock`, en la misma carpeta, y rechaza la conexión si el proceso que
+escucha en él no es el propio plugin (`SO_PEERCRED` otra vez). Con un usuario
+por plugin, la carpeta lleva el sticky bit, así que un plugin vecino del grupo
+compartido no puede borrar ese socket para enlazar el suyo.
 
 ### Límites de recursos { #resource-limits }
 
@@ -461,7 +474,7 @@ en palabras sencillas:
 | Límite | Consecuencia | Lo que lo limita hoy |
 |---|---|---|
 | Sin restricción por ruta en `basic` en un núcleo sin Landlock | Un plugin puede leer los archivos no sensibles legibles por todos y las carpetas de los otros plugins | Secretos protegidos por el usuario aparte y `PR_SET_DUMPABLE`; `auto` prefiere Landlock o bubblewrap |
-| Todos los plugins comparten el usuario 1001 | En modo `basic`, un plugin puede leer archivos que pertenecen a los otros plugins | Enviar señales a otros procesos está bloqueado (seccomp, `LD_PRELOAD` y bubblewrap lo bloquean); `PR_SET_DUMPABLE` impide leer otros procesos por `/proc`; Landlock y bubblewrap aíslan las carpetas de los plugins |
+| Los uid de los plugins salen de un hash del identificador; un servidor que funciona como root pasa todos los plugins al usuario 1001 | Dos plugins cuyos identificadores caen en el mismo uid, o todos los plugins bajo un servidor root, comparten un uid: en modo `basic`, uno puede leer los archivos del otro | Enviar señales a otros procesos está bloqueado (seccomp, `LD_PRELOAD` y bubblewrap lo bloquean); `PR_SET_DUMPABLE` impide leer otros procesos por `/proc`; Landlock y bubblewrap aíslan las carpetas de los plugins |
 | Seccomp es una lista de bloqueo | Las llamadas de archivos y de sockets Unix siguen permitidas | Las rutas las restringen Landlock o bubblewrap; los sockets IP se rechazan |
 | El intermediario traslada al servidor la superficie SSRF | Un fallo en la validación del intermediario podría llegar a una dirección interna | Lista permitida y cliente protegido contra SSRF en Go; una regla de salida en el contenedor como capa independiente |
 | El intermediario controla adónde va una llamada, no lo que lleva | Los datos pueden salir hacia un host de la lista del plugin | Permite solo los hosts a los que confiarías esos datos |

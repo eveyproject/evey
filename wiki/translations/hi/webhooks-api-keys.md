@@ -1,5 +1,5 @@
 ---
-source_sha: 09be615f048b42a5c91430ee4558b2bc906d1e19a1f0c51eb2577ffa9d579533
+source_sha: 44e8e90d77d0eb2abdd259fe7a12d693a5f6af4856125bd2b2da2194a7c6ef42
 reviewed: true
 ---
 # वेबहुक और API कुंजियाँ
@@ -25,7 +25,7 @@ event दिखाता है जो सर्वर प्रकाशित 
 
 | हिस्सा | इवेंट |
 | --- | --- |
-| लाइब्रेरी | `library.scan.started`, `library.scan.completed`, `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
+| लाइब्रेरी | `library.scan.started`, `library.scan.completed`, `library.prune.suspended` (किसी रूट से एक साथ बहुत ज़्यादा फ़ाइलें गायब हो गईं, एडमिन की पुष्टि तक हटाना रोका गया), `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
 | प्लेबैक | `playback.started`, `playback.stopped`, `media.marked.watched`, `transcode.started`, `transcode.failed` |
 | खाते | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created`, `user.apikey.created` |
 | अनुरोध | `media.request.created`, `media.request.answered` |
@@ -34,13 +34,23 @@ event दिखाता है जो सर्वर प्रकाशित 
 जो प्लगइन `EmitEvent` कॉल करता है, वह `plugin.event.<type>` प्रकाशित करता है, जो
 **सभी इवेंट** वाले वेबहुक को भी मिलता है।
 
-**भेजना।** हर event एक JSON `POST` है, दो header के साथ:
+**भेजना।** हर event एक JSON `POST` है, इन header के साथ:
 
 - `X-Evey-Delivery`: एक पहचान जो एक ही भेजने की सारी कोशिशों में एक जैसी रहती है,
   ताकि आपका receiver दोहराव को अनदेखा कर सके;
 - `X-Evey-Signature`: `sha256=` और उसके बाद body का HMAC-SHA256, जो वेबहुक के
   सीक्रेट से निकाला गया है। इसे उसी सीक्रेट से जाँचें, ताकि पता रहे कि request आपके
-  सर्वर से आया है। सीक्रेट के बिना सिग्नेचर कुछ साबित नहीं करता।
+  सर्वर से आया है। सीक्रेट के बिना सिग्नेचर कुछ साबित नहीं करता। यह सिर्फ़ body को ढकता है,
+  इसलिए पकड़े गए request को दोबारा भेजे जाने से नहीं रोकता: नीचे के दो header को चुनें;
+- `X-Evey-Timestamp`: कोशिश का समय, Unix सेकंड में। हर नई कोशिश में नया मान होता है;
+- `X-Evey-Signature-V2`: `sha256=` और उसके बाद वेबहुक के सीक्रेट से निकाला गया
+  HMAC-SHA256, इस पाठ का: `<timestamp>.<delivery id>.<body>` (`X-Evey-Timestamp`
+  का मान, एक बिंदु, `X-Evey-Delivery` का मान, एक बिंदु, फिर कच्ची body)।
+
+किसी भेजे गए event को जाँचने के लिए कच्ची body से V2 सिग्नेचर दोबारा निकालें और उसे
+constant time में मिलाएँ, फिर अगर timestamp आपकी घड़ी से 5 मिनट से ज़्यादा दूर हो
+(किसी भी दिशा में) तो request मना कर दें। अगर आपका receiver उस अवधि में देखे गए
+delivery id भी याद रखता है, तो पकड़ा गया request दोबारा नहीं चलाया जा सकता।
 
 हर कोशिश जवाब के लिए 30 सेकंड तक रुकती है। फ़ेल होने पर 1, 5 और 30 सेकंड बाद फिर
 कोशिश होती है। हर कोशिश दर्ज होती है; इतिहास API से पढ़ा जाता है

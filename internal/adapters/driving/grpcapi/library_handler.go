@@ -196,6 +196,9 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 		}
 		lib.Paths = req.Paths
 	}
+	if req.RealtimeMonitoring != nil {
+		lib.RealtimeMonitoring = *req.RealtimeMonitoring
+	}
 	if err := h.cmd.UpdateLibrary(ctx, lib); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())

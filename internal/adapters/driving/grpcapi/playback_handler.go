@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
+	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -28,6 +31,7 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/network"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -60,6 +64,10 @@ type playbackHandler struct {
 	// request-time pins) - bound by the composition root once the HTTP
 	// pipeline that owns the resolver exists, before this server starts.
 	decider apptranscoding.PlaybackDecider
+	// rescanLibrary rescans a library in the background, called when a title's
+	// file is found gone at negotiation: the scan's orphan prune removes it,
+	// with its own guards against a degraded mount. Optional.
+	rescanLibrary func(ctx context.Context, libraryID string)
 	// hours warns a kids profile's player before its opening ends. Optional.
 	hours        ProfileHoursReader
 	closingWarns closingWarnings
@@ -267,6 +275,19 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 			}
 		}
 	}
+	// A file deleted from disk keeps its title until the next scan prunes it:
+	// negotiating it handed the player a direct play that could only 404, and
+	// the apps showed a generic failure. Refuse it here with a reason they
+	// read, and have the library rescanned so the title leaves the lists.
+	if item.File != nil && item.File.Path != "" && !mediaFileExists(item.File.Path) {
+		slog.WarnContext(ctx, "stream info: media file missing on disk",
+			slog.String("media_id", req.MediaItemId), slog.String("library_id", string(item.LibraryID)))
+		if h.rescanLibrary != nil && item.LibraryID != "" {
+			h.rescanLibrary(ctx, string(item.LibraryID))
+		}
+		span.SetStatus(otelcodes.Error, "media file missing")
+		return nil, mediaFileMissingError(ctx, h.translator, req.MediaItemId)
+	}
 	containerFormat := ""
 	if item.File != nil {
 		containerFormat = item.File.ContainerFormat
@@ -330,6 +351,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	// (Reported), never the bare core.
 	decided := h.playbackDecider().Reported(ctx, preq)
 	decision := &decided
+	logPlaybackDecision(ctx, req.MediaItemId, interceptors.UserAgentFromCtx(ctx), client, maxBitrateKbps, decision)
 	resp.TranscodeReasons = decision.TranscodeReasons
 	resp.VideoDecision = decision.VideoDecision
 	resp.AudioDecision = decision.AudioDecision
@@ -377,6 +399,156 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	}
 
 	return resp, nil
+}
+
+// rescanCooldown is how long a library is left alone after a rescan finished.
+// Without it every request for a deleted title started a full scan - endlessly
+// when the whole root is down, since the pruner keeps items it cannot verify.
+const rescanCooldown = 5 * time.Minute
+
+// backgroundLibraryRescan runs one library scan at a time per library, off the
+// request: the caller's answer never waits on a walk of the library, and a
+// viewer retrying a deleted title does not pile scans up.
+func backgroundLibraryRescan(cmd *applibrary.CommandService) func(ctx context.Context, libraryID string) {
+	if cmd == nil {
+		return nil
+	}
+	return newLibraryRescanner(func(ctx context.Context, libraryID string) error {
+		_, _, err := cmd.ScanLibrary(ctx, libraryID)
+		return err
+	}, rescanCooldown, time.Now)
+}
+
+func newLibraryRescanner(scan func(ctx context.Context, libraryID string) error, cooldown time.Duration, now func() time.Time) func(ctx context.Context, libraryID string) {
+	var mu sync.Mutex
+	running := map[string]bool{}
+	finished := map[string]time.Time{}
+	return func(ctx context.Context, libraryID string) {
+		mu.Lock()
+		if running[libraryID] {
+			mu.Unlock()
+			return
+		}
+		if at, ok := finished[libraryID]; ok && now().Sub(at) < cooldown {
+			mu.Unlock()
+			return
+		}
+		running[libraryID] = true
+		mu.Unlock()
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("library rescan after a missing file: panic", slog.Any("panic", r))
+				}
+				mu.Lock()
+				delete(running, libraryID)
+				finished[libraryID] = now()
+				mu.Unlock()
+			}()
+			if err := scan(context.WithoutCancel(ctx), libraryID); err != nil && !errors.Is(err, applibrary.ErrScanInProgress) {
+				slog.WarnContext(ctx, "library rescan after a missing file failed", slog.String("library_id", libraryID), slog.Any("err", err))
+			}
+		}()
+	}
+}
+
+// MediaFileMissingReason is the ErrorInfo reason of a title whose file is gone
+// from disk: the apps show "this file was deleted" instead of a failure.
+const MediaFileMissingReason = "MEDIA_FILE_MISSING"
+
+// statTimeout bounds the existence check: a stat on a hung network mount can
+// block for minutes, and it runs on the stream-info request.
+var statTimeout = 3 * time.Second
+
+// statFile is os.Stat, replaceable by tests.
+var statFile = os.Stat
+
+type statCall struct {
+	done chan struct{}
+	err  error
+}
+
+var (
+	statMu       sync.Mutex
+	statInflight = map[string]*statCall{}
+)
+
+// mediaFileExists reports whether path is on disk. An error other than "does
+// not exist" (permissions, an I/O hiccup) counts as present, and so does a stat
+// that does not answer in time: only a proven absence turns into a refusal.
+// At most one stat per path is pending, so a dead mount costs one stuck
+// goroutine per path rather than one per request.
+func mediaFileExists(path string) bool {
+	statMu.Lock()
+	call, ok := statInflight[path]
+	if !ok {
+		call = &statCall{done: make(chan struct{})}
+		statInflight[path] = call
+		stat := statFile
+		go func() {
+			_, call.err = stat(path)
+			statMu.Lock()
+			delete(statInflight, path)
+			statMu.Unlock()
+			close(call.done)
+		}()
+	}
+	statMu.Unlock()
+
+	timer := time.NewTimer(statTimeout)
+	defer timer.Stop()
+	select {
+	case <-call.done:
+		return call.err == nil || !errors.Is(call.err, fs.ErrNotExist)
+	case <-timer.C:
+		return true
+	}
+}
+
+// mediaFileMissingError is NotFound with a translated message and the
+// MEDIA_FILE_MISSING reason.
+func mediaFileMissingError(ctx context.Context, translator *eveyi18n.Translator, mediaID string) error {
+	msg := "errors.media.file_missing"
+	if translator != nil {
+		msg = translator.T(eveyi18n.LocaleFromCtx(ctx), msg)
+	}
+	st, err := status.New(codes.NotFound, msg).WithDetails(&errdetails.ErrorInfo{
+		Reason:   MediaFileMissingReason,
+		Domain:   "evey",
+		Metadata: map[string]string{"media_id": mediaID},
+	})
+	if err != nil {
+		return status.Error(codes.NotFound, msg)
+	}
+	return st.Err()
+}
+
+// logPlaybackDecision writes one line per verdict: what the client declared
+// and what it was answered. A decoder error the player reports later (the
+// player-event beacon) is then read against the capabilities the device
+// claimed, instead of guessed at. Diagnostic only.
+func logPlaybackDecision(ctx context.Context, mediaID, userAgent string, client transcoding.ClientProfile, maxBitrateKbps int, d *transcoding.PlaybackDecision) {
+	slog.InfoContext(ctx, "playback decision",
+		slog.String("component", "playback_decision"),
+		slog.String("media_id", mediaID),
+		slog.String("device", userAgent),
+		slog.String("play_method", d.PlayMethod),
+		slog.String("video_decision", d.VideoDecision),
+		slog.String("audio_decision", d.AudioDecision),
+		slog.String("reasons", strings.Join(d.TranscodeReasons, ",")),
+		slog.Int("max_h264_level", client.MaxH264Level),
+		slog.Int("max_h264_height", client.MaxH264Height),
+		slog.Int("max_width", client.MaxWidth),
+		slog.Int("max_height", client.MaxHeight),
+		slog.Bool("hdr", client.SupportsHDR),
+		slog.Int("max_audio_channels", client.MaxAudioChannels),
+		slog.String("video_codecs", strings.Join(client.VideoCodecs, ",")),
+		slog.String("audio_codecs", strings.Join(client.AudioCodecs, ",")),
+		slog.String("pixel_formats", strings.Join(client.PixelFormats, ",")),
+		slog.String("containers", strings.Join(client.Containers, ",")),
+		slog.String("fmp4_audio_passthrough", strings.Join(client.FMP4AudioPassthrough, ",")),
+		slog.Int("max_bitrate_kbps", maxBitrateKbps),
+	)
 }
 
 // typeRelativeIndex converts an ABSOLUTE probed stream index (what the proto

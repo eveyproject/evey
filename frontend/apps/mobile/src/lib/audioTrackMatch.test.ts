@@ -1,41 +1,44 @@
 import { describe, it, expect } from "vitest";
 import { pickNativeAudioTrack, nativeTrackToApply, pickPreferredStreamIndex } from "./audioTrackMatch";
 
+// A file stream as the player screens list it.
+const st = (trackIndex: number, language?: string, title?: string) => ({ index: trackIndex + 1, trackIndex, language, title });
+
 describe("pickNativeAudioTrack", () => {
   const tracks = [
     { id: "0", language: "fre", label: "VFF" },
     { id: "1", language: "eng", label: "ENG" },
   ];
 
-  it("picks by 0-based position (source order matches)", () => {
-    expect(pickNativeAudioTrack(tracks, 0, "fre")?.label).toBe("VFF");
-    expect(pickNativeAudioTrack(tracks, 1, "eng")?.label).toBe("ENG");
+  it("picks each track by its language", () => {
+    expect(pickNativeAudioTrack(tracks, st(0, "fre"), [st(0, "fre"), st(1, "eng")])?.label).toBe("VFF");
+    expect(pickNativeAudioTrack(tracks, st(1, "eng"), [st(0, "fre"), st(1, "eng")])?.label).toBe("ENG");
   });
 
   it("falls back to language when the position is out of range", () => {
     // 639-2 "eng" must still match a native "en" (639-1).
-    expect(pickNativeAudioTrack([{ language: "en", label: "English" }], 5, "eng")?.label).toBe("English");
+    expect(pickNativeAudioTrack([{ language: "en", label: "English" }], st(5, "eng"), [st(5, "eng")])?.label).toBe("English");
   });
 
   it("returns null when the manifest tracks are not parsed yet", () => {
-    expect(pickNativeAudioTrack([], 0, "fre")).toBeNull();
+    expect(pickNativeAudioTrack([], st(0, "fre"), [st(0, "fre")])).toBeNull();
   });
 
   it("returns null when nothing matches so the caller restarts instead", () => {
-    expect(pickNativeAudioTrack([{ language: "de", label: "Deutsch" }], 9, "fre")).toBeNull();
+    expect(pickNativeAudioTrack([{ language: "de", label: "Deutsch" }], st(9, "fre"), [st(9, "fre")])).toBeNull();
   });
 
   it("does not confuse Slovak (slo) with a Slovenian native track", () => {
     // A naive slice(0,2) normalization turns "slo" (Slovak) into "sl", which
     // collides with Slovenian's real 639-1 code - the wrong track would match.
     const slovenianOnly = [{ language: "slv", label: "Slovenian" }];
-    expect(pickNativeAudioTrack(slovenianOnly, 9, "slo")).toBeNull();
+    expect(pickNativeAudioTrack(slovenianOnly, st(9, "slo"), [st(9, "slo")])).toBeNull();
   });
 
   it("matches German (ger/deu, 639-2) against a native 'de' (639-1) track", () => {
     // A naive slice(0,2) of "ger" gives "ge", which never matches "de".
     const germanTrack = [{ language: "de", label: "Deutsch" }];
-    expect(pickNativeAudioTrack(germanTrack, 9, "ger")?.label).toBe("Deutsch");
+    expect(pickNativeAudioTrack(germanTrack, st(9, "ger"), [st(9, "ger")])?.label).toBe("Deutsch");
   });
 });
 
@@ -68,8 +71,7 @@ describe("pickPreferredStreamIndex", () => {
 });
 
 // A file played directly opens on ITS default track: the title page's pick
-// showed as selected in the menu while the other language played (tablet,
-// 2026-10-03).
+// showed as selected in the menu while the other language played.
 describe("nativeTrackToApply", () => {
   const tracks = [
     { id: "0", language: "fre", label: "VFF" },
@@ -77,18 +79,18 @@ describe("nativeTrackToApply", () => {
   ];
 
   it("switches to the picked stream when the player opened on another", () => {
-    expect(nativeTrackToApply(tracks, tracks[0], 1, "eng")?.label).toBe("ENG");
+    expect(nativeTrackToApply(tracks, tracks[0], st(1, "eng"), [st(0, "fre"), st(1, "eng")])?.label).toBe("ENG");
   });
 
   it("leaves the player alone when it already plays the picked stream", () => {
-    expect(nativeTrackToApply(tracks, tracks[1], 1, "eng")).toBeNull();
+    expect(nativeTrackToApply(tracks, tracks[1], st(1, "eng"), [st(0, "fre"), st(1, "eng")])).toBeNull();
   });
 
   it("applies the pick when the player does not say what it plays", () => {
-    expect(nativeTrackToApply(tracks, null, 1, "eng")?.label).toBe("ENG");
+    expect(nativeTrackToApply(tracks, null, st(1, "eng"), [st(0, "fre"), st(1, "eng")])?.label).toBe("ENG");
   });
 
   it("waits for the native tracks", () => {
-    expect(nativeTrackToApply([], null, 1, "eng")).toBeNull();
+    expect(nativeTrackToApply([], null, st(1, "eng"), [st(0, "fre"), st(1, "eng")])).toBeNull();
   });
 });

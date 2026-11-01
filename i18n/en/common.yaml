@@ -126,6 +126,7 @@ notifications:
   episodeCount_other: "{{count}} episodes"
   backupFailed: "Scheduled Backup Failed"
   cacheFull: "Subtitle cache full"
+  pruneSuspended: "Library deletion suspended"
   mediaRequest: "New media request: {{name}}"
   requestAnswered: "Your media request was updated: {{name}}"
   clearConfirm: Delete all notifications?

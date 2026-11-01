@@ -119,7 +119,12 @@ export interface VideoDecoderLimits {
   maxWidth: number;
   maxHeight: number;
   tenBitCodecs: string[];
-  codecs: Record<string, { maxWidth: number; maxHeight: number }>;
+  /**
+   * Per codec: the largest frame, and for each probe ("2160p60", "2160p30",
+   * "1080p60") whether a decoder claims that size at that rate. sizeRate is
+   * reported for diagnosis only, and absent from builds older than the probe.
+   */
+  codecs: Record<string, { maxWidth: number; maxHeight: number; sizeRate?: Record<string, boolean> }>;
 }
 
 export async function getVideoDecoderLimits(): Promise<VideoDecoderLimits | null> {

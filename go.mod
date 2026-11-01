@@ -8,12 +8,12 @@ require (
 	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/go-jose/go-jose/v4 v4.1.4
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/pprof v0.0.0-20260830191439-4932ad3515ea
 	github.com/google/uuid v1.6.0
-	github.com/gravity-zero/mkvgo v0.61.0
+	github.com/gravity-zero/mkvgo v0.62.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/lib/pq v1.12.3
 	github.com/meilisearch/meilisearch-go v0.36.3

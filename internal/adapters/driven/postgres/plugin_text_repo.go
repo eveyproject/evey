@@ -92,6 +92,32 @@ func (r *PluginTextRepository) ReplaceLocale(ctx context.Context, t library.Plug
 	return nil
 }
 
+// Usage is library.PluginTextRepository; idx_media_item_plugin_texts_plugin
+// serves the scan.
+func (r *PluginTextRepository) Usage(ctx context.Context, pluginID, mediaItemID, locale string) (library.PluginTextUsage, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin_text.Usage")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var u library.PluginTextUsage
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
+		SELECT count(*) FILTER (WHERE NOT replaced),
+		       COALESCE(sum(octet_length(title) + octet_length(overview) + octet_length(tagline)) FILTER (WHERE NOT replaced), 0),
+		       count(*) FILTER (WHERE media_item_id = $2 AND NOT replaced)
+		FROM (
+			SELECT title, overview, tagline, media_item_id,
+			       (media_item_id = $2 AND ($3 = '' OR locale = $3)) AS replaced
+			FROM media_item_plugin_texts WHERE plugin_id = $1
+		) t
+	`, pluginID, mediaItemID, locale).Scan(&u.Rows, &u.Bytes, &u.ItemLocales)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return library.PluginTextUsage{}, err
+	}
+	return u, nil
+}
+
 // DisplayedForLocale is library.PluginTextRepository: the field filter runs in
 // the query, so a field the administrator did not allow never leaves the
 // database.

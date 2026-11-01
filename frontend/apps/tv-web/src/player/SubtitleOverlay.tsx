@@ -1,11 +1,10 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import { findActiveCueIndex, findActivePGSCue } from "@evey/api";
 import {
   DEFAULT_SUBTITLE_STYLE,
   subtitleBgRgba,
   subtitleCueFontSizePx,
-  useSubtitleTrack,
+  useSubtitleCue,
   type SubtitleStyle,
 } from "@evey/client";
 
@@ -20,43 +19,39 @@ interface Props {
   style?: SubtitleStyle;
 }
 
+// The fetch and the active-cue lookup (text or bitmap) live in @evey/client's
+// useSubtitleCue, shared with the two Android players; only the painting below
+// is the DOM's.
 function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: Props) {
-  // The fetch and the text/bitmap sniff live in @evey/client, shared with the
-  // Android television; only the painting below is the DOM's.
-  const { cues, pgs, preparing } = useSubtitleTrack(mediaId, subtitleIndex, currentTimeSec);
+  const { preparing, text, pgs } = useSubtitleCue(mediaId, subtitleIndex, { currentTimeSec });
   const { t } = useTranslation();
 
   // The server is still producing the track (202 + Retry-After): said in the
   // subtitle's place rather than a menu entry that shows nothing for minutes.
-  if (preparing && !pgs && cues.length === 0) {
+  if (preparing) {
     return <div className="subs-text">{t("player.subtitlesPreparing")}</div>;
   }
 
   if (pgs) {
-    const { track, uris } = pgs;
-    const idx = findActivePGSCue(track.cues, currentTimeSec * 1000);
-    if (idx === -1 || track.screenW <= 0 || track.screenH <= 0) return null;
-    const cue = track.cues[idx];
     // Positioned in percent of the source frame: the picture is letterboxed
     // by object-fit, so the overlay covers the video box, not the screen.
     return (
       <div className="subs-pgs">
         <img
-          src={uris[idx]}
+          src={pgs.uri}
           alt=""
           style={{
-            left: `${(cue.x / track.screenW) * 100}%`,
-            top: `${(cue.y / track.screenH) * 100}%`,
-            width: `${(cue.w / track.screenW) * 100}%`,
-            height: `${(cue.h / track.screenH) * 100}%`,
+            left: `${(pgs.cue.x / pgs.screenW) * 100}%`,
+            top: `${(pgs.cue.y / pgs.screenH) * 100}%`,
+            width: `${(pgs.cue.w / pgs.screenW) * 100}%`,
+            height: `${(pgs.cue.h / pgs.screenH) * 100}%`,
           }}
         />
       </div>
     );
   }
 
-  const active = findActiveCueIndex(cues, currentTimeSec);
-  if (active === -1) return null;
+  if (text === null) return null;
   const chosen = style ?? DEFAULT_SUBTITLE_STYLE;
   return (
     <div
@@ -69,7 +64,7 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: 
         ...(chosen.position === "top" ? { top: "8%", bottom: "auto" } : {}),
       }}
     >
-      {cues[active].text.split("\n").map((line, i) => <span key={i}>{line}</span>)}
+      {text.split("\n").map((line, i) => <span key={i}>{line}</span>)}
     </div>
   );
 }

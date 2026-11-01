@@ -303,7 +303,7 @@ func TestKeyframeBackfill_StartStopClean(t *testing.T) {
 	store := &fakeKeyframeStore{queue: [][]string{{"m1"}}, setReturn: 1}
 	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{kf: []int64{0, 3253}})
 	w.Start(context.Background())
-	require.Eventually(t, func() bool { return len(store.setTargets()) == 1 }, time.Second, 2*time.Millisecond)
+	require.Eventually(t, func() bool { return len(store.setTargets()) == 1 }, eventuallyWait, 2*time.Millisecond)
 	done := make(chan struct{})
 	go func() { w.Stop(); close(done) }()
 	select {
@@ -329,7 +329,7 @@ func TestKeyframeBackfill_NudgeWakesIdleWorker(t *testing.T) {
 	w.Start(context.Background())
 	defer w.Stop()
 
-	require.Eventually(t, func() bool { return store.listCallCount() >= 1 }, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return store.listCallCount() >= 1 }, eventuallyWait, 5*time.Millisecond)
 	before := store.listCallCount()
 
 	w.Nudge()
@@ -346,7 +346,7 @@ func TestKeyframeBackfill_NudgeAfterQuietDebounces(t *testing.T) {
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	w.Start(context.Background())
 	defer w.Stop()
-	require.Eventually(t, func() bool { return store.listCallCount() >= 1 }, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return store.listCallCount() >= 1 }, eventuallyWait, 5*time.Millisecond)
 	before := store.listCallCount()
 
 	for range 5 {

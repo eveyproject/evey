@@ -1,5 +1,5 @@
 ---
-source_sha: 09be615f048b42a5c91430ee4558b2bc906d1e19a1f0c51eb2577ffa9d579533
+source_sha: 44e8e90d77d0eb2abdd259fe7a12d693a5f6af4856125bd2b2da2194a7c6ef42
 reviewed: true
 ---
 # Webhooks und API-Schlüssel
@@ -28,7 +28,7 @@ veröffentlicht, unter anderem:
 
 | Bereich | Ereignisse |
 | --- | --- |
-| Bibliothek | `library.scan.started`, `library.scan.completed`, `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
+| Bibliothek | `library.scan.started`, `library.scan.completed`, `library.prune.suspended` (ein Stammordner hat auf einmal zu viele Dateien verloren, Löschungen werden gehalten, bis ein Administrator bestätigt), `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
 | Wiedergabe | `playback.started`, `playback.stopped`, `media.marked.watched`, `transcode.started`, `transcode.failed` |
 | Konten | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created`, `user.apikey.created` |
 | Anfragen | `media.request.created`, `media.request.answered` |
@@ -37,14 +37,29 @@ veröffentlicht, unter anderem:
 Ein Plugin, das `EmitEvent` aufruft, veröffentlicht `plugin.event.<type>`.
 Ein Webhook auf **Alle Ereignisse** empfängt auch das.
 
-**Zustellung.** Jedes Ereignis ist ein JSON-`POST` mit zwei Headern:
+**Zustellung.** Jedes Ereignis ist ein JSON-`POST` mit diesen Headern:
 
 - `X-Evey-Delivery`: eine Kennung, die über alle Wiederholungen einer
   Zustellung gleich bleibt. So kann Ihr Empfänger ein Duplikat ignorieren.
 - `X-Evey-Signature`: `sha256=`, gefolgt vom HMAC-SHA256 des Inhalts,
   berechnet mit dem Secret des Webhooks. Prüfen Sie ihn mit demselben Secret,
   dann wissen Sie, dass die Anfrage von Ihrem Server kommt. Ohne Secret
-  beweist die Signatur nichts.
+  beweist die Signatur nichts. Sie deckt nur den Inhalt ab und verhindert daher
+  nicht, dass eine abgefangene Anfrage erneut gesendet wird: Nutzen Sie lieber
+  die zwei folgenden Header.
+- `X-Evey-Timestamp`: der Zeitpunkt des Versuchs in Unix-Sekunden. Jede
+  Wiederholung trägt einen neuen Wert.
+- `X-Evey-Signature-V2`: `sha256=`, gefolgt vom HMAC-SHA256, berechnet mit dem
+  Secret des Webhooks, über den Text `<timestamp>.<delivery id>.<body>` (der
+  Wert von `X-Evey-Timestamp`, ein Punkt, der Wert von `X-Evey-Delivery`, ein
+  Punkt, dann der rohe Inhalt).
+
+Um eine Zustellung zu prüfen, berechnen Sie die V2-Signatur aus dem rohen
+Inhalt neu und vergleichen sie in konstanter Zeit. Lehnen Sie die Anfrage dann
+ab, wenn der Zeitstempel mehr als 5 Minuten von Ihrer Uhr abweicht (in beide
+Richtungen). Merkt sich Ihr Empfänger zusätzlich die in diesem Zeitfenster
+gesehenen Zustellungskennungen, lässt sich eine abgefangene Anfrage nicht
+erneut einspielen.
 
 Jeder Versuch wartet bis zu 30 Sekunden auf eine Antwort. Eine
 fehlgeschlagene Zustellung wird nach 1, 5 und 30 Sekunden wiederholt. Jeder

@@ -26,13 +26,20 @@ import {
   Share2,
   type LucideIcon,
 } from "lucide-react";
+import { useDemoStore } from "@evey/store";
 import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
+import { useDemoMode } from "@/hooks/useDemoMode";
 import { ICON } from "@/constants/iconSizes";
 
 interface NavLink {
   href: string;
   labelKey: string;
   icon: LucideIcon;
+  // The route the page reads, when the demos refuse it outright: the entry is
+  // left out there (everything on the public demo, the listed keys on the
+  // extended one - the same rule as useDemoLockFor) rather than leading to a
+  // page that can only say no.
+  demoLockKey?: string;
 }
 
 interface NavSection {
@@ -82,7 +89,7 @@ const sectionsDef: NavSection[] = [
     links: [
       { href: "/admin/analytics", labelKey: "admin.nav.analytics", icon: TrendingUp },
       { href: "/admin/activity", labelKey: "admin.nav.activity", icon: BarChart3 },
-      { href: "/admin/logs", labelKey: "admin.nav.logs", icon: ScrollText },
+      { href: "/admin/logs", labelKey: "admin.nav.logs", icon: ScrollText, demoLockKey: "GET /api/v1/admin/logs" },
       { href: "/admin/qoe", labelKey: "admin.nav.qoe", icon: Gauge },
     ],
   },
@@ -109,6 +116,10 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
   const { location } = useRouterState();
   const pathname = location.pathname;
   const pluginEntries = usePluginSlotEntries("admin.nav");
+  const demo = useDemoMode();
+  const demoLocked = useDemoStore((s) => s.demoLocked);
+  const offered = (link: NavLink) =>
+    link.demoLockKey === undefined || !(demo || demoLocked.includes(link.demoLockKey));
 
   const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>({});
 
@@ -149,7 +160,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
 
             {(collapsed || !isCollapsed) && (
               <div className="flex flex-col gap-0.5 mt-0.5">
-                {section.links.map(({ href, labelKey, icon: Icon }) => {
+                {section.links.filter(offered).map(({ href, labelKey, icon: Icon }) => {
                   const label = t(labelKey);
                   const active = isLinkActive(pathname, href);
                   return (

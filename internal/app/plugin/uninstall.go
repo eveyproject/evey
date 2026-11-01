@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/plugin"
@@ -110,7 +111,8 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 // CleanupOrphans walks the configured pluginDir and removes any plg-*
 // directory that has no matching row in the plugin repository. Designed to
 // be called once at server startup so historical leftovers (uninstalls that
-// crashed before the FS removal succeeded) get reaped automatically.
+// crashed before the FS removal succeeded) get reaped automatically. An
+// upgrade interrupted mid-swap is the exception: its <id>.old is renamed back.
 // Best-effort: errors are logged, never returned. Returns the number of
 // dirs that were removed.
 func (s *InstallerService) CleanupOrphans(ctx context.Context) int {
@@ -139,6 +141,11 @@ func (s *InstallerService) CleanupOrphans(ctx context.Context) int {
 		known[p.ID] = struct{}{}
 	}
 
+	present := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		present[name] = struct{}{}
+	}
+
 	removed := 0
 	for _, name := range names {
 		if len(name) < 4 || name[:4] != "plg-" {
@@ -148,6 +155,22 @@ func (s *InstallerService) CleanupOrphans(ctx context.Context) int {
 			continue
 		}
 		full := filepath.Join(s.pluginDir, name)
+		// <id>.old without <id>: an upgrade stopped between moving the live
+		// version aside and renaming the new one in. Put the old version back
+		// rather than deleting the only copy of the plugin.
+		if id, ok := strings.CutSuffix(name, upgradeBackupSuffix); ok {
+			_, isKnown := known[id]
+			_, hasLive := present[id]
+			if isKnown && !hasLive {
+				if err := s.fs.Rename(full, filepath.Join(s.pluginDir, id)); err != nil {
+					slog.WarnContext(ctx, "cleanup orphans: restore interrupted upgrade failed",
+						slog.String("dir", full), slog.Any("err", err))
+				} else {
+					slog.InfoContext(ctx, "cleanup orphans: restored interrupted upgrade", slog.String("pluginID", id))
+				}
+				continue
+			}
+		}
 		if err := s.fs.RemoveAll(full); err != nil {
 			slog.WarnContext(ctx, "cleanup orphans: remove dir failed",
 				slog.String("dir", full), slog.Any("err", err))

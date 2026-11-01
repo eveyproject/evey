@@ -206,7 +206,7 @@ func TestProbeWorker_NoConcurrentDuplicate(t *testing.T) {
 	<-pr.started // first probe is inside Probe(), holding the claim
 	assert.False(t, w.probeOne(context.Background(), "x"), "a second probe of the same title is refused while one is in flight")
 	close(pr.release)
-	assert.Eventually(t, func() bool { return pr.callCount() == 1 }, time.Second, 5*time.Millisecond)
+	assert.Eventually(t, func() bool { return pr.callCount() == 1 }, eventuallyWait, 5*time.Millisecond)
 }
 
 func TestProbeWorker_YieldsToPlayback(t *testing.T) {

@@ -135,7 +135,7 @@ func TestOrchestrator_MaxActiveSessions_SlotFreesWhenSessionExits(t *testing.T) 
 
 	require.Eventually(t, func() bool {
 		return o.EnsureSegmentRange(context.Background(), second, 0, 0) == nil
-	}, 2*time.Second, 10*time.Millisecond, "second media must spawn once the freed slot is released")
+	}, eventuallyWait, 10*time.Millisecond, "second media must spawn once the freed slot is released")
 }
 
 func TestOrchestrator_MaxActiveSessions_ZeroIsUnlimited(t *testing.T) {
@@ -205,7 +205,7 @@ func TestOrchestrator_VideoLimiter_ReleasedOnNaturalExit(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return limiter.Active() == 0
-	}, time.Second, 10*time.Millisecond, "the reap goroutine must free the video slot on natural exit")
+	}, eventuallyWait, 10*time.Millisecond, "the reap goroutine must free the video slot on natural exit")
 
 	second := minimalFingerprint(t)
 	second.MediaID = "media-2"
@@ -301,7 +301,7 @@ func TestOrchestrator_EnsureSegmentRange_SeekSpawnsAdditionalRafale(t *testing.T
 	// Both rafales should now coexist (MaxRafalesPerHash default = 3).
 	require.Eventually(t, func() bool {
 		return o.ActiveCount() == 2 && proc.startCount() == 2
-	}, time.Second, 10*time.Millisecond)
+	}, eventuallyWait, 10*time.Millisecond)
 
 	// The 2nd spawn's StartSec reflects the seek target, and StartNumber
 	// names the segment it starts at: that is what routes its 0-based fMP4
@@ -336,7 +336,7 @@ func TestOrchestrator_EnsureSegmentRange_LRUEvictsOldestBeyondCap(t *testing.T) 
 
 	require.Eventually(t, func() bool {
 		return o.ActiveCount() == 2 && proc.startCount() == 3
-	}, time.Second, 10*time.Millisecond, "third rafale should evict the oldest, capping at 2")
+	}, eventuallyWait, 10*time.Millisecond, "third rafale should evict the oldest, capping at 2")
 }
 
 // ============================================================================
@@ -361,7 +361,7 @@ func TestOrchestrator_InactivityGC_ReapsIdleSessions(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return o.ActiveCount() == 0
-	}, time.Second, 10*time.Millisecond, "GC must reap the idle session")
+	}, eventuallyWait, 10*time.Millisecond, "GC must reap the idle session")
 }
 
 func TestOrchestrator_InactivityGC_KeepsLiveSessions(t *testing.T) {
@@ -445,7 +445,7 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	require.Eventually(t, func() bool {
 		p, _, paused := handle.counts()
 		return p >= 1 && paused
-	}, time.Second, 20*time.Millisecond, "throttle should pause ffmpeg when produced - client >= PauseAhead")
+	}, eventuallyWait, 20*time.Millisecond, "throttle should pause ffmpeg when produced - client >= PauseAhead")
 
 	// Client catches up to within ResumeBelow → throttle must resume.
 	o.touchSession(fp.Hash(), 0, 9)
@@ -453,7 +453,7 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	require.Eventually(t, func() bool {
 		_, r, paused := handle.counts()
 		return r >= 1 && !paused
-	}, time.Second, 20*time.Millisecond, "throttle should resume ffmpeg when client catches up")
+	}, eventuallyWait, 20*time.Millisecond, "throttle should resume ffmpeg when client catches up")
 }
 
 // A reader served from disk past the rafale's window must slide that window:
@@ -525,7 +525,7 @@ func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 	o.mu.Unlock()
 	handle := sess.handle.(*fakeHandle)
 
-	require.Eventually(t, func() bool { _, _, paused := handle.counts(); return paused }, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { _, _, paused := handle.counts(); return paused }, eventuallyWait, 10*time.Millisecond)
 
 	// CMCD bs=1 arrives - we must SIGCONT immediately, not wait the tick.
 	o.NotifyClientHint(fp.MediaID, 0, 0, true, 1)
@@ -639,7 +639,7 @@ func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 
 	// Hold steady at buffer=5-0=5: ≥ PauseAhead(4), so we pause exactly once.
 	// Many ticks must NOT produce many pauses (hysteresis: stay paused).
-	require.Eventually(t, func() bool { p, _, _ := handle.counts(); return p >= 1 }, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { p, _, _ := handle.counts(); return p >= 1 }, eventuallyWait, 10*time.Millisecond)
 	// Hysteresis: once paused, no further pause and no resume may fire while the
 	// buffer stays above ResumeBelow. assert.Never fails fast on a stray
 	// pause/resume instead of a blind sleep-then-check.
@@ -1000,4 +1000,37 @@ func TestOrchestrator_DyingSessionIsNotAValidCover(t *testing.T) {
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 5))
 	assert.Equal(t, 2, proc.startCount(),
 		"a session already claimed by killSession must not be reused - the segment would never be produced")
+}
+
+// A cache hit far past every rafale (an old encode served from disk, beyond
+// the seek reach) keeps the newest rafale alive but does not move its client
+// high-water: that rafale is not producing there, and a high-water past its
+// production made the buffer negative, so the throttle never paused it and
+// the abandoned-session check never fired.
+func TestOrchestrator_CacheHitOutsideEveryWindowLeavesTheClientHighWater(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := testOpts()
+	opts.LookAheadSegments = 10
+	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()][0]
+	o.mu.Unlock()
+	sess.mu.Lock()
+	before := sess.clientHighWater
+	sess.lastAccess = time.Now().Add(-time.Minute)
+	sess.mu.Unlock()
+
+	far := 10_000
+	o.touchSession(fp.Hash(), 0, far)
+
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	assert.Equal(t, before, sess.clientHighWater, "a hit outside every window says nothing about this rafale's client")
+	assert.Less(t, sess.endSeg, far, "nor does it slide the window")
+	assert.WithinDuration(t, time.Now(), sess.lastAccess, 5*time.Second, "the rafale stays warm for the hash")
 }

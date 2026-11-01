@@ -1,14 +1,8 @@
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { View, Text, StyleSheet, Image, useWindowDimensions } from "react-native";
-import {
-  findActivePGSCue,
-  findActiveCueIndex,
-  shiftCues,
-  type PGSTrack,
-  type SubtitleCue,
-} from "@evey/api";
-import { useSubtitleTrack } from "@evey/client";
+import type { SubtitleCue } from "@evey/api";
+import { useSubtitleCue } from "@evey/client";
 
 import { subtitleBgRgba, subtitleCueFontSizePx, type SubtitleStyle } from "../../lib/subtitleStyle";
 
@@ -26,31 +20,20 @@ interface SubtitleOverlayProps {
   // Cues from a client-picked external file (upload button in
   // PlayerSettingsPanel): when present, rendered instead of - and with
   // priority over - any server subtitleIndex track, with no network fetch.
-  // Parsing (parseVttCues) happens once at pick time in the player screen;
-  // this component only applies the offset/style and does the active-cue
-  // lookup, same as it does for a server-fetched track.
   externalCues?: SubtitleCue[] | null;
 }
 
+// The fetch, the offset and the active-cue lookup (text or bitmap) live in
+// @evey/client's useSubtitleCue, shared with the two televisions; only the
+// painting below is this platform's.
 function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs = 0, style, externalCues = null }: SubtitleOverlayProps) {
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
-  // Shared with both televisions: the packager's segments around the playhead
-  // (in the film's own time, before the resync offset), /subtitle otherwise.
-  // An external (client-picked) file skips the fetch entirely.
-  const sourceTimeSec = Math.max(0, currentTimeSec - offsetMs / 1000);
-  const { cues: fetchedCues, pgs, preparing } = useSubtitleTrack(mediaId, externalCues ? null : subtitleIndex, sourceTimeSec);
+  const { preparing, text, pgs } = useSubtitleCue(mediaId, subtitleIndex, { currentTimeSec, offsetMs, externalCues });
   const { t } = useTranslation();
-
-  // A client-picked external file always wins, as before - it is an explicit
-  // choice made after the track was selected.
-  const pgsTrack = externalCues ? null : pgs;
-  const cues = externalCues ?? fetchedCues;
-  const shifted = useMemo(() => shiftCues(cues, offsetMs), [cues, offsetMs]);
-  const activeIdx = useMemo(() => findActiveCueIndex(shifted, currentTimeSec), [shifted, currentTimeSec]);
 
   // The server is still producing the track (202 + Retry-After): said in the
   // subtitle's place rather than a menu entry that shows nothing for minutes.
-  if (preparing && !externalCues && !pgsTrack && cues.length === 0) {
+  if (preparing) {
     return (
       <View pointerEvents="none" style={[styles.container, style.position === "top" ? styles.top : styles.bottom]}>
         <Text style={[styles.text, { color: style.color, backgroundColor: subtitleBgRgba(style.bgColor, style.bgOpacity) }]}>
@@ -60,21 +43,24 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs 
     );
   }
 
-  if (pgsTrack) {
+  if (pgs) {
+    // Scaled from the SUBTITLE plane, not the video resolution (a 2160p disc
+    // carries a 1920x1080 plane): the ratio comes from the track. Letterboxing
+    // is not modelled - the overlay fills the surface like the text one.
+    const sx = windowWidth / pgs.screenW;
+    const sy = windowHeight / pgs.screenH;
     return (
-      <PGSCueView
-        track={pgsTrack.track}
-        uris={pgsTrack.uris}
-        currentTimeSec={currentTimeSec}
-        offsetMs={offsetMs}
-        windowWidth={windowWidth}
-        windowHeight={windowHeight}
-      />
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <Image
+          source={{ uri: pgs.uri }}
+          resizeMode="stretch"
+          style={{ position: "absolute", left: pgs.cue.x * sx, top: pgs.cue.y * sy, width: pgs.cue.w * sx, height: pgs.cue.h * sy }}
+        />
+      </View>
     );
   }
 
-  if (activeIdx === -1) return null;
-  const cue = shifted[activeIdx];
+  if (text === null) return null;
   const fontSize = subtitleCueFontSizePx(windowHeight, style.fontSize);
 
   return (
@@ -93,62 +79,14 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs 
           style.shadow ? styles.shadow : null,
         ]}
       >
-        {cue.text}
+        {text}
       </Text>
     </View>
   );
 }
 
-// Draws one decoded bitmap cue, scaled from the SUBTITLE plane onto the video
-// surface. The plane is not the video resolution - every 2160p disc measured
-// carries a 1920x1080 one - so the ratio comes from the track and never from
-// the media's dimensions.
-//
-// Letterboxing is deliberately not modelled: the overlay fills the player
-// surface, exactly as the text overlay does, so the two stay consistent and a
-// cue never lands somewhere the text never would.
-function PGSCueView({
-  track,
-  uris,
-  currentTimeSec,
-  offsetMs,
-  windowWidth,
-  windowHeight,
-}: {
-  track: PGSTrack;
-  uris: string[];
-  currentTimeSec: number;
-  offsetMs: number;
-  windowWidth: number;
-  windowHeight: number;
-}) {
-  const timeMs = currentTimeSec * 1000 - offsetMs;
-  const idx = findActivePGSCue(track.cues, timeMs);
-  if (idx === -1 || track.screenW <= 0 || track.screenH <= 0) return null;
-  const cue = track.cues[idx];
-  const sx = windowWidth / track.screenW;
-  const sy = windowHeight / track.screenH;
-  return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <Image
-        source={{ uri: uris[idx] }}
-        resizeMode="stretch"
-        style={{
-          position: "absolute",
-          left: cue.x * sx,
-          top: cue.y * sy,
-          width: cue.w * sx,
-          height: cue.h * sy,
-        }}
-      />
-    </View>
-  );
-}
-
-// Isolated + memoized: this is the one piece of the player screen that must
-// re-render on every playhead tick (~2/s, see the player's
-// timeUpdateEventInterval), so it's kept out of the main tree instead of
-// inlining the lookup where currentTime already lives.
+// Memoized: with the cue selection behind usePlayheadSelector in useSubtitleCue,
+// the lookup no longer forces a render on every tick.
 export const SubtitleOverlay = memo(SubtitleOverlayImpl);
 
 const styles = StyleSheet.create({

@@ -11,6 +11,8 @@ import (
 // TrackReader is the read-only surface of the track store.
 type TrackReader interface {
 	GetByID(ctx context.Context, id string) (*Track, error)
+	// GetByIDs returns the tracks among ids, skipping an id with no track.
+	GetByIDs(ctx context.Context, ids []string) ([]Track, error)
 	ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]Track, int, error)
 	// CountByLibrary returns just the number of tracks in a library. See the
 	// note on photo.Repository.CountByLibrary: the list query pays a

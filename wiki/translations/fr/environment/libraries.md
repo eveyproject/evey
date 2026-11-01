@@ -1,5 +1,5 @@
 ---
-source_sha: e3b24610d4942cf71d19babf82add41a0f2e47fd513b1cc840fba554421a75e9
+source_sha: bdf162710976e7ec41dc85bef68bc304a658396c9adac30a3d36e1b6074f4ecb
 reviewed: true
 ---
 # Bibliothèques et métadonnées { #libraries-and-metadata }
@@ -15,6 +15,8 @@ dans [Bibliothèques et métadonnées](../administration/libraries.md).
 | --- | --- | --- | --- |
 | `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | La surveillance des fichiers en temps réel. | Configuration du serveur → Bibliothèques → **Surveillance des fichiers de la bibliothèque**, redémarrage |
 | `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | La fréquence à laquelle les dossiers sont revérifiés pour rattraper ce que la surveillance a manqué (partages réseau). | Configuration du serveur → Bibliothèques → **Intervalle d'analyse périodique**, redémarrage |
+| `EVEY_LIBRARY_PRUNE_MAX_MISSING_PERCENT` | `5` | Part des éléments d'un dossier qui peuvent avoir disparu lors d'un scan. Au-delà (et au-delà du minimum ci-dessous), rien n'est supprimé sous ce dossier tant qu'un administrateur n'a pas confirmé, ce qui protège d'un pool qui a perdu un disque. | aucun |
+| `EVEY_LIBRARY_PRUNE_MIN_MISSING` | `20` | Plus petit nombre de fichiers manquants pouvant suspendre les suppressions d'un dossier, pour qu'une petite bibliothèque puisse encore perdre quelques titres. | aucun |
 | `EVEY_LIBRARY_SCAN_WORKERS` | selon la part CPU | Fichiers analysés en parallèle pendant un scan. Définie à la main, elle remplace la **Puissance allouée** pour les scans. | aucun |
 | `EVEY_SEEKINDEX_STATE_DIR` | `/data/seek-index` | L'emplacement où l'analyse de Santé des médias garde ses résultats et sa tâche en cours d'un redémarrage à l'autre. Vide : rien n'est conservé. | aucun |
 

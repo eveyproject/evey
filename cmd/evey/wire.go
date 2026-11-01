@@ -66,9 +66,11 @@ import (
 //                           → trickplay worker (auto-generate on new media)
 //                           → metadata enricher (auto-enrich on new media)
 //   "backup.failed"         → notification (handleBackupFailed)
+//   "library.prune.suspended" → notification (handlePruneSuspended)
 //   "library.scan.completed" → keyframe backfill worker (nudge after 10-min settle)
 //   "library.created"       → filesystem watcher (watch new library paths)
 //   "library.deleted"       → filesystem watcher (stop watching deleted library)
+//   "library.updated"       → filesystem watcher (re-arm on new paths or monitoring switch)
 //   "notification.created"  → email adapter (send email, only when SMTP configured)
 //   "*"                     → webhook dispatcher (delivers matching webhooks)
 //
@@ -93,6 +95,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// admin changes it.
 	serverClock := appconfig.NewServerClock(nil)
 	appconfig.ApplyServerTimezone(ctx, r.ServerCfg, bus, serverClock)
+	// Read once at construction by the kids opening hours, the gRPC user
+	// service and the HTTP parental routes, so it goes in before any of them:
+	// the PIN lockout survives a restart through the login attempt rows.
+	appuser.SetSharedPINAttempts(appuser.NewPINAttempts(r.LoginAttempt))
 	profileHours := appuser.NewProfileSchedules(r.Profile, infra.hasher, serverClock)
 	procfork.SetCPUBudget(cpuBudget)
 	slog.Info("cpu budget: background tasks bounded",
@@ -153,6 +159,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		applibrary.WithFileSettle(applibrary.DefaultFileSettle),
 	)
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
+	libCmdSvc.WithPruneGuard(applibrary.PruneGuard{
+		MaxMissingRatio: cfg.Library.PruneMaxMissingPercent / 100,
+		MinMissing:      cfg.Library.PruneMinMissing,
+	})
 	// Classification rows computed under other rating tables are hidden from
 	// kids profiles until rewritten (migration 000179). A few thousand rows,
 	// seconds at most, so it runs at every start, bench instance included.
@@ -248,9 +258,6 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// `demo` administrator through CreateUser when an administrator exists.
 		userSvcOpts = append(userSvcOpts, appuser.UserWithMinPasswordLength(demo.MinPasswordLength))
 	}
-	// Read once at construction by the gRPC user service and the HTTP parental
-	// routes: the PIN lockout survives a restart through the login attempt rows.
-	appuser.SetSharedPINAttempts(appuser.NewPINAttempts(r.LoginAttempt))
 	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), userSvcOpts...)
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess), appuser.WithAccessDefaultLocale(serverLocaleFn), appuser.WithAccessUnitOfWork(postgres.NewTxUnit(db)))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)

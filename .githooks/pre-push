@@ -51,8 +51,9 @@ fi
 # merges on a green "CI passed", so nothing is skipped on the way in - it runs
 # once instead of twice. GATE=full forces the full run on any push.
 #
-# A green `make gate` receipt for exactly this HEAD and this tree is the same
-# run already done. It is bound to HEAD, so it only stands in when what is
+# A green receipt for exactly this HEAD and this tree is the same run already
+# done: `make gate` (pre-push-dev) or `make gate-full` (pre-push), the latter
+# being the only one accepted for master. It is bound to HEAD, so it only stands in when what is
 # pushed IS HEAD (git hands the refs on stdin); any other ref gets the run.
 target=pre-push-dev
 pushed_is_head=1
