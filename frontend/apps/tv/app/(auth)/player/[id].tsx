@@ -13,6 +13,7 @@ import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer
 import { setPlayhead, setSeekPreview } from "@evey/client";
 import { playerBufferOptions } from "@evey/client/native/playerBufferOptions";
 import { getDeviceProfile } from "@evey/media-caps";
+import { useDisplayFrameRate } from "../../../src/lib/displayFrameRate";
 import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetMediaItem,
@@ -253,6 +254,7 @@ export default function PlayerScreen() {
   // defaults to true so first entry (and next-episode remounts) autoplay.
   const resumeAfterRestartRef = useRef(true);
 
+  useDisplayFrameRate(streamInfo);
   const audioStreams: AudioStream[] = useMemo(() => playerAudioStreams(streamInfo?.mediaStreams), [streamInfo]);
   const subtitleStreams: SubtitleStream[] = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams), [streamInfo]);
 

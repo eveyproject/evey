@@ -1,8 +1,11 @@
 import type { AudioProbe } from "./audioProbe";
+import type { DisplayMode } from "./displayMode";
 
 export { formatAudioProbe, MAX_DETAIL_LEN } from "./audioProbe";
 export { declarableAudioCodecs, sinkAcceptsCodec } from "./audioDeclaration";
 export { displaySupportsHdr } from "./displayHdr";
+export { pickDisplayMode } from "./displayMode";
+export type { DisplayMode } from "./displayMode";
 export type { DisplayHdrType } from "./displayHdr";
 export type { AudioProbe } from "./audioProbe";
 export { reportAudioProbeOnce, resetAudioProbeLatch } from "./reportProbe";
@@ -29,6 +32,8 @@ interface EveyMediaCapsNative {
   setUiScalePercent?(percent: number): boolean;
   getDeviceProfile?(): DeviceProfile | null;
   setLiteMode?(mode: LiteMode): boolean;
+  getDisplayModes?(): { currentId: number; modes: DisplayMode[] } | null;
+  setPreferredDisplayMode?(modeId: number): boolean;
 }
 
 /** The user's light-mode choice on a television: "auto" lets the device's memory decide. */
@@ -255,6 +260,30 @@ export async function moveMediaFile(from: string, to: string): Promise<boolean> 
     const { requireOptionalNativeModule } = await import("expo-modules-core");
     const native = requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
     return native?.moveFile?.(from, to) === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The attached display's modes and the current one, or null when the module
+ * is absent (web, tests, an older build). Never throws.
+ */
+export function getDisplayModes(): { currentId: number; modes: DisplayMode[] } | null {
+  try {
+    return nativeSync()?.getDisplayModes?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Asks the window for a display mode; 0 hands the choice back to the system.
+ * False when the module is absent. Never throws.
+ */
+export function setPreferredDisplayMode(modeId: number): boolean {
+  try {
+    return nativeSync()?.setPreferredDisplayMode?.(modeId) ?? false;
   } catch {
     return false;
   }

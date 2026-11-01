@@ -148,6 +148,39 @@ class EveyMediaCapsModule : Module() {
       )
     }
 
+    // The display's modes, for a player that matches the refresh rate to the
+    // video (displayMode.ts picks). Null before an activity is attached.
+    Function("getDisplayModes") {
+      val activity = appContext.currentActivity ?: return@Function null
+      val display = activity.window?.decorView?.display ?: return@Function null
+      mapOf(
+        "currentId" to display.mode.modeId,
+        "modes" to display.supportedModes.map {
+          mapOf(
+            "id" to it.modeId,
+            "width" to it.physicalWidth,
+            "height" to it.physicalHeight,
+            "refreshRate" to it.refreshRate.toDouble(),
+          )
+        },
+      )
+    }
+
+    // Asks the window for a display mode; 0 gives the choice back to the
+    // system. Window attributes belong to the UI thread.
+    Function("setPreferredDisplayMode") { modeId: Int ->
+      val activity = appContext.currentActivity ?: return@Function false
+      activity.runOnUiThread {
+        val window = activity.window ?: return@runOnUiThread
+        val attrs = window.attributes
+        if (attrs.preferredDisplayModeId != modeId) {
+          attrs.preferredDisplayModeId = modeId
+          window.attributes = attrs
+        }
+      }
+      true
+    }
+
     Function("setLiteMode") { mode: String ->
       val prefs = uiPrefs() ?: return@Function false
       prefs.edit().putString(LITE_MODE_KEY, mode).commit()
