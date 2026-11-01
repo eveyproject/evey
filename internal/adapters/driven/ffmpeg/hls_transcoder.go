@@ -164,7 +164,9 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 		// already has it; the probe behind it (transcode seeks only) reads a
 		// second of packet headers, next to nothing beside the encode it gates.
 		deltaUs := rebaseDeltaUs(ctx, opts.FilePath, opts.VideoDecision, opts.StartSec)
-		go runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaUs, "stream", opts.VariantIndex, opts.ExpectedSegmentStartMs, opts.TimelineDriftKind)
+		h.finished = finishAfterPump(h.done, func() {
+			runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaUs, "stream", opts.VariantIndex, opts.ExpectedSegmentStartMs, opts.TimelineDriftKind)
+		})
 	}
 	return h, nil
 }
@@ -589,20 +591,33 @@ func forceKeyframesArgsFor(opts transcoding.HLSProcessOpts) []string {
 // eosFrameArgs stops the rung on the declared last frame. Clone mode passes
 // hardware frames through by reference, so the GPU chains take it as is.
 func eosPadFilter(opts transcoding.HLSProcessOpts) string {
-	if eosFrames(opts) <= 0 {
+	if eosFrames(opts) <= 0 && eosLegacySec(opts) <= 0 {
 		return ""
 	}
 	return ",tpad=stop_mode=clone:stop=-1"
 }
 
 // eosFrameArgs caps every video output at the declared frames left from the
-// session's first segment (see eosPadFilter).
+// session's first segment (see eosPadFilter); on the legacy clock, with no
+// frame count, at the declared seconds left.
 func eosFrameArgs(opts transcoding.HLSProcessOpts) []string {
-	n := eosFrames(opts)
-	if n <= 0 {
-		return nil
+	if n := eosFrames(opts); n > 0 {
+		return []string{"-frames:v", strconv.FormatInt(n, 10)}
 	}
-	return []string{"-frames:v", strconv.FormatInt(n, 10)}
+	if sec := eosLegacySec(opts); sec > 0 {
+		return []string{"-t", fmt.Sprintf("%.3f", sec)}
+	}
+	return nil
+}
+
+// eosLegacySec is the declared duration left from the session's start on the
+// legacy clock (a variable or unknown frame rate): the audio outlasting the
+// picture past a 3 s boundary declared a last segment no encode produced.
+func eosLegacySec(opts transcoding.HLSProcessOpts) float64 {
+	if opts.Grid.Exact() || opts.DeclaredDurationMs <= 0 || opts.VideoDecision == "copy" {
+		return 0
+	}
+	return float64(opts.DeclaredDurationMs)/1000 - opts.StartSec
 }
 
 func eosFrames(opts transcoding.HLSProcessOpts) int64 {
@@ -620,6 +635,18 @@ func videoTimescaleArgs(opts transcoding.HLSProcessOpts) []string {
 		return nil
 	}
 	return []string{"-video_track_timescale", strconv.Itoa(opts.Grid.Timescale)}
+}
+
+// videoRateArgs runs the encoded video at the grid's exact rate. The keyframe
+// cadence counts frames and the muxer cuts on time: at the rate probed from
+// the container, a Matroska 59.94 fps source (19001/317, its timestamps kept
+// to the millisecond) put frame 180 a hair before 3.003 s, the first cut fell
+// at 6.006 and every later segment ran one index ahead of the playlists.
+func videoRateArgs(opts transcoding.HLSProcessOpts) []string {
+	if !opts.Grid.Exact() || opts.VideoDecision == "copy" {
+		return nil
+	}
+	return []string{"-r", fmt.Sprintf("%d/%d", opts.Grid.FPSNum, opts.Grid.FPSDen)}
 }
 
 // appendInputModifiers is the hook for pre-`-i` flags. It emits `-readrate N`
@@ -1040,6 +1067,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, eosFrameArgs(opts)...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 	args = append(args, videoTimescaleArgs(opts)...)
+	args = append(args, videoRateArgs(opts)...)
 
 	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, !hasAudio(opts), hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
 }
@@ -1142,6 +1170,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, forceKeyframesArgsFor(opts)...)
 	args = append(args, eosFrameArgs(opts)...)
 	args = append(args, videoTimescaleArgs(opts)...)
+	args = append(args, videoRateArgs(opts)...)
 
 	// -var_stream_map + HLS muxer tail (container choice, master playlist,
 	// segment naming). Shared with the hardware multi-variant builder so both

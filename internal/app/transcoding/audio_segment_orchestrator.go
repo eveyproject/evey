@@ -464,6 +464,7 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		// by the ffmpeg copy fallback rather than mkvgo; the fingerprint carries
 		// it (and hashes it) so a session and its cache entry always agree.
 		VideoCompositionDelay: fp.VideoCompositionDelay,
+		AudioUserOffsetSec:    float64(fp.AudioOffsetMs) / 1000.0,
 	}
 	if silenceDur > 0 {
 		// Encoding a few minutes of silence is trivial - no pacing.

@@ -668,7 +668,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 				manifestGen:          apptranscoding.NewManifestGenerator(),
 				cache:                s.HLSVODCache,
 				audioOrch:            aOrch,
-				startHint:            func(key string) int { seg, _ := vodHandler.prewarmSegment(key, 0, time.Now()); return seg },
+				startHint:            func(key string) (float64, bool) { return vodHandler.startHints.peek(key, time.Now()) },
 				audioNormalizeGetter: s.AudioNormalizeGetter,
 				audioEncoderIDGetter: s.AudioEncoderIDGetter,
 				segmentWaitTimeout:   30 * time.Second,

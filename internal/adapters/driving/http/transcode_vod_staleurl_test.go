@@ -56,8 +56,12 @@ func TestHLSVOD_StaleRenditionURLIsRefusedNotSilentlyRemapped(t *testing.T) {
 	require.NotNil(t, m, "the master must seal fp= into its variant URIs:\n%s", w.Body.String())
 	sealedFP := m[1]
 
+	// The variant URI the master emits, query and all: its pins resolve the
+	// plan the seal names.
+	sealedQuery := regexp.MustCompile(`stream_0\.m3u8\?([^\s"]*)`).FindStringSubmatch(w.Body.String())[1]
+
 	// While the world is unchanged, the sealed URL serves normally.
-	w = doVODRequestQ(h, "m1", "stream_0.m3u8", "fp="+sealedFP)
+	w = doVODRequestQ(h, "m1", "stream_0.m3u8", sealedQuery)
 	assert.Equal(t, http.StatusOK, w.Code, "same fp, same ladder: must serve")
 
 	// The world moves: the software ceiling drops, the ladder reshapes, the
@@ -67,22 +71,23 @@ func TestHLSVOD_StaleRenditionURLIsRefusedNotSilentlyRemapped(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	m2 := fpParamRE.FindStringSubmatch(w.Body.String())
 	require.NotNil(t, m2)
+	currentQuery := regexp.MustCompile(`stream_0\.m3u8\?([^\s"]*)`).FindStringSubmatch(w.Body.String())[1]
 	require.NotEqual(t, sealedFP, m2[1], "test rig: the capability flip must reshape the ladder, or this test proves nothing")
 
 	// The OLD sealed URLs are now lies: stream_0 no longer means what the
 	// player's init segment was built for. Refuse them - never remap silently.
-	w = doVODRequestQ(h, "m1", "stream_0.m3u8", "fp="+sealedFP)
+	w = doVODRequestQ(h, "m1", "stream_0.m3u8", sealedQuery)
 	assert.Equal(t, http.StatusGone, w.Code, "a stale variant URL must be refused, not silently remapped")
 
-	w = doVODRequestQ(h, "m1", "stream_0_000.m4s", "fp="+sealedFP)
+	w = doVODRequestQ(h, "m1", "stream_0_000.m4s", sealedQuery)
 	assert.Equal(t, http.StatusGone, w.Code, "a stale segment URL must be refused, not serve another rendition's bytes")
 
-	w = doVODRequestQ(h, "m1", "stream_0_init.mp4", "fp="+sealedFP)
+	w = doVODRequestQ(h, "m1", "stream_0_init.mp4", sealedQuery)
 	assert.Equal(t, http.StatusGone, w.Code, "a stale init URL is the most dangerous of all - it defines the decoder's parameters")
 
 	// The CURRENT fp serves fine - the refusal is about staleness, not the
 	// mechanism.
-	w = doVODRequestQ(h, "m1", "stream_0.m3u8", "fp="+m2[1])
+	w = doVODRequestQ(h, "m1", "stream_0.m3u8", currentQuery)
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// And a request with NO fp (an old client, a cached URL from before this

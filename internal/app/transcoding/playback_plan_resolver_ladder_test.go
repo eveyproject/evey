@@ -402,6 +402,20 @@ func TestFingerprint_TranscodeAudioRenditionMakesVideoOnly(t *testing.T) {
 		"inverse telecine changes the frame rate: the audio stays muxed")
 }
 
+// A copied video keeps the source's frames, telecined or not: the master
+// advertises its audio as a rendition (audioRenditionsFor), so its segments
+// must carry none. Gated on telecine like a transcode, they kept the audio
+// under a master that also listed it apart.
+func TestFingerprint_CopiedTelecineVideoIsVideoOnly(t *testing.T) {
+	pr := &PlanResolver{AudioRenditionEnabled: true}
+	req := ladderRequest(1080)
+	req.Streams = append(req.Streams, &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: "aac"})
+	tru := true
+	req.Streams[0].IdetTelecine = &tru
+	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "copy", AudioDecision: "transcode", AudioCodec: "aac"}
+	assert.Equal(t, -1, pr.planFor(context.Background(), req, decision).Fingerprint.AudioTrack)
+}
+
 // A hardware session spilled to the CPU pool is shaped for the CPU route with
 // every delivery cap the master negotiated: the spill used to be the bare
 // producer shape, so a phone that asked for 720p got the full CPU ladder.

@@ -350,6 +350,33 @@ func fmp4CompleteMoov(path string) bool {
 	return false
 }
 
+// fmp4HasFragment reports whether a media segment holds a fragment (a moof
+// box) at its top level. A session seeked past the end of its track writes
+// one with none: an styp alone, no sample.
+func fmp4HasFragment(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	var off int64
+	for off < fi.Size() {
+		typ, size, err := boxHeader(f, off, fi.Size())
+		if err != nil {
+			return false
+		}
+		if typ == "moof" {
+			return true
+		}
+		off += size
+	}
+	return false
+}
+
 // copyDriftToleranceMs bounds the acceptable gap between a copy segment's
 // produced timeline (first traf tfdt) and the keyframe plan's start for that
 // index. Generous on purpose: legitimate skews are tiny (ms-rounded keyframe
@@ -476,6 +503,27 @@ func waitProcExit(procExited <-chan struct{}) {
 // exists so a wedged process cannot leak the directory forever.
 const procExitGrace = 5 * time.Second
 
+// finishAfterPump runs a seeked session's rebase pump and returns the channel
+// its handle's Done() reports: closed once the process is over (done) AND the
+// pump has published what it left. Done() is what the orchestrators reap on;
+// fired with the process exit, it raced the pump's last sweep and the final
+// segment of a session run to the end of the file was answered 503 while it
+// was being published.
+func finishAfterPump(done <-chan struct{}, pump func()) chan struct{} {
+	pumped := make(chan struct{})
+	go func() {
+		defer close(pumped)
+		pump()
+	}()
+	finished := make(chan struct{})
+	go func() {
+		<-done
+		<-pumped
+		close(finished)
+	}()
+	return finished
+}
+
 func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan struct{}, privDir, pubDir string, deltaUs int64, namePrefix string, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
 	// ADR-0007: both call sites spawn this as a bare goroutine, and a parent
 	// recover never covers a child goroutine - a panic here (file I/O races,
@@ -534,6 +582,14 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan
 			}
 			if _, err := os.Stat(src + ".tmp"); err == nil {
 				continue // defence in depth; rename normally beats the scan
+			}
+			if !fmp4HasFragment(src) {
+				// No sample: published, it reads as a produced segment and hides
+				// the end of the track the orchestrator infers from a session
+				// that produced nothing.
+				_ = os.Remove(src) //nolint:errcheck // best-effort: privDir goes with the session
+				published[name] = true
+				continue
 			}
 			tfdtMs, err := rebaseFMP4Segment(src, deltaUs, initTS)
 			if err != nil {

@@ -138,6 +138,7 @@ type hlsHandle struct {
 	ready     chan struct{}
 	readyOnce sync.Once // guards ready: run()'s error paths AND its panic recovery can both race to close it
 	done      chan struct{}
+	finished  chan struct{} // nil without a rebase pump; see finishAfterPump
 	// procExited closes the instant the ffmpeg process itself exits (single
 	// owner of cmd.Wait; procWaitErr holds its result). The file/segment
 	// waits select on it so a dead-on-arrival ffmpeg fails the session in
@@ -367,6 +368,9 @@ func (h *hlsHandle) Stop() error {
 }
 
 func (h *hlsHandle) Done() <-chan struct{} {
+	if h.finished != nil {
+		return h.finished
+	}
 	return h.done
 }
 

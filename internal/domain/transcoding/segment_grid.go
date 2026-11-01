@@ -15,9 +15,11 @@ const SegmentTargetSeconds = 3
 // the video track's ticks and identical across the rungs of a ladder. A
 // segment of "3 seconds" at 23.976 fps is 71.93 frames; the encoder can only
 // cut at 72, which is 3.003 s, and a manifest that declared 3.000 drifted a
-// frame per segment - harmless to HLS, which reads the fragments' own
-// timestamps, fatal to a DASH timeline addressed by segment number. The grid
-// declares what the encoder really cuts.
+// frame per segment. hls.js reads the fragments' own timestamps; Shaka in
+// sequence mode (its HLS default, the cast receiver's engine) places each
+// segment at the sum of the EXTINF before it, and a DASH timeline is
+// addressed by segment number. Every playlist of a presentation, its audio
+// renditions included, declares what the encoder really cuts.
 //
 // The zero value is the legacy time-based grid: 3.000 s segments cut by
 // -force_key_frames on the clock, no fixed frame count. It is what a source

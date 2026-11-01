@@ -153,7 +153,7 @@ bench:
 TRANSCODE_ITEST_SKIP ?=
 TRANSCODE_ITEST_TIMEOUT ?= 900s
 transcode-itest:
-	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ ./internal/adapters/driven/prober/ -run Integration $(if $(TRANSCODE_ITEST_SKIP),-skip $(TRANSCODE_ITEST_SKIP)) -count=1 -v -timeout=$(TRANSCODE_ITEST_TIMEOUT) && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driving/http/ -run SourceReplacedIntegration -count=1 -v -timeout=300s'
+	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ ./internal/adapters/driven/prober/ -run Integration $(if $(TRANSCODE_ITEST_SKIP),-skip $(TRANSCODE_ITEST_SKIP)) -count=1 -v -timeout=$(TRANSCODE_ITEST_TIMEOUT) && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driving/http/ -run "SourceReplacedIntegration|AudioGridIntegration" -count=1 -v -timeout=300s'
 
 # dash-harness: plays manifest.mpd in REAL DASH players (Shaka, dash.js) in a
 # headless, muted Google Chrome (Playwright's Chromium has no H.264/AAC), against
@@ -670,7 +670,7 @@ TRANSCODE_PATHS := internal/app/transcoding internal/domain/transcoding \
   internal/adapters/driven/ffmpeg \
   internal/adapters/driven/mkvgo \
   internal/adapters/driving/http/transcode_handler_vod.go \
-  internal/adapters/driving/http/transcode_audio_handler.go \
+  internal/adapters/driving/http/transcode_audio*.go \
   internal/adapters/driving/http/transcode_ondemand*.go \
   internal/adapters/driving/http/transcode_vod_manifest_rebake.go \
   go.mod go.sum \

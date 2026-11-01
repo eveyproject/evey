@@ -52,8 +52,11 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 	// not the condition, the channel gate is part of it.
 	wasmAudioApplies := req.WasmAudio && WasmAudioApplies(streams, audioTrack, req.Prefs.MaxAudioChannels)
 	snap := snapshot(req)
-	renditionAudio := pr.AudioRenditionEnabled && !snap.Telecine &&
-		(decision.VideoDecision == "copy" || (decision.VideoDecision == "transcode" && pr.TranscodeAudioRendition))
+	// Inverse telecine changes the frame rate of a TRANSCODE only (the master's
+	// audioRenditionsFor applies the same rule): a copy keeps the source's
+	// frames and its audio is a rendition either way.
+	renditionAudio := pr.AudioRenditionEnabled &&
+		(decision.VideoDecision == "copy" || (decision.VideoDecision == "transcode" && pr.TranscodeAudioRendition && !snap.Telecine))
 	if renditionAudio || wasmAudioApplies {
 		videoAudioTrack = -1
 	}

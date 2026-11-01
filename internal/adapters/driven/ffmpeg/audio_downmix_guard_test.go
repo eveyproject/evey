@@ -130,7 +130,8 @@ func TestMultichannelPassthrough_AddsNothing(t *testing.T) {
 	}
 }
 
-// isPrimingTrim reports whether an audio filter chain is the priming trim alone.
+// isPrimingTrim reports whether an audio filter chain is the origin alignment
+// and the priming trim alone.
 func isPrimingTrim(chain string) bool {
-	return strings.HasPrefix(chain, "asetpts=PTS-STARTPTS,atrim=start=") && strings.Count(chain, ",") == 2
+	return strings.HasPrefix(chain, "aresample=async=1:min_hard_comp=0.001:first_pts=0,atrim=start=") && strings.Count(chain, ",") == 2
 }
