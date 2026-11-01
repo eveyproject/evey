@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/eveyproject/evey/internal/app/prunehold"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
@@ -42,37 +41,20 @@ type OrphanPruner struct {
 	events     shared.EventBus
 	files      fileChecker
 
-	guard PruneGuard
-	// mu guards the in-memory suspension state. A restart forgets it: the next
-	// pass re-suspends and re-announces once, which is safe.
-	mu        sync.Mutex
-	suspended map[string]map[string]PruneSuspension // library -> root -> state
-	confirmed map[string]bool                       // library -> admin override armed
+	// hold is the mass-disappearance guard, shared with the music and photo
+	// scans so one admin route lists and confirms every held root.
+	hold *prunehold.Hold
 }
 
 // PruneGuard bounds how much of a root may vanish in one pass before the
-// prune stops deleting under it. A mount that is healthy but lost a branch
-// (a union pool missing one disk) makes files disappear for real from the
-// root's view, which the empty-root checks cannot tell from a deletion.
-type PruneGuard struct {
-	// MaxMissingRatio is the share of a root's items (0.05 = 5 %) that may be
-	// absent in one pass; above it, and past MinMissing, the root is held.
-	MaxMissingRatio float64
-	// MinMissing is the absolute floor: fewer missing files never suspend,
-	// so a small library can still lose a few titles.
-	MinMissing int
-}
+// prune stops deleting under it (see prunehold.Guard).
+type PruneGuard = prunehold.Guard
 
 // DefaultPruneGuard is 5 % and 20 files.
-var DefaultPruneGuard = PruneGuard{MaxMissingRatio: 0.05, MinMissing: 20}
+var DefaultPruneGuard = prunehold.DefaultGuard
 
 // PruneSuspension is a root whose deletions are held back.
-type PruneSuspension struct {
-	LibraryID string
-	Root      string
-	Missing   int
-	Total     int
-}
+type PruneSuspension = prunehold.Suspension
 
 // fileChecker re-checks a prune candidate on disk before its row goes.
 type fileChecker interface {
@@ -90,60 +72,33 @@ func NewOrphanPruner(
 		search:     search,
 		events:     events,
 		files:      files,
-		guard:      DefaultPruneGuard,
-		suspended:  make(map[string]map[string]PruneSuspension),
-		confirmed:  make(map[string]bool),
+		hold:       prunehold.New(events),
 	}
 }
 
 // WithGuard overrides the mass-disappearance thresholds.
 func (p *OrphanPruner) WithGuard(g PruneGuard) *OrphanPruner {
-	p.guard = g
+	p.hold.WithGuard(g)
 	return p
 }
 
+// Hold is the guard state, for the scans of the other library types to share.
+func (p *OrphanPruner) Hold() *prunehold.Hold { return p.hold }
+
 // Suspensions lists the roots of a library whose deletions are held, by root.
 func (p *OrphanPruner) Suspensions(libraryID string) []PruneSuspension {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	out := make([]PruneSuspension, 0, len(p.suspended[libraryID]))
-	for _, s := range p.suspended[libraryID] {
-		out = append(out, s)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Root < out[j].Root })
-	return out
+	return p.hold.Suspensions(libraryID)
 }
 
 // AllSuspensions lists the held roots of every library.
 func (p *OrphanPruner) AllSuspensions() []PruneSuspension {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	var out []PruneSuspension
-	for _, roots := range p.suspended {
-		for _, s := range roots {
-			out = append(out, s)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].LibraryID != out[j].LibraryID {
-			return out[i].LibraryID < out[j].LibraryID
-		}
-		return out[i].Root < out[j].Root
-	})
-	return out
+	return p.hold.All()
 }
 
-// ConfirmPrune arms a one-shot override: the next pass of the library deletes
-// under the suspended roots whatever the ratio. It reports false, arming
-// nothing, when no root of the library is suspended.
-func (p *OrphanPruner) ConfirmPrune(libraryID string) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.suspended[libraryID]) == 0 {
-		return false
-	}
-	p.confirmed[libraryID] = true
-	return true
+// ConfirmPrune allows the next pass over one held root to delete the set of
+// missing items named by snapshot, and only that set (see prunehold.Confirm).
+func (p *OrphanPruner) ConfirmPrune(libraryID, root, snapshot string) error {
+	return p.hold.Confirm(libraryID, root, snapshot)
 }
 
 // rootOf returns the most specific of roots containing path, "" when none.
@@ -157,9 +112,8 @@ func rootOf(path string, roots []string) string {
 	return best
 }
 
-// holdSuspendedRoots drops from orphanIDs every candidate under a root where
-// the missing share is past the guard, unless an admin confirmed; it returns
-// the kept candidates and publishes the event of each newly suspended root.
+// holdSuspendedRoots asks the guard about every root of the pass and drops
+// from orphanIDs the candidates under a root it holds.
 func (p *OrphanPruner) holdSuspendedRoots(ctx context.Context, libraryID string, roots []string, dbPaths map[string]string, orphanIDs []string) []string {
 	if len(roots) == 0 {
 		return orphanIDs
@@ -170,53 +124,30 @@ func (p *OrphanPruner) holdSuspendedRoots(ctx context.Context, libraryID string,
 			total[r]++
 		}
 	}
-	missing := map[string]int{}
+	missing := map[string][]string{}
 	for _, id := range orphanIDs {
 		if r := rootOf(dbPaths[id], roots); r != "" {
-			missing[r]++
+			missing[r] = append(missing[r], id)
 		}
 	}
-
-	p.mu.Lock()
-	override := p.confirmed[libraryID]
-	delete(p.confirmed, libraryID)
-	previous := p.suspended[libraryID]
-	next := make(map[string]PruneSuspension)
-	var announce []PruneSuspension
-	for root, m := range missing {
-		t := total[root]
-		if override || m < p.guard.MinMissing || float64(m) <= p.guard.MaxMissingRatio*float64(t) {
+	held := map[string]bool{}
+	judged := map[string]bool{}
+	for _, root := range roots {
+		r := filepath.Clean(root)
+		if judged[r] {
 			continue
 		}
-		s := PruneSuspension{LibraryID: libraryID, Root: root, Missing: m, Total: t}
-		next[root] = s
-		if _, already := previous[root]; !already {
-			announce = append(announce, s)
+		judged[r] = true
+		if !p.hold.Judge(ctx, libraryID, r, total[r], missing[r]) {
+			held[r] = true
 		}
 	}
-	if len(next) == 0 {
-		delete(p.suspended, libraryID)
-	} else {
-		p.suspended[libraryID] = next
-	}
-	p.mu.Unlock()
-
-	sort.Slice(announce, func(i, j int) bool { return announce[i].Root < announce[j].Root })
-	for _, s := range announce {
-		slog.WarnContext(ctx, "orphan prune suspended: too many files missing under a root (a mount missing a branch?); admin confirmation needed to delete",
-			slog.String("library_id", libraryID), slog.String("root", s.Root),
-			slog.Int("missing", s.Missing), slog.Int("total", s.Total))
-		evt := library.PruneSuspended{LibraryID: shared.LibraryID(libraryID), Root: s.Root, Missing: s.Missing, Total: s.Total, OccurredAt: time.Now()}
-		if pubErr := p.events.Publish(ctx, evt); pubErr != nil {
-			slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
-		}
-	}
-	if len(next) == 0 {
+	if len(held) == 0 {
 		return orphanIDs
 	}
 	kept := orphanIDs[:0:0]
 	for _, id := range orphanIDs {
-		if _, held := next[rootOf(dbPaths[id], roots)]; !held {
+		if !held[rootOf(dbPaths[id], roots)] {
 			kept = append(kept, id)
 		}
 	}
@@ -235,6 +166,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, roots []stri
 
 	dbPaths, err := p.mediaItems.ListFilePaths(ctx, shared.LibraryID(libraryID))
 	if err != nil {
+		p.hold.Abandon(libraryID, "")
 		return 0, fmt.Errorf("list file paths: %w", err)
 	}
 
@@ -250,6 +182,9 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, roots []stri
 	if len(seenPaths) == 0 && len(dbPaths) > 0 {
 		slog.WarnContext(ctx, "orphan prune skipped: scan saw no files but library is non-empty (likely a degraded mount); refusing to delete the catalog",
 			slog.String("library_id", libraryID), slog.Int("db_items", len(dbPaths)))
+		// A pass that stopped here judged no root: a confirmation pending
+		// for this library must not carry over to a later pass.
+		p.hold.Abandon(libraryID, "")
 		return 0, nil
 	}
 

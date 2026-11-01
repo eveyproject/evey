@@ -35,7 +35,7 @@ describe("PruneSuspendedBanner", () => {
     mockFetch.mockImplementation(({ url, method }: { url: string; method: string }) => {
       if (method === "POST") return Promise.resolve({ status: "started" });
       expect(url).toBe("/api/v1/admin/libraries/prune-suspended");
-      return Promise.resolve({ suspensions: [{ libraryId: "lib-1", root: "/pool", missing: 30, total: 90 }] });
+      return Promise.resolve({ suspensions: [{ libraryId: "lib-1", root: "/pool", missing: 30, total: 90, snapshot: "snap-1" }] });
     });
     renderBanner();
     const warning = await screen.findByTestId("prune-suspended-lib-1-/pool");
@@ -49,7 +49,12 @@ describe("PruneSuspendedBanner", () => {
 
     await waitFor(() =>
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.objectContaining({ url: "/api/v1/admin/libraries/lib-1/prune/confirm", method: "POST" }),
+        expect.objectContaining({
+          url: "/api/v1/admin/libraries/lib-1/prune/confirm",
+          method: "POST",
+          // The confirmation names the root and the set on screen, nothing wider.
+          data: { root: "/pool", snapshot: "snap-1" },
+        }),
       ),
     );
     await waitFor(() => expect(toast.success).toHaveBeenCalled());

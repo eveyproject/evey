@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dhowden/tag"
+	"github.com/eveyproject/evey/internal/app/prunehold"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/music"
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -48,10 +49,22 @@ type CommandService struct {
 	// fetches derive their timeout from it so a shutdown cancels them instead of
 	// running on context.Background() past a redeploy.
 	shutdownCtx context.Context
+	// pruneHold holds a prune that would delete too much of a root at once
+	// (a pool missing a branch disk). Its own by default; the server wires
+	// the library service's so one admin route lists and confirms them all.
+	pruneHold *prunehold.Hold
 }
 
 func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *CommandService {
-	return &CommandService{tracks: tracks, bus: bus, libRepo: libRepo, scanner: scanner}
+	return &CommandService{tracks: tracks, bus: bus, libRepo: libRepo, scanner: scanner, pruneHold: prunehold.New(bus)}
+}
+
+// WithPruneHold shares a mass-disappearance guard with the other scans.
+func (s *CommandService) WithPruneHold(h *prunehold.Hold) *CommandService {
+	if h != nil {
+		s.pruneHold = h
+	}
+	return s
 }
 
 func (s *CommandService) WithProber(p library.StreamProber) *CommandService {
@@ -465,18 +478,22 @@ func (s *CommandService) pruneMissingTracks(ctx context.Context, libraryID, dir 
 		for _, e := range entries {
 			if strings.HasPrefix(e.Path, prefix) {
 				slog.WarnContext(ctx, "music scan: prune skipped, walk saw no files but the library still has rows here (likely a degraded mount); refusing to delete the catalog", slog.String("dir", dir))
+				s.pruneHold.Abandon(libraryID, dir)
 				return
 			}
 		}
 	}
 	var gone []string
+	total := 0
 	for _, e := range entries {
 		if ctx.Err() != nil {
+			s.pruneHold.Abandon(libraryID, dir)
 			return
 		}
 		if !strings.HasPrefix(e.Path, prefix) {
 			continue // another root of a multi-path library - not this walk's to judge
 		}
+		total++
 		if seen[e.Path] || movedIDs[e.ID] {
 			continue
 		}
@@ -484,6 +501,11 @@ func (s *CommandService) pruneMissingTracks(ctx context.Context, libraryID, dir 
 			continue // the walk missed it but the file is on disk - keep it
 		}
 		gone = append(gone, e.ID)
+	}
+	// Same mass-disappearance guard as the video prune: past 5 % of this
+	// root (and 20 files) the set is held until an admin confirms it.
+	if !s.pruneHold.Judge(ctx, libraryID, dir, total, gone) {
+		return
 	}
 	if len(gone) == 0 {
 		return
