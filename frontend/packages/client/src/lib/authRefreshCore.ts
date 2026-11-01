@@ -1,4 +1,7 @@
 import { useAuthStore } from "@evey/store";
+import { clientLogger } from "../log";
+
+const log = clientLogger("auth");
 
 // The refresh-token flow every client that holds its refresh token itself
 // runs: the phone and the television in their secure store, the browser TV
@@ -86,7 +89,10 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
     try {
       stored = await storage.getRefreshToken();
       if (!stored) {
-        if (auth.accessToken) auth.logout();
+        if (auth.accessToken) {
+          log.warn("session ended: no refresh token in the store");
+          auth.logout();
+        }
         return "refused";
       }
       base = await storage.getServerUrl();
@@ -115,11 +121,15 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
       // Only a REFUSAL ends the session; any other non-ok answer is the
       // infrastructure, not the credential, and must leave the session intact.
       if (res.status === 401 || res.status === 403) {
+        log.warn(`session ended: refresh answered ${res.status}`);
         await storage.clearRefreshToken();
         auth.logout();
         return "refused";
       }
-      if (!res.ok) return "unavailable";
+      if (!res.ok) {
+        log.warn(`refresh unavailable: answered ${res.status}`);
+        return "unavailable";
+      }
       const data = (await res.json()) as { accessToken?: string; refreshToken?: string };
       // A 200 carrying no token is not a success: overwriting the live token with
       // undefined would log the user out just as surely, only more quietly.

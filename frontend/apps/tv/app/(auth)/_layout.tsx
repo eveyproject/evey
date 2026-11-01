@@ -16,6 +16,9 @@ import { InterruptedPlaybackPrompt } from "../../src/components/InterruptedPlayb
 import { takeInterrupted, resumeRoute, type InterruptedPlayback } from "../../src/lib/interruptedPlayback";
 import { ensureAccessToken } from "../../src/lib/auth-refresh";
 import { ScreenState } from "../../src/components/ScreenState";
+import { logger } from "../../src/lib/log";
+
+const authLog = logger("auth");
 import { resolveServerUrl } from "../../src/lib/server-config";
 import { initI18n } from "../../src/i18n";
 import { useTheme } from "../../src/providers/ThemeProvider";
@@ -116,6 +119,7 @@ export default function AuthLayout() {
   }
 
   if (!accessToken || isTokenExpired(accessToken)) {
+    authLog.warn(`leaving for login: ${accessToken ? "token expired after renewal" : "no token"}`);
     return <Redirect href="/login" />;
   }
   if (!profileId) return <Redirect href="/profile-select" />;

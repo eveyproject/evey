@@ -1,5 +1,8 @@
 import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setUnauthorizedHandler, setLocaleProvider, setExtraHeaders, resetRefreshFailure } from "@evey/api";
 import { useAuthStore, useLocaleStore } from "@evey/store";
+import { clientLogger } from "../log";
+
+const log = clientLogger("auth");
 
 export interface FetcherSetupOptions {
   /** Where the API lives. Resolved once at init; null leaves the base URL unset. */
@@ -49,7 +52,10 @@ export async function initFetcher(options: FetcherSetupOptions) {
   // Without this handler the fetcher's fallback is window.dispatchEvent,
   // which nothing listens to on a device - a dead session left the viewer on
   // a screen of failing queries with no way out.
-  setUnauthorizedHandler(options.onUnauthorized);
+  setUnauthorizedHandler(() => {
+    log.warn("fetcher gave the session up (refresh refused)");
+    options.onUnauthorized();
+  });
 
   // Route through forceRefresh so the bootstrap path, the resume, and 401
   // retries all coalesce on a single /auth/refresh round-trip. Concurrent
@@ -69,7 +75,11 @@ export async function initFetcher(options: FetcherSetupOptions) {
  */
 export function leaveOnlyWhenSessionGone(goToLogin: () => void): () => void {
   return () => {
-    if (useAuthStore.getState().accessToken) return;
+    if (useAuthStore.getState().accessToken) {
+      log.info("unauthorized ignored: a token is still held");
+      return;
+    }
+    log.warn("leaving for login: no token left");
     goToLogin();
   };
 }
