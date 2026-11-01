@@ -398,6 +398,7 @@ users:
   restrictedDesc: "Este usuario solo puede acceder a {{count}} {{libraryWord}} seleccionada(s)."
   libraryAccessUpdated: "Acceso a bibliotecas actualizado"
   failedLibraryAccess: "Error al actualizar el acceso a bibliotecas"
+  accessLoadFailed: "No se pudo cargar el acceso a las bibliotecas de este usuario. El acceso no cambia hasta que se cargue."
   clearAllUnrestricted: "Limpiar todo (sin restricción)"
   accessAll: "Todas las bibliotecas"
   accessSelected: "Solo las bibliotecas elegidas"
