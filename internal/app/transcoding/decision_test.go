@@ -918,3 +918,37 @@ func TestLevel_FrameSizeAndRateOutrankALowHeader(t *testing.T) {
 	capped.MaxH264Level = 52
 	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0).PlayMethod, "a 5.2 decoder plays it")
 }
+
+// An interlaced H.264 track stored one field per block (PAFF muxed that way)
+// reports its field rate: 1080i25 reads as 50. A field holds half a frame's
+// macroblocks, so the decoder load is the frame rate's; counting 50 full
+// frames called a 4.1 stream 4.2 and re-encoded it for a 4.1 decoder. The
+// progressive 1080p50 next to it does need 4.2.
+func TestLevel_InterlacedFieldRateCountsFrames(t *testing.T) {
+	fps := func(v float64) *float64 { return &v }
+	interlaced := "interlaced"
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Level: new(41), Framerate: fps(50), FieldOrder: &interlaced, IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	capped := transcoding.DefaultWebProfile
+	capped.MaxH264Level = 41
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0).PlayMethod, "1080i at 50 fields is 25 frames, level 4.0")
+
+	tt := "tt"
+	streams[0].FieldOrder = &tt
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0).PlayMethod, "ffprobe's field order word counts the same")
+
+	streams[0].Framerate = fps(25)
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0).PlayMethod, "a frame rate under 30 is already frames")
+
+	progressive := "progressive"
+	streams[0].Framerate = fps(50)
+	streams[0].FieldOrder = &progressive
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0)
+	assert.Equal(t, "transcode", d.VideoDecision, "1080p50 needs 4.2")
+	assert.Contains(t, d.TranscodeReasons, "level_exceeded")
+
+	streams[0].FieldOrder = nil
+	assert.Equal(t, "transcode", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0).VideoDecision, "unknown scan: the rate is taken as frames")
+}

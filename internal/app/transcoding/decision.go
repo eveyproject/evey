@@ -44,6 +44,8 @@ type StreamSpec struct {
 	Level       *int
 	// FrameRate of a video track, nil when the prober did not read one.
 	FrameRate *float64
+	// Interlaced is the prober's scan verdict (library.ScanInterlaced).
+	Interlaced bool
 }
 
 // toStreamSpecs adapts the persistence-flavored library.MediaStream slice
@@ -95,6 +97,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			DoViProfile: s.DoViProfile,
 			Level:       s.Level,
 			FrameRate:   s.Framerate,
+			Interlaced:  s.ScanType() == library.ScanInterlaced,
 		})
 	}
 	return out
@@ -461,9 +464,25 @@ func h264NeededLevel(s StreamSpec) int {
 		level = *s.Level
 	}
 	if s.Width != nil && s.Height != nil && s.FrameRate != nil && *s.FrameRate > 0 {
-		level = max(level, transcoding.H264Level(*s.Width, *s.Height, *s.FrameRate, 0, 0))
+		level = max(level, transcoding.H264Level(*s.Width, *s.Height, levelFrameRate(s), 0, 0))
 	}
 	return level
+}
+
+// interlacedMaxFrameRate is the highest frame rate an interlaced format has
+// (60i is 30 frames). An interlaced track reading above it was muxed one
+// field per block and reports its field rate.
+const interlacedMaxFrameRate = 30.0
+
+// levelFrameRate is the rate the level limits count: frames, not fields. A
+// field is half a frame's macroblocks, so a field rate halves to the frame
+// rate the decoder actually carries.
+func levelFrameRate(s StreamSpec) float64 {
+	fps := *s.FrameRate
+	if s.Interlaced && fps > interlacedMaxFrameRate+0.5 {
+		return fps / 2
+	}
+	return fps
 }
 
 // addReasonOnce appends a transcode reason unless it is already recorded, so a
