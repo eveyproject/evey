@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eveyproject/evey/internal/app/prunehold"
 	appmusic "github.com/eveyproject/evey/internal/app/music"
+	"github.com/eveyproject/evey/internal/app/prunehold"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/music"
 	"github.com/eveyproject/evey/internal/domain/music/fakes"
