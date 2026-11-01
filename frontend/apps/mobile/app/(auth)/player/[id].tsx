@@ -333,7 +333,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const restartWithTracksRef = useRef<(() => void) | null>(null);
   // Audio tracks the NATIVE player exposes from the HLS manifest - the source
   // of truth for a no-reload client-side switch (see handleAudioSelect).
-  const [nativeAudioTracks, setNativeAudioTracks] = useState<{ id?: string; language?: string; label?: string }[]>([]);
+  const [nativeAudioTracks, setNativeAudioTracks] = useState<{ id?: string; language?: string; label?: string; name?: string }[]>([]);
   const [selectedQuality, setSelectedQuality] = useState(0);
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -1338,7 +1338,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       // the DEFAULT flag and from any transcode restart. Fall back to a restart
       // only when the native tracks aren't parsed yet or don't line up.
       const nativeTrack = stream
-        ? pickNativeAudioTrack(nativeAudioTracks, stream.trackIndex, stream.language)
+        ? pickNativeAudioTrack(nativeAudioTracks, stream, audioStreams)
         : null;
       if (nativeTrack && player) {
         try {
