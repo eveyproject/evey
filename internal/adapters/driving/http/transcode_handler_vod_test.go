@@ -1319,3 +1319,52 @@ func TestHLSVOD_Master_CodecsFollowTheSpilledFingerprint(t *testing.T) {
 	assert.NotContains(t, spilled, `CODECS="hvc1.`, "spilled to x264, the master must not promise HEVC: %s", spilled)
 	assert.Contains(t, spilled, `CODECS="avc1.`, "the master advertises the H.264 the software route encodes")
 }
+
+// A source heavier than the whole calibrated budget is refused for good: the
+// host is idle and still cannot encode it, so "try again shortly" would loop
+// forever. Retry-After 0 and its own code let every client drop the retry.
+func TestHLSVOD_VariantPlaylist_SourceTooHeavyForAnIdleHostIsRefusedForGood(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool { return false }
+	h.videoFitsIdle = func(apptranscoding.DecisionFingerprint, int) bool { return false }
+
+	w := doVODRequest(h, "m1", "stream_0.m3u8")
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, ErrCodeSourceTooHeavy, w.Header().Get("X-Evey-Error"))
+	assert.Equal(t, "0", w.Header().Get("Retry-After"))
+	assert.NotContains(t, w.Body.String(), "#EXTM3U")
+}
+
+// Busy is not too heavy: a stream that fits the idle host keeps the retryable
+// shed, since it plays as soon as another viewer stops.
+func TestHLSVOD_VariantPlaylist_BusyHostStillShedsAsTooManyStreams(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool { return false }
+	h.videoFitsIdle = func(apptranscoding.DecisionFingerprint, int) bool { return true }
+
+	w := doVODRequest(h, "m1", "stream_0.m3u8")
+
+	assert.Equal(t, ErrCodeTooManyStreams, w.Header().Get("X-Evey-Error"))
+	assert.Equal(t, "5", w.Header().Get("Retry-After"))
+}

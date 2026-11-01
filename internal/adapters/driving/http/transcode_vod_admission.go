@@ -47,6 +47,13 @@ const ErrCodeCalibrating = "calibrating"
 // re-muxes it from the media-health page.
 const ErrCodeFileNeedsRemux = "file_needs_remux"
 
+// ErrCodeSourceTooHeavy is the reason a request is refused because encoding
+// this source for this device costs more than the server's whole calibrated
+// capacity: an idle host could not keep up either, so no retry ever succeeds.
+// Only reached when no encode-free path exists (direct play and copy were
+// already ruled out), so the way out is a device that reads the file as-is.
+const ErrCodeSourceTooHeavy = "source_too_heavy"
+
 // checkPlayable refuses, with the shed contract, a file no player can get
 // through. Sits next to the parental check on every route that serves bytes
 // of the file, so a client that skipped stream-info cannot stall on it.
@@ -131,9 +138,39 @@ func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, med
 		writeShed(w, ErrCodeFileNotReady, 10, "source keyframe index still being built; the copy rung needs no encode slot")
 		return true
 	}
+	if h.tooHeavyForIdleHost(rp.FP, probeHeights(rp.FP)) {
+		slog.Info("hls-vod: refusing, source over the whole encode budget", slog.String("media_id", mediaID), slog.String("source_codec", sourceVideoCodec(streams)))
+		writeShed(w, ErrCodeSourceTooHeavy, 0, "encoding this source exceeds the server's calibrated capacity even when idle; play it on a device that decodes it directly")
+		return true
+	}
 	slog.Info("hls-vod: shedding, host at video capacity", slog.String("media_id", mediaID))
 	writeTooManyStreams(w, 5, "server at video transcoding capacity")
 	return true
+}
+
+// tooHeavyForIdleHost reports that NO candidate height would fit even an idle
+// host, so the refusal is final rather than "busy, retry". One height that fits
+// is enough to keep the retryable shed.
+func (h *hlsVODServe) tooHeavyForIdleHost(fp apptranscoding.DecisionFingerprint, heights []int) bool {
+	if h.videoFitsIdle == nil || len(heights) == 0 {
+		return false
+	}
+	for _, ph := range heights {
+		if h.videoFitsIdle(fp, ph) {
+			return false
+		}
+	}
+	return true
+}
+
+// sourceVideoCodec names the source's video codec for the operator's log.
+func sourceVideoCodec(streams []*domainlibrary.MediaStream) string {
+	for _, s := range streams {
+		if s != nil && s.StreamType == "video" {
+			return s.Codec
+		}
+	}
+	return ""
 }
 
 // writeShed sheds a request with everything a client needs to react well: a
@@ -212,6 +249,16 @@ func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, apptra
 	// spawn uses.
 	return func(key string, fp apptranscoding.DecisionFingerprint, topHeight int) bool {
 		return l.CanAdmitSession(key, apptranscoding.SessionCostOf(fp, topHeight))
+	}
+}
+
+// videoFitsIdleOf adapts the limiter's idle-host question the same TRUE-nil way.
+func videoFitsIdleOf(l *apptranscoding.VideoSessionLimiter) func(apptranscoding.DecisionFingerprint, int) bool {
+	if l == nil {
+		return nil
+	}
+	return func(fp apptranscoding.DecisionFingerprint, topHeight int) bool {
+		return l.FitsIdleHost(apptranscoding.SessionCostOf(fp, topHeight))
 	}
 }
 

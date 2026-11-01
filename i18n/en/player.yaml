@@ -115,6 +115,9 @@ shed:
   fileNeedsRemux:
     title: "This video needs a repair"
     body: "This file was assembled in a way this device cannot read to the end (its sound and picture are stored in separate blocks). An administrator can repair it from Media health; nothing to retry until then."
+  sourceTooHeavy:
+    title: "This server isn't powerful enough for this file"
+    body: "The server doesn't have the power needed to play this file on this device, even with nothing else playing. Try another device: some can play it directly."
   fileMissing:
     title: "This file was deleted"
     body: "This file is no longer on the server, so it cannot play. The lists are being refreshed."

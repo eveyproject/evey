@@ -3603,6 +3603,8 @@
   "player.shed.fileNotReady.title": "This video is getting ready",
   "player.shed.mediaUnavailable.body": "It is no longer in the library, so it cannot play. The lists are being refreshed.",
   "player.shed.mediaUnavailable.title": "This title is no longer available",
+  "player.shed.sourceTooHeavy.body": "The server doesn't have the power needed to play this file on this device, even with nothing else playing. Try another device: some can play it directly.",
+  "player.shed.sourceTooHeavy.title": "This server isn't powerful enough for this file",
   "player.shed.tooManyStreams.body": "The server can't prepare another video right now. Try again in a moment, or wait for someone else to finish watching.",
   "player.shed.tooManyStreams.title": "Too many streams right now",
   "player.shortcuts.decreaseSpeed": "Decrease speed",

@@ -35,6 +35,15 @@ describe("PlayerStatusScreens", () => {
     expect(screen.getByText("player.shed.fileNotReady.title")).toBeTruthy();
   });
 
+  it("a source too heavy for the server offers the way back, never a retry", () => {
+    const onBack = vi.fn();
+    render(<ShedScreen shedReason="source_too_heavy" onRetry={vi.fn()} onBack={onBack} />);
+    expect(screen.getByText("player.shed.sourceTooHeavy.title")).toBeTruthy();
+    expect(screen.queryByText("player.retry")).toBeNull();
+    fireEvent.click(screen.getByText("player.goBack"));
+    expect(onBack).toHaveBeenCalled();
+  });
+
   it("the error screen offers retry only when given one; loading is a spinner", () => {
     const onBack = vi.fn();
     render(<ErrorScreen onBack={onBack} />);

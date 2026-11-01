@@ -96,6 +96,10 @@ type hlsVODServe struct {
 	// shed; the segment route still gates authoritatively). Takes the resolved
 	// fingerprint so the probe prices the very route the spawn will charge.
 	videoAdmission func(key string, fp apptranscoding.DecisionFingerprint, topHeight int) bool
+	// videoFitsIdle tells a host that is busy from one that can never encode
+	// this stream: false = over the whole calibrated budget even with nothing
+	// else playing. Optional (nil = every refusal stays the retryable shed).
+	videoFitsIdle func(fp apptranscoding.DecisionFingerprint, topHeight int) bool
 	// calibrating reports a calibration benchmark in flight: its encodes pin
 	// the host, so a NEW encoded stream would stall and pollute the measure.
 	// Such a request is shed with ErrCodeCalibrating (a ~2 min Retry-After)

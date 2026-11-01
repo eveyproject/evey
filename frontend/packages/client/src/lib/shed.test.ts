@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHED_CODES, goneReasonFromError, isShedCode, isTitleGone, shedI18nKey } from "./shed";
+import { SHED_CODES, canRetryShed, goneReasonFromError, isShedCode, isTitleGone, shedI18nKey } from "./shed";
 
 describe("shed contract", () => {
   it("recognises exactly the server's codes", () => {
@@ -22,6 +22,16 @@ describe("shed contract", () => {
     expect(isTitleGone("media_unavailable")).toBe(true);
     expect(isTitleGone("too_many_streams")).toBe(false);
     expect(isTitleGone(null)).toBe(false);
+  });
+
+  // A source too heavy for the server is final: retry would meet the same
+  // refusal, while a busy server is worth another try.
+  it("offers a retry only when one can succeed", () => {
+    expect(canRetryShed("too_many_streams")).toBe(true);
+    expect(canRetryShed("file_not_ready")).toBe(true);
+    expect(canRetryShed("source_too_heavy")).toBe(false);
+    expect(canRetryShed("file_missing")).toBe(false);
+    expect(canRetryShed("media_unavailable")).toBe(false);
   });
 
   // One reading of a refused start for the four players.
