@@ -398,6 +398,7 @@ users:
   restrictedDesc: "This user can only access {{count}} selected {{libraryWord}}."
   libraryAccessUpdated: Library access updated
   failedLibraryAccess: Failed to update library access
+  accessLoadFailed: "Could not load this user's library access. Access is left unchanged until it loads."
   clearAllUnrestricted: Clear all (unrestricted)
   accessAll: "All libraries"
   accessSelected: "Selected libraries only"

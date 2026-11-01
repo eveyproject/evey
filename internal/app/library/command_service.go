@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eveyproject/evey/internal/app/prunehold"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/mkv"
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -176,10 +177,16 @@ func (s *CommandService) PruneSuspensions() []PruneSuspension {
 	return s.scan.pruner.AllSuspensions()
 }
 
-// ConfirmPrune lets the next scan of the library delete under its suspended
-// roots; false when none is suspended.
-func (s *CommandService) ConfirmPrune(libraryID string) bool {
-	return s.scan.pruner.ConfirmPrune(libraryID)
+// ConfirmPrune lets the next scan of the library delete the held set of one
+// root, named by the snapshot the admin was shown, and nothing else.
+func (s *CommandService) ConfirmPrune(libraryID, root, snapshot string) error {
+	return s.scan.pruner.ConfirmPrune(libraryID, root, snapshot)
+}
+
+// PruneHold is the mass-disappearance guard of this library service, for the
+// music and photo scans to share so the same admin route covers them.
+func (s *CommandService) PruneHold() *prunehold.Hold {
+	return s.scan.pruner.Hold()
 }
 
 // WithPlayingMedia lets a version re-probe skip the files being watched.

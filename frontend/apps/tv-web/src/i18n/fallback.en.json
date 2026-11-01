@@ -1819,6 +1819,7 @@
   "admin.update.unknown": "Could not check: {{reason}}",
   "admin.update.upToDate": "Evey is up to date.",
   "admin.users.accessAll": "All libraries",
+  "admin.users.accessLoadFailed": "Could not load this user's library access. Access is left unchanged until it loads.",
   "admin.users.accessSelected": "Selected libraries only",
   "admin.users.actionsFor": "Actions for {{name}}",
   "admin.users.admin": "Admin",

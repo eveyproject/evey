@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eveyproject/evey/internal/app/prunehold"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/photo"
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -29,10 +30,20 @@ type CommandService struct {
 	bus       shared.EventBus
 	libRepo   library.LibraryQueryRepo
 	scanner   photo.PhotoScanner
+	// pruneHold: see the music twin.
+	pruneHold *prunehold.Hold
 }
 
 func NewCommandService(repo photo.Repository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner photo.PhotoScanner) *CommandService {
-	return &CommandService{repo: repo, scanReads: repo, bus: bus, libRepo: libRepo, scanner: scanner}
+	return &CommandService{repo: repo, scanReads: repo, bus: bus, libRepo: libRepo, scanner: scanner, pruneHold: prunehold.New(bus)}
+}
+
+// WithPruneHold shares a mass-disappearance guard with the other scans.
+func (s *CommandService) WithPruneHold(h *prunehold.Hold) *CommandService {
+	if h != nil {
+		s.pruneHold = h
+	}
+	return s
 }
 
 type photoJob struct {
@@ -86,18 +97,22 @@ func (s *CommandService) pruneMissingPhotos(ctx context.Context, libraryID, dir 
 		for _, e := range entries {
 			if strings.HasPrefix(e.Path, prefix) {
 				slog.WarnContext(ctx, "photo scan: prune skipped, walk saw no files but the library still has rows here (likely a degraded mount); refusing to delete the catalog", slog.String("dir", dir))
+				s.pruneHold.Abandon(libraryID, dir)
 				return
 			}
 		}
 	}
 	var gone []string
+	total := 0
 	for _, e := range entries {
 		if ctx.Err() != nil {
+			s.pruneHold.Abandon(libraryID, dir)
 			return
 		}
 		if !strings.HasPrefix(e.Path, prefix) {
 			continue // another root of a multi-path library
 		}
+		total++
 		if seen[e.Path] || movedIDs[e.ID] {
 			continue
 		}
@@ -105,6 +120,11 @@ func (s *CommandService) pruneMissingPhotos(ctx context.Context, libraryID, dir 
 			continue
 		}
 		gone = append(gone, e.ID)
+	}
+	// Same mass-disappearance guard as the video prune: past 5 % of this
+	// root (and 20 files) the set is held until an admin confirms it.
+	if !s.pruneHold.Judge(ctx, libraryID, dir, total, gone) {
+		return
 	}
 	if len(gone) == 0 {
 		return

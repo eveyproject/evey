@@ -398,6 +398,7 @@ users:
   restrictedDesc: "यह उपयोगकर्ता केवल {{count}} चयनित {{libraryWord}} एक्सेस कर सकता है।"
   libraryAccessUpdated: "लाइब्रेरी एक्सेस अपडेट हुआ"
   failedLibraryAccess: "लाइब्रेरी एक्सेस अपडेट करने में विफल"
+  accessLoadFailed: "इस उपयोगकर्ता की लाइब्रेरी एक्सेस लोड नहीं हो सकी। लोड होने तक एक्सेस में कोई बदलाव नहीं होगा।"
   clearAllUnrestricted: "सभी साफ़ करें (अप्रतिबंधित)"
   accessAll: "सभी लाइब्रेरी"
   accessSelected: "केवल चुनी गई लाइब्रेरी"

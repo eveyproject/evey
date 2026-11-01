@@ -473,6 +473,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	photoScanner := filesystem.NewPhotoScanner()
 	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
 	musicSvc, musicNowPlaying := buildMusicServices(ctx, cfg, infra)
+	// One mass-disappearance guard for the three scans, so the admin route
+	// that lists and confirms held prunes sees music and photo roots too.
+	musicSvc.CommandService().WithPruneHold(libCmdSvc.PruneHold())
+	photoSvc.CommandService().WithPruneHold(libCmdSvc.PruneHold())
 	libCmdSvc.WithMusicScanner(musicSvc)
 	libCmdSvc.WithPhotoScanner(photoSvc)
 	playlistSvc, playlistGenSvc := buildPlaylistServices(infra)
