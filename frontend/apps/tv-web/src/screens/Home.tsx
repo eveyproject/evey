@@ -268,11 +268,11 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
   }, [resume.data?.progress]);
 
   const recommendedItems = useMemo(
-    () => (recommended.data?.items ?? []).filter((i) => !!i.mediaItemId).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem),
+    () => (recommended.data?.items ?? []).filter((i) => !!i.mediaItemId).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year || undefined }) as V1MediaItem),
     [recommended.data],
   );
   const popularItems = useMemo(
-    () => (popular.data ?? []).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem),
+    () => (popular.data ?? []).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year || undefined }) as V1MediaItem),
     [popular.data],
   );
   const placedPlugins = useMemo(() => placedPluginIds(feedConfigData?.configs ?? []), [feedConfigData]);

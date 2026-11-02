@@ -410,6 +410,7 @@ func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
 		Score:         int32(item.Score),
 		SeasonNumber:  int32(item.SeasonNumber),
 		EpisodeNumber: int32(item.EpisodeNumber),
+		Year:          int32(item.Year),
 	}
 	if item.PrimaryBlurhash != nil {
 		pb.PrimaryBlurhash = *item.PrimaryBlurhash

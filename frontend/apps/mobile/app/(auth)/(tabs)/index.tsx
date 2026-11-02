@@ -587,6 +587,7 @@ export default function HomeScreen() {
           id: i.mediaItemId,
           title: i.title,
           type: i.type,
+          year: i.year || undefined,
           artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
         }) as V1MediaItem),
     [recommended.data?.items],
@@ -595,7 +596,7 @@ export default function HomeScreen() {
   const popularItems = useMemo(
     () =>
       (popular.data ?? []).map(
-        (i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem,
+        (i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year }) as V1MediaItem,
       ),
     [popular.data],
   );

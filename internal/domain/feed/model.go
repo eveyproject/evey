@@ -233,6 +233,9 @@ type FeedItem struct {
 	Score         int
 	SeasonNumber  int // episodes have both set; zero for other types
 	EpisodeNumber int
+	// Year is the release year, 0 when unknown. Filled by the postgres adapter
+	// for the movie/series rails so cards can show it under the title.
+	Year int
 	// PrimaryBlurhash is the encoded placeholder for the item's primary
 	// artwork. Populated by the postgres adapter after the main feed query;
 	// nil when no primary artwork exists or it pre-dates the blurhash field.
