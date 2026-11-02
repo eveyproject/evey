@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, ScrollView, TextInput, ActivityIndicator, StyleSheet, useWindowDimensions } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
@@ -69,6 +69,11 @@ const FOCUS_SCALE = 1.05;
 const MIN_CARD_SCALE = 0.75;
 // The screen's title bar, until the list's box is measured.
 const TITLE_BAR_ESTIMATE = 56;
+// The list's box, measured once and remembered for the session: a library
+// opened after the first one lays its grid out at the right size on its first
+// render, instead of on the estimate and then again, its columns changed and
+// the list remounted, when the measure lands.
+let measuredGridBox: number | undefined;
 // The dedicated screens this app implements. A photo library now has its own
 // grid and remote-driven slideshow (app/(auth)/photos), so it goes there
 // instead of being browsed as a wall of poster-shaped cards whose detail page
@@ -163,13 +168,125 @@ function Chip({ label, active, onPress, onFocus }: { label: string; active: bool
   );
 }
 
+// One card of the grid. Memoised, and every prop keeps its identity between
+// the grid's renders: a FlatList hands its cells a fresh renderItem on each of
+// its renders, and without this every mounted card was rebuilt with the grid.
+const LibraryGridCard = memo(function LibraryGridCard({
+  item,
+  index,
+  watched,
+  percent,
+  cardWidth,
+  titleBlock,
+  serverUrl,
+  authHeaders,
+  onFocusAt,
+  onPressAt,
+  onBlur,
+}: {
+  item: V1MediaItem;
+  /** The card's place in the grid, handed back to onFocusAt. */
+  index: number;
+  watched: boolean;
+  percent: number | undefined;
+  cardWidth: number;
+  titleBlock: number;
+  serverUrl: string;
+  authHeaders: { Authorization: string } | undefined;
+  onFocusAt: (index: number, itemId: string | undefined) => void;
+  onPressAt: (itemId: string | undefined) => void;
+  onBlur: () => void;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const itemId = item.id;
+  const onPress = useCallback(() => onPressAt(itemId), [onPressAt, itemId]);
+  const onFocus = useCallback(() => onFocusAt(index, itemId), [onFocusAt, index, itemId]);
+  // Asked at the nominal width whatever the fit: the same URL as the
+  // other grids, so the image cache serves it.
+  const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
+  const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
+  const vStream = videoStream(item.streams);
+  const resLabel = resolutionLabel(vStream);
+  const hdr = isHdrStream(vStream);
+  const rating = item.communityRating ?? 0;
+  const hasProgress = percent != null && percent > 0;
+  return (
+    <FocusableCard
+      onPress={onPress}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      hasTVPreferredFocus={index === 0}
+      style={[styles.gridItem, { width: cardWidth }]}
+      accessibilityLabel={itemLabel(item, t)}
+    >
+      <View style={[styles.poster, { width: cardWidth, height: cardWidth * POSTER_RATIO, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
+        {posterUri ? (
+          <PosterImage uri={posterUri} headers={authHeaders} style={StyleSheet.absoluteFill} blurhash={blurhash} recyclingKey={item.id} priority="high" />
+        ) : (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
+        )}
+
+        {rating > 0 && (
+          <View
+            style={[
+              styles.techBadge,
+              { bottom: hasProgress ? 14 : 6, right: 6, backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm },
+            ]}
+            pointerEvents="none"
+          >
+            <Ionicons name="star" size={11} color={theme.colors.warning} />
+            <Text style={[styles.techBadgeText, { color: theme.colors.text }]} numberOfLines={1}>{rating.toFixed(1)}</Text>
+          </View>
+        )}
+
+        {(resLabel || hdr) && (
+          <View style={[styles.techBadgeRow, { bottom: hasProgress ? 14 : 6, left: 6 }]} pointerEvents="none">
+            {resLabel && (
+              <View style={[styles.techBadge, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
+                <Text style={[styles.techBadgeText, { color: theme.colors.text }]} numberOfLines={1}>{resLabel}</Text>
+              </View>
+            )}
+            {hdr && (
+              <View style={[styles.techBadge, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm }]}>
+                <Text style={[styles.techBadgeText, { color: theme.colors.onAccent }]} numberOfLines={1}>HDR</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {item.id && (
+          <View
+            style={[
+              styles.watchedBadge,
+              { backgroundColor: watched ? theme.colors.success : theme.colors.overlay },
+            ]}
+            pointerEvents="none"
+          >
+            <Ionicons name="checkmark" size={12} color={watched ? theme.colors.onSuccess : theme.colors.textMuted} />
+          </View>
+        )}
+
+        {hasProgress && (
+          <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]} pointerEvents="none">
+            <View style={[styles.progressFill, { width: `${Math.min(100, Math.max(0, percent))}%`, backgroundColor: theme.colors.accent }]} />
+          </View>
+        )}
+      </View>
+      <Text style={[styles.title, { color: theme.colors.text, height: titleBlock }]} numberOfLines={TITLE_LINES}>
+        {itemLabel(item, t)}
+      </Text>
+    </FocusableCard>
+  );
+});
+
 export default function LibraryDetailScreen() {
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   // The list shows whole rows only: its box is measured, the home shortcut's
   // band is taken off it, and the cards and the list's height are fitted to
   // what is left (see libraryGridFit). Estimated from the window until then.
   const { height: windowHeight, fontScale } = useWindowDimensions();
-  const [gridBoxHeight, setGridBoxHeight] = useState(0);
+  const [gridBoxHeight, setGridBoxHeight] = useState(measuredGridBox ?? 0);
   const fit = useMemo(
     () =>
       libraryGridFit({
@@ -404,92 +521,37 @@ export default function LibraryDetailScreen() {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, []);
 
+  // onCardFocus changes with every page and every fetch state: read through a
+  // ref, so the cards' handlers keep one identity and a re-render of the grid
+  // (a page landing, the watch history answering) leaves unchanged cards alone.
+  const latest = useRef({ onCardFocus, prefetchOnFocus, router });
+  latest.current = { onCardFocus, prefetchOnFocus, router };
+  const onFocusAt = useCallback((index: number, itemId: string | undefined) => {
+    latest.current.onCardFocus(index);
+    latest.current.prefetchOnFocus(itemId);
+  }, []);
+  const onPressAt = useCallback((itemId: string | undefined) => {
+    latest.current.router.push(`/media/${itemId}`);
+  }, []);
+
   const titleBlock = titleBlockHeight(fontScale);
   const renderItem = useCallback(
-    ({ item, index }: { item: V1MediaItem; index: number }) => {
-      // Asked at the nominal width whatever the fit: the same URL as the
-      // other grids, so the image cache serves it.
-      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
-      const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
-      const vStream = videoStream(item.streams);
-      const resLabel = resolutionLabel(vStream);
-      const hdr = isHdrStream(vStream);
-      const rating = item.communityRating ?? 0;
-      const watched = item.id ? watchedMap.get(item.id) === true : false;
-      const percent = item.id ? percentMap.get(item.id) : undefined;
-      const hasProgress = percent != null && percent > 0;
-      return (
-        <FocusableCard
-          onPress={() => router.push(`/media/${item.id}`)}
-          onFocus={() => {
-            onCardFocus(index);
-            prefetchOnFocus(item.id);
-          }}
-          onBlur={cancelPrefetch}
-          hasTVPreferredFocus={index === 0}
-          style={[styles.gridItem, { width: cardWidth }]}
-          accessibilityLabel={itemLabel(item, t)}
-        >
-          <View style={[styles.poster, { width: cardWidth, height: cardWidth * POSTER_RATIO, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
-            {posterUri ? (
-              <PosterImage uri={posterUri} headers={authHeaders} style={StyleSheet.absoluteFill} blurhash={blurhash} recyclingKey={item.id} priority="high" />
-            ) : (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
-            )}
-
-            {rating > 0 && (
-              <View
-                style={[
-                  styles.techBadge,
-                  { bottom: hasProgress ? 14 : 6, right: 6, backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm },
-                ]}
-                pointerEvents="none"
-              >
-                <Ionicons name="star" size={11} color={theme.colors.warning} />
-                <Text style={[styles.techBadgeText, { color: theme.colors.text }]} numberOfLines={1}>{rating.toFixed(1)}</Text>
-              </View>
-            )}
-
-            {(resLabel || hdr) && (
-              <View style={[styles.techBadgeRow, { bottom: hasProgress ? 14 : 6, left: 6 }]} pointerEvents="none">
-                {resLabel && (
-                  <View style={[styles.techBadge, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
-                    <Text style={[styles.techBadgeText, { color: theme.colors.text }]} numberOfLines={1}>{resLabel}</Text>
-                  </View>
-                )}
-                {hdr && (
-                  <View style={[styles.techBadge, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm }]}>
-                    <Text style={[styles.techBadgeText, { color: theme.colors.onAccent }]} numberOfLines={1}>HDR</Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {item.id && (
-              <View
-                style={[
-                  styles.watchedBadge,
-                  { backgroundColor: watched ? theme.colors.success : theme.colors.overlay },
-                ]}
-                pointerEvents="none"
-              >
-                <Ionicons name="checkmark" size={12} color={watched ? theme.colors.onSuccess : theme.colors.textMuted} />
-              </View>
-            )}
-
-            {hasProgress && (
-              <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]} pointerEvents="none">
-                <View style={[styles.progressFill, { width: `${Math.min(100, Math.max(0, percent))}%`, backgroundColor: theme.colors.accent }]} />
-              </View>
-            )}
-          </View>
-          <Text style={[styles.title, { color: theme.colors.text, height: titleBlock }]} numberOfLines={TITLE_LINES}>
-            {itemLabel(item, t)}
-          </Text>
-        </FocusableCard>
-      );
-    },
-    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t, prefetchOnFocus, cancelPrefetch, onCardFocus, cardWidth, titleBlock],
+    ({ item, index }: { item: V1MediaItem; index: number }) => (
+      <LibraryGridCard
+        item={item}
+        index={index}
+        watched={item.id ? watchedMap.get(item.id) === true : false}
+        percent={item.id ? percentMap.get(item.id) : undefined}
+        cardWidth={cardWidth}
+        titleBlock={titleBlock}
+        serverUrl={serverUrl}
+        authHeaders={authHeaders}
+        onFocusAt={onFocusAt}
+        onPressAt={onPressAt}
+        onBlur={cancelPrefetch}
+      />
+    ),
+    [watchedMap, percentMap, cardWidth, titleBlock, serverUrl, authHeaders, onFocusAt, onPressAt, cancelPrefetch],
   );
 
   const activeIsLoading = searchActive ? isSearchLoading : isLoading;
@@ -640,7 +702,7 @@ export default function LibraryDetailScreen() {
       ) : (
         // The box the list may take; the list itself is cut to whole rows
         // above the home shortcut's band, which stays clear under it.
-        <View style={{ flex: 1 }} onLayout={(e) => setGridBoxHeight(e.nativeEvent.layout.height)}>
+        <View style={{ flex: 1 }} onLayout={(e) => { measuredGridBox = e.nativeEvent.layout.height; setGridBoxHeight(measuredGridBox); }}>
           <FlatList
             ref={listRef}
             // A list cannot change its column count in place.

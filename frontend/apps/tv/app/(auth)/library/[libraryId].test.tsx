@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 // The filter header renders once the grid has painted; here the paint is immediate.
 vi.mock("../../../src/hooks/useAfterFirstPaint", () => ({ useAfterFirstPaint: (key: string | undefined) => key !== undefined }));
-vi.mock("../../../src/hooks/useMediaPrefetch", () => ({ useMediaPrefetch: () => ({ prefetchOnFocus: () => {}, cancelPrefetch: () => {} }) }));
+// One object, like the real hook's useCallback handlers.
+const { PREFETCH } = vi.hoisted(() => ({ PREFETCH: { prefetchOnFocus: () => {}, cancelPrefetch: () => {} } }));
+vi.mock("../../../src/hooks/useMediaPrefetch", () => ({ useMediaPrefetch: () => PREFETCH }));
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import React from "react";
 
@@ -96,10 +98,21 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
   }),
 }));
 
+// Counts the posters drawn: one per card render.
+const { posterRenders, AUTH_HEADERS } = vi.hoisted(() => ({ posterRenders: { count: 0 }, AUTH_HEADERS: { Authorization: "Bearer TOKEN" } }));
+vi.mock("../../../src/components/PosterImage", () => ({
+  PosterImage: () => {
+    posterRenders.count += 1;
+    return null;
+  },
+}));
+
 // --- hooks mocks ---------------------------------------------------------------
 vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrl: () => "http://srv.test" }));
 vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({
-  useAuthHeaders: () => ({ Authorization: "Bearer TOKEN" }),
+  // One object, like the real hook (memoised on the token): a fresh one per
+  // render would defeat the grid cards' memo here and nowhere else.
+  useAuthHeaders: () => AUTH_HEADERS,
 }));
 
 // --- @evey/store mock -----------------------------------------------------------------
@@ -233,6 +246,19 @@ describe("TV LibraryDetailScreen selected filters", () => {
     fireEvent.click(screen.getByLabelText("Drama"));
     fireEvent.click(screen.getByLabelText("common.sortAscending"));
     expect(screen.getByText("Drama \u00b7 media.library.titleSort \u2193")).toBeTruthy();
+  });
+});
+
+describe("TV LibraryDetailScreen grid cards", () => {
+  it("leaves the cards alone when the screen re-renders for something they do not show", () => {
+    posterRenders.count = 0;
+    render(<LibraryDetailScreen />);
+    const before = posterRenders.count;
+    expect(before).toBeGreaterThan(0);
+    // The search field taking the focus re-renders the screen, and the list's
+    // renderItem with it: the cards' own props have not changed.
+    fireEvent.focus(screen.getByLabelText("media.library.filterByName"));
+    expect(posterRenders.count).toBe(before);
   });
 });
 
