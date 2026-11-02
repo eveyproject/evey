@@ -22,14 +22,14 @@ import (
 // overlayPlaybackHandler wires a playback handler whose library service knows
 // a "fr" translation for two items and whose metadata service holds an admin
 // title override for two items (one item carries both, the override must win).
-func overlayPlaybackHandler(t *testing.T, completed bool) *playbackHandler {
+func overlayPlaybackHandler(t *testing.T) *playbackHandler {
 	t.Helper()
 	h, progressRepo, mediaQueryRepo, _ := newTestPlaybackHandlerFull()
 	for _, id := range []string{"mi-tr", "mi-ov", "mi-both"} {
 		mediaQueryRepo.Seed(&library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Type: "movie", Title: "Some Movie"})
 		require.NoError(t, progressRepo.Upsert(context.Background(), &playback.WatchProgress{
 			ID: "wp-" + id, ProfileID: "profile-2", MediaItemID: shared.MediaItemID(id),
-			Position: mustPlaybackDurationMs(t, 10000), Completed: completed, LastPlayedAt: time.Now(),
+			Position: mustPlaybackDurationMs(t, 10000), LastPlayedAt: time.Now(),
 		}))
 	}
 	trans := &stubMediaTranslations{byID: map[string]*library.MediaItemTranslation{
@@ -60,7 +60,7 @@ func wantOverlaidTitles() map[string]string {
 }
 
 func TestPlaybackHandler_ResumeItems_AppliesLocaleAndOverrides(t *testing.T) {
-	h := overlayPlaybackHandler(t, false)
+	h := overlayPlaybackHandler(t)
 	ctx := eveyi18n.ContextWithLocale(pbUserCtx("user-2", "profile-2"), "fr")
 
 	resp, err := h.GetResumeItems(ctx, &eveyv1.GetResumeItemsRequest{Limit: 10})
@@ -75,21 +75,8 @@ func TestPlaybackHandler_ResumeItems_AppliesLocaleAndOverrides(t *testing.T) {
 	}
 }
 
-func TestPlaybackHandler_NextUp_AppliesLocaleAndOverrides(t *testing.T) {
-	h := overlayPlaybackHandler(t, true)
-	ctx := eveyi18n.ContextWithLocale(pbUserCtx("user-2", "profile-2"), "fr")
-
-	resp, err := h.GetNextUp(ctx, &eveyv1.GetNextUpRequest{Limit: 10})
-	require.NoError(t, err)
-	require.NotEmpty(t, resp.Items, "fixture must yield next-up cards")
-	want := wantOverlaidTitles()
-	for _, it := range resp.Items {
-		assert.Equal(t, want[it.Id], it.Title, it.Id)
-	}
-}
-
 func TestPlaybackHandler_WatchHistory_AppliesLocaleAndOverrides(t *testing.T) {
-	h := overlayPlaybackHandler(t, false)
+	h := overlayPlaybackHandler(t)
 	ctx := eveyi18n.ContextWithLocale(pbUserCtx("user-2", "profile-2"), "fr")
 
 	resp, err := h.GetWatchHistory(ctx, &eveyv1.GetWatchHistoryRequest{Limit: 10})

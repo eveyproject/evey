@@ -23,6 +23,12 @@ func (m PlayMethod) IsValid() bool {
 	return false
 }
 
+// MinResumeRailPosition is how far a title must have played before the home's
+// continue-watching rail offers it. Below it the position is still kept (the
+// title page resumes from it), but a play skipped early - a shuffle draw, a
+// zap through a library - is not something the viewer means to come back to.
+const MinResumeRailPosition = 3 * time.Minute
+
 type WatchProgress struct {
 	ID           string
 	ProfileID    shared.ProfileID

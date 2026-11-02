@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/eveyproject/evey/internal/domain/feed"
+	"github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -45,16 +46,13 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			       NULL::int AS season_number, NULL::int AS episode_number
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
-			LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 			WHERE wp.profile_id = $1
 			  AND mi.type = 'movie'
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
-			  -- MinResumePct=5 (the classic resume floor): don't surface a film the user
-			  -- only sampled for a few seconds. Items with unknown duration
-			  -- bypass the gate so we don't silently drop legitimate progress.
-			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
-			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
+			  -- playback.MinResumeRailPosition, the floor of the playback rail:
+			  -- a title only sampled (a zap, a shuffle draw) is not resumable.
+			  AND wp.position_ms >= $3
 		),
 		series_list AS (
 			SELECT DISTINCT mi.parent_id AS season_id, s.parent_id AS series_id
@@ -74,13 +72,11 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			INNER JOIN media_items s ON s.id = mi.parent_id
-			LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 			WHERE wp.profile_id = $1
 			  AND mi.type = 'episode'
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
-			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
-			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
+			  AND wp.position_ms >= $3
 			ORDER BY s.parent_id, wp.last_played_at DESC, mi.id
 		),
 		next_unwatched AS (
@@ -110,7 +106,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 		-- and which rows survive the LIMIT, would be undefined and shift per refresh.
 		ORDER BY last_played_at DESC, id
 		LIMIT $2
-	`, profileID, limit)
+	`, profileID, limit, playback.MinResumeRailPosition.Milliseconds())
 	if err != nil {
 		return nil, err
 	}
@@ -142,13 +138,11 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			LEFT JOIN media_items sea ON mi.type = 'episode' AND sea.id = mi.parent_id
-			LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 			WHERE wp.profile_id = $1
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
-			  -- MinResumePct=5 (the classic resume floor): don't surface zaps.
-			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
-			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
+			  -- playback.MinResumeRailPosition: don't surface zaps.
+			  AND wp.position_ms >= $3
 		),
 		in_progress AS (
 			SELECT * FROM in_progress_all WHERE rn = 1
@@ -188,7 +182,7 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 		-- and which rows survive the LIMIT, would be undefined and shift per refresh.
 		ORDER BY last_played_at DESC, id
 		LIMIT $2
-	`, profileID, limit)
+	`, profileID, limit, playback.MinResumeRailPosition.Milliseconds())
 	if err != nil {
 		return nil, err
 	}

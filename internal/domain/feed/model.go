@@ -41,6 +41,14 @@ var knownTypes = map[Type]bool{
 	TypeNextEpisode:      true,
 }
 
+// Retired reports a feed type that is still accepted (a client built before
+// its retirement may save a layout naming it) but no longer offered: the next
+// episode of a series being watched is a card of resume_playback now, the one
+// continue-watching rail.
+func (t Type) Retired() bool {
+	return t == TypeNextEpisode
+}
+
 // IsValid reports whether t is a known built-in feed type or a well-formed
 // dynamic one (library:<id> / plugin:<id>). A bare non-empty string is no
 // longer accepted: a typo'd type ("reccently_added") must fail construction

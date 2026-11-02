@@ -311,6 +311,53 @@ func TestQueryService_GetMergedConfig_TotalOrder(t *testing.T) {
 	}, got)
 }
 
+// The next-episode row is retired into resume_playback: the layouts stored
+// before (the admin preset, a profile's saved order) still name it, and every
+// client, old or new, must stop being told to render it.
+func TestQueryService_RetiredNextEpisodeRowIsNotServed(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	queryRepo.AdminConfigs = []*feed.AdminConfig{
+		{FeedType: feed.TypeResumePlayback, Enabled: true, DisplayOrder: 0},
+		{FeedType: feed.TypeNextEpisode, Enabled: true, DisplayOrder: 1},
+		{FeedType: feed.TypeRecommended, Enabled: true, DisplayOrder: 2},
+	}
+	zero := 0
+	queryRepo.ProfileConfigs["p1"] = []*feed.ProfileConfig{
+		{ProfileID: "p1", FeedType: feed.TypeNextEpisode, DisplayOrder: &zero},
+	}
+	queryRepo.ProfileConfigs["p2"] = []*feed.ProfileConfig{
+		{ProfileID: "p2", FeedType: feed.TypeNextEpisode, DisplayOrder: &zero},
+	}
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+
+	for _, profile := range []string{"p1", "p2"} {
+		configs, err := svc.GetMergedConfig(context.Background(), profile)
+		require.NoError(t, err)
+		got := make([]feed.Type, len(configs))
+		for i, c := range configs {
+			got[i] = c.FeedType
+		}
+		assert.Equal(t, []feed.Type{feed.TypeResumePlayback, feed.TypeRecommended}, got, profile)
+	}
+	admins, err := svc.GetAdminConfigs(context.Background())
+	require.NoError(t, err)
+	require.Len(t, admins, 2, "the admin's Home sections card does not list it either")
+	for _, a := range admins {
+		assert.NotEqual(t, feed.TypeNextEpisode, a.FeedType)
+	}
+	// Without an admin parent the override would surface on its own.
+	queryRepo.AdminConfigs = queryRepo.AdminConfigs[:1]
+	configs, err := svc.GetMergedConfig(context.Background(), "p2")
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	assert.Equal(t, feed.TypeResumePlayback, configs[0].FeedType)
+
+	assert.True(t, feed.TypeNextEpisode.IsValid(), "a layout an older client saves with it is still accepted")
+}
+
 func TestQueryService_ResumePlayback(t *testing.T) {
 	queryRepo := fakes.NewFakeConfigQueryRepo()
 	querier := fakes.NewFakeFeedQuerier()

@@ -277,6 +277,20 @@ func (r *WatchProgressRepository) GetByProfileCursor(ctx context.Context, profil
 	return progress, nil
 }
 
+// GetResumeItems is the home's continue-watching rail, the one every client
+// renders: in-progress titles and the next episode of the series being
+// watched, one card per series, most recent activity first.
+//
+//   - Only rows that say something about the viewer count as activity: a
+//     finished title, or one played at least playback.MinResumeRailPosition.
+//     A play skipped before that (a shuffle draw, a zap) neither surfaces nor
+//     dates anything; its position stays stored for the title page.
+//   - Per series, its latest activity decides the card: an unfinished episode
+//     resumes, a finished one offers the next unfinished episode after it in
+//     viewing order (across seasons, specials never offered), dated by that
+//     finish. A film is its own group.
+//   - A next-episode card carries no position: what it offers is the episode,
+//     not a stray few seconds of it.
 func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetResumeItems")
 	defer span.End()
@@ -284,66 +298,54 @@ func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID 
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
-		 FROM watch_progress WHERE profile_id = $1 AND completed = FALSE AND position_ms > 0
-		 ORDER BY last_played_at DESC LIMIT $2`, profileID, limit)
+		`WITH activity AS (
+		   SELECT wp.id, wp.media_item_id, wp.position_ms, wp.completed, wp.play_count,
+		          wp.last_played_at, sea.parent_id AS series_id
+		   FROM watch_progress wp
+		   INNER JOIN media_items mi ON mi.id = wp.media_item_id
+		   LEFT JOIN media_items sea ON mi.type = 'episode' AND sea.id = mi.parent_id AND sea.type = 'season'
+		   WHERE wp.profile_id = $1
+		     AND (wp.completed OR wp.position_ms >= $3)
+		 ),
+		 latest AS (
+		   SELECT DISTINCT ON (COALESCE(series_id, media_item_id)) *
+		   FROM activity
+		   ORDER BY COALESCE(series_id, media_item_id), last_played_at DESC, media_item_id
+		 ),
+		 resume AS (
+		   SELECT id, media_item_id, position_ms, completed, play_count, last_played_at
+		   FROM latest WHERE NOT completed
+		 ),
+		 series_eps AS (
+		   SELECT l.series_id, l.media_item_id AS latest_id, l.last_played_at,
+		          mi.id AS media_item_id, COALESCE(sea.index_number = 0, FALSE) AS special,
+		          ROW_NUMBER() OVER (PARTITION BY l.series_id
+		            ORDER BY (sea.index_number = 0), sea.index_number NULLS LAST,
+		                     mi.index_number NULLS LAST, mi.title, mi.id) AS ord
+		   FROM latest l
+		   INNER JOIN media_items sea ON sea.parent_id = l.series_id AND sea.type = 'season'
+		   INNER JOIN media_items mi ON mi.parent_id = sea.id AND mi.type = 'episode'
+		   WHERE l.completed AND l.series_id IS NOT NULL
+		 ),
+		 next_up AS (
+		   SELECT DISTINCT ON (e.series_id)
+		          COALESCE(wp.id, '') AS id, e.media_item_id, 0::bigint AS position_ms,
+		          FALSE AS completed, COALESCE(wp.play_count, 0) AS play_count, e.last_played_at
+		   FROM series_eps e
+		   INNER JOIN series_eps cur ON cur.series_id = e.series_id AND cur.media_item_id = cur.latest_id
+		   LEFT JOIN watch_progress wp ON wp.profile_id = $1 AND wp.media_item_id = e.media_item_id
+		   WHERE e.ord > cur.ord AND NOT e.special
+		     AND (wp.completed IS NULL OR NOT wp.completed)
+		   ORDER BY e.series_id, e.ord
+		 )
+		 SELECT id, $1, media_item_id, position_ms, completed, play_count, last_played_at
+		 FROM (SELECT * FROM resume UNION ALL SELECT * FROM next_up) rail
+		 ORDER BY last_played_at DESC, media_item_id
+		 LIMIT $2`, profileID, limit, playback.MinResumeRailPosition.Milliseconds())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("WatchProgressRepo.GetResumeItems: %w", err)
-	}
-	defer rows.Close()
-	progress, err := r.scanWatchProgressRows(rows)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return nil, err
-	}
-	return progress, nil
-}
-
-// GetNextUp returns the next unwatched episode for each series the profile has been watching.
-// It finds episodes where the previous episode (index_number - 1) was completed,
-// but the current episode has not been completed yet.
-func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetNextUp")
-	defer span.End()
-	span.SetAttributes(attribute.String("profile.id", profileID))
-	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
-	defer cancel()
-	// DISTINCT ON (parent_id) must order by parent_id first, so its rows come out
-	// in series-id order. Wrap it and re-order the de-duplicated set by how
-	// recently each series was watched, applying LIMIT in the outer query so the
-	// N most-recently-watched series surface (the inner LIMIT would instead keep
-	// the N alphabetically-first series and could drop the one you just watched).
-	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT nu.id, nu.profile_id, nu.media_item_id, nu.position_ms,
-		        nu.completed, nu.play_count, nu.last_played_at
-		 FROM (
-		   SELECT DISTINCT ON (mi.parent_id)
-		     COALESCE(wp.id, '') AS id, $1 AS profile_id, mi.id AS media_item_id,
-		     COALESCE(wp.position_ms, 0) AS position_ms,
-		     COALESCE(wp.completed, FALSE) AS completed,
-		     COALESCE(wp.play_count, 0) AS play_count,
-		     COALESCE(wp.last_played_at, NOW()) AS last_played_at,
-		     COALESCE(prev_wp.last_played_at, NOW()) AS prev_last_played
-		   FROM media_items mi
-		   INNER JOIN media_items prev ON prev.parent_id = mi.parent_id
-		     AND prev.index_number = mi.index_number - 1
-		   INNER JOIN watch_progress prev_wp ON prev_wp.profile_id = $1
-		     AND prev_wp.media_item_id = prev.id
-		     AND prev_wp.completed = TRUE
-		   LEFT JOIN watch_progress wp ON wp.profile_id = $1 AND wp.media_item_id = mi.id
-		   WHERE mi.type = 'episode' AND mi.index_number IS NOT NULL
-		     AND (wp.completed IS NULL OR wp.completed = FALSE)
-		   ORDER BY mi.parent_id, COALESCE(prev_wp.last_played_at, NOW()) DESC
-		 ) nu
-		 ORDER BY nu.prev_last_played DESC, nu.media_item_id
-		 LIMIT $2`, profileID, limit)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return nil, fmt.Errorf("WatchProgressRepo.GetNextUp: %w", err)
 	}
 	defer rows.Close()
 	progress, err := r.scanWatchProgressRows(rows)

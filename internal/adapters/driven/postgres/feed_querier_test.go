@@ -201,7 +201,7 @@ func seedProgress(t *testing.T, db *sql.DB, profileID, mediaItemID string, posit
 	}))
 }
 
-// The home "continue watching" row: a film resumes only past the 5% floor,
+// The home "continue watching" row: a film resumes only past the rail floor,
 // a completed film is gone, an in-progress episode resumes, and a series the
 // profile has touched offers its first unwatched episode - once per series.
 func TestFeedQuerier_ContinueWatching_AndNextEpisode(t *testing.T) {
@@ -249,7 +249,7 @@ func TestFeedQuerier_ContinueWatching_AndNextEpisode(t *testing.T) {
 	}
 	require.Contains(t, got, "feed-resume", "a film past the resume floor")
 	assert.Equal(t, (30 * time.Minute).Milliseconds(), got["feed-resume"].Position.Milliseconds())
-	assert.NotContains(t, got, "feed-sampled", "2 minutes of a 2-hour film is below the 5%% floor")
+	assert.NotContains(t, got, "feed-sampled", "2 minutes is below the rail floor")
 	assert.NotContains(t, got, "feed-done", "a completed film is not resumable")
 	require.Contains(t, got, eps[1], "the in-progress episode resumes")
 	assert.Equal(t, 1, got[eps[1]].SeasonNumber)

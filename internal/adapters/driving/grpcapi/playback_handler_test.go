@@ -997,7 +997,10 @@ func TestPlaybackHandler_GetWatchHistory_Pagination(t *testing.T) {
 	assert.Len(t, resp.Items, 2)
 }
 
-func TestPlaybackHandler_GetNextUp(t *testing.T) {
+// GetNextUp is retired into GetResumeItems' rail: it answers empty even with
+// completed episodes on record, so a client built before the merge shows no
+// second row of the same episodes.
+func TestPlaybackHandler_GetNextUp_RetiredAnswersEmpty(t *testing.T) {
 	h, _, progressRepo, mediaQuery, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
@@ -1012,7 +1015,8 @@ func TestPlaybackHandler_GetNextUp(t *testing.T) {
 	resp, err := h.GetNextUp(ctx, &eveyv1.GetNextUpRequest{Limit: 10})
 
 	require.NoError(t, err)
-	assert.NotNil(t, resp)
+	require.NotNil(t, resp)
+	assert.Empty(t, resp.Items)
 }
 
 func TestPlaybackHandler_GetNextUp_Unauthenticated(t *testing.T) {
@@ -1022,35 +1026,6 @@ func TestPlaybackHandler_GetNextUp_Unauthenticated(t *testing.T) {
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
 
-func TestPlaybackHandler_GetNextUp_ParentalFiltersAdult(t *testing.T) {
-	h, _, progressRepo, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
-	ctx := context.Background()
-
-	maxAge := 13
-	profileRepo.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
-		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
-
-	progressRepo.Upsert(ctx, &playback.WatchProgress{ID: "wp-r", ProfileID: "profile-2", MediaItemID: "mi-r",
-		Position: mustPlaybackDurationMs(t, 30000), Completed: true, LastPlayedAt: time.Now()})
-	progressRepo.Upsert(ctx, &playback.WatchProgress{ID: "wp-pg", ProfileID: "profile-2", MediaItemID: "mi-pg",
-		Position: mustPlaybackDurationMs(t, 30000), Completed: true, LastPlayedAt: time.Now()})
-	mediaQuery.Seed(&library.MediaItem{ID: "mi-r", Title: "Adult", Type: "movie",
-		Classification: &library.MediaClassification{OfficialRating: "R"}}) // age 17 → blocked
-	mediaQuery.Seed(&library.MediaItem{ID: "mi-pg", Title: "Family", Type: "movie",
-		Classification: &library.MediaClassification{OfficialRating: "PG"}}) // age 10 → allowed
-
-	resp, err := h.GetNextUp(userCtx("user-2", "profile-2"), &eveyv1.GetNextUpRequest{Limit: 10})
-	require.NoError(t, err)
-	ids := make([]string, len(resp.Items))
-	for i, it := range resp.Items {
-		ids[i] = it.Id
-	}
-	assert.NotContains(t, ids, "mi-r", "adult next-up item must be hidden from a kids profile (metadata leak)")
-	assert.Contains(t, ids, "mi-pg", "kid-safe next-up item must remain")
-}
-
-// GetSeriesPlayTarget hands back the episode to start with where it was
-// left: the unfinished one, mid-way, and "started" so the client says Resume.
 func TestPlaybackHandler_GetSeriesPlayTarget(t *testing.T) {
 	h, _, progressRepo, mediaQuery, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
@@ -1279,7 +1254,7 @@ func TestPlaybackHandler_StartStream_CrossLibrary_NotFound(t *testing.T) {
 
 // newTestPlaybackHandlerFull builds a playbackHandler with a wired userAccess
 // service (so the library-access filter inside GetWatchHistory, GetResumeItems,
-// and GetNextUp is exercised) and also exposes the watch-progress repository so
+// and GetResumeItems is exercised) and also exposes the watch-progress repository so
 // tests can seed progress rows. It registers user-1 (admin, profile-1) and
 // user-2 (non-admin, profile-2) so a single handler covers both the filtered
 // and the admin-bypass code paths.
@@ -1444,68 +1419,6 @@ func TestPlaybackHandler_GetResumeItems_LibraryAccessFilter(t *testing.T) {
 	})
 }
 
-// TestPlaybackHandler_GetNextUp_LibraryAccessFilter proves that the next-up
-// library-access gate drops items from libraries the caller cannot access.
-// The filter is only applied when allowedIDs is non-nil, which requires
-// userAccess to be wired on the handler.
-func TestPlaybackHandler_GetNextUp_LibraryAccessFilter(t *testing.T) {
-	h, progressRepo, mediaQueryRepo, libraryAccess := newTestPlaybackHandlerFull()
-
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-nup-ok", LibraryID: "lib-allowed", Type: "episode", Title: "Allowed"})
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-nup-no", LibraryID: "lib-forbidden", Type: "episode", Title: "Forbidden"})
-
-	libraryAccess.Grant(context.Background(), "user-2", "lib-allowed")
-
-	// GetNextUp requires completed progress.
-	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
-		ID: "wp-nup-ok", ProfileID: "profile-2", MediaItemID: "mi-nup-ok",
-		Completed: true, LastPlayedAt: time.Now(),
-	})
-	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
-		ID: "wp-nup-no", ProfileID: "profile-2", MediaItemID: "mi-nup-no",
-		Completed: true, LastPlayedAt: time.Now(),
-	})
-
-	// Admin profile-1 next-up items for the bypass sub-test.
-	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
-		ID: "wp-nup-adm-ok", ProfileID: "profile-1", MediaItemID: "mi-nup-ok",
-		Completed: true, LastPlayedAt: time.Now(),
-	})
-	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
-		ID: "wp-nup-adm-no", ProfileID: "profile-1", MediaItemID: "mi-nup-no",
-		Completed: true, LastPlayedAt: time.Now(),
-	})
-
-	t.Run("restricted user sees only allowed-library items", func(t *testing.T) {
-		resp, err := h.GetNextUp(pbUserCtx("user-2", "profile-2"), &eveyv1.GetNextUpRequest{Limit: 10})
-		require.NoError(t, err)
-		ids := make([]string, len(resp.Items))
-		for i, it := range resp.Items {
-			ids[i] = it.Id
-		}
-		assert.Contains(t, ids, "mi-nup-ok", "allowed-library next-up item must appear")
-		assert.NotContains(t, ids, "mi-nup-no", "forbidden-library next-up item must be filtered out")
-	})
-
-	t.Run("admin ctx bypasses library filter and sees both", func(t *testing.T) {
-		resp, err := h.GetNextUp(pbAdminCtx(), &eveyv1.GetNextUpRequest{Limit: 10})
-		require.NoError(t, err)
-		ids := make([]string, len(resp.Items))
-		for i, it := range resp.Items {
-			ids[i] = it.Id
-		}
-		assert.Contains(t, ids, "mi-nup-ok", "admin must see the allowed-library next-up item")
-		assert.Contains(t, ids, "mi-nup-no", "admin must see the forbidden-library next-up item (no filter for admins)")
-	})
-}
-
-// The audio bitrate row in the player's stream-info panel read "-" on a title whose
-// audio we were re-encoding: a Matroska track rarely declares a bitrate, so the
-// source probe has none - yet we are the ones choosing the figure.
-//
-// It must be the figure we actually hand the encoder, scaled to the channels being
-// served. Quoting the unscaled base would tell a viewer 192 kbps while their 5.1
-// track is encoded at 384 - a wrong number is worse than a dash.
 func TestServedAudioBitrateBps(t *testing.T) {
 	i64 := func(v int64) *int64 { return &v }
 	i := func(v int) *int { return &v }
