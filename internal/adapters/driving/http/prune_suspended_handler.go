@@ -3,11 +3,13 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
 
 	applibrary "github.com/eveyproject/evey/internal/app/library"
+	"github.com/eveyproject/evey/internal/app/prunehold"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -15,7 +17,7 @@ import (
 // PruneController is the slice of the library service the prune-hold routes use.
 type PruneController interface {
 	PruneSuspensions() []applibrary.PruneSuspension
-	ConfirmPrune(libraryID string) bool
+	ConfirmPrune(libraryID, root, snapshot string) error
 	ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error)
 }
 
@@ -24,6 +26,16 @@ type pruneSuspensionDTO struct {
 	Root      string `json:"root"`
 	Missing   int    `json:"missing"`
 	Total     int    `json:"total"`
+	// Snapshot names the exact set of missing items; the confirmation sends
+	// it back so only the set the admin saw can be deleted.
+	Snapshot string `json:"snapshot"`
+}
+
+// pruneConfirmBody is the held root the admin confirms and the snapshot the
+// page showed for it.
+type pruneConfirmBody struct {
+	Root     string `json:"root"`
+	Snapshot string `json:"snapshot"`
 }
 
 // pruneSuspensionsHandler handles GET /api/v1/admin/libraries/prune-suspended
@@ -36,7 +48,7 @@ func pruneSuspensionsHandler(ctrl PruneController) http.HandlerFunc {
 		held := ctrl.PruneSuspensions()
 		out := make([]pruneSuspensionDTO, 0, len(held))
 		for _, s := range held {
-			out = append(out, pruneSuspensionDTO{LibraryID: s.LibraryID, Root: s.Root, Missing: s.Missing, Total: s.Total})
+			out = append(out, pruneSuspensionDTO{LibraryID: s.LibraryID, Root: s.Root, Missing: s.Missing, Total: s.Total, Snapshot: s.Snapshot})
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"suspensions": out}); err != nil {
@@ -46,9 +58,10 @@ func pruneSuspensionsHandler(ctrl PruneController) http.HandlerFunc {
 }
 
 // pruneConfirmHandler handles POST /api/v1/admin/libraries/{id}/prune/confirm
-// (admin-gated at registration): arms the one-shot override so the next pass
-// deletes under the held roots, then scans the library to run that pass. 409
-// when nothing is held, so a stale page cannot arm a deletion for later.
+// (admin-gated at registration), body {root, snapshot}: allows the next pass
+// over that one root to delete the held set the page showed, then scans the
+// library to run that pass. 409 when the root is not held or its set changed
+// since, so a stale page cannot arm a deletion of something else.
 func pruneConfirmHandler(ctrl PruneController, serverCtx context.Context, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.admin.PruneConfirm")
@@ -62,11 +75,21 @@ func pruneConfirmHandler(ctrl PruneController, serverCtx context.Context, librar
 		if !checkLibraryAccess(ctx, w, HTTPClaimsFromContext(ctx), shared.LibraryID(libraryID), libraryAccess) {
 			return
 		}
-		if !ctrl.ConfirmPrune(libraryID) {
-			http.Error(w, `{"message":"no deletion is suspended for this library"}`, http.StatusConflict)
+		var body pruneConfirmBody
+		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Root == "" || body.Snapshot == "" {
+			http.Error(w, `{"message":"root and snapshot are required"}`, http.StatusBadRequest)
 			return
 		}
-		slog.WarnContext(ctx, "admin confirmed a suspended orphan prune", slog.String("library_id", libraryID))
+		if err := ctrl.ConfirmPrune(libraryID, body.Root, body.Snapshot); err != nil {
+			msg := `{"message":"no deletion is suspended under this root"}`
+			if errors.Is(err, prunehold.ErrSnapshotChanged) {
+				msg = `{"message":"the missing files changed since this page was loaded"}`
+			}
+			http.Error(w, msg, http.StatusConflict)
+			return
+		}
+		slog.WarnContext(ctx, "admin confirmed a suspended orphan prune", slog.String("library_id", libraryID), slog.String("root", body.Root))
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {

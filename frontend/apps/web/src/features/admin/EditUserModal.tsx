@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -43,10 +43,19 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
   // admin picks the mode explicitly: an empty selection used to be saved as a
   // revoke-all, which lifts the restriction and opens the whole catalogue.
   const [libMode, setLibMode] = useState<"all" | "selected">("all");
+  // Whether the admin changed the access in THIS opening of the modal. Only
+  // then may Save write it: otherwise a Save that only edits the e-mail could
+  // replay a stale form state as "all libraries" and lift a restriction.
+  const accessTouched = useRef(false);
   const [saving, setSaving] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
 
-  const { data: accessData, isLoading: accessLoading } = useLibraryAccessServiceGetUserLibraryAccess(
+  const {
+    data: accessData,
+    isLoading: accessLoading,
+    isError: accessError,
+    refetch: refetchAccess,
+  } = useLibraryAccessServiceGetUserLibraryAccess(
     user.id ?? "",
     { query: { enabled: open && !isAdmin && !!user.id } },
   );
@@ -68,10 +77,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       setIsAdmin(user.isAdmin ?? false);
       setMaxProfiles(String(user.maxProfiles ?? 0));
       setMaxDevicesPerProfile(String(user.maxDevicesPerProfile ?? 0));
-      // Clear stale library selection from a previously-edited user; the
-      // accessData effect repopulates it once this user's access loads.
-      setSelectedLibs(new Set());
-      setLibMode("all");
+      accessTouched.current = false;
     }
     // Key on user.id, not the whole object: `user` is a list-query row whose
     // identity changes on any users-list refetch, and depending on it would wipe
@@ -80,14 +86,22 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, user.id]);
 
+  // The access form is derived from the server's answer at every opening,
+  // including a reopening served from the query cache (same accessData
+  // reference), and on a refetch until the admin edits it.
   useEffect(() => {
-    if (accessData) {
-      setSelectedLibs(new Set(accessData.libraryIds ?? []));
-      setLibMode(accessData.restricted || (accessData.libraryIds?.length ?? 0) > 0 ? "selected" : "all");
-    }
-  }, [accessData]);
+    if (!open || accessTouched.current) return;
+    setSelectedLibs(new Set(accessData?.libraryIds ?? []));
+    setLibMode(accessData?.restricted || (accessData?.libraryIds?.length ?? 0) > 0 ? "selected" : "all");
+  }, [open, user.id, accessData]);
+
+  const handleLibMode = useCallback((v: string) => {
+    accessTouched.current = true;
+    setLibMode(v as "all" | "selected");
+  }, []);
 
   const handleToggleLib = useCallback((id: string) => {
+    accessTouched.current = true;
     setSelectedLibs((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -127,9 +141,11 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
         await updateUser.mutateAsync({ id: user.id, data });
       }
 
-      if (!isAdmin) {
-        const origIds = new Set(accessData?.libraryIds ?? []);
-        const origMode = accessData?.restricted || origIds.size > 0 ? "selected" : "all";
+      // Access is written only when the admin edited it here and the current
+      // access was read: never inferred from a form that was not touched.
+      if (!isAdmin && accessTouched.current && accessData) {
+        const origIds = new Set(accessData.libraryIds ?? []);
+        const origMode = accessData.restricted || origIds.size > 0 ? "selected" : "all";
         const changed =
           libMode !== origMode ||
           (libMode === "selected" && (selectedLibs.size !== origIds.size || [...selectedLibs].some((id) => !origIds.has(id))));
@@ -191,6 +207,15 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
             <div className="flex justify-center py-4">
               <Spinner size="sm" />
             </div>
+          ) : accessError && !accessData ? (
+            <div className="flex flex-col gap-2" role="alert" data-testid="library-access-error">
+              <p className="text-sm text-[var(--text-muted)]">{t("admin.users.accessLoadFailed")}</p>
+              <div>
+                <Button type="button" variant="ghost" onClick={() => void refetchAccess()}>
+                  {t("common.retry")}
+                </Button>
+              </div>
+            </div>
           ) : libraries.length > 0 ? (
             <div className="flex flex-col gap-2">
               <p className="text-sm font-medium text-[var(--text)]">
@@ -210,7 +235,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
                   { value: "selected", label: t("admin.users.accessSelected") },
                 ]}
                 value={libMode}
-                onChange={(v) => setLibMode(v as "all" | "selected")}
+                onChange={handleLibMode}
               />
               {libMode === "all" ? (
                 <Badge variant="success">{t("admin.users.unrestricted")}</Badge>

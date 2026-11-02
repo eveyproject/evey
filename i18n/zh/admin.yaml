@@ -398,6 +398,7 @@ users:
   restrictedDesc: "此用户只能访问 {{count}} 个选定的{{libraryWord}}。"
   libraryAccessUpdated: "媒体库访问已更新"
   failedLibraryAccess: "更新媒体库访问失败"
+  accessLoadFailed: "无法加载此用户的媒体库访问权限。加载完成前，访问权限保持不变。"
   clearAllUnrestricted: "清除全部（无限制）"
   accessAll: "所有媒体库"
   accessSelected: "仅所选媒体库"

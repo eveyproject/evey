@@ -398,6 +398,7 @@ users:
   restrictedDesc: "Dieser Benutzer hat nur Zugriff auf {{count}} ausgewählte {{libraryWord}}."
   libraryAccessUpdated: Bibliothekszugriff aktualisiert
   failedLibraryAccess: Bibliothekszugriff konnte nicht aktualisiert werden
+  accessLoadFailed: "Der Bibliothekszugriff dieses Benutzers konnte nicht geladen werden. Der Zugriff bleibt unverändert, bis er geladen ist."
   clearAllUnrestricted: Alle entfernen (uneingeschränkt)
   accessAll: "Alle Bibliotheken"
   accessSelected: "Nur ausgewählte Bibliotheken"
