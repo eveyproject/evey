@@ -8,8 +8,11 @@ import React from "react";
 // player. With a text/year/rating filter active - since those have no
 // server equivalent here - shuffle within what's actually displayed instead.
 
+vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }) }));
+
 // --- React Native mock ----------------------------------------------------------------
 vi.mock("react-native", () => ({
+  PixelRatio: { getFontScale: () => 1 },
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),

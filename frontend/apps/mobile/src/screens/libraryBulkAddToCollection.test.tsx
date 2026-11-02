@@ -7,8 +7,11 @@ import React from "react";
 // item removal in collections/[id].tsx, while the rest of the bar (watched,
 // unwatched, favorite, playlist, cancel) stays available to everyone.
 
+vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }) }));
+
 // --- React Native mock ----------------------------------------------------------------
 vi.mock("react-native", () => ({
+  PixelRatio: { getFontScale: () => 1 },
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
