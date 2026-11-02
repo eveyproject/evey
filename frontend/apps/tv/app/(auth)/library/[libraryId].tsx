@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, FlatList, ScrollView, TextInput, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, ScrollView, TextInput, ActivityIndicator, StyleSheet, useWindowDimensions } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -35,12 +35,13 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { CARD_WIDTH_GRID, POSTER_RATIO } from "../../../src/lib/tvLayout";
+import { FOCUS_RING_WIDTH } from "../../../src/lib/focusRing";
 import { HOME_SHORTCUT_INSET } from "../../../src/components/HomeShortcutButton";
 import { canPlayAllForSelection, buildPlayAllQueue, pickRandomItem } from "../../../src/lib/librarySelection";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
 import { useGridColumns, DEEP_SCREEN_GRID_INSET } from "../../../src/hooks/useGridColumns";
-import { buildMediaListParams, LIBRARY_DEFAULT_SORT_FIELD, LIBRARY_DEFAULT_SORT_ORDER, LIBRARY_PAGE_SIZE, LIBRARY_NEXT_PAGE_SIZE, libraryGridRow } from "../../../src/lib/libraryGrid";
+import { buildMediaListParams, LIBRARY_DEFAULT_SORT_FIELD, LIBRARY_DEFAULT_SORT_ORDER, LIBRARY_PAGE_SIZE, LIBRARY_NEXT_PAGE_SIZE, libraryGridRow, libraryGridFit, librarySelectionSummary } from "../../../src/lib/libraryGrid";
 
 // Room above the focused row for its focus zoom, kept when a row scrolls to
 // the top of the list.
@@ -55,7 +56,19 @@ const measuredHeaderHeight: { movies?: number; shows?: number } = {};
 // a row a second on the remote, and the page lands before the focus does.
 const PAGE_AHEAD_ROWS = 3;
 const CARD_WIDTH = CARD_WIDTH_GRID;
-const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
+// A card's title takes two lines of a pinned height, reserved whether it
+// wraps or not: every card of a row is then as tall as the arithmetic says,
+// and the list can be cut to whole rows (see libraryGridFit).
+const TITLE_LINE_HEIGHT = 20;
+const TITLE_LINES = 2;
+const TITLE_GAP = 8;
+const ROW_GAP = 16;
+// FocusableCard's zoom on the focused card.
+const FOCUS_SCALE = 1.05;
+// A card gives up at most a quarter of its width to show one more whole row.
+const MIN_CARD_SCALE = 0.75;
+// The screen's title bar, until the list's box is measured.
+const TITLE_BAR_ESTIMATE = 56;
 // The dedicated screens this app implements. A photo library now has its own
 // grid and remote-driven slideshow (app/(auth)/photos), so it goes there
 // instead of being browsed as a wall of poster-shaped cards whose detail page
@@ -74,6 +87,11 @@ const TYPE_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsTy
   { labelKey: "media.library.seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
   { labelKey: "media.library.episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
 ];
+
+/** The title block's height: two pinned lines, grown with the system font size. */
+function titleBlockHeight(fontScale: number | undefined): number {
+  return Math.ceil(TITLE_LINES * TITLE_LINE_HEIGHT * (fontScale || 1));
+}
 
 function tvLibKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
@@ -117,26 +135,59 @@ export { videoStream, isHdrStream, resolutionLabel };
 // D-pad genre/sort/type filter: a row of focusable chips (same pattern as the
 // search screen's ScopeTab) rather than a dropdown, which has no natural TV/
 // remote affordance.
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+//
+// Selected and focused are two states, drawn two ways: the focus ring is the
+// accent too, so on an accent-filled chip it vanished and the viewer could not
+// tell the chip they stood on from the chip in effect. Selected = accent fill
+// and a check mark; focused = the text colour as fill, the label in the page's
+// background colour; both = that focus fill keeping its check mark.
+function Chip({ label, active, onPress, onFocus }: { label: string; active: boolean; onPress: () => void; onFocus?: () => void }) {
   const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+  const handleFocus = useCallback(() => { setFocused(true); onFocus?.(); }, [onFocus]);
+  const handleBlur = useCallback(() => setFocused(false), []);
+  const fill = focused ? theme.colors.text : active ? theme.colors.accent : theme.colors.surface;
+  const ink = focused ? theme.colors.bg : active ? theme.colors.onAccent : theme.colors.text;
   return (
     <FocusableCard
       onPress={onPress}
-      style={[
-        styles.chip,
-        { backgroundColor: active ? theme.colors.accent : theme.colors.surface },
-      ]}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      style={[styles.chip, { backgroundColor: fill }]}
       accessibilityLabel={label}
       accessibilityState={{ selected: active }}
     >
-      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 17, fontWeight: "600" }}>{label}</Text>
+      {active && <Ionicons name="checkmark" size={18} color={focused ? theme.colors.accent : ink} testID="chip-selected-mark" />}
+      <Text style={{ color: ink, fontSize: 17, fontWeight: active ? "700" : "600" }} numberOfLines={1}>{label}</Text>
     </FocusableCard>
   );
 }
 
 export default function LibraryDetailScreen() {
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
-  const numColumns = useGridColumns(CARD_WIDTH, DEEP_SCREEN_GRID_INSET);
+  // The list shows whole rows only: its box is measured, the home shortcut's
+  // band is taken off it, and the cards and the list's height are fitted to
+  // what is left (see libraryGridFit). Estimated from the window until then.
+  const { height: windowHeight, fontScale } = useWindowDimensions();
+  const [gridBoxHeight, setGridBoxHeight] = useState(0);
+  const fit = useMemo(
+    () =>
+      libraryGridFit({
+        availableHeight: (gridBoxHeight || windowHeight - TITLE_BAR_ESTIMATE) - HOME_SHORTCUT_INSET,
+        nominalCardWidth: CARD_WIDTH,
+        posterRatio: POSTER_RATIO,
+        ring: FOCUS_RING_WIDTH,
+        titleGap: TITLE_GAP,
+        titleBlock: titleBlockHeight(fontScale),
+        rowGap: ROW_GAP,
+        topInset: GRID_TOP_INSET,
+        focusScale: FOCUS_SCALE,
+        minScale: MIN_CARD_SCALE,
+      }),
+    [gridBoxHeight, windowHeight, fontScale],
+  );
+  const cardWidth = fit.cardWidth;
+  const numColumns = useGridColumns(cardWidth, DEEP_SCREEN_GRID_INSET);
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -337,7 +388,9 @@ export default function LibraryDetailScreen() {
   // The remote drives the grid: a focused card brings its row to the top (the
   // native scroll-into-view left a row half hidden under the screen's edge)
   // and, near the last rows, asks for the next page, since the list hardly
-  // scrolls. With columns the list indexes ROWS, not cards.
+  // scrolls. With columns the list indexes ROWS, not cards. The filters are
+  // the list's header: they scroll away with the first row, which leaves the
+  // grid the whole screen, and come back when the focus goes up to them.
   const listRef = useRef<FlatList<V1MediaItem>>(null);
   const itemCount = displayItems.length;
   const onCardFocus = useCallback(
@@ -347,9 +400,15 @@ export default function LibraryDetailScreen() {
     },
     [itemCount, numColumns, handleEndReached],
   );
+  const revealHeader = useCallback(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, []);
 
+  const titleBlock = titleBlockHeight(fontScale);
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {
+      // Asked at the nominal width whatever the fit: the same URL as the
+      // other grids, so the image cache serves it.
       const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
       const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
       const vStream = videoStream(item.streams);
@@ -368,10 +427,10 @@ export default function LibraryDetailScreen() {
           }}
           onBlur={cancelPrefetch}
           hasTVPreferredFocus={index === 0}
-          style={styles.gridItem}
+          style={[styles.gridItem, { width: cardWidth }]}
           accessibilityLabel={itemLabel(item, t)}
         >
-          <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
+          <View style={[styles.poster, { width: cardWidth, height: cardWidth * POSTER_RATIO, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
             {posterUri ? (
               <PosterImage uri={posterUri} headers={authHeaders} style={StyleSheet.absoluteFill} blurhash={blurhash} recyclingKey={item.id} priority="high" />
             ) : (
@@ -387,7 +446,7 @@ export default function LibraryDetailScreen() {
                 pointerEvents="none"
               >
                 <Ionicons name="star" size={11} color={theme.colors.warning} />
-                <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>{rating.toFixed(1)}</Text>
+                <Text style={[styles.techBadgeText, { color: theme.colors.text }]} numberOfLines={1}>{rating.toFixed(1)}</Text>
               </View>
             )}
 
@@ -395,12 +454,12 @@ export default function LibraryDetailScreen() {
               <View style={[styles.techBadgeRow, { bottom: hasProgress ? 14 : 6, left: 6 }]} pointerEvents="none">
                 {resLabel && (
                   <View style={[styles.techBadge, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
-                    <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>{resLabel}</Text>
+                    <Text style={[styles.techBadgeText, { color: theme.colors.text }]} numberOfLines={1}>{resLabel}</Text>
                   </View>
                 )}
                 {hdr && (
                   <View style={[styles.techBadge, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm }]}>
-                    <Text style={[styles.techBadgeText, { color: theme.colors.onAccent }]}>HDR</Text>
+                    <Text style={[styles.techBadgeText, { color: theme.colors.onAccent }]} numberOfLines={1}>HDR</Text>
                   </View>
                 )}
               </View>
@@ -424,19 +483,134 @@ export default function LibraryDetailScreen() {
               </View>
             )}
           </View>
-          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
+          <Text style={[styles.title, { color: theme.colors.text, height: titleBlock }]} numberOfLines={TITLE_LINES}>
             {itemLabel(item, t)}
           </Text>
         </FocusableCard>
       );
     },
-    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t, prefetchOnFocus, cancelPrefetch, onCardFocus],
+    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t, prefetchOnFocus, cancelPrefetch, onCardFocus, cardWidth, titleBlock],
   );
 
   const activeIsLoading = searchActive ? isSearchLoading : isLoading;
   const activeIsError = searchActive ? isSearchError : isError;
   const activeRefetch = searchActive ? refetchSearch : refetch;
   const isFirstPage = searchActive ? true : cursor === "";
+
+  // What the grid shows, in the title bar: the filters scroll away with the
+  // first row, and this line is how the viewer still knows what is in effect.
+  const selectionSummary = librarySelectionSummary({
+    genre: genre || undefined,
+    type: typeFilter ? t(TYPE_KEYS.find((k) => k.value === typeFilter)?.labelKey ?? "") : undefined,
+    sort: t(SORT_KEYS.find((k) => k.value === sortField)?.labelKey ?? ""),
+    ascending: sortOrder === "SORT_ORDER_ASC",
+  });
+
+  const listHeader = headerReady ? (
+    <View onLayout={(e) => { measuredHeaderHeight[headerKind] = e.nativeEvent.layout.height; }}>
+      <View style={styles.searchRow}>
+        <TextInput
+          style={[
+            styles.searchInput,
+            {
+              backgroundColor: theme.colors.surface,
+              color: theme.colors.text,
+              borderRadius: theme.radii.md,
+              borderColor: searchFocused ? theme.colors.accent : theme.colors.border,
+            },
+          ]}
+          placeholder={t("media.library.filterByName")}
+          placeholderTextColor={theme.colors.textMuted}
+          value={searchText}
+          onChangeText={setSearchText}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          onFocus={() => { setSearchFocused(true); revealHeader(); }}
+          onBlur={() => setSearchFocused(false)}
+          accessibilityLabel={t("media.library.filterByName")}
+        />
+        {/* By the search field, not at the end of the genre row, where they
+            read as the row's last chips and hid that the genres went on. */}
+        {canPlayAll && (
+          <FocusableCard
+            onPress={handlePlayAll}
+            onFocus={revealHeader}
+            style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}
+            accessibilityLabel={t("common.playAll")}
+          >
+            <Ionicons name="play" size={24} color={theme.colors.text} />
+            <Text style={[styles.btnLabel, { color: theme.colors.text }]} numberOfLines={1}>{t("common.playAll")}</Text>
+          </FocusableCard>
+        )}
+        <FocusableCard
+          onPress={handleShuffle}
+          onFocus={revealHeader}
+          style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}
+          accessibilityLabel={t("common.shufflePlay")}
+        >
+          {shuffling ? (
+            <ActivityIndicator color={theme.colors.accent} size="small" />
+          ) : (
+            <Ionicons name="shuffle" size={24} color={theme.colors.text} />
+          )}
+          <Text style={[styles.btnLabel, { color: theme.colors.text }]} numberOfLines={1}>{t("common.shufflePlay")}</Text>
+        </FocusableCard>
+      </View>
+
+      <View style={styles.toolbar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ gap: 10 }}
+          onLayout={(e) => setGenreRowWidth(e.nativeEvent.layout.width)}
+          onContentSizeChange={(w) => setGenreContentWidth(w)}
+          onScroll={(e) => setGenreScrollX(e.nativeEvent.contentOffset.x)}
+          scrollEventThrottle={50}
+        >
+          <Chip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} onFocus={revealHeader} />
+          {genres.map((g) => (
+            <Chip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} onFocus={revealHeader} />
+          ))}
+        </ScrollView>
+        {moreGenresRight && (
+          <View style={[styles.moreHint, { backgroundColor: theme.colors.surface }]} accessible={false} testID="more-genres-hint">
+            <Ionicons name="chevron-forward" size={22} color={theme.colors.textMuted} />
+          </View>
+        )}
+      </View>
+
+      <View style={styles.toolbar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
+          {SORT_KEYS.map((s) => (
+            <Chip key={s.value} label={t(s.labelKey)} active={sortField === s.value} onPress={() => setSortField(s.value)} onFocus={revealHeader} />
+          ))}
+        </ScrollView>
+        <FocusableCard
+          onPress={() => setSortOrder(sortOrder === "SORT_ORDER_ASC" ? "SORT_ORDER_DESC" : "SORT_ORDER_ASC")}
+          onFocus={revealHeader}
+          style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}
+          accessibilityLabel={sortOrder === "SORT_ORDER_ASC" ? t("common.sortAscending") : t("common.sortDescending")}
+        >
+          <Ionicons name={sortOrder === "SORT_ORDER_ASC" ? "arrow-up" : "arrow-down"} size={22} color={theme.colors.text} />
+        </FocusableCard>
+      </View>
+
+      {isShowLibrary && (
+        <View style={styles.toolbar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
+            <Chip label={t("media.search.allGenres") || "All"} active={!typeFilter} onPress={() => setTypeFilter("")} onFocus={revealHeader} />
+            {TYPE_KEYS.map((tk) => (
+              <Chip key={tk.value} label={t(tk.labelKey)} active={typeFilter === tk.value} onPress={() => setTypeFilter(typeFilter === tk.value ? "" : tk.value)} onFocus={revealHeader} />
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  ) : (
+    <View style={{ height: measuredHeaderHeight[headerKind] ?? HEADER_HEIGHT_ESTIMATE[headerKind] }} />
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -446,6 +620,11 @@ export default function LibraryDetailScreen() {
           title: library?.name ?? t("media.library.title"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
+          headerRight: () => (
+            <Text style={[styles.summary, { color: theme.colors.textMuted }]} numberOfLines={1} testID="library-selection-summary">
+              {selectionSummary}
+            </Text>
+          ),
         }}
       />
       {activeIsError ? (
@@ -459,159 +638,62 @@ export default function LibraryDetailScreen() {
           </FocusableCard>
         </View>
       ) : (
-        <>
-          {headerReady ? (
-          <View onLayout={(e) => { measuredHeaderHeight[headerKind] = e.nativeEvent.layout.height; }}>
-          <View style={styles.searchRow}>
-            <TextInput
-              style={[
-                styles.searchInput,
-                {
-                  backgroundColor: theme.colors.surface,
-                  color: theme.colors.text,
-                  borderRadius: theme.radii.md,
-                  borderColor: searchFocused ? theme.colors.accent : theme.colors.border,
-                },
-              ]}
-              placeholder={t("media.library.filterByName")}
-              placeholderTextColor={theme.colors.textMuted}
-              value={searchText}
-              onChangeText={setSearchText}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              accessibilityLabel={t("media.library.filterByName")}
-            />
-            {/* By the search field, not at the end of the genre row, where they
-                read as the row's last chips and hid that the genres went on. */}
-            {canPlayAll && (
-              <FocusableCard
-                onPress={handlePlayAll}
-                style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}
-                accessibilityLabel={t("common.playAll")}
-              >
-                <Ionicons name="play" size={24} color={theme.colors.text} />
-                <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }}>{t("common.playAll")}</Text>
-              </FocusableCard>
-            )}
-            <FocusableCard
-              onPress={handleShuffle}
-              style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}
-              accessibilityLabel={t("common.shufflePlay")}
-            >
-              {shuffling ? (
-                <ActivityIndicator color={theme.colors.accent} size="small" />
+        // The box the list may take; the list itself is cut to whole rows
+        // above the home shortcut's band, which stays clear under it.
+        <View style={{ flex: 1 }} onLayout={(e) => setGridBoxHeight(e.nativeEvent.layout.height)}>
+          <FlatList
+            ref={listRef}
+            // A list cannot change its column count in place.
+            key={numColumns}
+            style={{ height: fit.listHeight, flexGrow: 0 }}
+            data={displayItems}
+            keyExtractor={tvLibKeyExtractor}
+            renderItem={renderItem}
+            numColumns={numColumns}
+            // An element, not a component: the filters keep their native views,
+            // and the focus on a chip, while the page under them reloads.
+            ListHeaderComponent={listHeader}
+            // The bottom padding is the focused card's zoom: scrolled to its
+            // end, the list shows its last rows whole, as it does at the top.
+            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: GRID_TOP_INSET, paddingBottom: fit.zoomOverhang }}
+            columnWrapperStyle={{ gap: 12, marginBottom: ROW_GAP }}
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={2}
+            // A row not measured yet (far past the rendered window): scroll
+            // by the average row and let the list try again once it is.
+            onScrollToIndexFailed={(info) => {
+              listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+              setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, viewPosition: 0, viewOffset: GRID_TOP_INSET, animated: true }), 100);
+            }}
+            initialNumToRender={10}
+            maxToRenderPerBatch={15}
+            windowSize={5}
+            // The focused row sits at the top, so the row above is off screen:
+            // clipped away it had no native view for Up to land on, and the
+            // press scrolled the list instead of moving the focus.
+            removeClippedSubviews={false}
+            ListFooterComponent={
+              isFetching && !isFirstPage && !searchActive ? (
+                <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} />
+              ) : null
+            }
+            // The first page loads under the filters, which stay where they
+            // are: a filter change keeps the focus on the chip pressed.
+            ListEmptyComponent={
+              activeIsLoading && isFirstPage ? (
+                <View style={styles.center}>
+                  <ActivityIndicator color={theme.colors.accent} size="large" />
+                </View>
               ) : (
-                <Ionicons name="shuffle" size={24} color={theme.colors.text} />
-              )}
-              <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }}>{t("common.shufflePlay")}</Text>
-            </FocusableCard>
-          </View>
-
-          <View style={styles.toolbar}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ flex: 1 }}
-              contentContainerStyle={{ gap: 10 }}
-              onLayout={(e) => setGenreRowWidth(e.nativeEvent.layout.width)}
-              onContentSizeChange={(w) => setGenreContentWidth(w)}
-              onScroll={(e) => setGenreScrollX(e.nativeEvent.contentOffset.x)}
-              scrollEventThrottle={50}
-            >
-              <Chip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
-              {genres.map((g) => (
-                <Chip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
-              ))}
-            </ScrollView>
-            {moreGenresRight && (
-              <View style={[styles.moreHint, { backgroundColor: theme.colors.surface }]} accessible={false} testID="more-genres-hint">
-                <Ionicons name="chevron-forward" size={22} color={theme.colors.textMuted} />
-              </View>
-            )}
-          </View>
-
-          <View style={styles.toolbar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
-              {SORT_KEYS.map((s) => (
-                <Chip key={s.value} label={t(s.labelKey)} active={sortField === s.value} onPress={() => setSortField(s.value)} />
-              ))}
-            </ScrollView>
-            <FocusableCard
-              onPress={() => setSortOrder(sortOrder === "SORT_ORDER_ASC" ? "SORT_ORDER_DESC" : "SORT_ORDER_ASC")}
-              style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}
-              accessibilityLabel={sortOrder === "SORT_ORDER_ASC" ? t("common.sortAscending") : t("common.sortDescending")}
-            >
-              <Ionicons name={sortOrder === "SORT_ORDER_ASC" ? "arrow-up" : "arrow-down"} size={22} color={theme.colors.text} />
-            </FocusableCard>
-          </View>
-
-          {isShowLibrary && (
-            <View style={styles.toolbar}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
-                <Chip label={t("media.search.allGenres") || "All"} active={!typeFilter} onPress={() => setTypeFilter("")} />
-                {TYPE_KEYS.map((tk) => (
-                  <Chip key={tk.value} label={t(tk.labelKey)} active={typeFilter === tk.value} onPress={() => setTypeFilter(typeFilter === tk.value ? "" : tk.value)} />
-                ))}
-              </ScrollView>
-            </View>
-          )}
-          </View>
-          ) : (
-            <View style={{ height: measuredHeaderHeight[headerKind] ?? HEADER_HEIGHT_ESTIMATE[headerKind] }} />
-          )}
-
-          {activeIsLoading && isFirstPage ? (
-            <View style={styles.center}>
-              <ActivityIndicator color={theme.colors.accent} size="large" />
-            </View>
-          ) : (
-            <FlatList
-              ref={listRef}
-              // A list cannot change its column count in place.
-              key={numColumns}
-              data={displayItems}
-              keyExtractor={tvLibKeyExtractor}
-              renderItem={renderItem}
-              numColumns={numColumns}
-              // The grid runs under the home shortcut's band (see _layout):
-              // the band only holds a corner button, and the row below the
-              // focused one shows there, which is how the viewer sees that
-              // the library goes on. The padding lets the last row clear it.
-              contentContainerStyle={{ paddingHorizontal: 24, paddingTop: GRID_TOP_INSET, paddingBottom: HOME_SHORTCUT_INSET + 24 }}
-              columnWrapperStyle={{ gap: 12, marginBottom: 16 }}
-              onEndReached={handleEndReached}
-              onEndReachedThreshold={2}
-              // A row not measured yet (far past the rendered window): scroll
-              // by the average row and let the list try again once it is.
-              onScrollToIndexFailed={(info) => {
-                listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
-                setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, viewPosition: 0, viewOffset: GRID_TOP_INSET, animated: true }), 100);
-              }}
-              initialNumToRender={10}
-              maxToRenderPerBatch={15}
-              windowSize={5}
-              // The focused row sits at the top, so the row above is off screen:
-              // clipped away it had no native view for Up to land on, and the
-              // press scrolled the list instead of moving the focus.
-              removeClippedSubviews={false}
-              ListFooterComponent={
-                isFetching && !isFirstPage && !searchActive ? (
-                  <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} />
-                ) : null
-              }
-              ListEmptyComponent={
                 <View style={styles.center}>
                   <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>
                     {hasActiveFilters ? t("media.library.noItemsFiltered") : t("common.noItems")}
                   </Text>
                 </View>
-              }
-            />
-          )}
-        </>
+              )
+            }
+          />
+        </View>
       )}
     </View>
   );
@@ -649,6 +731,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
@@ -658,15 +743,18 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 20,
     paddingVertical: 10,
+    flexShrink: 1,
   },
-  gridItem: { width: CARD_WIDTH, alignItems: "center" },
+  // A long translation shrinks the button's label to one line instead of
+  // pushing the row past the screen's edge.
+  btnLabel: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
+  summary: { fontSize: 17, maxWidth: 520, marginRight: 24 },
+  gridItem: { alignItems: "center" },
   poster: {
-    width: CARD_WIDTH,
-    height: POSTER_HEIGHT,
     justifyContent: "center",
     alignItems: "center",
   },
-  title: { fontSize: 15, fontWeight: "500", marginTop: 8, textAlign: "center" },
+  title: { fontSize: 15, lineHeight: TITLE_LINE_HEIGHT, fontWeight: "500", marginTop: TITLE_GAP, textAlign: "center", alignSelf: "stretch" },
   techBadge: {
     position: "absolute",
     flexDirection: "row",
@@ -675,7 +763,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 2,
   },
-  techBadgeText: { fontSize: 11, fontWeight: "700" },
+  techBadgeText: { fontSize: 11, fontWeight: "700", flexShrink: 1 },
   techBadgeRow: { position: "absolute", flexDirection: "row", gap: 4 },
   watchedBadge: {
     position: "absolute",
