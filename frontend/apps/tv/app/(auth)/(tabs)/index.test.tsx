@@ -70,8 +70,14 @@ vi.mock("@expo/vector-icons/Ionicons", () => ({
   default: () => null,
 }));
 
+// Renders per image url: a card whose props did not change must not re-render.
+const imageRenders = new Map<string, number>();
 vi.mock("expo-image", () => ({
-  Image: (props: any) => React.createElement("img", { alt: "", src: props.source?.uri }),
+  Image: (props: any) => {
+    const uri = props.source?.uri ?? "";
+    imageRenders.set(uri, (imageRenders.get(uri) ?? 0) + 1);
+    return React.createElement("img", { alt: "", src: uri });
+  },
 }));
 
 // --- expo-router mock ---------------------------------------------------------
@@ -112,9 +118,11 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 vi.mock("../../../src/hooks/useServerUrl", () => ({
   useServerUrl: () => "http://srv.test",
 }));
-vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({
-  useAuthHeaders: () => ({ Authorization: "Bearer TOKEN" }),
-}));
+// One object, as the real hook memoises it on the token.
+vi.mock("../../../src/hooks/useAuthenticatedImage", () => {
+  const headers = { Authorization: "Bearer TOKEN" };
+  return { useAuthHeaders: () => headers };
+});
 
 // --- PluginSlot mock -------------------------------------------------------------
 vi.mock("../../../src/features/plugins/PluginSlot", () => ({
@@ -531,5 +539,31 @@ describe("HomeScreen card subtitle fallback for cards without a year (#6)", () =
     });
     render(<HomeScreen />);
     expect(screen.getByText("media.itemType.movie")).toBeTruthy();
+  });
+});
+
+// The home re-renders on every query that answers; its cards and tiles keep
+// their props, so they must not re-render with it.
+describe("HomeScreen (TV) card memoisation", () => {
+  it("does not re-render the cards and tiles of a row when the home re-renders", () => {
+    imageRenders.clear();
+    nextUpMock.mockReturnValue({
+      data: { items: [{ id: "ep-a", title: "A" }, { id: "ep-b", title: "B" }] },
+      isLoading: false,
+    });
+    collectionsMock.mockReturnValue({
+      data: { collections: [{ id: "col-1", name: "Saga", posterUrl: "http://srv.test/c.jpg" }] },
+      isLoading: false,
+    });
+    render(<HomeScreen />);
+    const before = new Map(imageRenders);
+    expect([...before.keys()].some((u) => u.includes("/ep-a/"))).toBe(true);
+    expect(before.get("http://srv.test/c.jpg")).toBe(1);
+
+    act(() => {
+      DeviceEventEmitter.emit("eveyHomeCustomize");
+    });
+
+    for (const [uri, n] of before) expect(imageRenders.get(uri)).toBe(n);
   });
 });

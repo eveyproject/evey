@@ -107,22 +107,32 @@ export function selectHomeFocusTarget(rowHasItems: boolean[]): number | null {
 
 function MediaCardImpl({
   item,
+  index,
   serverUrl,
   authHeaders,
   isFirst,
   watchPercent,
-  onFocus,
+  onFocusAt,
   imagePriority,
 }: {
   item: V1MediaItem;
+  /** The card's place in its row, handed back to onFocusAt. */
+  index: number;
   serverUrl: string;
   authHeaders?: { Authorization: string };
   isFirst?: boolean;
   watchPercent?: number;
-  onFocus?: () => void;
+  /** Stable across the row's renders: an inline closure here defeated the memo. */
+  onFocusAt?: (index: number) => void;
   imagePriority?: PosterPriority;
 }) {
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
+  const itemId = item.id;
+  const onPress = useCallback(() => router.push(`/media/${itemId}`), [itemId]);
+  const onFocus = useCallback(() => {
+    onFocusAt?.(index);
+    prefetchOnFocus(itemId);
+  }, [onFocusAt, index, prefetchOnFocus, itemId]);
   const { t } = useTranslation();
   const theme = useTheme();
   const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
@@ -135,12 +145,9 @@ function MediaCardImpl({
 
   return (
     <FocusableCard
-      onPress={() => router.push(`/media/${item.id}`)}
+      onPress={onPress}
       hasTVPreferredFocus={isFirst}
-      onFocus={() => {
-        onFocus?.();
-        prefetchOnFocus(item.id);
-      }}
+      onFocus={onFocus}
       onBlur={cancelPrefetch}
       accessibilityLabel={displayTitle(item, t)}
       style={styles.card}
@@ -193,7 +200,9 @@ function MediaCardImpl({
  * A card only re-renders when its own props change. The home rebuilds its
  * rows whenever any of its half-dozen queries answers, and without this every
  * visible card was rebuilt with them - on the screen the owner already found
- * GPU-bound (2026-09-20).
+ * GPU-bound (2026-09-20). Every prop must keep its identity for that to hold:
+ * a FlatList hands its cells a fresh renderItem on each of its renders, so
+ * this memo is the only thing between a home re-render and every visible card.
  */
 const MediaCard = memo(MediaCardImpl);
 
@@ -268,27 +277,30 @@ function MediaRow({
   // The next page is asked for when the focus comes within a few cards of
   // the row's end - the list's own onEndReached fired on its first render,
   // since a first page barely overflows the screen.
-  const itemCount = items.length;
+  // The callers pass onEndReached and onCardFocus as fresh closures on each
+  // render: read through a ref, so the cards' focus handler keeps one identity
+  // and a re-render of the home does not re-render every card of the row.
+  const latest = useRef({ onCardFocus, onEndReached, itemCount: items.length });
+  latest.current = { onCardFocus, onEndReached, itemCount: items.length };
+  const onFocusAt = useCallback((index: number) => {
+    const { onCardFocus: focus, onEndReached: end, itemCount } = latest.current;
+    focus?.();
+    if (end && index >= itemCount - ROW_END_AHEAD) end();
+  }, []);
   const renderCard = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => (
       <MediaCard
         item={item}
+        index={index}
         serverUrl={serverUrl}
         authHeaders={authHeaders}
         isFirst={index === 0 && !!focusFirst}
-        onFocus={
-          onEndReached
-            ? () => {
-                onCardFocus?.();
-                if (index >= itemCount - ROW_END_AHEAD) onEndReached();
-              }
-            : onCardFocus
-        }
+        onFocusAt={onFocusAt}
         watchPercent={item.id ? watchPercents?.[item.id] : undefined}
         imagePriority={imagePriority}
       />
     ),
-    [serverUrl, authHeaders, focusFirst, onCardFocus, watchPercents, onEndReached, itemCount, imagePriority],
+    [serverUrl, authHeaders, focusFirst, onFocusAt, watchPercents, imagePriority],
   );
   const titleFocus = useCallback(() => {
     onCardFocus?.();
@@ -383,6 +395,73 @@ function LibraryMediaRow({
   return <MediaRow {...rowProps} items={items} onEndReached={loadMore} onTitleFocus={onTitleFocus} onTitleBlur={cancelPrefetch} />;
 }
 
+// One tile of a TileRow. Memoised on plain values: the home rebuilds its tile
+// lists on each of its renders, and the tiles were re-rendered with them.
+const HomeTile = memo(function HomeTile({
+  label,
+  sublabel,
+  uri,
+  href,
+  a11yLabel,
+  height,
+  isFirst,
+  onFocus,
+}: {
+  label: string;
+  sublabel?: string;
+  uri?: string;
+  href: string;
+  a11yLabel?: string;
+  height: number;
+  isFirst: boolean;
+  onFocus?: () => void;
+}) {
+  const theme = useTheme();
+  const onPress = useCallback(() => router.push(href as never), [href]);
+  return (
+    <FocusableCard
+      onPress={onPress}
+      hasTVPreferredFocus={isFirst}
+      onFocus={onFocus}
+      style={styles.card}
+      accessibilityLabel={a11yLabel ?? label}
+    >
+      <View
+        style={{
+          width: CARD_WIDTH,
+          height,
+          borderRadius: theme.radii.sm,
+          overflow: "hidden",
+          backgroundColor: theme.colors.surface,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        {uri ? (
+          <Image
+            cachePolicy="memory-disk"
+            source={{ uri }}
+            style={{ width: CARD_WIDTH, height }}
+            contentFit="cover"
+            recyclingKey={href}
+          />
+        ) : (
+          // No artwork: an empty grey square used to be the tile. The
+          // first letter at least tells a scanning eye what it is
+          // looking at until art arrives.
+          <Text style={[styles.tileInitial, { color: theme.colors.textMuted }]}>
+            {label.trim().charAt(0).toUpperCase() || "?"}
+          </Text>
+        )}
+      </View>
+      <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>{label}</Text>
+      {sublabel ? (
+        <Text style={[styles.cardYear, { color: theme.colors.textMuted }]} numberOfLines={1}>{sublabel}</Text>
+      ) : null}
+    </FocusableCard>
+  );
+});
+
 // A generic horizontal row of square-art cards (collections, music albums,
 // photo albums). Deliberately separate from MediaRow: those destinations are
 // not /media/<id>, and a card that lands the viewer on a screen built for
@@ -406,7 +485,8 @@ function TileRow({
     label: string;
     sublabel?: string;
     uri?: string;
-    onPress: () => void;
+    /** Where the tile leads: a string, not a closure, so the tile's memo holds. */
+    href: string;
     /** Announced instead of `label` when the visible text is abbreviated - a
      * photo album shows "Holiday" but is called "2024/Holiday", and at three
      * metres the reader is the only thing carrying that context. */
@@ -421,7 +501,6 @@ function TileRow({
   isError?: boolean;
   onRetry?: () => void;
 }) {
-  const theme = useTheme();
   if (isError) {
     return (
       <View style={styles.rowContainer}>
@@ -438,41 +517,17 @@ function TileRow({
       <TVFocusGuideView autoFocus>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: HOME_ROW_GUTTER, gap: GRID_GAP }}>
         {tiles.map((tile, i) => (
-          <FocusableCard
+          <HomeTile
             key={tile.key}
-            onPress={tile.onPress}
-            hasTVPreferredFocus={i === 0 && !!focusFirst}
+            label={tile.label}
+            sublabel={tile.sublabel}
+            uri={tile.uri}
+            href={tile.href}
+            a11yLabel={tile.a11yLabel}
+            height={tileHeight}
+            isFirst={i === 0 && !!focusFirst}
             onFocus={onCardFocus}
-            style={styles.card}
-            accessibilityLabel={tile.a11yLabel ?? tile.label}
-          >
-            <View
-              style={{
-                width: CARD_WIDTH,
-                height: tileHeight,
-                borderRadius: theme.radii.sm,
-                overflow: "hidden",
-                backgroundColor: theme.colors.surface,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              {tile.uri ? (
-                <Image source={{ uri: tile.uri }} style={{ width: CARD_WIDTH, height: tileHeight }} contentFit="cover" />
-              ) : (
-                // No artwork: an empty grey square used to be the tile. The
-                // first letter at least tells a scanning eye what it is
-                // looking at until art arrives.
-                <Text style={[styles.tileInitial, { color: theme.colors.textMuted }]}>
-                  {tile.label.trim().charAt(0).toUpperCase() || "?"}
-                </Text>
-              )}
-            </View>
-            <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>{tile.label}</Text>
-            {tile.sublabel ? (
-              <Text style={[styles.cardYear, { color: theme.colors.textMuted }]} numberOfLines={1}>{tile.sublabel}</Text>
-            ) : null}
-          </FocusableCard>
+          />
         ))}
       </ScrollView>
       </TVFocusGuideView>
@@ -798,7 +853,7 @@ export default function HomeScreen() {
               // Through the shared helper: the album screen needs the library
               // id too, and a bare id left it with a disabled query - a title
               // that was the raw id and "no track found" (device, 2026-08-03).
-              onPress: () => router.push(musicAlbumHref(String(a.id ?? ""), section.libraryId) as never),
+              href: musicAlbumHref(String(a.id ?? ""), section.libraryId),
             }))}
           />
         );
@@ -820,7 +875,7 @@ export default function HomeScreen() {
               uri: a.coverPhotoId
                 ? `${serverUrl}/api/v1/photos/${String(a.coverPhotoId)}/serve${tokenParam}&w=400&fmt=webp`
                 : undefined,
-              onPress: () => router.push("/(auth)/photos"),
+              href: "/(auth)/photos",
             }))}
           />
         );
@@ -895,7 +950,7 @@ export default function HomeScreen() {
               label: c.name,
               // A collection poster is usually a TMDB url: no token for it.
               uri: serverImageUri(serverUrl, c.posterUrl, tokenParam),
-              onPress: () => router.push(`/(auth)/collections/${c.id}`),
+              href: `/(auth)/collections/${c.id}`,
             }))}
           />
         );
