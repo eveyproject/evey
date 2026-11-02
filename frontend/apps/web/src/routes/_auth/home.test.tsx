@@ -21,7 +21,6 @@ vi.mock("@evey/api", () => ({
   useFeedServiceGetFeedConfig: (...args: unknown[]) => feedConfigHook(...(args as [])),
   useFeedServiceRecentlyAdded: () => recentHook(),
   usePlaybackServiceGetResumeItems: () => resumeHook(),
-  usePlaybackServiceGetNextUp: () => ({ data: { items: [] }, isLoading: false }),
   useCollectionServiceListCollections: () => ({ data: { collections: [] }, isLoading: false }),
   useActivityServiceGetPopularMedia: () => ({ data: [], isLoading: false }),
   WATCH_HISTORY_OVERLAY_LIMIT: 500,

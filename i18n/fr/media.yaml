@@ -6,7 +6,6 @@ home:
   play: Lecture
   moreInfo: "Plus d'infos"
   continueWatching: Reprendre la lecture
-  upNext: À suivre
   recentlyAdded: Ajoutés récemment
   recentlyAddedInLibrary: "Ajoutés récemment dans {{name}}"
   mostPopular: Les plus populaires

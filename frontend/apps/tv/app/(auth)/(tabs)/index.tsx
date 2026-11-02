@@ -8,7 +8,6 @@ import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   usePlaybackServiceGetResumeItems,
-  usePlaybackServiceGetNextUp,
   useLibraryServiceListMediaItems,
   useLibraryServiceListLibraries,
   useFeedServiceGetFeedConfig,
@@ -39,6 +38,7 @@ import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { buildHomeSections, placedPluginIds, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
 import { serverImageUri } from "@evey/client";
+import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 import { libraryFirstPageQueries } from "../../../src/lib/libraryGrid";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
@@ -566,17 +566,18 @@ export default function HomeScreen() {
     grownRows.has(feedType) ? rowSize(feedType) : Math.min(HOME_ROW_DEFAULT_SIZE, rowSize(feedType));
   const keepRow = { query: { placeholderData: keepPreviousData } };
   const resume = usePlaybackServiceGetResumeItems({ limit: fetchSize("resume_playback") }, keepRow);
-  const nextUp = usePlaybackServiceGetNextUp({ limit: fetchSize("next_episode") }, keepRow);
+  // The home tab is never unmounted and its rows stay fresh for minutes: back
+  // from the player, a library or anywhere else, the resume row must be re-read
+  // or a title started elsewhere (a library, a search) is missing from it.
+  useRefetchOnReturn(resume.refetch);
   const recommended = useFeedServiceRecommended({ limit: fetchSize("recommended") }, keepRow);
   const popular = useMostPopular(fetchSize("most_popular"));
-  const [resumeSize, nextUpSize, recommendedSize, popularSize] = [
+  const [resumeSize, recommendedSize, popularSize] = [
     rowSize("resume_playback"),
-    rowSize("next_episode"),
     rowSize("recommended"),
     rowSize("most_popular"),
   ];
   const resumeItems = useMemo(() => (resume.data?.items ?? []).slice(0, resumeSize), [resume.data, resumeSize]);
-  const nextUpItems = useMemo(() => (nextUp.data?.items ?? []).slice(0, nextUpSize), [nextUp.data, nextUpSize]);
   const collections = useCollections();
   // The "recently added" shelf is the per-library
   // rows' job, which is why no client renders it as its own section.
@@ -587,7 +588,7 @@ export default function HomeScreen() {
     sortOrder: "SORT_ORDER_DESC",
     "pagination.pageSize": 1,
   });
-  const isTopLoading = !layoutReady || resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
+  const isTopLoading = !layoutReady || resume.isLoading || recentlyAdded.isLoading;
 
   // Every library row is fetched HERE rather than inside its component, so the
   // screen knows which rows have items - that is what lets the remote's
@@ -629,9 +630,9 @@ export default function HomeScreen() {
     const t = setTimeout(() => setRevealCapPassed(true), HOME_REVEAL_CAP_MS);
     return () => clearTimeout(t);
   }, []);
-  // Only when ALL THREE failed. One transverse row erroring still leaves a
+  // Only when BOTH failed. One transverse row erroring still leaves a
   // usable home, and blanking it would be a worse answer than a short page.
-  const isError = resume.isError && nextUp.isError && recentlyAdded.isError;
+  const isError = resume.isError && recentlyAdded.isError;
 
   const watchPercents = useMemo(() => {
     const map: Record<string, number> = {};
@@ -683,8 +684,6 @@ export default function HomeScreen() {
           case "resume_playback":
           case "continue_watching":
             return resumeItems.length;
-          case "next_episode":
-            return nextUpItems.length;
           case "collections":
             return collections.data?.collections?.length ?? 0;
           case "recommended":
@@ -759,7 +758,7 @@ export default function HomeScreen() {
   // not "the library is empty".
   const transverseRowsPending = recommended.isLoading || popular.isLoading || collections.isLoading;
   const transverseRowsErrored =
-    resume.isError || nextUp.isError || collections.isError || recommended.isError || popular.isError;
+    resume.isError || collections.isError || recommended.isError || popular.isError;
   const libraryRowsUnsettled = libraryRowQueries.some(
     (q) => (q as { isLoading?: boolean; isError?: boolean }).isLoading || (q as { isLoading?: boolean; isError?: boolean }).isError,
   );
@@ -860,22 +859,6 @@ export default function HomeScreen() {
             onRetry={() => void resume.refetch()}
           />
         );
-      case "next_episode":
-        return (
-          <MediaRow
-            key={section.key}
-            title={t("media.home.upNext")}
-            items={nextUpItems}
-            onEndReached={() => nextUpItems.length >= fetchSize("next_episode") && growRow("next_episode")}
-            serverUrl={serverUrl}
-            authHeaders={authHeaders}
-            focusFirst={focusFirst}
-            imagePriority={imagePriority}
-            onCardFocus={onCardFocus}
-            isError={nextUp.isError}
-            onRetry={() => void nextUp.refetch()}
-          />
-        );
       case "collections": {
         const all = collections.data?.collections ?? [];
         // 105 repaired sagas landed today: an unbounded row would mount them all.
@@ -962,7 +945,6 @@ export default function HomeScreen() {
         error={isError}
         onRetry={() => {
           void resume.refetch();
-          void nextUp.refetch();
           void recentlyAdded.refetch();
         }}
       />

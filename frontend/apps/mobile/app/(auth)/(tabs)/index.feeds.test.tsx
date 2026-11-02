@@ -66,7 +66,6 @@ const settled = { data: { items: [] }, isLoading: false, isError: false, refetch
 const updateMutateAsync = vi.fn().mockResolvedValue({});
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetResumeItems: () => settled,
-  usePlaybackServiceGetNextUp: () => settled,
   useFeedServiceRecommended: () => settled,
   useFeedServiceGetFeedConfig: () => ({ data: { configs: [] } }),
   useFeedServiceUpdateProfileFeedConfig: () => ({ mutateAsync: updateMutateAsync }),
@@ -82,7 +81,7 @@ vi.mock("../../../src/components/MediaActionsSheet", () => ({ MediaActionsSheet:
 
 import HomeScreen from "./index";
 
-const FEED_LABEL_KEYS = new Set(["common.feeds.labels.resume_playback", "media.home.upNext", "media.home.collections", "media.home.recommendedForYou", "media.home.mostPopular"]);
+const FEED_LABEL_KEYS = new Set(["common.feeds.labels.resume_playback", "media.home.collections", "media.home.recommendedForYou", "media.home.mostPopular"]);
 
 beforeEach(() => {
   updateMutateAsync.mockClear();
@@ -97,8 +96,8 @@ describe("HomeScreen - customize panel handlers serialise fast taps", () => {
     // back to back before any re-render, each with the closure it captured.
     // Tap 1 moves row 0 (resume_playback) down; tap 2 moves row 1 down - and
     // row 1 is, by then, resume_playback again. Serialised, the result is
-    // [next_episode, collections, resume_playback]; computed from the same
-    // stale list, the second tap would swap next_episode/collections instead
+    // [collections, recommended, resume_playback]; computed from the same
+    // stale list, the second tap would swap collections/recommended instead
     // and its state write would silently discard the first tap.
     act(() => {
       downButtons[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -111,14 +110,14 @@ describe("HomeScreen - customize panel handlers serialise fast taps", () => {
     const rows = Array.from(modal.querySelectorAll("span"))
       .map((el) => el.textContent ?? "")
       .filter((text) => FEED_LABEL_KEYS.has(text));
-    expect(rows.slice(0, 3)).toEqual(["media.home.upNext", "media.home.collections", "common.feeds.labels.resume_playback"]);
+    expect(rows.slice(0, 3)).toEqual(["media.home.collections", "media.home.recommendedForYou", "common.feeds.labels.resume_playback"]);
 
     // Every persisted row reflects the cumulative order.
     const persisted = updateMutateAsync.mock.calls.map((c) => c[0] as { feedType: string; data: { displayOrder?: number } });
     const byType = new Map<string, number | undefined>();
     for (const p of persisted) byType.set(p.feedType, p.data.displayOrder); // last write wins
-    expect(byType.get("next_episode")).toBe(0);
-    expect(byType.get("collections")).toBe(1);
+    expect(byType.get("collections")).toBe(0);
+    expect(byType.get("recommended")).toBe(1);
     expect(byType.get("resume_playback")).toBe(2);
   });
 });

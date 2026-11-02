@@ -13,7 +13,6 @@ import { Icon } from "./icons";
 const FEED_LABELS: Record<string, string> = {
   resume_playback: "common.feeds.labels.resume_playback",
   continue_watching: "common.feeds.labels.resume_playback",
-  next_episode: "media.home.upNext",
   collections: "media.home.collections",
   recommended: "media.home.recommendedForYou",
   most_popular: "media.home.mostPopular",

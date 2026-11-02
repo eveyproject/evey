@@ -9,9 +9,8 @@ function fakeQC() {
   return { qc: qc as never, calls, spy: qc.invalidateQueries };
 }
 
-// The predicate must accept every watched-sensitive feed, and CRUCIALLY the
-// "Up Next" row (/api/v1/playback/next-up), which was missing from all four
-// hand-rolled predicates and left a finished episode stuck for 5 minutes.
+// The predicate must accept every watched-sensitive feed: one missing from it
+// left a finished title stuck in its row for the 5-minute cache.
 describe("invalidateWatchedState", () => {
   function predicateFor(calls: unknown[]) {
     const withPredicate = calls.find(
@@ -22,11 +21,10 @@ describe("invalidateWatchedState", () => {
     return (key: string) => withPredicate.predicate({ queryKey: [key] });
   }
 
-  it("invalidates the Up Next row, home feeds and Most Popular", () => {
+  it("invalidates the home feeds and Most Popular", () => {
     const { qc, calls } = fakeQC();
     invalidateWatchedState(qc, "mi-1");
     const matches = predicateFor(calls);
-    expect(matches("/api/v1/playback/next-up")).toBe(true);
     expect(matches("/api/v1/feeds/recommended")).toBe(true);
     expect(matches("/api/v1/feeds/resume-playback")).toBe(true);
     expect(matches("/api/v1/popular")).toBe(true);
