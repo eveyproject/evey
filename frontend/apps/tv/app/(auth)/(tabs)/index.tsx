@@ -198,8 +198,8 @@ function MediaCardImpl({
 /**
  * A card only re-renders when its own props change. The home rebuilds its
  * rows whenever any of its half-dozen queries answers, and without this every
- * visible card was rebuilt with them - on the screen the owner already found
- * GPU-bound (2026-09-20). Every prop must keep its identity for that to hold:
+ * visible card was rebuilt with them - on a screen already found
+ * GPU-bound. Every prop must keep its identity for that to hold:
  * a FlatList hands its cells a fresh renderItem on each of its renders, so
  * this memo is the only thing between a home re-render and every visible card.
  */
