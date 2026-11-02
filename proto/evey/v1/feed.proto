@@ -99,6 +99,9 @@ message FeedItem {
   // primary artwork or pre-dates the blurhash field. Lets home/library
   // grids render a coloured preview before the poster image loads.
   string primary_blurhash = 10;
+  // Release year of the media item (0 when unknown) so cards can print it
+  // under the title like the library grid does.
+  int32 year = 11;
 }
 
 message MergedFeedConfig {

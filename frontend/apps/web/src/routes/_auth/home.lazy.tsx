@@ -181,7 +181,7 @@ const MostPopularSlider = memo(function MostPopularSlider({ maxItems }: SectionP
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
-          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type, year: item.year || undefined }}
           showType
           lite
         />
@@ -201,7 +201,7 @@ const RecommendedSlider = memo(function RecommendedSlider({ maxItems }: SectionP
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
-          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type, year: item.year || undefined }}
           posterBlurhash={item.primaryBlurhash}
           showType
           lite

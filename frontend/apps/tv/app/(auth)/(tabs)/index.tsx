@@ -127,10 +127,9 @@ function MediaCardImpl({
   const theme = useTheme();
   const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
   const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
-  // The recommended/popular projections carry no `year` (see recommendedItems
-  // below), which left MediaCard's subtitle line blank on every card in those
-  // two rows. Falling back to the localized type ("Movie"/"Series") gives the
-  // subtitle something to say instead of nothing.
+  // A projection without a year (older server, or an item with no release
+  // date) would leave MediaCard's subtitle line blank. Falling back to the
+  // localized type ("Movie"/"Series") gives the subtitle something to say.
   const typeLabelKey = !item.year ? mediaTypeLabelKey(item.type) : null;
 
   return (
@@ -655,6 +654,7 @@ export default function HomeScreen() {
           id: i.mediaItemId,
           title: i.title,
           type: i.type,
+          year: i.year || undefined,
           artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
         }) as V1MediaItem)
         .slice(0, recommendedSize),
@@ -663,7 +663,7 @@ export default function HomeScreen() {
   const popularItems = useMemo(
     () =>
       (popular.data ?? [])
-        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem)
+        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year }) as V1MediaItem)
         .slice(0, popularSize),
     [popular.data, popularSize],
   );

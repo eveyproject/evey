@@ -407,12 +407,16 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 		if mediaItemBlockedByParental(pf, mi) {
 			continue
 		}
-		resp.Items = append(resp.Items, &eveyv1.PopularMediaItem{
+		item := &eveyv1.PopularMediaItem{
 			MediaItemId: string(p.MediaItemID),
 			Title:       p.Title,
 			Type:        string(mi.Type),
 			PlayCount:   int32(p.PlayCount),
-		})
+		}
+		if mi.Catalog != nil && mi.Catalog.Year != nil {
+			item.Year = int32(*mi.Catalog.Year)
+		}
+		resp.Items = append(resp.Items, item)
 	}
 	return resp, nil
 }

@@ -310,6 +310,7 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysW
 		return nil, err
 	}
 	q.fillPrimaryBlurhashes(ctx, items)
+	q.fillYears(ctx, items)
 	return items, nil
 }
 
@@ -395,6 +396,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 		return nil, err
 	}
 	q.fillPrimaryBlurhashes(ctx, items)
+	q.fillYears(ctx, items)
 	return items, nil
 }
 
@@ -476,7 +478,49 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 	}
 	items = keepMostRelevant(items, targetCount)
 	q.fillPrimaryBlurhashes(ctx, items)
+	q.fillYears(ctx, items)
 	return items, nil
+}
+
+// fillYears batch-resolves the release year from media_catalog and stamps it
+// on each FeedItem in place. Best-effort like fillPrimaryBlurhashes: on a
+// query failure the items return with Year 0 and the card simply shows none.
+func (q *FeedQuerier) fillYears(ctx context.Context, items []*feed.FeedItem) {
+	if len(items) == 0 {
+		return
+	}
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = string(it.MediaItemID)
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx,
+		`SELECT media_item_id, year FROM media_catalog
+		 WHERE media_item_id = ANY($1) AND year IS NOT NULL`,
+		pq.Array(ids))
+	if err != nil {
+		slog.Debug("feed: fetch years failed", slog.Any("err", err))
+		return
+	}
+	defer rows.Close()
+	years := make(map[string]int, len(items))
+	for rows.Next() {
+		var mediaID string
+		var year int
+		if err := rows.Scan(&mediaID, &year); err != nil {
+			slog.Debug("feed: scan year row failed", slog.Any("err", err))
+			return
+		}
+		years[mediaID] = year
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		slog.Debug("feed: iterate year rows failed", slog.Any("err", rowsErr))
+		return
+	}
+	for _, it := range items {
+		it.Year = years[string(it.MediaItemID)]
+	}
 }
 
 // fillPrimaryBlurhashes batch-resolves the primary-artwork blurhash for the
