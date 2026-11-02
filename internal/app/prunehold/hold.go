@@ -204,12 +204,7 @@ func (h *Hold) Judge(ctx context.Context, libraryID, root string, total int, mis
 			slog.String("library_id", libraryID), slog.String("root", root), slog.Int("missing", m), slog.Int("total", total))
 		return true
 	}
-	_, already := h.suspended[libraryID][root]
-	s := Suspension{LibraryID: libraryID, Root: root, Missing: m, Total: total, Snapshot: snap}
-	if h.suspended[libraryID] == nil {
-		h.suspended[libraryID] = make(map[string]Suspension)
-	}
-	h.suspended[libraryID][root] = s
+	s, already := h.suspendLocked(libraryID, root, total, m, snap)
 	h.mu.Unlock()
 
 	if hadConfirm {
@@ -220,6 +215,43 @@ func (h *Hold) Judge(ctx context.Context, libraryID, root string, total int, mis
 		h.announce(ctx, s)
 	}
 	return false
+}
+
+// JudgePartial decides a pass that walked only part of a root (a scan of one
+// of its subfolders): total and missing are still measured over the whole
+// root, so a branch lost under the root cannot be pruned folder by folder
+// below the threshold. Nothing goes while the root is held, and a partial pass
+// never uses a confirmation: only a pass over the whole root carries one out,
+// so the held set the admin sees stays the one a confirmation deletes.
+func (h *Hold) JudgePartial(ctx context.Context, libraryID, root string, total int, missing []string) bool {
+	root = filepath.Clean(root)
+	m := len(missing)
+
+	h.mu.Lock()
+	if _, held := h.suspended[libraryID][root]; held {
+		h.mu.Unlock()
+		return false
+	}
+	if m < h.guard.MinMissing || float64(m) <= h.guard.MaxMissingRatio*float64(total) {
+		h.mu.Unlock()
+		return true
+	}
+	s, _ := h.suspendLocked(libraryID, root, total, m, Snapshot(missing))
+	h.mu.Unlock()
+	h.announce(ctx, s)
+	return false
+}
+
+// suspendLocked records root as held with this set and reports whether it
+// already was.
+func (h *Hold) suspendLocked(libraryID, root string, total, missing int, snapshot string) (Suspension, bool) {
+	_, already := h.suspended[libraryID][root]
+	s := Suspension{LibraryID: libraryID, Root: root, Missing: missing, Total: total, Snapshot: snapshot}
+	if h.suspended[libraryID] == nil {
+		h.suspended[libraryID] = make(map[string]Suspension)
+	}
+	h.suspended[libraryID][root] = s
+	return s, already
 }
 
 func (h *Hold) clearLocked(libraryID, root string) {
@@ -240,4 +272,21 @@ func (h *Hold) announce(ctx context.Context, s Suspension) {
 	if err := h.events.Publish(ctx, evt); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
+}
+
+// EnclosingRoot returns the most specific of roots that contains dir, or dir
+// itself when none does: the root a scan of dir is judged against.
+func EnclosingRoot(roots []string, dir string) string {
+	dir = filepath.Clean(dir)
+	best := ""
+	for _, r := range roots {
+		r = filepath.Clean(r)
+		if (dir == r || strings.HasPrefix(dir, r+string(filepath.Separator))) && len(r) > len(best) {
+			best = r
+		}
+	}
+	if best == "" {
+		return dir
+	}
+	return best
 }

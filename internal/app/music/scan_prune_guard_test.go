@@ -9,6 +9,7 @@ import (
 	appmusic "github.com/eveyproject/evey/internal/app/music"
 	"github.com/eveyproject/evey/internal/app/prunehold"
 	"github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
 	"github.com/eveyproject/evey/internal/domain/music"
 	"github.com/eveyproject/evey/internal/domain/music/fakes"
 	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
@@ -127,5 +128,116 @@ func TestScanDirectory_BranchBack_ResumesAutomatically(t *testing.T) {
 	}
 	if len(hold.Suspensions("lib-1")) != 0 {
 		t.Fatal("hold must clear on its own")
+	}
+}
+
+// Four albums under one root, a third of every album on the lost branch. The
+// walk of a folder reports the present files of that folder only.
+func seedAlbumsBranchLoss(t *testing.T) (*fakes.FakeMusicTrackRepository, *fakes.FakeMusicScanner, *libfakes.FakeLibraryQueryRepo, func(album int)) {
+	t.Helper()
+	repo := fakes.NewFakeMusicTrackRepository()
+	scanner := fakes.NewFakeMusicScanner()
+	scanner.ExistingPaths = map[string]bool{}
+	mod := time.Unix(1_700_000_000, 0)
+	present := map[int][]music.ScannedAudioFile{}
+	for a := range 4 {
+		for i := range 15 {
+			id := fmt.Sprintf("t-%d-%d", a, i)
+			path := fmt.Sprintf("/pool/album%d/%02d.flac", a, i)
+			if _, err := repo.Upsert(context.Background(), music.Track{
+				ID: id, LibraryID: "lib-1", Title: "T", FilePath: path,
+				FileSize: 100, FileHash: "hash-" + id, ModTime: mod,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			scanner.Hashes[path] = "hash-" + id
+			if i < 10 {
+				scanner.ExistingPaths[path] = true
+				present[a] = append(present[a], music.ScannedAudioFile{Path: path, Size: 100, MimeType: "audio/flac", ModTime: mod})
+			}
+		}
+	}
+	libs := libfakes.NewFakeLibraryQueryRepo()
+	libs.Seed(&library.Library{ID: "lib-1", Type: "music", Paths: []string{"/pool"}})
+	walkAlbum := func(album int) {
+		scanner.Files = append([]music.ScannedAudioFile(nil), present[album]...)
+	}
+	return repo, scanner, libs, walkAlbum
+}
+
+func TestScanDirectory_SubfolderScansUnderHeldRoot_NothingPruned(t *testing.T) {
+	repo, scanner, libs, walkAlbum := seedAlbumsBranchLoss(t)
+	hold := prunehold.New(nil)
+	cs := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), libs, scanner).WithPruneHold(hold)
+	var all []music.ScannedAudioFile
+	for a := range 4 {
+		walkAlbum(a)
+		all = append(all, scanner.Files...)
+	}
+	scanner.Files = all
+	if _, err := cs.ScanDirectory(context.Background(), "lib-1", "/pool"); err != nil {
+		t.Fatal(err)
+	}
+	held := hold.Suspensions("lib-1")
+	if len(held) != 1 || held[0].Missing != 20 {
+		t.Fatalf("want /pool held with 20 missing, got %+v", held)
+	}
+	for a := range 4 {
+		walkAlbum(a)
+		if _, err := cs.ScanDirectory(context.Background(), "lib-1", fmt.Sprintf("/pool/album%d", a)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := trackCount(t, repo); n != 60 {
+		t.Fatalf("folder scans under a held root must delete nothing, have %d tracks", n)
+	}
+	if now := hold.Suspensions("lib-1"); len(now) != 1 || now[0].Snapshot != held[0].Snapshot {
+		t.Fatalf("the held set must stay the one the admin sees, got %+v", now)
+	}
+}
+
+func TestScanDirectory_SubfolderScansBeforeAnyRootScan_HeldOverTheRoot(t *testing.T) {
+	repo, scanner, libs, walkAlbum := seedAlbumsBranchLoss(t)
+	bus := sharedfakes.NewFakeEventBus()
+	hold := prunehold.New(bus)
+	cs := appmusic.NewCommandService(repo, bus, libs, scanner).WithPruneHold(hold)
+	for a := range 4 {
+		walkAlbum(a)
+		if _, err := cs.ScanDirectory(context.Background(), "lib-1", fmt.Sprintf("/pool/album%d", a)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := trackCount(t, repo); n != 60 {
+		t.Fatalf("5 tracks per folder is under the floor, but 20 of the root is not: have %d tracks", n)
+	}
+	if n := removals(bus); n != 0 {
+		t.Fatalf("want no removal event, got %d", n)
+	}
+	held := hold.Suspensions("lib-1")
+	if len(held) != 1 || held[0].Root != "/pool" || held[0].Missing != 20 || held[0].Total != 60 {
+		t.Fatalf("want the root held over its whole share, got %+v", held)
+	}
+}
+
+func TestScanDirectory_SubfolderScan_RealDeletionStillPrunes(t *testing.T) {
+	repo, scanner, libs, walkAlbum := seedAlbumsBranchLoss(t)
+	// The branch is back except one track the user really deleted.
+	for a := range 4 {
+		for i := range 15 {
+			scanner.ExistingPaths[fmt.Sprintf("/pool/album%d/%02d.flac", a, i)] = true
+		}
+	}
+	delete(scanner.ExistingPaths, "/pool/album2/14.flac")
+	mod := time.Unix(1_700_000_000, 0)
+	walkAlbum(2)
+	for i := 10; i < 14; i++ {
+		scanner.Files = append(scanner.Files, music.ScannedAudioFile{Path: fmt.Sprintf("/pool/album2/%02d.flac", i), Size: 100, MimeType: "audio/flac", ModTime: mod})
+	}
+	cs := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), libs, scanner).WithPruneHold(prunehold.New(nil))
+	if _, err := cs.ScanDirectory(context.Background(), "lib-1", "/pool/album2"); err != nil {
+		t.Fatal(err)
+	}
+	if n := trackCount(t, repo); n != 59 {
+		t.Fatalf("a real deletion in the scanned folder must prune, have %d tracks", n)
 	}
 }

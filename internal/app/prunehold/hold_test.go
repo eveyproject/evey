@@ -80,3 +80,30 @@ func TestConfirm_UnknownRoot(t *testing.T) {
 		t.Fatalf("want ErrNothingSuspended, got %v", err)
 	}
 }
+
+func TestJudgePartial_HeldRootKeepsItsConfirmation(t *testing.T) {
+	h := prunehold.New(nil)
+	missing := keys("m", 30)
+	if h.Judge(context.Background(), "lib", "/pool", 100, missing) {
+		t.Fatal("30 of 100 must be held")
+	}
+	snap := h.Suspensions("lib")[0].Snapshot
+	if err := h.Confirm("lib", "/pool", snap); err != nil {
+		t.Fatal(err)
+	}
+	if h.JudgePartial(context.Background(), "lib", "/pool", 100, missing[:3]) {
+		t.Fatal("a folder scan must not delete under a held root")
+	}
+	if !h.Judge(context.Background(), "lib", "/pool", 100, missing) {
+		t.Fatal("the confirmation must survive the folder scan for the root pass")
+	}
+}
+
+func TestEnclosingRoot(t *testing.T) {
+	roots := []string{"/a", "/a/b/", "/c"}
+	for dir, want := range map[string]string{"/a/b/x": "/a/b", "/a/bc": "/a", "/c": "/c", "/d/e": "/d/e"} {
+		if got := prunehold.EnclosingRoot(roots, dir); got != want {
+			t.Fatalf("EnclosingRoot(%q) = %q, want %q", dir, got, want)
+		}
+	}
+}
