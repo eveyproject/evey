@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -846,6 +847,87 @@ func TestLineFit_FloorServesOnlyTheLowestRung(t *testing.T) {
 	assert.Contains(t, master, "vd=transcode", "the rung pins its plan")
 	assert.Contains(t, master, "abr=floor", "the constraint is a plan input: baked like the pins")
 	assert.Contains(t, master, "fp=", "the rung seals its fingerprint")
+}
+
+// transcodedLineReq is lineReq for a receiver that decodes h264 only: on an
+// HEVC source the natural plan is a transcode, the shaped ladder its master.
+func transcodedLineReq(maxKbps string, floor bool) *http.Request {
+	req := lineReq(maxKbps, floor)
+	q := req.URL.Query()
+	q.Set("videoCodecs", "h264")
+	req.URL.RawQuery = q.Encode()
+	return req
+}
+
+// hevcSourceAV is copyEligibleAV with an HEVC video track: a receiver without
+// HEVC gets a transcode ladder from the first master on.
+func hevcSourceAV() []*domainlibrary.MediaStream {
+	streams := copyEligibleAV()
+	streams[0].Codec = "hevc"
+	streams[0].Profile = "Main"
+	return streams
+}
+
+// A title the receiver cannot decode is a transcode from the first master,
+// and its rescue reload (?abr=floor) must narrow THAT ladder too: a TV whose
+// decoder dropped frames on the top H.264 rung reloaded on the floor and was
+// served the same four rungs again, so the rescue never rescued (image gone,
+// sound on, until the receiver gave up).
+func TestLineFit_FloorNarrowsATranscodedPlanToo(t *testing.T) {
+	h := lineHandler(t)
+	item := lineItem(t, 20_000_000)
+	streams := hevcSourceAV()
+
+	natural := planFor(t, h, transcodedLineReq("", false), item, streams)
+	require.False(t, natural.IsCopy, "premise: an HEVC source for an h264-only receiver transcodes")
+	require.Greater(t, len(natural.Profiles), 1, "premise: a ladder with more than one rung")
+	require.False(t, natural.Plan.Fit.Single)
+	assert.Equal(t, len(natural.Profiles), strings.Count(masterOf(t, h, transcodedLineReq("", false), item, streams, natural), "#EXT-X-STREAM-INF"),
+		"the unconstrained master offers the whole ladder")
+
+	req := transcodedLineReq("", true)
+	rp := planFor(t, h, req, item, streams)
+	require.False(t, rp.IsCopy)
+	assert.Equal(t, apptranscoding.LineFit{Single: true, Rung: 0}, rp.Plan.Fit)
+	assert.Equal(t, natural.Plan.FingerprintHash, rp.Plan.FingerprintHash, "same sessions and cache as the unconstrained viewer")
+	assert.Contains(t, rp.Decision.TranscodeReasons, "abr_floor_requested")
+
+	master := masterOf(t, h, req, item, streams, rp)
+	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"), "floor is mono-variant on a transcoded plan as on a copy")
+	assert.Contains(t, master, "stream_0.m3u8", "the lowest rung, by its ladder index")
+	assert.Contains(t, master, "abr=floor")
+	assert.Contains(t, master, "fp=")
+}
+
+// The receiver's measured line narrows a transcoded ladder to the highest
+// rung it carries, so a rung the line cannot feed is never offered: the
+// incident's receiver measured 13 Mbps and was still offered the 15 Mbps rung.
+func TestLineFit_LineNarrowsATranscodedPlanToTheRungItCarries(t *testing.T) {
+	h := lineHandler(t)
+	item := lineItem(t, 20_000_000)
+	streams := hevcSourceAV()
+
+	natural := planFor(t, h, transcodedLineReq("", false), item, streams)
+	require.Greater(t, len(natural.Profiles), 1)
+	top := natural.Profiles[len(natural.Profiles)-1]
+	line := (top.VideoBitrate+top.AudioBitrate)*10/12 - 1 // just under what the top rung needs
+	want := 0
+	for i, p := range natural.Profiles {
+		if (p.VideoBitrate+p.AudioBitrate)*12 <= line*10 {
+			want = i
+		}
+	}
+	require.Less(t, want, len(natural.Profiles)-1, "premise: the line does not carry the top rung")
+
+	req := transcodedLineReq(strconv.FormatInt(line, 10), false)
+	rp := planFor(t, h, req, item, streams)
+	assert.Equal(t, apptranscoding.LineFit{Single: true, Rung: want}, rp.Plan.Fit)
+	assert.Contains(t, rp.Decision.TranscodeReasons, "client_line_exceeded")
+
+	master := masterOf(t, h, req, item, streams, rp)
+	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"))
+	assert.Contains(t, master, fmt.Sprintf("stream_%d.m3u8", want))
+	assert.NotContains(t, master, fmt.Sprintf("stream_%d.m3u8", len(natural.Profiles)-1), "the rung the line cannot feed is not offered")
 }
 
 // Incident cast du 2026-08-23 : le cast a gele a tampon PLEIN sur un flux

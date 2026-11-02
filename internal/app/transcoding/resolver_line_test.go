@@ -112,15 +112,72 @@ func TestResolveLine_LineThenFloor(t *testing.T) {
 	assert.Equal(t, natural.Ladder, plan.Ladder)
 }
 
-// A transcode ladder is the player's to pick from: the line judges the copy
-// rung only (a client that cannot copy already gets the shaped ladder).
-func TestResolveLine_TranscodePlanIsNotNarrowed(t *testing.T) {
-	req := lineRequest(7400, 6000, true)
+// transcodeRequest is lineRequest on a source the client cannot decode: the
+// natural plan is a transcode, no copy for the line to judge.
+func transcodeRequest(lineKbps int64, floor bool) PlaybackRequest {
+	req := lineRequest(7400, lineKbps, floor)
 	req.Client.VideoCodecs = []string{"hevc"} // the h264 source is not decodable: a transcode, not a copy
-	plan, err := lineResolver().Resolve(context.Background(), req)
+	return req
+}
+
+// A plan that transcodes anyway is narrowed like a copy would be: the floor
+// is its lowest rung, mono-variant, on the full ladder (the child URLs index
+// it) and the same fingerprint (the title's viewers share the sessions).
+func TestResolveLine_TranscodePlanFloorIsTheLowestRung(t *testing.T) {
+	pr := lineResolver()
+	req := transcodeRequest(0, true)
+	natural := transcodeLadderOf(t, pr, req)
+	require.Greater(t, len(natural.Ladder), 1, "premise: a ladder with something to narrow")
+
+	plan, err := pr.Resolve(context.Background(), req)
 	require.NoError(t, err)
 	require.False(t, plan.Route.Copy)
+	assert.Equal(t, LineFit{Single: true, Rung: 0}, plan.Fit)
+	assert.Equal(t, natural.Ladder, plan.Ladder)
+	assert.Equal(t, natural.FingerprintHash, plan.FingerprintHash)
+	assert.Contains(t, plan.Decision.TranscodeReasons, reasonFloorRequest)
+}
+
+// The line narrows a transcode plan to the highest rung it carries; the
+// floor, when both are asked, goes below the line's pick (the rescue fires
+// after that pick starved).
+func TestResolveLine_TranscodePlanFitsTheLineThenTheFloor(t *testing.T) {
+	pr := lineResolver()
+	req := transcodeRequest(6000, false)
+	natural := transcodeLadderOf(t, pr, req)
+	want := 0
+	for i, p := range natural.Ladder {
+		if (p.VideoBitrate+p.AudioBitrate)*12 <= 6000*10 {
+			want = i
+		}
+	}
+	require.Positive(t, want, "premise: a 6 Mbps line carries more than the lowest rung")
+
+	plan, err := pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, LineFit{Single: true, Rung: want}, plan.Fit)
+	assert.Contains(t, plan.Decision.TranscodeReasons, reasonLineExceeded)
+
+	plan, err = pr.Resolve(context.Background(), transcodeRequest(6000, true))
+	require.NoError(t, err)
+	assert.Equal(t, LineFit{Single: true, Rung: 0}, plan.Fit, "the floor steps below the rung the line picked")
+	assert.Contains(t, plan.Decision.TranscodeReasons, reasonFloorRequest)
+}
+
+// The symmetric case: a transcode plan with no line constraint keeps its
+// whole ladder, and a child URL (vd= pin) indexes the full ladder.
+func TestResolveLine_TranscodePlanUnconstrainedKeepsTheLadder(t *testing.T) {
+	pr := lineResolver()
+	plan, err := pr.Resolve(context.Background(), transcodeRequest(0, false))
+	require.NoError(t, err)
 	assert.False(t, plan.Fit.Single)
+	assert.Greater(t, len(plan.Ladder), 1)
+
+	child := transcodeRequest(0, true)
+	child.PinnedVideoDecision = "transcode"
+	plan, err = pr.Resolve(context.Background(), child)
+	require.NoError(t, err)
+	assert.False(t, plan.Fit.Single, "children index the full ladder")
 	assert.Greater(t, len(plan.Ladder), 1)
 }
 
