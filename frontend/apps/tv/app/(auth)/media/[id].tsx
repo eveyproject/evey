@@ -584,7 +584,7 @@ export default function MediaDetailScreen() {
               },
             ]}
           >
-            <Text style={[styles.playText, { color: theme.colors.onAccent }]}>
+            <Text numberOfLines={1} style={[styles.playText, { color: theme.colors.onAccent }]}>
               {hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(Number(resumeMs))}` : seriesStarted ? t("media.resume", "Resume") : t("player.controls.play")}
             </Text>
           </Pressable>
@@ -632,7 +632,7 @@ export default function MediaDetailScreen() {
             },
           ]}
         >
-          <Text style={[styles.actionText, { color: isFavorite ? theme.colors.accent : theme.colors.text }]}>
+          <Text numberOfLines={1} style={[styles.actionText, { color: isFavorite ? theme.colors.accent : theme.colors.text }]}>
             {isFavorite ? t("media.detail.favorited") : t("media.detail.favorite")}
           </Text>
         </Pressable>
@@ -663,7 +663,7 @@ export default function MediaDetailScreen() {
             },
           ]}
         >
-          <Text style={[styles.actionText, { color: watched ? theme.colors.accent : theme.colors.text }]}>
+          <Text numberOfLines={1} style={[styles.actionText, { color: watched ? theme.colors.accent : theme.colors.text }]}>
             {watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
           </Text>
         </Pressable>
@@ -683,7 +683,7 @@ export default function MediaDetailScreen() {
             },
           ]}
         >
-          <Text style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.addToPlaylist")}</Text>
+          <Text numberOfLines={1} style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.addToPlaylist")}</Text>
         </Pressable>
 
         {/* Thumb rating: same like/dislike/clear contract as web and mobile
@@ -710,7 +710,7 @@ export default function MediaDetailScreen() {
                 },
               ]}
             >
-              <Text style={[styles.actionText, { color: myRating === 1 ? theme.colors.accent : theme.colors.text }]}>
+              <Text numberOfLines={1} style={[styles.actionText, { color: myRating === 1 ? theme.colors.accent : theme.colors.text }]}>
                 {t("media.rating.like", "Like")}
               </Text>
             </Pressable>
@@ -732,7 +732,7 @@ export default function MediaDetailScreen() {
                 },
               ]}
             >
-              <Text style={[styles.actionText, { color: myRating === -1 ? theme.colors.accent : theme.colors.text }]}>
+              <Text numberOfLines={1} style={[styles.actionText, { color: myRating === -1 ? theme.colors.accent : theme.colors.text }]}>
                 {t("media.rating.dislike", "Dislike")}
               </Text>
             </Pressable>
@@ -767,7 +767,7 @@ export default function MediaDetailScreen() {
                 },
               ]}
             >
-              <Text style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.trailer")}</Text>
+              <Text numberOfLines={1} style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.trailer")}</Text>
             </Pressable>
           ))}
       </View>
@@ -1059,7 +1059,10 @@ const styles = StyleSheet.create({
   meta: { fontSize: 18, marginTop: 8 },
   genres: { fontSize: 17, marginTop: 4 },
   studios: { fontSize: 17, marginTop: 4 },
-  actions: { flexDirection: "row", gap: 12, marginTop: 24 },
+  // Wraps: the localized action labels (resume with its time, "mark as unwatched",
+  // "add to playlist") add up to more than one TV row, and an unwrapped row
+  // pushed the last buttons past the screen edge.
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 24 },
   playGroup: { flexDirection: "row", alignItems: "stretch" },
   playButton: {
     paddingVertical: 11,

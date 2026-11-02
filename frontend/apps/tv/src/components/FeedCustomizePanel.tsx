@@ -223,7 +223,7 @@ export function FeedCustomizePanel({
               focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
             >
               <Ionicons name="refresh-outline" size={20} color={theme.colors.textMuted} />
-              <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: FONT_SIZE.base }}>
+              <Text numberOfLines={1} style={{ color: theme.colors.text, fontWeight: "600", fontSize: FONT_SIZE.base, flexShrink: 1 }}>
                 {t(confirmingReset ? "common.feeds.resetConfirm" : "common.feeds.resetDefaults")}
               </Text>
             </FocusableCard>

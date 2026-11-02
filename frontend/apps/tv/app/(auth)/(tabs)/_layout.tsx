@@ -119,6 +119,7 @@ export default function TabsLayout() {
                 />
                 {expanded && (
                   <Text
+                    numberOfLines={1}
                     style={[
                       styles.navLabel,
                       { color: active || focused ? theme.colors.accent : theme.colors.textMuted },
@@ -178,6 +179,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "600",
     marginLeft: 16,
+    flexShrink: 1,
   },
   content: {
     flex: 1,
