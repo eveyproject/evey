@@ -41,8 +41,15 @@ vi.mock("react-native", () => ({
 }));
 
 // --- expo-image / @expo/vector-icons mocks ----------------------------------
+// Renders per image url: the sections under the action row must not re-render
+// when only the row's focus ring moves.
+const imageRenders = new Map<string, number>();
 vi.mock("expo-image", () => ({
-  Image: (p: any) => React.createElement("img", p),
+  Image: (p: any) => {
+    const uri = p.source?.uri ?? "";
+    imageRenders.set(uri, (imageRenders.get(uri) ?? 0) + 1);
+    return React.createElement("img", p);
+  },
 }));
 vi.mock("@expo/vector-icons/Ionicons", () => ({
   default: () => null,
@@ -390,5 +397,29 @@ describe("MediaDetailScreen (TV) episode watched toggle", () => {
     } finally {
       demoState.demoMode = false;
     }
+  });
+});
+
+describe("MediaDetailScreen (TV) action row focus", () => {
+  beforeEach(() => {
+    imageRenders.clear();
+    getMediaItemMock.mockReturnValue({ data: SEASON, isLoading: false, error: null, refetch: vi.fn() });
+    listMediaItemsMock.mockReturnValue({
+      data: { items: [{ id: "ep-1", indexNumber: 1, title: "Pilot" }, { id: "ep-2", indexNumber: 2, title: "Second" }] },
+    });
+  });
+
+  it("moves the focus ring without re-rendering the header or the episode list", () => {
+    renderScreen();
+    const before = new Map(imageRenders);
+    const stills = [...before.keys()].filter((u) => u.includes("/ep-1/") || u.includes("/ep-2/"));
+    expect(stills.length).toBe(2);
+
+    const button = screen.getByLabelText("media.detail.addToPlaylist");
+    fireEvent.focus(button);
+    fireEvent.blur(button);
+    fireEvent.focus(screen.getByLabelText("media.detail.favorite"));
+
+    for (const [uri, n] of before) expect(imageRenders.get(uri)).toBe(n);
   });
 });
