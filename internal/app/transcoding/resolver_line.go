@@ -9,8 +9,8 @@ import (
 //
 // A cast receiver measures its own throughput before asking for a master
 // (?maxKbps=) and reloads on the floor when it starves (?abr=floor): old
-// cast runtimes never dive onto an advertised rung by themselves (an operator box,
-// 2026-08-03, a variant pinned through nine minutes of freeze), so the
+// cast runtimes never dive onto an advertised rung by themselves (an operator
+// box, a variant pinned through nine minutes of freeze), so the
 // descent is the server's, deterministic and mono-variant. This used to be
 // the HTTP adapter re-pinning the request to a transcode on the receiver's
 // behalf and serving that second plan; here it is what the plan itself says.
@@ -19,8 +19,15 @@ import (
 // with a 1.2x margin leaves the copy alone), the HIGHEST rung the line
 // carries (else the lowest), never a sidegrade (a rung at or above the copy
 // peak), and a floor only when it halves the bitrate (a lean source keeps
-// its copy). A transcode ladder is the player's to pick from: the line
-// judges the copy rung only.
+// its copy).
+//
+// A plan that is a transcode from the start (a source the receiver cannot
+// decode: HEVC, HDR) is judged the same way: its ladder narrows to the rung
+// the line carries, and the floor to its lowest rung. Leaving that ladder to
+// the player was the earlier rule, and it left the rescue a no-op exactly
+// where it fires: a TV whose decoder drops frames on the top H.264 rung
+// reloaded on the floor and was served the same four rungs again (image
+// gone, sound on) until the receiver gave up.
 
 // Reasons the fitted plan's transcode carries (TranscodeReasons).
 const (
@@ -40,8 +47,11 @@ func (pr *PlanResolver) resolveLineConstrained(ctx context.Context, req Playback
 	natural := req
 	natural.LineKbps, natural.ABRFloor = 0, false
 	plan := pr.resolveDecided(ctx, natural, pr.Decide(ctx, natural))
-	if req.PinnedVideoDecision != "" || !videoCopied(plan) {
+	if req.PinnedVideoDecision != "" {
 		return plan
+	}
+	if !videoCopied(plan) {
+		return pr.fitTranscodedPlan(ctx, req, plan)
 	}
 	peak := req.Source.PeakKbps
 	line, floor := req.LineKbps, req.ABRFloor
@@ -86,6 +96,35 @@ func (pr *PlanResolver) resolveLineConstrained(ctx context.Context, req Playback
 		slog.String("media_id", req.MediaID), slog.String("rung", rung.Name), slog.Int64("rung_kbps", total),
 		slog.Int64("line_kbps", line), slog.Bool("floor", line == 0), slog.String("fp", tp.FingerprintHash))
 	return tp
+}
+
+// fitTranscodedPlan narrows a plan that transcodes anyway: the floor is its
+// lowest rung whatever the line says (the rescue fires AFTER a fitted rung
+// starved or the decoder fell behind, so the only step left is down), else
+// the highest rung the line carries (the lowest when none does). Ladder and
+// fingerprint stay the plan's own: the child URLs index the ladder and every
+// viewer of the title shares the sessions. A one-rung ladder has nothing to
+// narrow.
+func (pr *PlanResolver) fitTranscodedPlan(ctx context.Context, req PlaybackRequest, plan PlaybackPlan) PlaybackPlan {
+	if len(plan.Ladder) <= 1 {
+		return plan
+	}
+	idx, reason := 0, reasonFloorRequest
+	if !req.ABRFloor {
+		reason = reasonLineExceeded
+		for i, p := range plan.Ladder {
+			if lineCarries(p.VideoBitrate+p.AudioBitrate, req.LineKbps) {
+				idx = i
+			}
+		}
+	}
+	rung := plan.Ladder[idx]
+	plan.Fit = LineFit{Single: true, Rung: idx}
+	plan.Decision.TranscodeReasons = append(plan.Decision.TranscodeReasons, reason)
+	slog.InfoContext(ctx, "hls-vod: plan fitted to the client's line",
+		slog.String("media_id", req.MediaID), slog.String("rung", rung.Name), slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
+		slog.Int64("line_kbps", req.LineKbps), slog.Bool("floor", req.ABRFloor), slog.String("fp", plan.FingerprintHash))
+	return plan
 }
 
 // videoCopied: the plan pushes the source video down the line verbatim - the
