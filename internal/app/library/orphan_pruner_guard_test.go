@@ -324,3 +324,54 @@ func TestOrphanPruner_WithGuard_Overrides(t *testing.T) {
 		t.Fatalf("30%% under a 50%% guard must prune, got %d err=%v", removed, err)
 	}
 }
+
+// The library path was changed from /old to /new: every row still points
+// under /old, which is no configured root any more, and those files read as
+// gone. They are held like a root that lost them, not deleted unguarded.
+func TestOrphanPruner_PathChanged_OldRowsHeld(t *testing.T) {
+	t.Parallel()
+	pruner, items, _, bus := newPrunerHarness()
+	ctx := context.Background()
+	seedUnder(t, items, "/old/films", 200)
+	fresh := seedUnder(t, items, "/new", 5)
+
+	removed, err := pruner.Prune(ctx, "lib-1", []string{"/new"}, seen(fresh), nil)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if removed != 0 || len(items.All()) != 205 {
+		t.Fatalf("want the 200 old rows kept, removed %d, have %d", removed, len(items.All()))
+	}
+	evs := suspendedEvents(bus)
+	if len(evs) != 1 || evs[0].Root != "/old/films" || evs[0].Missing != 200 || evs[0].Total != 200 {
+		t.Fatalf("want one notice for /old/films 200/200, got %+v", evs)
+	}
+
+	// The admin confirms the set the page shows: the next pass deletes it.
+	sus := pruner.Suspensions("lib-1")
+	if len(sus) != 1 {
+		t.Fatalf("want one held group, got %+v", sus)
+	}
+	if err = pruner.ConfirmPrune("lib-1", sus[0].Root, sus[0].Snapshot); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	removed, err = pruner.Prune(ctx, "lib-1", []string{"/new"}, seen(fresh), nil)
+	if err != nil || removed != 200 {
+		t.Fatalf("want the confirmed 200 deleted, got %d (%v)", removed, err)
+	}
+}
+
+func TestOrphanPruner_FewRowsOutsideRoots_PrunedNormally(t *testing.T) {
+	t.Parallel()
+	pruner, items, _, bus := newPrunerHarness()
+	seedUnder(t, items, "/old", 3)
+	fresh := seedUnder(t, items, "/new", 50)
+
+	removed, err := pruner.Prune(context.Background(), "lib-1", []string{"/new"}, seen(fresh), nil)
+	if err != nil || removed != 3 {
+		t.Fatalf("want the 3 stray rows pruned, got %d (%v)", removed, err)
+	}
+	if n := len(suspendedEvents(bus)); n != 0 {
+		t.Fatalf("want no notice, got %d", n)
+	}
+}

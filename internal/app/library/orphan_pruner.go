@@ -112,34 +112,69 @@ func rootOf(path string, roots []string) string {
 	return best
 }
 
+// commonDir is the deepest directory that contains every path ("/" at worst).
+func commonDir(paths []string) string {
+	prefix := filepath.Dir(filepath.Clean(paths[0]))
+	for _, p := range paths[1:] {
+		d := filepath.Dir(filepath.Clean(p))
+		for prefix != d && !strings.HasPrefix(d, prefix+string(filepath.Separator)) {
+			parent := filepath.Dir(prefix)
+			if parent == prefix {
+				break
+			}
+			prefix = parent
+		}
+	}
+	return prefix
+}
+
 // holdSuspendedRoots asks the guard about every root of the pass and drops
-// from orphanIDs the candidates under a root it holds.
+// from orphanIDs the candidates under a root it holds. Items under none of
+// the configured roots (the library's path was changed, so its old files all
+// read as gone at once) are judged as one more group, named after the
+// directory they share, instead of being deleted unguarded.
 func (p *OrphanPruner) holdSuspendedRoots(ctx context.Context, libraryID string, roots []string, dbPaths map[string]string, orphanIDs []string) []string {
-	if len(roots) == 0 {
-		return orphanIDs
+	var outside []string
+	for _, path := range dbPaths {
+		if rootOf(path, roots) == "" {
+			outside = append(outside, path)
+		}
+	}
+	outsideRoot := ""
+	if len(outside) > 0 {
+		outsideRoot = commonDir(outside)
+	}
+	groupOf := func(path string) string {
+		if r := rootOf(path, roots); r != "" {
+			return r
+		}
+		return outsideRoot
 	}
 	total := map[string]int{}
 	for _, path := range dbPaths {
-		if r := rootOf(path, roots); r != "" {
-			total[r]++
-		}
+		total[groupOf(path)]++
 	}
 	missing := map[string][]string{}
 	for _, id := range orphanIDs {
-		if r := rootOf(dbPaths[id], roots); r != "" {
-			missing[r] = append(missing[r], id)
-		}
+		g := groupOf(dbPaths[id])
+		missing[g] = append(missing[g], id)
+	}
+	groups := make([]string, 0, len(roots)+1)
+	for _, root := range roots {
+		groups = append(groups, filepath.Clean(root))
+	}
+	if outsideRoot != "" {
+		groups = append(groups, outsideRoot)
 	}
 	held := map[string]bool{}
 	judged := map[string]bool{}
-	for _, root := range roots {
-		r := filepath.Clean(root)
-		if judged[r] {
+	for _, g := range groups {
+		if judged[g] {
 			continue
 		}
-		judged[r] = true
-		if !p.hold.Judge(ctx, libraryID, r, total[r], missing[r]) {
-			held[r] = true
+		judged[g] = true
+		if !p.hold.Judge(ctx, libraryID, g, total[g], missing[g]) {
+			held[g] = true
 		}
 	}
 	if len(held) == 0 {
@@ -147,7 +182,7 @@ func (p *OrphanPruner) holdSuspendedRoots(ctx context.Context, libraryID string,
 	}
 	kept := orphanIDs[:0:0]
 	for _, id := range orphanIDs {
-		if !held[rootOf(dbPaths[id], roots)] {
+		if !held[groupOf(dbPaths[id])] {
 			kept = append(kept, id)
 		}
 	}
