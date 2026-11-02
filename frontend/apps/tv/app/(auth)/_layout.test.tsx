@@ -38,11 +38,13 @@ vi.mock("expo-router", () => ({
 const FAKE_TOKEN = "h.eyJleHAiOjk5OTk5OTk5OTl9.s";
 const EXPIRED_TOKEN = "h.eyJleHAiOjF9.s";
 let tokenMock = FAKE_TOKEN;
-const logoutMock = vi.fn();
-vi.mock("@evey/store", async (orig) => ({
-  ...(await orig<typeof import("@evey/store")>()),
-  useAuthStore: (sel: any) => sel({ accessToken: tokenMock, profileId: "p1", logout: logoutMock }),
-}));
+// A real logout clears the token, which is what sends the layout to /login.
+const logoutMock = vi.fn(() => { tokenMock = null as unknown as string; });
+vi.mock("@evey/store", async (orig) => {
+  const useAuthStore = (sel: any) => sel({ accessToken: tokenMock, profileId: "p1", logout: logoutMock });
+  useAuthStore.getState = () => ({ accessToken: tokenMock, profileId: "p1", logout: logoutMock });
+  return { ...(await orig<typeof import("@evey/store")>()), useAuthStore };
+});
 
 // --- @expo/vector-icons mock ---------------------------------------------------
 vi.mock("@expo/vector-icons/Ionicons", () => ({
@@ -151,6 +153,19 @@ describe("AuthLayout token renewal", () => {
     refreshMock.mockResolvedValue("refused");
     render(<AuthLayout />);
     await vi.waitFor(() => expect(logoutMock).toHaveBeenCalledOnce());
+  });
+
+  // A refresh in flight when the television went to sleep resolves on wake
+  // as a success, yet the store still holds the expired token: that is no
+  // reason to send the viewer to a password form.
+  it("renews again instead of signing out when a renewal leaves the token expired", async () => {
+    tokenMock = EXPIRED_TOKEN;
+    refreshMock.mockResolvedValue("refreshed");
+    render(<AuthLayout />);
+    await vi.waitFor(() => expect(screen.getByTestId("renewal-retry")).toBeTruthy());
+    expect(refreshMock).toHaveBeenCalledTimes(2);
+    expect(logoutMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("redirect")).toBeNull();
   });
 
   // A server that did not answer (a restart during a deployment, a proxy 502)

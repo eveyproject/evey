@@ -137,9 +137,10 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
       if (data.refreshToken) await storage.setRefreshToken(data.refreshToken);
       auth.setTokens(data.accessToken);
       return "ok";
-    } catch {
+    } catch (err) {
       // Includes the abort above: a timed-out refresh is an absent answer, not a
       // rejected credential.
+      log.warn(`refresh unavailable: ${controller.signal.aborted ? "timed out" : (err as Error)?.message ?? "network error"}`);
       return "unavailable";
     } finally {
       clearTimeout(timer);

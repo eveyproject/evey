@@ -40,6 +40,7 @@ export default function AuthLayout() {
   // token says nothing about this one.
   const [renewal, setRenewal] = useState<{ token: string; outcome: "done" | "unavailable" } | null>(null);
   const [renewalAttempt, setRenewalAttempt] = useState(0);
+  const staleRenewalsRef = useRef(0);
   const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
   const logout = useAuthStore((s) => s.logout);
@@ -96,7 +97,24 @@ export default function AuthLayout() {
     let cancelled = false;
     void ensureAccessToken().then((state) => {
       if (cancelled) return;
+      authLog.info(`renewal: ${state}`);
       if (state === "refused") logout();
+      // A renewal can answer "valid" or "refreshed" while the store still
+      // holds this expired token: a refresh in flight when the television
+      // went to sleep resolves on wake, against a store it no longer
+      // describes. That verdict is no session: renew once more, then offer
+      // a retry - never the sign-in screen, the refresh token was not refused.
+      if (state !== "refused" && state !== "unavailable" && useAuthStore.getState().accessToken === token) {
+        authLog.warn(`renewal answered ${state} but the held token is still expired`);
+        if (staleRenewalsRef.current < 1) {
+          staleRenewalsRef.current += 1;
+          setRenewalAttempt((n) => n + 1);
+          return;
+        }
+        setRenewal({ token, outcome: "unavailable" });
+        return;
+      }
+      staleRenewalsRef.current = 0;
       setRenewal({ token, outcome: state === "unavailable" ? "unavailable" : "done" });
     }).catch((err) => {
       console.warn("evey-auth renewal", err);
@@ -118,8 +136,15 @@ export default function AuthLayout() {
     return <ScreenState error onRetry={() => { setRenewal(null); setRenewalAttempt((n) => n + 1); }} />;
   }
 
-  if (!accessToken || isTokenExpired(accessToken)) {
-    authLog.warn(`leaving for login: ${accessToken ? "token expired after renewal" : "no token"}`);
+  // Every way the session really ends (a refused refresh, an unreadable
+  // keystore) clears the token first. An expired token still held here is a
+  // renewal that did not land: retry, keep the refresh token.
+  if (accessToken && isTokenExpired(accessToken)) {
+    authLog.warn("token still expired after renewal: offering a retry");
+    return <ScreenState error onRetry={() => { setRenewal(null); setRenewalAttempt((n) => n + 1); }} />;
+  }
+  if (!accessToken) {
+    authLog.warn("leaving for login: no token");
     return <Redirect href="/login" />;
   }
   if (!profileId) return <Redirect href="/profile-select" />;
