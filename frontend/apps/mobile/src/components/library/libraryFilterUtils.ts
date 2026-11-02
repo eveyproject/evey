@@ -7,6 +7,15 @@ import type {
 import { normalizeLangCode } from "../../lib/langCodes";
 import { normalizeCodec, resolutionBand, RESOLUTION_BANDS, type ResolutionBand } from "@evey/client";
 
+// The sort fields a library offers, shared by the filters sheet and the
+// line under the toolbar that names the sort in effect.
+export const SORT_OPTIONS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
+  { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
+  { labelKey: "media.library.year", value: "MEDIA_SORT_FIELD_YEAR" },
+  { labelKey: "media.library.ratingSort", value: "MEDIA_SORT_FIELD_RATING" },
+  { labelKey: "media.library.dateAdded", value: "MEDIA_SORT_FIELD_DATE_ADDED" },
+];
+
 // The generated LibraryServiceFilterMediaItemsParams/SortField/SortOrder/Type
 // aliases exist in packages/api/src/generated/library.schemas.ts but aren't
 // re-exported from the @evey/api package barrel (only a curated subset is -

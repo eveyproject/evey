@@ -55,10 +55,20 @@ describe("library grid geometry", () => {
   // Guessed at 34 here, it was two pixels short of the two lines MediaCard
   // renders, and the cell's own clip sliced the year in half - a fix that
   // introduced a defect of its own (emulator, 2026-09-05).
-  it("takes the caption height from MediaCard instead of guessing it", () => {
+  it("takes the caption's parts from MediaCard instead of guessing them", () => {
     const src = source();
-    expect(src).toMatch(/const META_HEIGHT = CARD_CAPTION_HEIGHT;/);
-    expect(src).toMatch(/import \{ MediaCard, CARD_CAPTION_HEIGHT \}/);
+    expect(src).toMatch(/import \{ MediaCard, CARD_TEXT_GAP, CARD_LINE_HEIGHT \}/);
+  });
+
+  // A phone on a larger text setting scales the caption's lineHeight with its
+  // font: a cell sized at scale 1 clipped the year, then the title.
+  it("grows the caption height with the system font scale", () => {
+    expect(source()).toMatch(/const META_HEIGHT = Math\.ceil\(CARD_TEXT_GAP \+ CARD_LINE_HEIGHT \* 2 \* PixelRatio\.getFontScale\(\)\);/);
+  });
+
+  // Edge to edge, the navigation bar covers the bottom of the screen.
+  it("ends the grid above the system navigation bar", () => {
+    expect(source()).toMatch(/contentContainerStyle=\{\{ paddingTop: SPACING, paddingBottom: insets\.bottom \+ SPACING \}\}/);
   });
 
   it("pins the caption line height in MediaCard, so the total is arithmetic", () => {
