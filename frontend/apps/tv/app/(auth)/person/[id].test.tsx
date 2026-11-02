@@ -37,6 +37,7 @@ vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({ useAuthHeaders: () 
 vi.mock("../../../src/lib/artwork", () => ({
   artworkUrl: (s: string, id: string, kind: string, w: number) => `${s}/art/${id}/${kind}/${w}`,
   artworkPx: (dp: number) => dp * 2,
+  tmdbProfileSized: (url: string) => url,
 }));
 vi.mock("../../../src/components/FocusableCard", () => ({
   FocusableCard: ({ children, onPress, accessibilityLabel }: any) => React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel }, children),

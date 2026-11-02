@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -31,7 +31,8 @@ export interface TopHeaderProps {
   onCustomize?: () => void;
 }
 
-export function TopHeader({ onSearch, onNotifications, onProfile, onCustomize }: TopHeaderProps) {
+// Memoised: the shell re-renders when its rail unfolds, the header does not need to.
+export const TopHeader = memo(function TopHeader({ onSearch, onNotifications, onProfile, onCustomize }: TopHeaderProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [focused, setFocused] = useState<string | null>(null);
@@ -162,7 +163,7 @@ export function TopHeader({ onSearch, onNotifications, onProfile, onCustomize }:
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   header: {
