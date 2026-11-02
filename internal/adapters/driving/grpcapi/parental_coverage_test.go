@@ -102,7 +102,7 @@ var parentalGated = map[string]string{
 	// Playback: the paths that actually hand over a stream.
 	"/evey.v1.PlaybackService/GetStreamInfo":       "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
 	"/evey.v1.PlaybackService/StartStream":         "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
-	"/evey.v1.PlaybackService/GetNextUp":           "per-item mediaItemBlockedByParental",
+	"/evey.v1.PlaybackService/GetNextUp":           "retired, always empty (its cards are GetResumeItems')",
 	"/evey.v1.PlaybackService/GetSeriesPlayTarget": "target episode mediaItemBlockedByParental",
 	"/evey.v1.PlaybackService/GetResumeItems":      "per-item mediaItemBlockedByParental",
 	"/evey.v1.PlaybackService/GetWatchHistory":     "per-item mediaItemBlockedByParental",

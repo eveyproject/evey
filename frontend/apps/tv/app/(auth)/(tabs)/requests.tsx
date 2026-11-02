@@ -133,7 +133,7 @@ function ScopeChip({
       ]}
     >
       <Ionicons name={icon} size={18} color={active ? theme.colors.onAccent : theme.colors.text} />
-      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 17, marginLeft: 8 }}>
+      <Text numberOfLines={1} style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 17, marginLeft: 8, flexShrink: 1 }}>
         {label}
       </Text>
     </Pressable>

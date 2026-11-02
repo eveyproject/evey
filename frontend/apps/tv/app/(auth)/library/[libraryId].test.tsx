@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 // The filter header renders once the grid has painted; here the paint is immediate.
 vi.mock("../../../src/hooks/useAfterFirstPaint", () => ({ useAfterFirstPaint: (key: string | undefined) => key !== undefined }));
-vi.mock("../../../src/hooks/useMediaPrefetch", () => ({ useMediaPrefetch: () => ({ prefetchOnFocus: () => {}, cancelPrefetch: () => {} }) }));
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+// One object, like the real hook's useCallback handlers.
+const { PREFETCH } = vi.hoisted(() => ({ PREFETCH: { prefetchOnFocus: () => {}, cancelPrefetch: () => {} } }));
+vi.mock("../../../src/hooks/useMediaPrefetch", () => ({ useMediaPrefetch: () => PREFETCH }));
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import React from "react";
 
 // Genre filter parity with mobile (a param on the list request) and shuffle
@@ -33,13 +35,14 @@ vi.mock("react-native", () => ({
       { onClick: onPress, "aria-label": accessibilityLabel, "data-tv-preferred-focus": hasTVPreferredFocus ? "true" : undefined, ...p },
       children,
     ),
-  FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent }: any) => {
+  FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent, ListHeaderComponent }: any) => {
     if (!data || data.length === 0) {
-      return ListEmptyComponent ? React.createElement(React.Fragment, null, ListEmptyComponent) : null;
+      return React.createElement(React.Fragment, null, ListHeaderComponent ?? null, ListEmptyComponent ?? null);
     }
     return React.createElement(
       "div",
       null,
+      ListHeaderComponent ?? null,
       data.map((item: any, index: number) =>
         React.createElement(
           React.Fragment,
@@ -70,7 +73,8 @@ const { pushMock, LIBRARY_ID } = vi.hoisted(() => ({ pushMock: vi.fn(), LIBRARY_
 vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ libraryId: LIBRARY_ID }),
   useRouter: () => ({ push: pushMock }),
-  Stack: { Screen: () => null },
+  // The title bar's right side is rendered: it carries the selection summary.
+  Stack: { Screen: ({ options }: any) => (options?.headerRight ? options.headerRight() : null) },
 }));
 
 // --- react-i18next mock --------------------------------------------------------
@@ -94,10 +98,21 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
   }),
 }));
 
+// Counts the posters drawn: one per card render.
+const { posterRenders, AUTH_HEADERS } = vi.hoisted(() => ({ posterRenders: { count: 0 }, AUTH_HEADERS: { Authorization: "Bearer TOKEN" } }));
+vi.mock("../../../src/components/PosterImage", () => ({
+  PosterImage: () => {
+    posterRenders.count += 1;
+    return null;
+  },
+}));
+
 // --- hooks mocks ---------------------------------------------------------------
 vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrl: () => "http://srv.test" }));
 vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({
-  useAuthHeaders: () => ({ Authorization: "Bearer TOKEN" }),
+  // One object, like the real hook (memoised on the token): a fresh one per
+  // render would defeat the grid cards' memo here and nowhere else.
+  useAuthHeaders: () => AUTH_HEADERS,
 }));
 
 // --- @evey/store mock -----------------------------------------------------------------
@@ -196,6 +211,54 @@ describe("TV LibraryDetailScreen genre filter", () => {
 
     const lastCallParams = listMediaItemsMock.mock.calls.at(-1)?.[0];
     expect(lastCallParams).not.toHaveProperty("genre");
+  });
+});
+
+describe("TV LibraryDetailScreen selected filters", () => {
+  const mark = (label: string) => within(screen.getByLabelText(label)).queryByTestId("icon-checkmark");
+
+  it("marks the chip in effect with a check, apart from the focus, and moves it with the choice", () => {
+    render(<LibraryDetailScreen />);
+    expect(mark("media.search.allGenres")).not.toBeNull();
+    expect(mark("Action")).toBeNull();
+    expect(mark("media.library.titleSort")).not.toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Action"));
+    expect(mark("Action")).not.toBeNull();
+    expect(mark("media.search.allGenres")).toBeNull();
+  });
+
+  it("draws the focused chip in the text colour, so focus and selection never look alike", () => {
+    render(<LibraryDetailScreen />);
+    const chip = screen.getByLabelText("Drama");
+    const label = within(chip).getByText("Drama");
+    expect(label.style.color).toBe("#fff");
+    fireEvent.focus(chip);
+    expect(label.style.color).toBe("#000");
+    // Focused and selected: the check mark stays.
+    fireEvent.click(chip);
+    expect(mark("Drama")).not.toBeNull();
+  });
+
+  it("names the genre and the sort in effect in the title bar, where they stay once the filters scroll away", () => {
+    render(<LibraryDetailScreen />);
+    expect(screen.getByText("media.library.titleSort \u2191")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Drama"));
+    fireEvent.click(screen.getByLabelText("common.sortAscending"));
+    expect(screen.getByText("Drama \u00b7 media.library.titleSort \u2193")).toBeTruthy();
+  });
+});
+
+describe("TV LibraryDetailScreen grid cards", () => {
+  it("leaves the cards alone when the screen re-renders for something they do not show", () => {
+    posterRenders.count = 0;
+    render(<LibraryDetailScreen />);
+    const before = posterRenders.count;
+    expect(before).toBeGreaterThan(0);
+    // The search field taking the focus re-renders the screen, and the list's
+    // renderItem with it: the cards' own props have not changed.
+    fireEvent.focus(screen.getByLabelText("media.library.filterByName"));
+    expect(posterRenders.count).toBe(before);
   });
 });
 

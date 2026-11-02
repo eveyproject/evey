@@ -4,16 +4,15 @@ import type { QueryClient } from "@tanstack/react-query";
 // mark-watched / mark-unwatched. Kept as an explicit predicate (not a prefix)
 // because the watched-sensitive feeds do NOT all share one prefix: the home
 // sliders live under "/api/v1/feeds/*", but "Most Popular" is "/api/v1/popular"
-// and "Up Next" is "/api/v1/playback/next-up" - the last one drifted out of
-// every hand-rolled predicate and left a finished episode stuck in the Up Next
-// row for up to the 5-minute global staleTime. "Continue Watching" is
-// "/api/v1/playback/resume" on all four homes, and had drifted out the same way.
+// and "Continue Watching" (with the next episode of each series in it) is
+// "/api/v1/playback/resume" on all four homes - it drifted out of every
+// hand-rolled predicate and left a finished title stuck in the row for up to
+// the 5-minute global staleTime.
 function isWatchedSensitiveFeed(key: unknown): boolean {
   if (typeof key !== "string") return false;
   return (
     key.startsWith("/api/v1/feeds/") ||
     key === "/api/v1/popular" ||
-    key === "/api/v1/playback/next-up" ||
     key === "/api/v1/playback/resume" ||
     // A series' Play target moves on once an episode of it is marked.
     key.startsWith("/api/v1/playback/series/")

@@ -16,6 +16,12 @@ class FakeSocket {
   close() {}
 }
 
+// A JWT whose exp is offsetSec from now: the socket reads only its exp.
+function jwt(offsetSec: number): string {
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + offsetSec }));
+  return `h.${payload}.s`;
+}
+
 async function flush() {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(0);
@@ -27,7 +33,8 @@ describe("useDeviceRegistrationCore", () => {
     vi.useFakeTimers();
     FakeSocket.instances = [];
     vi.stubGlobal("WebSocket", FakeSocket);
-    useAuthStore.setState({ accessToken: "tok" } as never);
+    // A day of validity: the backoff test advances the fake clock an hour.
+    useAuthStore.setState({ accessToken: jwt(86_400) } as never);
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -64,6 +71,30 @@ describe("useDeviceRegistrationCore", () => {
     act(() => notify(false));
     await flush();
     expect(FakeSocket.instances.length).toBe(before + 1);
+    unmount();
+  });
+
+  // Back from hours in the background, the held token is long expired: a
+  // socket opened with it is a 401 handshake. It waits for the resume
+  // refresh, whose new token restarts the effect and connects.
+  it("waits for a live token instead of opening a socket with an expired one", async () => {
+    useAuthStore.setState({ accessToken: jwt(-3600) } as never);
+    const { unmount } = renderHook(() =>
+      useDeviceRegistrationCore({
+        deviceType: "tv",
+        deviceName: () => "d",
+        serverUrl: "http://srv",
+        pauseInBackground: false,
+        onLoadAndPlay: vi.fn(),
+        getDeviceId: async () => "id",
+      }),
+    );
+    await flush();
+    expect(FakeSocket.instances).toHaveLength(0);
+
+    act(() => useAuthStore.setState({ accessToken: jwt(900) } as never));
+    await flush();
+    expect(FakeSocket.instances).toHaveLength(1);
     unmount();
   });
 });

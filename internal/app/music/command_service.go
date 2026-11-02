@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dhowden/tag"
+	"github.com/eveyproject/evey/internal/app/prunehold"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/music"
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -48,10 +49,22 @@ type CommandService struct {
 	// fetches derive their timeout from it so a shutdown cancels them instead of
 	// running on context.Background() past a redeploy.
 	shutdownCtx context.Context
+	// pruneHold holds a prune that would delete too much of a root at once
+	// (a pool missing a branch disk). Its own by default; the server wires
+	// the library service's so one admin route lists and confirms them all.
+	pruneHold *prunehold.Hold
 }
 
 func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *CommandService {
-	return &CommandService{tracks: tracks, bus: bus, libRepo: libRepo, scanner: scanner}
+	return &CommandService{tracks: tracks, bus: bus, libRepo: libRepo, scanner: scanner, pruneHold: prunehold.New(bus)}
+}
+
+// WithPruneHold shares a mass-disappearance guard with the other scans.
+func (s *CommandService) WithPruneHold(h *prunehold.Hold) *CommandService {
+	if h != nil {
+		s.pruneHold = h
+	}
+	return s
 }
 
 func (s *CommandService) WithProber(p library.StreamProber) *CommandService {
@@ -420,9 +433,16 @@ type trackJob struct {
 func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.music.ScanDirectory")
 	defer span.End()
+	// root is the library path that contains dir: a scan of one of its
+	// subfolders is still judged against the whole root by the prune guard.
+	root := dir
 	if s.libRepo != nil {
-		if _, err := s.libRepo.GetByID(ctx, shared.LibraryID(libraryID)); err != nil {
+		lib, err := s.libRepo.GetByID(ctx, shared.LibraryID(libraryID))
+		if err != nil {
 			return 0, fmt.Errorf("library %s not found: %w", libraryID, err)
+		}
+		if lib != nil {
+			root = prunehold.EnclosingRoot(lib.Paths, dir)
 		}
 	}
 	entries, idx, err := s.loadTrackIndex(ctx, libraryID)
@@ -439,7 +459,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 	// /media/musique vanished). Until 2026-08-26 the music branch never
 	// pruned at all - deleted albums stayed in the UI forever.
 	if walkErr == nil && ctx.Err() == nil {
-		s.pruneMissingTracks(ctx, libraryID, dir, entries, seen, movedIDs)
+		s.pruneMissingTracks(ctx, libraryID, root, dir, entries, seen, movedIDs)
 	}
 	s.kickAlbumArtFetch(libraryID)
 	return total, walkErr
@@ -451,7 +471,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 // never read as "the user deleted this" - a wrong prune breaks every playlist
 // referencing the track id. Moved files keep their row (updated in place by
 // buildTrackJobs) and are excluded by id.
-func (s *CommandService) pruneMissingTracks(ctx context.Context, libraryID, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
+func (s *CommandService) pruneMissingTracks(ctx context.Context, libraryID, root, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
 	prefix := strings.TrimSuffix(dir, string(os.PathSeparator)) + string(os.PathSeparator)
 	// Safety net against a degraded mount wiping the catalog: a walk that
 	// completed but reported ZERO files while the DB still has rows under this
@@ -465,17 +485,32 @@ func (s *CommandService) pruneMissingTracks(ctx context.Context, libraryID, dir 
 		for _, e := range entries {
 			if strings.HasPrefix(e.Path, prefix) {
 				slog.WarnContext(ctx, "music scan: prune skipped, walk saw no files but the library still has rows here (likely a degraded mount); refusing to delete the catalog", slog.String("dir", dir))
+				s.pruneHold.Abandon(libraryID, dir)
 				return
 			}
 		}
 	}
-	var gone []string
+	partial := filepath.Clean(root) != filepath.Clean(dir)
+	rootPrefix := strings.TrimSuffix(root, string(os.PathSeparator)) + string(os.PathSeparator)
+	var gone, goneElsewhere []string
+	total := 0
 	for _, e := range entries {
 		if ctx.Err() != nil {
+			s.pruneHold.Abandon(libraryID, dir)
 			return
 		}
-		if !strings.HasPrefix(e.Path, prefix) {
+		if !strings.HasPrefix(e.Path, rootPrefix) {
 			continue // another root of a multi-path library - not this walk's to judge
+		}
+		total++
+		if !strings.HasPrefix(e.Path, prefix) {
+			// Under the root but outside the walked folder: the walk cannot
+			// vouch for it, so only its presence on disk counts toward the
+			// root's share of missing files. It is never deleted here.
+			if !s.scanner.Exists(e.Path) {
+				goneElsewhere = append(goneElsewhere, e.ID)
+			}
+			continue
 		}
 		if seen[e.Path] || movedIDs[e.ID] {
 			continue
@@ -484,6 +519,17 @@ func (s *CommandService) pruneMissingTracks(ctx context.Context, libraryID, dir 
 			continue // the walk missed it but the file is on disk - keep it
 		}
 		gone = append(gone, e.ID)
+	}
+	// Same mass-disappearance guard as the video prune: past 5 % of the root
+	// (and 20 files) the set is held until an admin confirms it. A scan of a
+	// subfolder is measured over the whole root and never deletes under a
+	// held root, so a lost branch cannot be pruned one folder at a time.
+	if partial {
+		if !s.pruneHold.JudgePartial(ctx, libraryID, root, total, append(goneElsewhere, gone...)) {
+			return
+		}
+	} else if !s.pruneHold.Judge(ctx, libraryID, dir, total, gone) {
+		return
 	}
 	if len(gone) == 0 {
 		return

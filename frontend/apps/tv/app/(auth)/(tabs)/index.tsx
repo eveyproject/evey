@@ -8,7 +8,6 @@ import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   usePlaybackServiceGetResumeItems,
-  usePlaybackServiceGetNextUp,
   useLibraryServiceListMediaItems,
   useLibraryServiceListLibraries,
   useFeedServiceGetFeedConfig,
@@ -39,6 +38,7 @@ import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { buildHomeSections, placedPluginIds, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
 import { serverImageUri } from "@evey/client";
+import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 import { libraryFirstPageQueries } from "../../../src/lib/libraryGrid";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
@@ -107,40 +107,46 @@ export function selectHomeFocusTarget(rowHasItems: boolean[]): number | null {
 
 function MediaCardImpl({
   item,
+  index,
   serverUrl,
   authHeaders,
   isFirst,
   watchPercent,
-  onFocus,
+  onFocusAt,
   imagePriority,
 }: {
   item: V1MediaItem;
+  /** The card's place in its row, handed back to onFocusAt. */
+  index: number;
   serverUrl: string;
   authHeaders?: { Authorization: string };
   isFirst?: boolean;
   watchPercent?: number;
-  onFocus?: () => void;
+  /** Stable across the row's renders: an inline closure here defeated the memo. */
+  onFocusAt?: (index: number) => void;
   imagePriority?: PosterPriority;
 }) {
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
+  const itemId = item.id;
+  const onPress = useCallback(() => router.push(`/media/${itemId}`), [itemId]);
+  const onFocus = useCallback(() => {
+    onFocusAt?.(index);
+    prefetchOnFocus(itemId);
+  }, [onFocusAt, index, prefetchOnFocus, itemId]);
   const { t } = useTranslation();
   const theme = useTheme();
   const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
   const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
-  // The recommended/popular projections carry no `year` (see recommendedItems
-  // below), which left MediaCard's subtitle line blank on every card in those
-  // two rows. Falling back to the localized type ("Movie"/"Series") gives the
-  // subtitle something to say instead of nothing.
+  // A projection without a year (older server, or an item with no release
+  // date) would leave MediaCard's subtitle line blank. Falling back to the
+  // localized type ("Movie"/"Series") gives the subtitle something to say.
   const typeLabelKey = !item.year ? mediaTypeLabelKey(item.type) : null;
 
   return (
     <FocusableCard
-      onPress={() => router.push(`/media/${item.id}`)}
+      onPress={onPress}
       hasTVPreferredFocus={isFirst}
-      onFocus={() => {
-        onFocus?.();
-        prefetchOnFocus(item.id);
-      }}
+      onFocus={onFocus}
       onBlur={cancelPrefetch}
       accessibilityLabel={displayTitle(item, t)}
       style={styles.card}
@@ -192,8 +198,10 @@ function MediaCardImpl({
 /**
  * A card only re-renders when its own props change. The home rebuilds its
  * rows whenever any of its half-dozen queries answers, and without this every
- * visible card was rebuilt with them - on the screen the owner already found
- * GPU-bound (2026-09-20).
+ * visible card was rebuilt with them - on a screen already found
+ * GPU-bound. Every prop must keep its identity for that to hold:
+ * a FlatList hands its cells a fresh renderItem on each of its renders, so
+ * this memo is the only thing between a home re-render and every visible card.
  */
 const MediaCard = memo(MediaCardImpl);
 
@@ -268,27 +276,30 @@ function MediaRow({
   // The next page is asked for when the focus comes within a few cards of
   // the row's end - the list's own onEndReached fired on its first render,
   // since a first page barely overflows the screen.
-  const itemCount = items.length;
+  // The callers pass onEndReached and onCardFocus as fresh closures on each
+  // render: read through a ref, so the cards' focus handler keeps one identity
+  // and a re-render of the home does not re-render every card of the row.
+  const latest = useRef({ onCardFocus, onEndReached, itemCount: items.length });
+  latest.current = { onCardFocus, onEndReached, itemCount: items.length };
+  const onFocusAt = useCallback((index: number) => {
+    const { onCardFocus: focus, onEndReached: end, itemCount } = latest.current;
+    focus?.();
+    if (end && index >= itemCount - ROW_END_AHEAD) end();
+  }, []);
   const renderCard = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => (
       <MediaCard
         item={item}
+        index={index}
         serverUrl={serverUrl}
         authHeaders={authHeaders}
         isFirst={index === 0 && !!focusFirst}
-        onFocus={
-          onEndReached
-            ? () => {
-                onCardFocus?.();
-                if (index >= itemCount - ROW_END_AHEAD) onEndReached();
-              }
-            : onCardFocus
-        }
+        onFocusAt={onFocusAt}
         watchPercent={item.id ? watchPercents?.[item.id] : undefined}
         imagePriority={imagePriority}
       />
     ),
-    [serverUrl, authHeaders, focusFirst, onCardFocus, watchPercents, onEndReached, itemCount, imagePriority],
+    [serverUrl, authHeaders, focusFirst, onFocusAt, watchPercents, imagePriority],
   );
   const titleFocus = useCallback(() => {
     onCardFocus?.();
@@ -383,6 +394,84 @@ function LibraryMediaRow({
   return <MediaRow {...rowProps} items={items} onEndReached={loadMore} onTitleFocus={onTitleFocus} onTitleBlur={cancelPrefetch} />;
 }
 
+// The pixel width a tile's art is asked at.
+const TILE_PX = artworkPx(CARD_WIDTH);
+
+// A server path gets the server's resize (`?w=`), the same the music screens
+// ask for: a home tile pulled the full cover otherwise. An absolute url is a
+// third party's, with no resizer, and is left as is.
+export function sizedServerPath(url: string | undefined, px: number): string | undefined {
+  if (!url || /^https?:/i.test(url)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}w=${Math.round(px)}`;
+}
+
+// One tile of a TileRow. Memoised on plain values: the home rebuilds its tile
+// lists on each of its renders, and the tiles were re-rendered with them.
+const HomeTile = memo(function HomeTile({
+  label,
+  sublabel,
+  uri,
+  href,
+  a11yLabel,
+  height,
+  isFirst,
+  onFocus,
+}: {
+  label: string;
+  sublabel?: string;
+  uri?: string;
+  href: string;
+  a11yLabel?: string;
+  height: number;
+  isFirst: boolean;
+  onFocus?: () => void;
+}) {
+  const theme = useTheme();
+  const onPress = useCallback(() => router.push(href as never), [href]);
+  return (
+    <FocusableCard
+      onPress={onPress}
+      hasTVPreferredFocus={isFirst}
+      onFocus={onFocus}
+      style={styles.card}
+      accessibilityLabel={a11yLabel ?? label}
+    >
+      <View
+        style={{
+          width: CARD_WIDTH,
+          height,
+          borderRadius: theme.radii.sm,
+          overflow: "hidden",
+          backgroundColor: theme.colors.surface,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        {uri ? (
+          <Image
+            cachePolicy="memory-disk"
+            source={{ uri }}
+            style={{ width: CARD_WIDTH, height }}
+            contentFit="cover"
+            recyclingKey={href}
+          />
+        ) : (
+          // No artwork: an empty grey square used to be the tile. The
+          // first letter at least tells a scanning eye what it is
+          // looking at until art arrives.
+          <Text style={[styles.tileInitial, { color: theme.colors.textMuted }]}>
+            {label.trim().charAt(0).toUpperCase() || "?"}
+          </Text>
+        )}
+      </View>
+      <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>{label}</Text>
+      {sublabel ? (
+        <Text style={[styles.cardYear, { color: theme.colors.textMuted }]} numberOfLines={1}>{sublabel}</Text>
+      ) : null}
+    </FocusableCard>
+  );
+});
+
 // A generic horizontal row of square-art cards (collections, music albums,
 // photo albums). Deliberately separate from MediaRow: those destinations are
 // not /media/<id>, and a card that lands the viewer on a screen built for
@@ -406,7 +495,8 @@ function TileRow({
     label: string;
     sublabel?: string;
     uri?: string;
-    onPress: () => void;
+    /** Where the tile leads: a string, not a closure, so the tile's memo holds. */
+    href: string;
     /** Announced instead of `label` when the visible text is abbreviated - a
      * photo album shows "Holiday" but is called "2024/Holiday", and at three
      * metres the reader is the only thing carrying that context. */
@@ -421,7 +511,6 @@ function TileRow({
   isError?: boolean;
   onRetry?: () => void;
 }) {
-  const theme = useTheme();
   if (isError) {
     return (
       <View style={styles.rowContainer}>
@@ -438,41 +527,17 @@ function TileRow({
       <TVFocusGuideView autoFocus>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: HOME_ROW_GUTTER, gap: GRID_GAP }}>
         {tiles.map((tile, i) => (
-          <FocusableCard
+          <HomeTile
             key={tile.key}
-            onPress={tile.onPress}
-            hasTVPreferredFocus={i === 0 && !!focusFirst}
+            label={tile.label}
+            sublabel={tile.sublabel}
+            uri={tile.uri}
+            href={tile.href}
+            a11yLabel={tile.a11yLabel}
+            height={tileHeight}
+            isFirst={i === 0 && !!focusFirst}
             onFocus={onCardFocus}
-            style={styles.card}
-            accessibilityLabel={tile.a11yLabel ?? tile.label}
-          >
-            <View
-              style={{
-                width: CARD_WIDTH,
-                height: tileHeight,
-                borderRadius: theme.radii.sm,
-                overflow: "hidden",
-                backgroundColor: theme.colors.surface,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              {tile.uri ? (
-                <Image source={{ uri: tile.uri }} style={{ width: CARD_WIDTH, height: tileHeight }} contentFit="cover" />
-              ) : (
-                // No artwork: an empty grey square used to be the tile. The
-                // first letter at least tells a scanning eye what it is
-                // looking at until art arrives.
-                <Text style={[styles.tileInitial, { color: theme.colors.textMuted }]}>
-                  {tile.label.trim().charAt(0).toUpperCase() || "?"}
-                </Text>
-              )}
-            </View>
-            <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>{tile.label}</Text>
-            {tile.sublabel ? (
-              <Text style={[styles.cardYear, { color: theme.colors.textMuted }]} numberOfLines={1}>{tile.sublabel}</Text>
-            ) : null}
-          </FocusableCard>
+          />
         ))}
       </ScrollView>
       </TVFocusGuideView>
@@ -566,17 +631,18 @@ export default function HomeScreen() {
     grownRows.has(feedType) ? rowSize(feedType) : Math.min(HOME_ROW_DEFAULT_SIZE, rowSize(feedType));
   const keepRow = { query: { placeholderData: keepPreviousData } };
   const resume = usePlaybackServiceGetResumeItems({ limit: fetchSize("resume_playback") }, keepRow);
-  const nextUp = usePlaybackServiceGetNextUp({ limit: fetchSize("next_episode") }, keepRow);
+  // The home tab is never unmounted and its rows stay fresh for minutes: back
+  // from the player, a library or anywhere else, the resume row must be re-read
+  // or a title started elsewhere (a library, a search) is missing from it.
+  useRefetchOnReturn(resume.refetch);
   const recommended = useFeedServiceRecommended({ limit: fetchSize("recommended") }, keepRow);
   const popular = useMostPopular(fetchSize("most_popular"));
-  const [resumeSize, nextUpSize, recommendedSize, popularSize] = [
+  const [resumeSize, recommendedSize, popularSize] = [
     rowSize("resume_playback"),
-    rowSize("next_episode"),
     rowSize("recommended"),
     rowSize("most_popular"),
   ];
   const resumeItems = useMemo(() => (resume.data?.items ?? []).slice(0, resumeSize), [resume.data, resumeSize]);
-  const nextUpItems = useMemo(() => (nextUp.data?.items ?? []).slice(0, nextUpSize), [nextUp.data, nextUpSize]);
   const collections = useCollections();
   // The "recently added" shelf is the per-library
   // rows' job, which is why no client renders it as its own section.
@@ -587,7 +653,7 @@ export default function HomeScreen() {
     sortOrder: "SORT_ORDER_DESC",
     "pagination.pageSize": 1,
   });
-  const isTopLoading = !layoutReady || resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
+  const isTopLoading = !layoutReady || resume.isLoading || recentlyAdded.isLoading;
 
   // Every library row is fetched HERE rather than inside its component, so the
   // screen knows which rows have items - that is what lets the remote's
@@ -629,9 +695,9 @@ export default function HomeScreen() {
     const t = setTimeout(() => setRevealCapPassed(true), HOME_REVEAL_CAP_MS);
     return () => clearTimeout(t);
   }, []);
-  // Only when ALL THREE failed. One transverse row erroring still leaves a
+  // Only when BOTH failed. One transverse row erroring still leaves a
   // usable home, and blanking it would be a worse answer than a short page.
-  const isError = resume.isError && nextUp.isError && recentlyAdded.isError;
+  const isError = resume.isError && recentlyAdded.isError;
 
   const watchPercents = useMemo(() => {
     const map: Record<string, number> = {};
@@ -654,6 +720,7 @@ export default function HomeScreen() {
           id: i.mediaItemId,
           title: i.title,
           type: i.type,
+          year: i.year || undefined,
           artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
         }) as V1MediaItem)
         .slice(0, recommendedSize),
@@ -662,7 +729,7 @@ export default function HomeScreen() {
   const popularItems = useMemo(
     () =>
       (popular.data ?? [])
-        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem)
+        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year }) as V1MediaItem)
         .slice(0, popularSize),
     [popular.data, popularSize],
   );
@@ -683,8 +750,6 @@ export default function HomeScreen() {
           case "resume_playback":
           case "continue_watching":
             return resumeItems.length;
-          case "next_episode":
-            return nextUpItems.length;
           case "collections":
             return collections.data?.collections?.length ?? 0;
           case "recommended":
@@ -759,7 +824,7 @@ export default function HomeScreen() {
   // not "the library is empty".
   const transverseRowsPending = recommended.isLoading || popular.isLoading || collections.isLoading;
   const transverseRowsErrored =
-    resume.isError || nextUp.isError || collections.isError || recommended.isError || popular.isError;
+    resume.isError || collections.isError || recommended.isError || popular.isError;
   const libraryRowsUnsettled = libraryRowQueries.some(
     (q) => (q as { isLoading?: boolean; isError?: boolean }).isLoading || (q as { isLoading?: boolean; isError?: boolean }).isError,
   );
@@ -794,11 +859,11 @@ export default function HomeScreen() {
               key: String(a.id ?? a.title ?? ""),
               label: String(a.title ?? ""),
               sublabel: a.artist ? String(a.artist) : undefined,
-              uri: serverImageUri(serverUrl, a.coverArtUrl ? String(a.coverArtUrl) : undefined, tokenParam),
+              uri: serverImageUri(serverUrl, sizedServerPath(a.coverArtUrl ? String(a.coverArtUrl) : undefined, TILE_PX), tokenParam),
               // Through the shared helper: the album screen needs the library
               // id too, and a bare id left it with a disabled query - a title
               // that was the raw id and "no track found" (device, 2026-08-03).
-              onPress: () => router.push(musicAlbumHref(String(a.id ?? ""), section.libraryId) as never),
+              href: musicAlbumHref(String(a.id ?? ""), section.libraryId),
             }))}
           />
         );
@@ -820,7 +885,7 @@ export default function HomeScreen() {
               uri: a.coverPhotoId
                 ? `${serverUrl}/api/v1/photos/${String(a.coverPhotoId)}/serve${tokenParam}&w=400&fmt=webp`
                 : undefined,
-              onPress: () => router.push("/(auth)/photos"),
+              href: "/(auth)/photos",
             }))}
           />
         );
@@ -860,22 +925,6 @@ export default function HomeScreen() {
             onRetry={() => void resume.refetch()}
           />
         );
-      case "next_episode":
-        return (
-          <MediaRow
-            key={section.key}
-            title={t("media.home.upNext")}
-            items={nextUpItems}
-            onEndReached={() => nextUpItems.length >= fetchSize("next_episode") && growRow("next_episode")}
-            serverUrl={serverUrl}
-            authHeaders={authHeaders}
-            focusFirst={focusFirst}
-            imagePriority={imagePriority}
-            onCardFocus={onCardFocus}
-            isError={nextUp.isError}
-            onRetry={() => void nextUp.refetch()}
-          />
-        );
       case "collections": {
         const all = collections.data?.collections ?? [];
         // 105 repaired sagas landed today: an unbounded row would mount them all.
@@ -895,7 +944,7 @@ export default function HomeScreen() {
               label: c.name,
               // A collection poster is usually a TMDB url: no token for it.
               uri: serverImageUri(serverUrl, c.posterUrl, tokenParam),
-              onPress: () => router.push(`/(auth)/collections/${c.id}`),
+              href: `/(auth)/collections/${c.id}`,
             }))}
           />
         );
@@ -962,7 +1011,6 @@ export default function HomeScreen() {
         error={isError}
         onRetry={() => {
           void resume.refetch();
-          void nextUp.refetch();
           void recentlyAdded.refetch();
         }}
       />

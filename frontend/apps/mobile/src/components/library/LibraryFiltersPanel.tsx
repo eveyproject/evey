@@ -11,7 +11,7 @@ import {
 import { BottomSheet } from "../BottomSheet";
 import { GenreDot } from "../GenreDot";
 import { useTheme } from "../../providers/ThemeProvider";
-import type { FilterFacets } from "./libraryFilterUtils";
+import { SORT_OPTIONS, type FilterFacets } from "./libraryFilterUtils";
 
 // Display name for a normalized audio/subtitle filter code. The shared rule
 // (languageDisplayName) asks Intl first and falls back to a table of
@@ -20,13 +20,6 @@ import type { FilterFacets } from "./libraryFilterUtils";
 function langChipLabel(code: string, locale: string): string {
   return languageDisplayName(code, locale) ?? code;
 }
-
-const SORT_OPTIONS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
-  { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
-  { labelKey: "media.library.year", value: "MEDIA_SORT_FIELD_YEAR" },
-  { labelKey: "media.library.ratingSort", value: "MEDIA_SORT_FIELD_RATING" },
-  { labelKey: "media.library.dateAdded", value: "MEDIA_SORT_FIELD_DATE_ADDED" },
-];
 
 const SHOW_TYPE_OPTIONS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsType }> = [
   { labelKey: "media.library.series", value: "MEDIA_ITEM_TYPE_SERIES" },

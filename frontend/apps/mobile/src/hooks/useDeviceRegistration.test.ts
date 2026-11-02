@@ -80,7 +80,12 @@ vi.mock("expo-router", () => ({
   useRouter: () => ({ push: pushMock }),
 }));
 
-let mockAccessToken: string | null = "test-token";
+// The hook waits for a live access token: the fixtures are signed far ahead.
+const jwt = (sub: string) =>
+  `h.${btoa(JSON.stringify({ sub, exp: 4_102_444_800 })).replace(/=+$/, "")}.s`;
+const TOKEN = jwt("viewer");
+
+let mockAccessToken: string | null = TOKEN;
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: { accessToken: string | null }) => unknown) =>
     selector({ accessToken: mockAccessToken }),
@@ -126,7 +131,7 @@ beforeEach(() => {
   lastWS = null;
   wsInstances = [];
   appStateListener = null;
-  mockAccessToken = "test-token";
+  mockAccessToken = TOKEN;
   mockServerUrl = "http://myserver:8080";
   getItemAsyncMock.mockResolvedValue("device-abc-123");
   (globalThis as unknown as Record<string, unknown>).WebSocket = MockWebSocket;
@@ -152,7 +157,7 @@ describe("useDeviceRegistration", () => {
     await act(async () => {});
 
     expect(ws().url).toBe("ws://myserver:8080/api/v1/devices/ws");
-    expect(ws().protocols).toEqual(["Bearer.test-token"]);
+    expect(ws().protocols).toEqual([`Bearer.${TOKEN}`]);
   });
 
   it("sends a register frame with the persisted device id and deviceType=mobile on open", async () => {

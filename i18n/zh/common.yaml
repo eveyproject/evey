@@ -204,7 +204,6 @@ feeds:
   moveDown: "板块下移"
   labels:
     resume_playback: "继续播放"
-    next_up: "即将播放"
     recommended: "推荐"
     most_popular: "最受欢迎"
     collections: "合集"

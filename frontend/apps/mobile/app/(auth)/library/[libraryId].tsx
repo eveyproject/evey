@@ -9,7 +9,9 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
+  PixelRatio,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
@@ -49,7 +51,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useBulkFavorite } from "../../../src/hooks/useFavorite";
 import { useDemoLock } from "../../../src/hooks/useDemoLock";
-import { MediaCard, CARD_CAPTION_HEIGHT } from "../../../src/components/MediaCard";
+import { MediaCard, CARD_TEXT_GAP, CARD_LINE_HEIGHT } from "../../../src/components/MediaCard";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { LibraryFiltersPanel } from "../../../src/components/library/LibraryFiltersPanel";
 import { BulkAddToPlaylistSheet, BulkAddToCollectionSheet } from "../../../src/components/library/BulkAddSheets";
@@ -63,6 +65,7 @@ import {
   buildFilterMediaItemsParams,
   buildBulkMediaIds,
   selectableMediaIds,
+  SORT_OPTIONS,
 } from "../../../src/components/library/libraryFilterUtils";
 import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState, nextFilterOffset, libraryFilterOptions } from "@evey/client";
 import { POSTER_GRID } from "../../../src/lib/posterGrid";
@@ -83,7 +86,12 @@ const POSTER_HEIGHT = CARD_WIDTH * 1.5;
 // lineHeight so the total is arithmetic instead of whatever leading the platform
 // chose. Guessed at 34, it was a couple of pixels short and the cell's clip cut
 // the year in half (emulator, 2026-09-05).
-const META_HEIGHT = CARD_CAPTION_HEIGHT;
+//
+// The two lines grow with the system font size: React Native scales a
+// lineHeight with it, as it does the font. Counted at 1, a phone on a larger
+// text setting drew a caption taller than the cell and its clip cut the year,
+// and on the largest sizes the title too.
+const META_HEIGHT = Math.ceil(CARD_TEXT_GAP + CARD_LINE_HEIGHT * 2 * PixelRatio.getFontScale());
 const ROW_HEIGHT = POSTER_HEIGHT + META_HEIGHT + SPACING;
 const PAGE_SIZE = 30;
 
@@ -125,6 +133,9 @@ export default function LibraryDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  // The screen runs edge to edge: the system's navigation bar is drawn over
+  // its bottom, and the grid's last row ends above it, titles included.
+  const insets = useSafeAreaInsets();
   // Regular path: KEYSET pagination, driven by the opaque cursor the server
   // returns, exactly like web ($libraryId.lazy.tsx). It used to page by
   // `pagination.page` and stop on `pagination.totalPages`, but the server NEVER
@@ -932,6 +943,9 @@ export default function LibraryDetailScreen() {
                 ? `${displayItems.length} / ${totalItems}`
                 : `${totalItems}`}{" "}
               {totalItems === 1 ? "item" : "items"}
+              {/* The sort in effect, read without opening the filters: the
+                  Filters button already counts the filters. */}
+              {` \u00b7 ${t(SORT_OPTIONS.find((o) => o.value === sortField)?.labelKey ?? "")} ${sortOrder === "SORT_ORDER_ASC" ? "\u2191" : "\u2193"}`}
             </Text>
           </View>
 
@@ -1059,7 +1073,7 @@ export default function LibraryDetailScreen() {
               keyExtractor={libraryKeyExtractor}
               renderItem={renderItem}
               numColumns={NUM_COLUMNS}
-              contentContainerStyle={{ paddingTop: SPACING }}
+              contentContainerStyle={{ paddingTop: SPACING, paddingBottom: insets.bottom + SPACING }}
               refreshing={activeIsFetching && isFirstPage}
               onRefresh={handleRefresh}
               onEndReached={handleEndReached}
@@ -1093,7 +1107,7 @@ export default function LibraryDetailScreen() {
               data={displayItems}
               keyExtractor={libraryKeyExtractor}
               renderItem={renderListItem}
-              contentContainerStyle={{ padding: SPACING }}
+              contentContainerStyle={{ padding: SPACING, paddingBottom: insets.bottom + SPACING }}
               ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
               refreshing={activeIsFetching && isFirstPage}
               onRefresh={handleRefresh}

@@ -57,7 +57,13 @@ vi.mock("expo-router", () => ({
   useRouter: () => ({ push: pushMock }),
 }));
 
-let mockAccessToken: string | null = "test-token";
+// The hook waits for a live access token: the fixtures are signed far ahead.
+const jwt = (sub: string) =>
+  `h.${btoa(JSON.stringify({ sub, exp: 4_102_444_800 })).replace(/=+$/, "")}.s`;
+const TOKEN = jwt("viewer");
+const REFRESHED_TOKEN = jwt("viewer-refreshed");
+
+let mockAccessToken: string | null = TOKEN;
 let mockServerUrl: string | undefined = "https://tv.example";
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: { accessToken: string | null }) => unknown) =>
@@ -85,7 +91,7 @@ beforeEach(() => {
   vi.useRealTimers();
   lastWS = null;
   wsInstances = [];
-  mockAccessToken = "test-token";
+  mockAccessToken = TOKEN;
   mockServerUrl = "https://tv.example";
   getItemAsyncMock.mockResolvedValue("device-tv-1");
   (globalThis as unknown as Record<string, unknown>).WebSocket = MockWebSocket;
@@ -101,7 +107,7 @@ describe("useDeviceRegistration (tv)", () => {
     await act(async () => {});
     expect(lastWS).toBeNull();
 
-    mockAccessToken = "test-token";
+    mockAccessToken = TOKEN;
     mockServerUrl = undefined;
     renderHook(() => useDeviceRegistration());
     await act(async () => {});
@@ -112,7 +118,7 @@ describe("useDeviceRegistration (tv)", () => {
     renderHook(() => useDeviceRegistration());
     await act(async () => {});
     expect(ws().url).toBe("wss://tv.example/api/v1/devices/ws");
-    expect(ws().protocols).toEqual(["Bearer.test-token"]);
+    expect(ws().protocols).toEqual([`Bearer.${TOKEN}`]);
   });
 
   it("registers as an Android TV with the persisted device id on open", async () => {
@@ -223,7 +229,7 @@ describe("useDeviceRegistration (tv)", () => {
       await act(async () => { await vi.runOnlyPendingTimersAsync(); });
     }
     const before = wsInstances.length;
-    mockAccessToken = "refreshed-token";
+    mockAccessToken = REFRESHED_TOKEN;
     rerender();
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(wsInstances.length).toBe(before);

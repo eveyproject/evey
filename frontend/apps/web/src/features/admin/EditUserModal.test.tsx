@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -193,6 +193,46 @@ describe("EditUserModal", () => {
     await u.click(screen.getByRole("radio", { name: "All libraries" }));
     await u.click(screen.getByRole("button", { name: "Save" }));
     expect(revokeAccessMutateAsync).toHaveBeenCalledWith({ userId: "u1" });
+    expect(setAccessMutateAsync).not.toHaveBeenCalled();
+  });
+  it("reopening a restricted user and saving only the e-mail never touches the access", async () => {
+    // The modal stays mounted between openings and the access query answers
+    // from cache with the same object: the form must still read "selected".
+    const access = {
+      data: { libraryIds: ["lib1"], restricted: true, libraries: [{ id: "lib1", name: "Movies" }, { id: "lib2", name: "Shows" }] },
+      isLoading: false,
+    };
+    getAccessMock.mockReturnValue(access);
+    const u = userEvent.setup();
+    const wrapper = createWrapper();
+    const { rerender } = render(<EditUserModal user={baseUser} open={true} onClose={vi.fn()} />, { wrapper });
+    expect(screen.getByRole("radio", { name: "Selected libraries only" })).toBeChecked();
+
+    rerender(<EditUserModal user={baseUser} open={false} onClose={vi.fn()} />);
+    rerender(<EditUserModal user={baseUser} open={true} onClose={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "Selected libraries only" })).toBeChecked();
+    expect(screen.getByLabelText("Movies")).toBeChecked();
+
+    const email = screen.getByLabelText("Email");
+    await u.clear(email);
+    await u.type(email, "new@example.com");
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateMutateAsync).toHaveBeenCalledWith({ id: "u1", data: { email: "new@example.com" } });
+    expect(revokeAccessMutateAsync).not.toHaveBeenCalled();
+    expect(setAccessMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("an access read that failed blocks the section behind a retry and Save writes no access", async () => {
+    const refetch = vi.fn();
+    getAccessMock.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
+    const u = userEvent.setup();
+    render(<EditUserModal user={baseUser} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    const alert = screen.getByTestId("library-access-error");
+    expect(screen.queryByRole("radio", { name: "All libraries" })).not.toBeInTheDocument();
+    await u.click(within(alert).getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalled();
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    expect(revokeAccessMutateAsync).not.toHaveBeenCalled();
     expect(setAccessMutateAsync).not.toHaveBeenCalled();
   });
 });

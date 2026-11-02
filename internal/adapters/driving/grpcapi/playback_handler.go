@@ -1058,7 +1058,7 @@ func (h *playbackHandler) enrichWatchHistory(ctx context.Context, items []*playb
 	h.overlayMaps(ctx, byID, seasonByID, seriesByID)
 
 	// Parental gate: a kids profile must not see adult titles it played before
-	// the profile was switched to kids. Mirrors GetNextUp/GetResumeItems.
+	// the profile was switched to kids. Mirrors GetResumeItems.
 	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	gated := allowedIDs != nil || pf.enforced()
 
@@ -1216,6 +1216,10 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	return resp, nil
 }
 
+// GetNextUp is retired: the next episode of a series being watched is a card
+// of GetResumeItems' single rail now. It still answers, empty, so a client
+// built before the merge renders no second row (every home hides an empty
+// one) instead of the same episodes twice.
 func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRequest) (*eveyv1.GetNextUpResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.playback.GetNextUp")
 	defer span.End()
@@ -1225,59 +1229,12 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetNextUp: %w", err)
 	}
-	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
-	if err != nil {
+	if _, err := resolveProfileID(ctx, claims, req.ProfileId); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetNextUp: %w", err)
 	}
-	limit := int(req.Limit)
-	if limit <= 0 {
-		limit = 20
-	} else if limit > maxPageSize {
-		limit = maxPageSize
-	}
-	progresses, err := h.query.GetNextUp(ctx, shared.ProfileID(profileID), limit)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError(ctx, "get next up", err)
-	}
-	ids := make([]string, len(progresses))
-	for i, wp := range progresses {
-		ids[i] = string(wp.MediaItemID)
-	}
-	mediaItems, err := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError(ctx, "get media items for next up", err)
-	}
-	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
-	// Parental gate: GetNextUp returns media-item protos (title/overview), so a
-	// kids profile must not see adult items it previously played before the
-	// profile was switched to kids. Mirrors the feed handlers.
-	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
-	byID := make(map[string]*library.MediaItem, len(mediaItems))
-	for _, mi := range mediaItems {
-		if allowedIDs != nil && !slices.Contains(allowedIDs, string(mi.LibraryID)) {
-			continue
-		}
-		if mediaItemBlockedByParental(pf, mi) {
-			continue
-		}
-		byID[string(mi.ID)] = mi
-	}
-	h.overlayMaps(ctx, byID)
-	resp := &eveyv1.GetNextUpResponse{}
-	for _, wp := range progresses {
-		if item, ok := byID[string(wp.MediaItemID)]; ok {
-			resp.Items = append(resp.Items, mediaItemToProto(item, ctxIsAdmin(ctx)))
-		}
-	}
-	fillAncestorTitles(ctx, h.overlaidItemsFetch, resp.Items)
-	fillPrimaryBlurhashes(ctx, h.metadataSvc, resp.Items)
-	return resp, nil
+	return &eveyv1.GetNextUpResponse{}, nil
 }
 
 // overlaidItemsFetch is GetMediaItemsByIDs with the viewer's locale and the

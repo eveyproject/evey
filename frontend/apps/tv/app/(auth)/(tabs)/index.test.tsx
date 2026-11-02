@@ -61,6 +61,7 @@ vi.mock("react-native", () => ({
     );
   },
   StyleSheet: { create: (s: any) => s, absoluteFillObject: {} },
+  AppState: { addEventListener: () => ({ remove: () => {} }) },
 }));
 
 // --- expo-image mock ---------------------------------------------------------
@@ -70,15 +71,27 @@ vi.mock("@expo/vector-icons/Ionicons", () => ({
   default: () => null,
 }));
 
+// Renders per image url: a card whose props did not change must not re-render.
+const imageRenders = new Map<string, number>();
 vi.mock("expo-image", () => ({
-  Image: (props: any) => React.createElement("img", { alt: "", src: props.source?.uri }),
+  Image: (props: any) => {
+    const uri = props.source?.uri ?? "";
+    imageRenders.set(uri, (imageRenders.get(uri) ?? 0) + 1);
+    return React.createElement("img", { alt: "", src: uri });
+  },
 }));
 
 // --- expo-router mock ---------------------------------------------------------
 const pushMock = vi.fn();
+// The screen's focus effects are captured so a test can show the home again,
+// as coming back from the player or the library does: the tab stays mounted.
+const focusEffects = vi.hoisted(() => ({ current: [] as Array<() => unknown> }));
 vi.mock("expo-router", () => ({
   router: { push: (...args: unknown[]) => pushMock(...args) },
   useLocalSearchParams: () => routeParams.current,
+  useFocusEffect: (cb: () => unknown) => {
+    if (!focusEffects.current.includes(cb)) focusEffects.current.push(cb);
+  },
 }));
 const routeParams = vi.hoisted(() => ({ current: {} as Record<string, string> }));
 
@@ -112,9 +125,11 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 vi.mock("../../../src/hooks/useServerUrl", () => ({
   useServerUrl: () => "http://srv.test",
 }));
-vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({
-  useAuthHeaders: () => ({ Authorization: "Bearer TOKEN" }),
-}));
+// One object, as the real hook memoises it on the token.
+vi.mock("../../../src/hooks/useAuthenticatedImage", () => {
+  const headers = { Authorization: "Bearer TOKEN" };
+  return { useAuthHeaders: () => headers };
+});
 
 // --- PluginSlot mock -------------------------------------------------------------
 vi.mock("../../../src/features/plugins/PluginSlot", () => ({
@@ -167,7 +182,6 @@ vi.mock("@tanstack/react-query", () => ({
 
 // --- @evey/api mock --------------------------------------------------------------
 const resumeMock = vi.fn();
-const nextUpMock = vi.fn();
 const listMediaItemsMock = vi.fn();
 const librariesMock = vi.fn();
 const feedConfigMock = vi.fn();
@@ -187,7 +201,6 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useFeedServiceResetProfileFeedConfig: () => ({ mutateAsync: vi.fn() }),
   eveyFetch: vi.fn().mockResolvedValue({ plugins: [] }),
   usePlaybackServiceGetResumeItems: (...args: unknown[]) => resumeMock(...args),
-  usePlaybackServiceGetNextUp: (...args: unknown[]) => nextUpMock(...args),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
   // Answered by default: the home holds its rows until both have.
   useLibraryServiceListLibraries: (...args: unknown[]) => ({ isFetched: true, ...librariesMock(...args) }),
@@ -217,7 +230,7 @@ vi.mock("../../../src/hooks/usePopular", () => ({
   useMostPopular: (...args: unknown[]) => popularMock(...args),
 }));
 
-import HomeScreen, { selectHomeFocusTarget } from "./index";
+import HomeScreen, { selectHomeFocusTarget, sizedServerPath } from "./index";
 
 const HERO_ITEM = {
   id: "mi-hero-1",
@@ -229,10 +242,10 @@ const HERO_ITEM = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  focusEffects.current = [];
   libraryRowResults.clear();
   needsPinMock.mockReturnValue(false);
   resumeMock.mockReturnValue({ data: { items: [], progress: [] }, isLoading: false });
-  nextUpMock.mockReturnValue({ data: { items: [] }, isLoading: false });
   listMediaItemsMock.mockReturnValue({ data: { items: [HERO_ITEM] }, isLoading: false });
   // No libraries by default: these tests exercise the transverse rows only.
   librariesMock.mockReturnValue({ data: { libraries: [] }, isLoading: false });
@@ -254,6 +267,19 @@ describe("selectHomeFocusTarget (initial TV remote focus)", () => {
 
   it("returns null when nothing is visible so no element claims initial focus", () => {
     expect(selectHomeFocusTarget([false, false, false])).toBeNull();
+  });
+});
+
+// A music tile asked the server for the full cover; its own resize is `?w=`.
+describe("sizedServerPath (home tile art)", () => {
+  it("asks a server path at the tile's width, keeping an existing query", () => {
+    expect(sizedServerPath("/api/v1/music/albums/a1/art", 300)).toBe("/api/v1/music/albums/a1/art?w=300");
+    expect(sizedServerPath("/api/v1/music/albums/a1/art?v=2", 300)).toBe("/api/v1/music/albums/a1/art?v=2&w=300");
+  });
+
+  it("leaves a third party's url and a missing one alone", () => {
+    expect(sizedServerPath("https://covers.example/a.jpg", 300)).toBe("https://covers.example/a.jpg");
+    expect(sizedServerPath(undefined, 300)).toBeUndefined();
   });
 });
 
@@ -325,7 +351,6 @@ describe("HomeScreen per-library rows", () => {
 
   it("keeps the initial D-pad focus coherent: falls through past the static rows to the first non-empty library row", () => {
     resumeMock.mockReturnValue({ data: { items: [], progress: [] }, isLoading: false });
-    nextUpMock.mockReturnValue({ data: { items: [] }, isLoading: false });
     listMediaItemsMock.mockReturnValue({ data: { items: [] }, isLoading: false }); // hides the hero too
     render(<HomeScreen />);
     const focused = document.querySelector('[data-tv-preferred-focus="true"]');
@@ -531,5 +556,51 @@ describe("HomeScreen card subtitle fallback for cards without a year (#6)", () =
     });
     render(<HomeScreen />);
     expect(screen.getByText("media.itemType.movie")).toBeTruthy();
+  });
+});
+
+// A film opened from a library and watched for an hour was missing from the
+// resume row back on the home: the tab never unmounts, its rows were cached
+// for five minutes and nothing re-read them on return - only a title marked
+// watched invalidated them. Started from the home the film was already on
+// the row, which hid it. The home now re-reads the row each time it is shown.
+describe("HomeScreen resume row on return", () => {
+  it("re-reads the resume row when the home is shown again, not on its first showing", () => {
+    const refetch = vi.fn();
+    resumeMock.mockReturnValue({ data: { items: [], progress: [] }, isLoading: false, refetch });
+    render(<HomeScreen />);
+    act(() => { focusEffects.current.forEach((cb) => cb()); });
+    expect(refetch).not.toHaveBeenCalled();
+    act(() => { focusEffects.current.forEach((cb) => cb()); });
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The home re-renders on every query that answers; its cards and tiles keep
+// their props, so they must not re-render with it.
+describe("HomeScreen (TV) card memoisation", () => {
+  it("does not re-render the cards and tiles of a row when the home re-renders", () => {
+    imageRenders.clear();
+    resumeMock.mockReturnValue({
+      data: { items: [{ id: "ep-a", title: "A", year: 2001 }, { id: "ep-b", title: "B" }], progress: [] },
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    collectionsMock.mockReturnValue({
+      data: { collections: [{ id: "col-1", name: "Saga", posterUrl: "http://srv.test/c.jpg" }] },
+      isLoading: false,
+    });
+    render(<HomeScreen />);
+    const before = new Map(imageRenders);
+    expect([...before.keys()].some((u) => u.includes("/ep-a/"))).toBe(true);
+    expect(before.get("http://srv.test/c.jpg")).toBe(1);
+    // The year reaches the memoised card.
+    expect(screen.getByText("2001")).toBeTruthy();
+
+    act(() => {
+      DeviceEventEmitter.emit("eveyHomeCustomize");
+    });
+
+    for (const [uri, n] of before) expect(imageRenders.get(uri)).toBe(n);
   });
 });

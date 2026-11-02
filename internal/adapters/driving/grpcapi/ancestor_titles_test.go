@@ -60,23 +60,6 @@ func TestFillAncestorTitles_FetchErrorLeavesTitlesEmpty(t *testing.T) {
 	assert.Empty(t, episode.SeasonTitle)
 }
 
-func TestPlaybackHandler_GetNextUp_StampsAncestorTitles(t *testing.T) {
-	h, _, progressRepo, mediaQuery, _, _ := newTestPlaybackHandler()
-	ctx := pbAdminCtx()
-
-	seedShow(mediaQuery.Seed)
-	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
-		ID: "wp-1", ProfileID: "profile-1", MediaItemID: "mi-episode",
-		Position: mustPlaybackDurationMs(t, 30_000), Completed: true, LastPlayedAt: time.Now(),
-	})
-
-	resp, err := h.GetNextUp(ctx, &eveyv1.GetNextUpRequest{Limit: 10})
-	require.NoError(t, err)
-	require.Len(t, resp.Items, 1)
-	assert.Equal(t, "Some Series", resp.Items[0].SeriesTitle)
-	assert.Equal(t, "Season 1", resp.Items[0].SeasonTitle)
-}
-
 func TestPlaybackHandler_GetResumeItems_StampsEpisodeDisplay(t *testing.T) {
 	h, _, progressRepo, mediaQuery, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()

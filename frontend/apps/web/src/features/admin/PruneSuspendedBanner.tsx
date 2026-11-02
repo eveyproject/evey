@@ -14,6 +14,9 @@ interface PruneSuspension {
   root: string;
   missing: number;
   total: number;
+  // The exact set of missing files this banner shows; the confirmation sends
+  // it back so the server deletes that set and nothing else.
+  snapshot: string;
 }
 
 const QUERY_KEY = "/api/v1/admin/libraries/prune-suspended";
@@ -37,15 +40,24 @@ export function PruneSuspendedBanner({ libraries }: { libraries: { id?: string; 
   });
 
   const confirm = useMutation({
-    mutationFn: (libraryId: string) =>
-      eveyFetch({ url: `/api/v1/admin/libraries/${libraryId}/prune/confirm`, method: "POST", data: {} }),
+    mutationFn: (s: PruneSuspension) =>
+      eveyFetch({
+        url: `/api/v1/admin/libraries/${s.libraryId}/prune/confirm`,
+        method: "POST",
+        data: { root: s.root, snapshot: s.snapshot },
+      }),
     onSuccess: () => {
       toast.success(t("admin.libraries.pruneConfirmStarted"));
       setPending(null);
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
     },
-    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
+    onError: (err: Error) => {
+      toast.error(apiErrorMessage(err, t, t("common.error")));
+      // A 409 means the held set moved since this page loaded: show the new one.
+      setPending(null);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    },
   });
 
   if (data.length === 0) return null;
@@ -84,7 +96,7 @@ export function PruneSuspendedBanner({ libraries }: { libraries: { id?: string; 
           <Button
             variant="danger"
             loading={confirm.isPending}
-            onClick={() => pending && confirm.mutate(pending.libraryId)}
+            onClick={() => pending && confirm.mutate(pending)}
           >
             {t("admin.libraries.confirmPrune")}
           </Button>

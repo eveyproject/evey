@@ -16,3 +16,17 @@ export function artworkPx(dp: number): number {
     return dp * 2;
   }
 }
+
+// TMDB's image CDN serves a face at a few fixed sizes; the server stores the
+// "original" one, often well over a thousand pixels tall. A face shown a
+// hundred pixels wide is asked at the smallest size that still covers it
+// instead of being downloaded and decoded whole. h632 is a height: a 2:3
+// portrait at that height is 421 wide. Any other url is left as is.
+const TMDB_PROFILE_SIZES: [number, string][] = [[45, "w45"], [185, "w185"], [421, "h632"]];
+
+export function tmdbProfileSized(url: string, px: number): string {
+  const m = /^(https:\/\/image\.tmdb\.org\/t\/p\/)original(\/.+)$/.exec(url);
+  if (!m) return url;
+  const size = TMDB_PROFILE_SIZES.find(([w]) => w >= px)?.[1];
+  return size ? `${m[1]}${size}${m[2]}` : url;
+}

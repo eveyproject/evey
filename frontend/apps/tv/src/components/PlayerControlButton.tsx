@@ -78,8 +78,8 @@ export const PlayerControlButton = memo(function PlayerControlButton({
       ]}
     >
       {icon ? <Ionicons name={icon} size={iconSize} color={color} /> : null}
-      {text ? <Text style={[styles.text, { color }]}>{text}</Text> : null}
-      {caption ? <Text style={[styles.caption, { color }]}>{caption}</Text> : null}
+      {text ? <Text numberOfLines={1} style={[styles.text, { color }]}>{text}</Text> : null}
+      {caption ? <Text numberOfLines={1} style={[styles.caption, { color }]}>{caption}</Text> : null}
     </Pressable>
   );
 });

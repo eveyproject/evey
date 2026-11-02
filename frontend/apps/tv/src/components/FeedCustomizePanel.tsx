@@ -28,7 +28,6 @@ import { FONT_SIZE } from "@evey/theme";
 const FEED_LABELS: Record<string, string> = {
   resume_playback: "common.feeds.labels.resume_playback",
   continue_watching: "common.feeds.labels.resume_playback",
-  next_episode: "media.home.upNext",
   collections: "media.home.collections",
   recommended: "media.home.recommendedForYou",
   most_popular: "media.home.mostPopular",
@@ -223,7 +222,7 @@ export function FeedCustomizePanel({
               focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
             >
               <Ionicons name="refresh-outline" size={20} color={theme.colors.textMuted} />
-              <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: FONT_SIZE.base }}>
+              <Text numberOfLines={1} style={{ color: theme.colors.text, fontWeight: "600", fontSize: FONT_SIZE.base, flexShrink: 1 }}>
                 {t(confirmingReset ? "common.feeds.resetConfirm" : "common.feeds.resetDefaults")}
               </Text>
             </FocusableCard>

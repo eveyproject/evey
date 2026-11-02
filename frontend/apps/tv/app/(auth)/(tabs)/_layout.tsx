@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { memo, useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, DeviceEventEmitter } from "react-native";
 import { Slot, useRouter, usePathname } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -27,13 +27,82 @@ const NAV_ITEMS: NavItem[] = [
   { labelKey: "common.nav.settings", icon: "settings", path: "/(auth)/(tabs)/settings" },
 ];
 
-export default function TabsLayout() {
+// How long the rail waits, after an entry lost the focus, before folding.
+// Moving between two entries is a blur and a focus: folding on the blur
+// unfolded the rail again on the focus, two relayouts of the screen beside
+// it for one press. It folds only if no entry took the focus meanwhile.
+const NAV_COLLAPSE_DELAY_MS = 120;
+
+// One entry of the rail. It keeps its own focus state: held by the layout, a
+// press on the D-pad re-rendered the whole shell, header included.
+const NavButton = memo(function NavButton({
+  item,
+  index,
+  active,
+  expanded,
+  onNavFocus,
+  onNavBlur,
+}: {
+  item: NavItem;
+  index: number;
+  active: boolean;
+  expanded: boolean;
+  onNavFocus: (index: number) => void;
+  onNavBlur: (index: number) => void;
+}) {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const [focused, setFocused] = useState(false);
+  const onPress = useCallback(() => router.push(item.path as never), [router, item.path]);
+  const onFocus = useCallback(() => {
+    setFocused(true);
+    onNavFocus(index);
+  }, [onNavFocus, index]);
+  const onBlur = useCallback(() => {
+    setFocused(false);
+    onNavBlur(index);
+  }, [onNavBlur, index]);
+  return (
+    <Pressable
+      onPress={onPress}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      hasTVPreferredFocus={index === 0}
+      accessible={true}
+      accessibilityLabel={t(item.labelKey)}
+      accessibilityRole="button"
+      style={[
+        styles.navButton,
+        focused && { backgroundColor: theme.colors.accent + "33" },
+        active && { borderLeftColor: theme.colors.accent, borderLeftWidth: 3 },
+      ]}
+    >
+      <Ionicons
+        name={item.icon}
+        size={28}
+        color={active || focused ? theme.colors.accent : theme.colors.textMuted}
+      />
+      {expanded && (
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.navLabel,
+            { color: active || focused ? theme.colors.accent : theme.colors.textMuted },
+          ]}
+        >
+          {t(item.labelKey)}
+        </Text>
+      )}
+    </Pressable>
+  );
+});
+
+export default function TabsLayout() {
+  const theme = useTheme();
+  const router = useRouter();
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
-  const [focusedIndex, setFocusedIndex] = useState(-1);
   // The search lives here, above every tab screen: it is a dropdown of the
   // header, so it opens over whatever the viewer was looking at instead of
   // taking them to another page.
@@ -48,8 +117,14 @@ export default function TabsLayout() {
     [pathname],
   );
 
+  const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The entry holding the focus, whichever of its focus and the previous
+  // entry's blur arrives first.
+  const navFocus = useRef<number | null>(null);
   const handleNavFocus = useCallback((index: number) => {
-    setFocusedIndex(index);
+    navFocus.current = index;
+    if (collapseTimer.current) clearTimeout(collapseTimer.current);
+    collapseTimer.current = null;
     setExpanded(true);
   }, []);
 
@@ -61,10 +136,23 @@ export default function TabsLayout() {
     return () => sub.remove();
   }, []);
 
-  const handleNavBlur = useCallback(() => {
-    setFocusedIndex(-1);
-    setExpanded(false);
+  const handleNavBlur = useCallback((index: number) => {
+    if (navFocus.current !== index) return;
+    navFocus.current = null;
+    if (collapseTimer.current) clearTimeout(collapseTimer.current);
+    collapseTimer.current = setTimeout(() => {
+      collapseTimer.current = null;
+      if (navFocus.current === null) setExpanded(false);
+    }, NAV_COLLAPSE_DELAY_MS);
   }, []);
+  useEffect(() => () => { if (collapseTimer.current) clearTimeout(collapseTimer.current); }, []);
+
+  // Stable, so the memoised header is not re-rendered when the rail unfolds.
+  const onHome = pathname === "/" || pathname === "";
+  const onCustomize = useCallback(() => DeviceEventEmitter.emit("eveyHomeCustomize"), []);
+  const onSearch = useCallback(() => setSearchOpen(true), []);
+  const onNotifications = useCallback(() => router.push("/(auth)/notifications" as never), [router]);
+  const onProfile = useCallback(() => router.push("/profile-select?pick=1" as never), [router]);
 
   // No background of its own: the (auth) layout already paints the theme
   // under every screen, and each extra opaque layer is a full 1080p fill the
@@ -93,52 +181,26 @@ export default function TabsLayout() {
           )}
         </View>
         <View style={styles.navItems}>
-          {NAV_ITEMS.map((item, index) => {
-            const active = isActive(item.path);
-            const focused = focusedIndex === index;
-            return (
-              <Pressable
-                key={item.path}
-                onPress={() => router.push(item.path as never)}
-                onFocus={() => handleNavFocus(index)}
-                onBlur={handleNavBlur}
-                hasTVPreferredFocus={index === 0}
-                accessible={true}
-                accessibilityLabel={t(item.labelKey)}
-                accessibilityRole="button"
-                style={[
-                  styles.navButton,
-                  focused && { backgroundColor: theme.colors.accent + "33" },
-                  active && { borderLeftColor: theme.colors.accent, borderLeftWidth: 3 },
-                ]}
-              >
-                <Ionicons
-                  name={item.icon}
-                  size={28}
-                  color={active || focused ? theme.colors.accent : theme.colors.textMuted}
-                />
-                {expanded && (
-                  <Text
-                    style={[
-                      styles.navLabel,
-                      { color: active || focused ? theme.colors.accent : theme.colors.textMuted },
-                    ]}
-                  >
-                    {t(item.labelKey)}
-                  </Text>
-                )}
-              </Pressable>
-            );
-          })}
+          {NAV_ITEMS.map((item, index) => (
+            <NavButton
+              key={item.path}
+              item={item}
+              index={index}
+              active={isActive(item.path)}
+              expanded={expanded}
+              onNavFocus={handleNavFocus}
+              onNavBlur={handleNavBlur}
+            />
+          ))}
         </View>
       </View>
 
       <View style={styles.content}>
         <TopHeader
-          onCustomize={pathname === "/" || pathname === "" ? () => DeviceEventEmitter.emit("eveyHomeCustomize") : undefined}
-          onSearch={() => setSearchOpen(true)}
-          onNotifications={() => router.push("/(auth)/notifications" as never)}
-          onProfile={() => router.push("/profile-select?pick=1" as never)}
+          onCustomize={onHome ? onCustomize : undefined}
+          onSearch={onSearch}
+          onNotifications={onNotifications}
+          onProfile={onProfile}
         />
         <Slot />
       </View>
@@ -178,6 +240,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "600",
     marginLeft: 16,
+    flexShrink: 1,
   },
   content: {
     flex: 1,
