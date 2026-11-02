@@ -45,6 +45,9 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 	seen := make(map[feed.Type]bool, len(admins))
 	var result []*feed.MergedConfig
 	for _, a := range admins {
+		if a.FeedType.Retired() {
+			continue
+		}
 		m := &feed.MergedConfig{
 			FeedType:     a.FeedType,
 			Enabled:      a.Enabled,
@@ -83,7 +86,7 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 	// Defaults for the "missing admin" case: enabled=true, displayOrder=0.
 	// Any field set on the override wins as usual.
 	for _, o := range overrides {
-		if seen[o.FeedType] {
+		if seen[o.FeedType] || o.FeedType.Retired() {
 			continue
 		}
 		m := &feed.MergedConfig{
@@ -115,7 +118,17 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 func (s *QueryService) GetAdminConfigs(ctx context.Context) ([]*feed.AdminConfig, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.feed.GetAdminConfigs")
 	defer span.End()
-	return s.configs.GetAdminConfig(ctx)
+	admins, err := s.configs.GetAdminConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	served := make([]*feed.AdminConfig, 0, len(admins))
+	for _, a := range admins {
+		if !a.FeedType.Retired() {
+			served = append(served, a)
+		}
+	}
+	return served, nil
 }
 
 func (s *QueryService) ContinueWatching(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {

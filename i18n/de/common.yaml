@@ -222,7 +222,6 @@ feeds:
   moveDown: Bereich nach unten verschieben
   labels:
     resume_playback: Wiedergabe fortsetzen
-    next_up: Als Nächstes
     recommended: Empfohlen
     most_popular: Am beliebtesten
     collections: Sammlungen

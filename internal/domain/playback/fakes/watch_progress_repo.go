@@ -171,6 +171,8 @@ func (r *FakeWatchProgressRepository) GetByProfileCursor(_ context.Context, prof
 	return result, nil
 }
 
+// GetResumeItems keeps every unfinished, started row: the rail's floor and its
+// per-series cards are the SQL's, pinned by the postgres adapter's tests.
 func (r *FakeWatchProgressRepository) GetResumeItems(_ context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
 	if r.Err != nil {
 		return nil, r.Err
@@ -183,27 +185,6 @@ func (r *FakeWatchProgressRepository) GetResumeItems(_ context.Context, profileI
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
 		if string(wp.ProfileID) == profileID && !wp.Completed && !wp.Position.IsZero() {
-			result = append(result, wp)
-		}
-	}
-	if limit > 0 && limit < len(result) {
-		result = result[:limit]
-	}
-	return result, nil
-}
-
-func (r *FakeWatchProgressRepository) GetNextUp(_ context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
-	if r.Err != nil {
-		return nil, r.Err
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.Err != nil {
-		return nil, r.Err
-	}
-	var result []*playback.WatchProgress
-	for _, wp := range r.items {
-		if string(wp.ProfileID) == profileID && wp.Completed {
 			result = append(result, wp)
 		}
 	}

@@ -54,12 +54,6 @@ func (s *QueryService) GetResumeItems(ctx context.Context, profileID shared.Prof
 	return s.progress.GetResumeItems(ctx, string(profileID), limit)
 }
 
-func (s *QueryService) GetNextUp(ctx context.Context, profileID shared.ProfileID, limit int) ([]*playback.WatchProgress, error) {
-	ctx, span := tracing.StartSpan(ctx, "app.playback.GetNextUp")
-	defer span.End()
-	return s.progress.GetNextUp(ctx, string(profileID), limit)
-}
-
 // GetSeriesPlayTarget is the episode "Play" on a series starts for this
 // profile (playback.PickSeriesEpisode) and whether the profile has started
 // the series at all; ok is false for a series without episodes.

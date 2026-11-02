@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/eveyproject/evey/internal/domain/feed"
+	"github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -45,16 +46,13 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			       NULL::int AS season_number, NULL::int AS episode_number
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
-			LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 			WHERE wp.profile_id = $1
 			  AND mi.type = 'movie'
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
-			  -- MinResumePct=5 (the classic resume floor): don't surface a film the user
-			  -- only sampled for a few seconds. Items with unknown duration
-			  -- bypass the gate so we don't silently drop legitimate progress.
-			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
-			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
+			  -- playback.MinResumeRailPosition, the floor of the playback rail:
+			  -- a title only sampled (a zap, a shuffle draw) is not resumable.
+			  AND wp.position_ms >= $3
 		),
 		series_list AS (
 			SELECT DISTINCT mi.parent_id AS season_id, s.parent_id AS series_id
@@ -74,13 +72,11 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			INNER JOIN media_items s ON s.id = mi.parent_id
-			LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 			WHERE wp.profile_id = $1
 			  AND mi.type = 'episode'
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
-			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
-			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
+			  AND wp.position_ms >= $3
 			ORDER BY s.parent_id, wp.last_played_at DESC, mi.id
 		),
 		next_unwatched AS (
@@ -110,7 +106,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 		-- and which rows survive the LIMIT, would be undefined and shift per refresh.
 		ORDER BY last_played_at DESC, id
 		LIMIT $2
-	`, profileID, limit)
+	`, profileID, limit, playback.MinResumeRailPosition.Milliseconds())
 	if err != nil {
 		return nil, err
 	}
@@ -142,13 +138,11 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			LEFT JOIN media_items sea ON mi.type = 'episode' AND sea.id = mi.parent_id
-			LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 			WHERE wp.profile_id = $1
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
-			  -- MinResumePct=5 (the classic resume floor): don't surface zaps.
-			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
-			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
+			  -- playback.MinResumeRailPosition: don't surface zaps.
+			  AND wp.position_ms >= $3
 		),
 		in_progress AS (
 			SELECT * FROM in_progress_all WHERE rn = 1
@@ -188,7 +182,7 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 		-- and which rows survive the LIMIT, would be undefined and shift per refresh.
 		ORDER BY last_played_at DESC, id
 		LIMIT $2
-	`, profileID, limit)
+	`, profileID, limit, playback.MinResumeRailPosition.Milliseconds())
 	if err != nil {
 		return nil, err
 	}
@@ -316,6 +310,7 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysW
 		return nil, err
 	}
 	q.fillPrimaryBlurhashes(ctx, items)
+	q.fillYears(ctx, items)
 	return items, nil
 }
 
@@ -401,6 +396,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 		return nil, err
 	}
 	q.fillPrimaryBlurhashes(ctx, items)
+	q.fillYears(ctx, items)
 	return items, nil
 }
 
@@ -482,7 +478,49 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 	}
 	items = keepMostRelevant(items, targetCount)
 	q.fillPrimaryBlurhashes(ctx, items)
+	q.fillYears(ctx, items)
 	return items, nil
+}
+
+// fillYears batch-resolves the release year from media_catalog and stamps it
+// on each FeedItem in place. Best-effort like fillPrimaryBlurhashes: on a
+// query failure the items return with Year 0 and the card simply shows none.
+func (q *FeedQuerier) fillYears(ctx context.Context, items []*feed.FeedItem) {
+	if len(items) == 0 {
+		return
+	}
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = string(it.MediaItemID)
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx,
+		`SELECT media_item_id, year FROM media_catalog
+		 WHERE media_item_id = ANY($1) AND year IS NOT NULL`,
+		pq.Array(ids))
+	if err != nil {
+		slog.Debug("feed: fetch years failed", slog.Any("err", err))
+		return
+	}
+	defer rows.Close()
+	years := make(map[string]int, len(items))
+	for rows.Next() {
+		var mediaID string
+		var year int
+		if err := rows.Scan(&mediaID, &year); err != nil {
+			slog.Debug("feed: scan year row failed", slog.Any("err", err))
+			return
+		}
+		years[mediaID] = year
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		slog.Debug("feed: iterate year rows failed", slog.Any("err", rowsErr))
+		return
+	}
+	for _, it := range items {
+		it.Year = years[string(it.MediaItemID)]
+	}
 }
 
 // fillPrimaryBlurhashes batch-resolves the primary-artwork blurhash for the

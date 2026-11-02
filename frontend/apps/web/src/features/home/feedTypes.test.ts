@@ -6,11 +6,13 @@ import { isKnownFeedType, isPluginFeedType, pluginIdFromFeedType, pluginFeedType
 // type has a label, and plugin sections round-trip through their prefix.
 describe("feedTypes", () => {
   it("knows exactly the renderable sections, each with a label", () => {
-    for (const ft of ["resume_playback", "next_episode", "collections", "recommended", "most_popular"]) {
+    for (const ft of ["resume_playback", "collections", "recommended", "most_popular"]) {
       expect(isKnownFeedType(ft)).toBe(true);
       expect(FEED_LABEL_KEYS[ft as keyof typeof FEED_LABEL_KEYS]).toMatch(/^common\.feeds\.labels\./);
     }
     expect(isKnownFeedType("legacy_row")).toBe(false);
+    // Retired: its next-episode cards are part of the resume row.
+    expect(isKnownFeedType("next_episode")).toBe(false);
     expect(isKnownFeedType("library:lib-1")).toBe(false);
     expect(isKnownFeedType("plugin:weather")).toBe(false);
   });

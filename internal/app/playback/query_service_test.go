@@ -23,17 +23,6 @@ func TestQueryService_NilSessions_ReturnsNil(t *testing.T) {
 	assert.Empty(t, sessions)
 }
 
-func TestQueryService_GetNextUp(t *testing.T) {
-	t.Parallel()
-	pr := pbfakes.NewFakeWatchProgressRepository()
-	q := appplayback.NewQueryService(pr)
-	ctx := context.Background()
-
-	items, err := q.GetNextUp(ctx, "p1", 10)
-	require.NoError(t, err)
-	assert.Empty(t, items)
-}
-
 func TestQueryService_GetSeriesPlayTarget(t *testing.T) {
 	t.Parallel()
 	pr := pbfakes.NewFakeWatchProgressRepository()

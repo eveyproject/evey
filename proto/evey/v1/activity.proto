@@ -275,6 +275,8 @@ message PopularMediaItem {
   string title = 2;
   string type = 3;
   int32 play_count = 4;
+  // Release year of the media item (0 when unknown).
+  int32 year = 5;
 }
 
 message GetPopularMediaRequest {

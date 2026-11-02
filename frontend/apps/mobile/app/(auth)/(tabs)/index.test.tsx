@@ -129,7 +129,6 @@ let feedLibraries: { id: string; name: string; type: string }[] = [];
 let feedConfigsOverride: { feedType: string; enabled: boolean; displayOrder: number }[] | null = null;
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetResumeItems: () => emptySettled,
-  usePlaybackServiceGetNextUp: () => emptySettled,
   useFeedServiceRecommended: () => emptySettled,
   useFeedServiceGetFeedConfig: () => ({ data: { configs: feedConfigsOverride ?? [] } }),
   useFeedServiceUpdateProfileFeedConfig: () => ({ mutateAsync: vi.fn() }),

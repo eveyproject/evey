@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams, type TrackPick } from "@evey/api";
 import { TrackPickRow } from "../../../src/components/TrackPickRow";
 import { View, Text, ScrollView, Pressable, FlatList, StyleSheet, Linking } from "react-native";
@@ -31,7 +31,7 @@ import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl, tmdbProfileSized } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
@@ -63,6 +63,7 @@ const EPISODE_THUMB_WIDTH = 240;
 // counts and next-episode math keep seeing every sibling; only the RENDER pages.
 const EPISODE_PAGE_SIZE = 20;
 const POSTER_HEIGHT = POSTER_WIDTH * POSTER_RATIO;
+const CAST_AVATAR_SIZE = 80;
 
 function isSeriesType(type?: string) {
   return type === "MEDIA_ITEM_TYPE_SERIES";
@@ -125,7 +126,7 @@ function useSetThumbRating(mediaId: string | undefined) {
 
 // A horizontal shelf of poster cards, used by "similar titles". Kept local:
 // the home screen's row is tuned for its own card size and focus rules.
-function PosterShelf({
+const PosterShelf = memo(function PosterShelf({
   title,
   items,
   serverUrl,
@@ -138,44 +139,52 @@ function PosterShelf({
 }) {
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const theme = useTheme();
-  if (items.length === 0) return null;
   const w = CARD_WIDTH_GRID;
   const h = w * POSTER_RATIO;
+  const renderItem = useCallback(
+    ({ item }: { item: { id: string; title?: string } }) => (
+      <FocusableCard
+        onPress={() => router.push(`/media/${item.id}`)}
+        onFocus={() => prefetchOnFocus(item.id)}
+        onBlur={cancelPrefetch}
+        style={{ width: w }}
+        accessibilityLabel={item.title}
+      >
+        <Image
+          source={{ uri: artworkUrl(serverUrl, item.id, "poster", artworkPx(w)), headers: authHeaders }}
+          style={{ width: w, height: h, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }}
+          contentFit="cover"
+        />
+        <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 8 }} numberOfLines={1}>
+          {item.title}
+        </Text>
+      </FocusableCard>
+    ),
+    [serverUrl, authHeaders, theme, prefetchOnFocus, cancelPrefetch, w, h],
+  );
+  if (items.length === 0) return null;
   return (
     <View style={{ marginTop: 32 }}>
       <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>
       <FlatList
         horizontal
         data={items}
-        keyExtractor={(it) => it.id}
+        keyExtractor={posterKey}
         showsHorizontalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-        renderItem={({ item }) => (
-          <FocusableCard
-            onPress={() => router.push(`/media/${item.id}`)}
-            onFocus={() => prefetchOnFocus(item.id)}
-            onBlur={cancelPrefetch}
-            style={{ width: w }}
-            accessibilityLabel={item.title}
-          >
-            <Image
-              source={{ uri: artworkUrl(serverUrl, item.id, "poster", artworkPx(w)), headers: authHeaders }}
-              style={{ width: w, height: h, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }}
-              contentFit="cover"
-            />
-            <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 8 }} numberOfLines={1}>
-              {item.title}
-            </Text>
-          </FocusableCard>
-        )}
+        ItemSeparatorComponent={ShelfGap16}
+        renderItem={renderItem}
       />
     </View>
   );
+});
+
+function posterKey(it: { id: string }) {
+  return it.id;
 }
 
 // "More like this": the server's list or no shelf. A same-genre fallback
 // filled it with titles sharing one catch-all genre (2026-10-01).
-function SimilarShelf({
+const SimilarShelf = memo(function SimilarShelf({
   item,
   serverUrl,
   authHeaders,
@@ -202,7 +211,427 @@ function SimilarShelf({
       authHeaders={authHeaders}
     />
   );
+});
+
+function ShelfGap16() {
+  return <View style={{ width: 16 }} />;
 }
+
+function ShelfGap12() {
+  return <View style={{ width: 12 }} />;
+}
+
+function seasonKey(sn: V1MediaItem) {
+  return sn.id ?? "";
+}
+
+// The page's sections are memoised, with stable item renderers: the action
+// row keeps its focus ring in the page's state, and each D-pad move along that
+// row re-rendered every season, episode, cast and similar card under it.
+const SeasonShelf = memo(function SeasonShelf({
+  seasons,
+  serverUrl,
+  authHeaders,
+}: {
+  seasons: V1MediaItem[];
+  serverUrl: string;
+  authHeaders?: { Authorization: string };
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const renderSeason = useCallback(
+    ({ item: season }: { item: V1MediaItem }) => (
+      <FocusableCard
+        onPress={() => router.push(`/(auth)/media/${season.id}`)}
+        style={{ width: CARD_WIDTH_GRID }}
+        accessibilityLabel={seasonLabel(season, t)}
+      >
+        <Image
+          source={{ uri: artworkUrl(serverUrl, season.id ?? "", "poster", artworkPx(CARD_WIDTH_GRID), season), headers: authHeaders }}
+          style={{
+            width: CARD_WIDTH_GRID,
+            height: CARD_WIDTH_GRID * POSTER_RATIO,
+            borderRadius: theme.radii.sm,
+            backgroundColor: theme.colors.surface,
+          }}
+          contentFit="cover"
+        />
+        <Text style={{ color: theme.colors.text, fontSize: 17, marginTop: 8 }} numberOfLines={1}>
+          {seasonLabel(season, t)}
+        </Text>
+      </FocusableCard>
+    ),
+    [serverUrl, authHeaders, theme, t],
+  );
+  if (seasons.length === 0) return null;
+  return (
+    <View style={{ marginTop: 32 }}>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
+          {t("media.detail.seasons")}
+        </Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
+          {t("media.detail.seasonCount", { count: seasons.length })}
+        </Text>
+      </View>
+      <FlatList
+        horizontal
+        data={seasons}
+        keyExtractor={seasonKey}
+        showsHorizontalScrollIndicator={false}
+        ItemSeparatorComponent={ShelfGap16}
+        renderItem={renderSeason}
+      />
+    </View>
+  );
+});
+
+const EpisodeList = memo(function EpisodeList({
+  episodes,
+  visibleCount,
+  episodeWatched,
+  demo,
+  markPending,
+  onToggleWatched,
+  onShowMore,
+  serverUrl,
+  authHeaders,
+}: {
+  episodes: V1MediaItem[];
+  visibleCount: number;
+  episodeWatched: ReadonlyMap<string, boolean>;
+  demo: boolean;
+  markPending: boolean;
+  onToggleWatched: (ep: V1MediaItem) => void;
+  onShowMore: () => void;
+  serverUrl: string;
+  authHeaders?: { Authorization: string };
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  if (episodes.length === 0) return null;
+  return (
+    <View style={{ marginTop: 32 }}>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
+          {t("media.detail.episodes")}
+        </Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
+          {t("media.detail.episodeCount", { count: episodes.length })}
+        </Text>
+      </View>
+      {episodes.slice(0, visibleCount).map((ep) => {
+        const watched = ep.id ? episodeWatched.get(ep.id) === true : false;
+        return (
+        <View key={ep.id} style={{ flexDirection: "row", alignItems: "center" }}>
+        <FocusableCard
+          onPress={() => router.push(`/(auth)/media/${ep.id}`)}
+          style={[styles.episodeRow, { flex: 1, borderBottomColor: theme.colors.border }]}
+          accessibilityLabel={ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : ep.title}
+        >
+          <View>
+          <Image
+            source={{ uri: artworkUrl(serverUrl, ep.id ?? "", "backdrop", artworkPx(EPISODE_THUMB_WIDTH), ep), headers: authHeaders }}
+            style={{
+              width: EPISODE_THUMB_WIDTH,
+              height: EPISODE_THUMB_WIDTH * (9 / 16),
+              borderRadius: theme.radii.sm,
+              backgroundColor: theme.colors.surface,
+            }}
+            contentFit="cover"
+          />
+          {watched ? (
+            <View style={[styles.episodeWatchedBadge, { backgroundColor: theme.colors.success }]}>
+              <Ionicons name="checkmark" size={16} color={theme.colors.onSuccess} />
+            </View>
+          ) : null}
+          </View>
+          <View style={{ flex: 1, marginLeft: 20 }}>
+            <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }} numberOfLines={1}>
+              {ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}{ep.title}
+            </Text>
+            {ep.durationMs ? (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 2 }}>
+                {formatDurationMs(ep.durationMs)}
+              </Text>
+            ) : null}
+            {ep.overview ? (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 6 }} numberOfLines={2}>
+                {ep.overview}
+              </Text>
+            ) : null}
+          </View>
+        </FocusableCard>
+        {/* Its own stop for the remote, right of the row: a press on the
+            row opens the episode, this one only marks it. */}
+        {demo ? null : (
+          <FocusableCard
+            onPress={() => onToggleWatched(ep)}
+            disabled={markPending}
+            style={styles.episodeWatchedToggle}
+            // Names the episode: every row's stop says the same action.
+            accessibilityLabel={`${watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}: ${ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}${ep.title ?? ""}`}
+            accessibilityState={{ checked: watched }}
+          >
+            <Ionicons
+              name={watched ? "checkmark-circle" : "checkmark-circle-outline"}
+              size={34}
+              color={watched ? theme.colors.success : theme.colors.textMuted}
+            />
+          </FocusableCard>
+        )}
+        </View>
+        );
+      })}
+      {episodes.length > visibleCount ? (
+        <FocusableCard
+          onPress={onShowMore}
+          style={[styles.episodeRow, { borderBottomColor: theme.colors.border, justifyContent: "center" }]}
+          accessibilityLabel={t("media.detail.showMoreEpisodes", "Show more")}
+        >
+          <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>
+            {t("media.detail.showMoreEpisodes", "Show more")}
+          </Text>
+        </FocusableCard>
+      ) : null}
+    </View>
+  );
+});
+
+function personKey(p: V1MediaPerson) {
+  return p.id ?? p.name ?? "";
+}
+
+function crewKey(p: V1MediaPerson) {
+  return `${p.id ?? p.name ?? ""}-${p.type ?? ""}`;
+}
+
+// One cast or crew card. The crew's line is its job, translated from its
+// enum - `role` there is the raw database role_type ("director"), unlike the
+// cast where it is the character name.
+const CAST_AVATAR_PX = artworkPx(CAST_AVATAR_SIZE);
+
+const PersonCard = memo(function PersonCard({ person, crew }: { person: V1MediaPerson; crew?: boolean }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const jobKey = crew ? personTypeLabelKey(person.type) : null;
+  const subtitle = jobKey ? t(jobKey) : person.role;
+  return (
+    <FocusableCard
+      onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
+      // No id, no destination: a card the remote can select but
+      // that does nothing reads as a dead button. The name still
+      // renders below - it's information even without a link.
+      disabled={!person.id}
+      style={styles.castCard}
+      accessibilityLabel={person.name}
+    >
+      {person.thumbUrl ? (
+        <Image source={{ uri: tmdbProfileSized(person.thumbUrl, CAST_AVATAR_PX) }} style={styles.castAvatar} contentFit="cover" />
+      ) : (
+        <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
+        </View>
+      )}
+      <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
+        {person.name}
+      </Text>
+      {subtitle ? (
+        <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }} numberOfLines={1}>
+          {subtitle}
+        </Text>
+      ) : null}
+    </FocusableCard>
+  );
+});
+
+function renderCastCard({ item }: { item: V1MediaPerson }) {
+  return <PersonCard person={item} />;
+}
+
+function renderCrewCard({ item }: { item: V1MediaPerson }) {
+  return <PersonCard person={item} crew />;
+}
+
+// Cast, crew, sagas, similar titles and the plugin slot: everything under the
+// fold, rendered once the top of the page is on screen.
+const BelowFold = memo(function BelowFold({
+  media,
+  isSeason,
+  serverUrl,
+  authHeaders,
+}: {
+  media: V1MediaItem;
+  isSeason: boolean;
+  serverUrl: string;
+  authHeaders?: { Authorization: string };
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const { actors, crew } = useMemo(() => {
+    const people = media.people ?? [];
+    return {
+      actors: people.filter((p: V1MediaPerson) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR"),
+      // Web groups director/writer/producer into one "crew" shelf; same
+      // grouping here so the same person appears in the same place on both.
+      crew: people.filter((p: V1MediaPerson) =>
+        p.type === "PERSON_TYPE_DIRECTOR" || p.type === "PERSON_TYPE_WRITER" || p.type === "PERSON_TYPE_PRODUCER"),
+    };
+  }, [media.people]);
+  const pluginContext = useMemo(() => ({ mediaId: media.id }), [media.id]);
+  return (
+    <>
+      {actors.length > 0 && (
+        <View style={{ marginTop: 32 }}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.cast")}</Text>
+          <FlatList
+            horizontal
+            data={actors}
+            keyExtractor={personKey}
+            showsHorizontalScrollIndicator={false}
+            renderItem={renderCastCard}
+            ItemSeparatorComponent={ShelfGap12}
+          />
+        </View>
+      )}
+
+      {/* Crew, after the cast, exactly as web orders them. */}
+      {crew.length > 0 && (
+        <View style={{ marginTop: 32 }}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.crew")}</Text>
+          <FlatList
+            horizontal
+            data={crew}
+            keyExtractor={crewKey}
+            showsHorizontalScrollIndicator={false}
+            ItemSeparatorComponent={ShelfGap12}
+            renderItem={renderCrewCard}
+          />
+        </View>
+      )}
+
+      {/* Sagas this title belongs to - just before Similar, as on the web. */}
+      {media.id ? <SagaSection mediaItemId={media.id} /> : null}
+
+      {/* A season page has no "similar seasons" to offer - same exclusion web
+          makes. */}
+      {media.id && !isSeason ? (
+        <SimilarShelf item={media} serverUrl={serverUrl} authHeaders={authHeaders} />
+      ) : null}
+
+      <PluginSlot name="media.detail.sidebar" context={pluginContext} />
+    </>
+  );
+});
+
+// The top of the page: backdrop, gradient, poster and the title block.
+const MediaHeader = memo(function MediaHeader({
+  media,
+  serverUrl,
+  authHeaders,
+  isSeries,
+  isSeason,
+}: {
+  media: V1MediaItem;
+  serverUrl: string;
+  authHeaders?: { Authorization: string };
+  isSeries: boolean;
+  isSeason: boolean;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const id = media.id;
+
+  const meta = [media.year, formatDurationMs(media.durationMs), media.officialRating]
+    .filter(Boolean)
+    .join("  \u2022  ");
+  const primaryBlurhash = (media.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
+  const backdropBlurhash = (media.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.blurhash;
+
+  return (
+    <>
+    {/* Backdrop */}
+    <View style={{ width: "100%", height: HERO_HEIGHT }}>
+      {serverUrl && id ? (
+        <Image
+          source={{ uri: artworkUrl(serverUrl, id, "backdrop", HERO_BACKDROP_WIDTH, media), headers: authHeaders }}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+          placeholder={backdropBlurhash ? { blurhash: backdropBlurhash } : undefined}
+          placeholderContentFit="cover"
+        />
+      ) : null}
+      {/* Fade to bg so the poster/title stay legible over any backdrop; the
+          stops trace the curve the old 16 flat bands sampled (0.05 to 0.95). */}
+      <Svg style={StyleSheet.absoluteFillObject} width="100%" height="100%" pointerEvents="none">
+        <Defs>
+          <LinearGradient id="hero-fade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={theme.colors.bg} stopOpacity={0.05} />
+            <Stop offset="0.25" stopColor={theme.colors.bg} stopOpacity={0.18} />
+            <Stop offset="0.5" stopColor={theme.colors.bg} stopOpacity={0.39} />
+            <Stop offset="0.75" stopColor={theme.colors.bg} stopOpacity={0.65} />
+            <Stop offset="1" stopColor={theme.colors.bg} stopOpacity={0.95} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#hero-fade)" />
+      </Svg>
+    </View>
+
+    {/* Poster + title row, overlapping the backdrop */}
+    <View style={{ paddingHorizontal: 48, marginTop: -POSTER_HEIGHT * 0.5, flexDirection: "row", gap: 32 }}>
+      {serverUrl && id ? (
+        <Image
+          source={{ uri: artworkUrl(serverUrl, id, "poster", artworkPx(POSTER_WIDTH), media), headers: authHeaders }}
+          style={{
+            width: POSTER_WIDTH,
+            height: POSTER_HEIGHT,
+            borderRadius: theme.radii.md,
+            backgroundColor: theme.colors.surface,
+          }}
+          contentFit="cover"
+          placeholder={primaryBlurhash ? { blurhash: primaryBlurhash } : undefined}
+          placeholderContentFit="cover"
+        />
+      ) : null}
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        {/* Surtitle: series/season stamped by the server on an episode
+            payload (both), so an episode reads "Series - Season 2" above
+            its own title instead of a bare episode name with no context. */}
+        {!isSeries && !isSeason && media.seriesTitle ? (
+          <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]} numberOfLines={1}>
+            {media.seriesTitle}
+          </Text>
+        ) : null}
+        <Text style={[styles.title, { color: theme.colors.text }]}>{itemLabel(media, t)}</Text>
+        {media.tagline ? (
+          <Text style={[styles.tagline, { color: theme.colors.textMuted }]}>{media.tagline}</Text>
+        ) : null}
+        {meta ? <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{meta}</Text> : null}
+        {media.genres && media.genres.length > 0 && (
+          <Text style={[styles.genres, { color: theme.colors.textMuted }]}>{media.genres.join(", ")}</Text>
+        )}
+        {media.studios && media.studios.length > 0 && (
+          <Text style={[styles.studios, { color: theme.colors.textMuted }]}>
+            {t("media.detail.studio")}{media.studios.join(", ")}
+          </Text>
+        )}
+        {media.communityRating != null && media.communityRating > 0 ? (
+          <View
+            style={styles.ratingLine}
+            accessible={true}
+            accessibilityLabel={t("media.detail.communityRatingA11y", "Rated {{rating}} out of 10", {
+              rating: media.communityRating.toFixed(1),
+            })}
+          >
+            <StarRating rating={media.communityRating} color={theme.colors.accent} />
+            <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>{media.communityRating.toFixed(1)}</Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
+    </>
+  );
+});
 
 export default function MediaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -278,12 +707,6 @@ export default function MediaDetailScreen() {
   const isSeries = isSeriesType(media?.type);
   const isSeason = isSeasonType(media?.type);
 
-  const people = media?.people ?? [];
-  const actors = people.filter((p: V1MediaPerson) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR");
-  // Web groups director/writer/producer into one "crew" shelf; same grouping
-  // here so the same person appears in the same place on both.
-  const crew = people.filter((p: V1MediaPerson) =>
-    p.type === "PERSON_TYPE_DIRECTOR" || p.type === "PERSON_TYPE_WRITER" || p.type === "PERSON_TYPE_PRODUCER");
   const { data: myRating, isError: ratingUnknown } = useMyThumbRating(id);
   const setThumbRating = useSetThumbRating(id);
   // A failed read leaves the thumbs on NEUTRAL, which is a statement ("no
@@ -361,12 +784,15 @@ export default function MediaDetailScreen() {
     },
   });
   const episodeMarkPending = markEpisodeWatched.isPending || markEpisodeUnwatched.isPending;
-  const toggleEpisodeWatched = (ep: V1MediaItem) => {
+  const { mutate: mutateEpisodeWatched } = markEpisodeWatched;
+  const { mutate: mutateEpisodeUnwatched } = markEpisodeUnwatched;
+  const toggleEpisodeWatched = useCallback((ep: V1MediaItem) => {
     if (!ep.id || !profileId) return;
     const vars = { mediaItemId: ep.id, params: { profileId } };
-    if (episodeWatched.get(ep.id)) markEpisodeUnwatched.mutate(vars);
-    else markEpisodeWatched.mutate(vars);
-  };
+    if (episodeWatched.get(ep.id)) mutateEpisodeUnwatched(vars);
+    else mutateEpisodeWatched(vars);
+  }, [profileId, episodeWatched, mutateEpisodeWatched, mutateEpisodeUnwatched]);
+  const showMoreEpisodes = useCallback(() => setVisibleEpisodeCount((c) => c + EPISODE_PAGE_SIZE), []);
   const seasons = useMemo(() => (isSeries ? sortByIndexNumber(children) : []), [isSeries, children]);
 
   // A series plays where the profile is in it (the server's answer); the
@@ -460,97 +886,14 @@ export default function MediaDetailScreen() {
     return <ScreenState loading={isLoading} error={!isLoading} onRetry={() => void refetch()} />;
   }
 
-  const meta = [media.year, formatDurationMs(media.durationMs), media.officialRating]
-    .filter(Boolean)
-    .join("  \u2022  ");
 
   const resumeMs = watchProgress?.positionMs;
   const hasProgress = resumeMs && Number(resumeMs) > 0 && !watchProgress?.played;
 
-  const primaryBlurhash = (media.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
-  const backdropBlurhash = (media.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.blurhash;
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingBottom: 48 }}>
-      {/* Backdrop */}
-      <View style={{ width: "100%", height: HERO_HEIGHT }}>
-        {serverUrl && id ? (
-          <Image
-            source={{ uri: artworkUrl(serverUrl, id, "backdrop", HERO_BACKDROP_WIDTH, media), headers: authHeaders }}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-            placeholder={backdropBlurhash ? { blurhash: backdropBlurhash } : undefined}
-            placeholderContentFit="cover"
-          />
-        ) : null}
-        {/* Fade to bg so the poster/title stay legible over any backdrop; the
-            stops trace the curve the old 16 flat bands sampled (0.05 to 0.95). */}
-        <Svg style={StyleSheet.absoluteFillObject} width="100%" height="100%" pointerEvents="none">
-          <Defs>
-            <LinearGradient id="hero-fade" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={theme.colors.bg} stopOpacity={0.05} />
-              <Stop offset="0.25" stopColor={theme.colors.bg} stopOpacity={0.18} />
-              <Stop offset="0.5" stopColor={theme.colors.bg} stopOpacity={0.39} />
-              <Stop offset="0.75" stopColor={theme.colors.bg} stopOpacity={0.65} />
-              <Stop offset="1" stopColor={theme.colors.bg} stopOpacity={0.95} />
-            </LinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill="url(#hero-fade)" />
-        </Svg>
-      </View>
-
-      {/* Poster + title row, overlapping the backdrop */}
-      <View style={{ paddingHorizontal: 48, marginTop: -POSTER_HEIGHT * 0.5, flexDirection: "row", gap: 32 }}>
-        {serverUrl && id ? (
-          <Image
-            source={{ uri: artworkUrl(serverUrl, id, "poster", artworkPx(POSTER_WIDTH), media), headers: authHeaders }}
-            style={{
-              width: POSTER_WIDTH,
-              height: POSTER_HEIGHT,
-              borderRadius: theme.radii.md,
-              backgroundColor: theme.colors.surface,
-            }}
-            contentFit="cover"
-            placeholder={primaryBlurhash ? { blurhash: primaryBlurhash } : undefined}
-            placeholderContentFit="cover"
-          />
-        ) : null}
-        <View style={{ flex: 1, justifyContent: "flex-end" }}>
-          {/* Surtitle: series/season stamped by the server on an episode
-              payload (both), so an episode reads "Series - Season 2" above
-              its own title instead of a bare episode name with no context. */}
-          {!isSeries && !isSeason && media.seriesTitle ? (
-            <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]} numberOfLines={1}>
-              {media.seriesTitle}
-            </Text>
-          ) : null}
-          <Text style={[styles.title, { color: theme.colors.text }]}>{itemLabel(media, t)}</Text>
-          {media.tagline ? (
-            <Text style={[styles.tagline, { color: theme.colors.textMuted }]}>{media.tagline}</Text>
-          ) : null}
-          {meta ? <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{meta}</Text> : null}
-          {media.genres && media.genres.length > 0 && (
-            <Text style={[styles.genres, { color: theme.colors.textMuted }]}>{media.genres.join(", ")}</Text>
-          )}
-          {media.studios && media.studios.length > 0 && (
-            <Text style={[styles.studios, { color: theme.colors.textMuted }]}>
-              {t("media.detail.studio")}{media.studios.join(", ")}
-            </Text>
-          )}
-          {media.communityRating != null && media.communityRating > 0 ? (
-            <View
-              style={styles.ratingLine}
-              accessible={true}
-              accessibilityLabel={t("media.detail.communityRatingA11y", "Rated {{rating}} out of 10", {
-                rating: media.communityRating.toFixed(1),
-              })}
-            >
-              <StarRating rating={media.communityRating} color={theme.colors.accent} />
-              <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>{media.communityRating.toFixed(1)}</Text>
-            </View>
-          ) : null}
-        </View>
-      </View>
+      <MediaHeader media={media} serverUrl={serverUrl} authHeaders={authHeaders} isSeries={isSeries} isSeason={isSeason} />
 
       <View style={{ paddingHorizontal: 48 }}>
       {/* Action buttons */}
@@ -584,7 +927,7 @@ export default function MediaDetailScreen() {
               },
             ]}
           >
-            <Text style={[styles.playText, { color: theme.colors.onAccent }]}>
+            <Text numberOfLines={1} style={[styles.playText, { color: theme.colors.onAccent }]}>
               {hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(Number(resumeMs))}` : seriesStarted ? t("media.resume", "Resume") : t("player.controls.play")}
             </Text>
           </Pressable>
@@ -632,7 +975,7 @@ export default function MediaDetailScreen() {
             },
           ]}
         >
-          <Text style={[styles.actionText, { color: isFavorite ? theme.colors.accent : theme.colors.text }]}>
+          <Text numberOfLines={1} style={[styles.actionText, { color: isFavorite ? theme.colors.accent : theme.colors.text }]}>
             {isFavorite ? t("media.detail.favorited") : t("media.detail.favorite")}
           </Text>
         </Pressable>
@@ -663,7 +1006,7 @@ export default function MediaDetailScreen() {
             },
           ]}
         >
-          <Text style={[styles.actionText, { color: watched ? theme.colors.accent : theme.colors.text }]}>
+          <Text numberOfLines={1} style={[styles.actionText, { color: watched ? theme.colors.accent : theme.colors.text }]}>
             {watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
           </Text>
         </Pressable>
@@ -683,7 +1026,7 @@ export default function MediaDetailScreen() {
             },
           ]}
         >
-          <Text style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.addToPlaylist")}</Text>
+          <Text numberOfLines={1} style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.addToPlaylist")}</Text>
         </Pressable>
 
         {/* Thumb rating: same like/dislike/clear contract as web and mobile
@@ -710,7 +1053,7 @@ export default function MediaDetailScreen() {
                 },
               ]}
             >
-              <Text style={[styles.actionText, { color: myRating === 1 ? theme.colors.accent : theme.colors.text }]}>
+              <Text numberOfLines={1} style={[styles.actionText, { color: myRating === 1 ? theme.colors.accent : theme.colors.text }]}>
                 {t("media.rating.like", "Like")}
               </Text>
             </Pressable>
@@ -732,7 +1075,7 @@ export default function MediaDetailScreen() {
                 },
               ]}
             >
-              <Text style={[styles.actionText, { color: myRating === -1 ? theme.colors.accent : theme.colors.text }]}>
+              <Text numberOfLines={1} style={[styles.actionText, { color: myRating === -1 ? theme.colors.accent : theme.colors.text }]}>
                 {t("media.rating.dislike", "Dislike")}
               </Text>
             </Pressable>
@@ -767,7 +1110,7 @@ export default function MediaDetailScreen() {
                 },
               ]}
             >
-              <Text style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.trailer")}</Text>
+              <Text numberOfLines={1} style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.trailer")}</Text>
             </Pressable>
           ))}
       </View>
@@ -784,246 +1127,31 @@ export default function MediaDetailScreen() {
       {/* Seasons, as poster cards - the web layout, chosen over the phone's
           chip row. A series page now shows the seasons and nothing else; you
           open one to get its episodes, exactly as on the web. */}
-      {isSeries && seasons.length > 0 && (
-        <View style={{ marginTop: 32 }}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
-              {t("media.detail.seasons")}
-            </Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
-              {t("media.detail.seasonCount", { count: seasons.length })}
-            </Text>
-          </View>
-          <FlatList
-            horizontal
-            data={seasons}
-            keyExtractor={(sn) => sn.id ?? ""}
-            showsHorizontalScrollIndicator={false}
-            ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-            renderItem={({ item: season }) => (
-              <FocusableCard
-                onPress={() => router.push(`/(auth)/media/${season.id}`)}
-                style={{ width: CARD_WIDTH_GRID }}
-                accessibilityLabel={seasonLabel(season, t)}
-              >
-                <Image
-                  source={{ uri: artworkUrl(serverUrl, season.id ?? "", "poster", artworkPx(CARD_WIDTH_GRID), season), headers: authHeaders }}
-                  style={{
-                    width: CARD_WIDTH_GRID,
-                    height: CARD_WIDTH_GRID * POSTER_RATIO,
-                    borderRadius: theme.radii.sm,
-                    backgroundColor: theme.colors.surface,
-                  }}
-                  contentFit="cover"
-                />
-                <Text style={{ color: theme.colors.text, fontSize: 17, marginTop: 8 }} numberOfLines={1}>
-                  {seasonLabel(season, t)}
-                </Text>
-              </FocusableCard>
-            )}
-          />
-        </View>
-      )}
+      {isSeries ? <SeasonShelf seasons={seasons} serverUrl={serverUrl} authHeaders={authHeaders} /> : null}
 
       {/* Episodes - only on a season page now, since a series page sends you
           to a season first. Each row carries its still: a list of numbered
           titles gives no idea what the episode is, and every other client
           shows one. */}
-      {isSeason && episodes.length > 0 && (
-        <View style={{ marginTop: 32 }}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
-              {t("media.detail.episodes")}
-            </Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
-              {t("media.detail.episodeCount", { count: episodes.length })}
-            </Text>
-          </View>
-          {episodes.slice(0, visibleEpisodeCount).map((ep) => {
-            const watched = ep.id ? episodeWatched.get(ep.id) === true : false;
-            return (
-            <View key={ep.id} style={{ flexDirection: "row", alignItems: "center" }}>
-            <FocusableCard
-              onPress={() => router.push(`/(auth)/media/${ep.id}`)}
-              style={[styles.episodeRow, { flex: 1, borderBottomColor: theme.colors.border }]}
-              accessibilityLabel={ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : ep.title}
-            >
-              <View>
-              <Image
-                source={{ uri: artworkUrl(serverUrl, ep.id ?? "", "backdrop", artworkPx(EPISODE_THUMB_WIDTH), ep), headers: authHeaders }}
-                style={{
-                  width: EPISODE_THUMB_WIDTH,
-                  height: EPISODE_THUMB_WIDTH * (9 / 16),
-                  borderRadius: theme.radii.sm,
-                  backgroundColor: theme.colors.surface,
-                }}
-                contentFit="cover"
-              />
-              {watched ? (
-                <View style={[styles.episodeWatchedBadge, { backgroundColor: theme.colors.success }]}>
-                  <Ionicons name="checkmark" size={16} color={theme.colors.onSuccess} />
-                </View>
-              ) : null}
-              </View>
-              <View style={{ flex: 1, marginLeft: 20 }}>
-                <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }} numberOfLines={1}>
-                  {ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}{ep.title}
-                </Text>
-                {ep.durationMs ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 2 }}>
-                    {formatDurationMs(ep.durationMs)}
-                  </Text>
-                ) : null}
-                {ep.overview ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 6 }} numberOfLines={2}>
-                    {ep.overview}
-                  </Text>
-                ) : null}
-              </View>
-            </FocusableCard>
-            {/* Its own stop for the remote, right of the row: a press on the
-                row opens the episode, this one only marks it. */}
-            {demo ? null : (
-              <FocusableCard
-                onPress={() => toggleEpisodeWatched(ep)}
-                disabled={episodeMarkPending}
-                style={styles.episodeWatchedToggle}
-                // Names the episode: every row's stop says the same action.
-                accessibilityLabel={`${watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}: ${ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}${ep.title ?? ""}`}
-                accessibilityState={{ checked: watched }}
-              >
-                <Ionicons
-                  name={watched ? "checkmark-circle" : "checkmark-circle-outline"}
-                  size={34}
-                  color={watched ? theme.colors.success : theme.colors.textMuted}
-                />
-              </FocusableCard>
-            )}
-            </View>
-            );
-          })}
-          {episodes.length > visibleEpisodeCount ? (
-            <FocusableCard
-              onPress={() => setVisibleEpisodeCount((c) => c + EPISODE_PAGE_SIZE)}
-              style={[styles.episodeRow, { borderBottomColor: theme.colors.border, justifyContent: "center" }]}
-              accessibilityLabel={t("media.detail.showMoreEpisodes", "Show more")}
-            >
-              <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>
-                {t("media.detail.showMoreEpisodes", "Show more")}
-              </Text>
-            </FocusableCard>
-          ) : null}
-        </View>
-      )}
+      {isSeason ? (
+        <EpisodeList
+          episodes={episodes}
+          visibleCount={visibleEpisodeCount}
+          episodeWatched={episodeWatched}
+          demo={demo}
+          markPending={episodeMarkPending}
+          onToggleWatched={toggleEpisodeWatched}
+          onShowMore={showMoreEpisodes}
+          serverUrl={serverUrl}
+          authHeaders={authHeaders}
+        />
+      ) : null}
 
       {/* Below the fold, rendered once the top of the page is on screen: on a
           modest television these sections held the first paint back. */}
-      {belowFoldReady && (
-        <>
-        {/* Cast */}
-        {actors.length > 0 && (
-          <View style={{ marginTop: 32 }}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.cast")}</Text>
-            <FlatList
-              horizontal
-              data={actors}
-              keyExtractor={(p) => p.id ?? p.name ?? ""}
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item: person }) => (
-                <FocusableCard
-                  onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
-                  // No id, no destination: a card the remote can select but
-                  // that does nothing reads as a dead button. The name still
-                  // renders below - it's information even without a link.
-                  disabled={!person.id}
-                  style={styles.castCard}
-                  accessibilityLabel={person.name}
-                >
-                  {person.thumbUrl ? (
-                    <Image
-                      source={{ uri: person.thumbUrl }}
-                      style={styles.castAvatar}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
-                      <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
-                    </View>
-                  )}
-                  <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
-                    {person.name}
-                  </Text>
-                  {person.role ? (
-                    <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }} numberOfLines={1}>
-                      {person.role}
-                    </Text>
-                  ) : null}
-                </FocusableCard>
-              )}
-              ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-            />
-          </View>
-        )}
-
-        {/* Crew, after the cast, exactly as web orders them. */}
-        {crew.length > 0 && (
-          <View style={{ marginTop: 32 }}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.crew")}</Text>
-            <FlatList
-              horizontal
-              data={crew}
-              keyExtractor={(p) => `${p.id ?? p.name ?? ""}-${p.type ?? ""}`}
-              showsHorizontalScrollIndicator={false}
-              ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-              renderItem={({ item: person }) => (
-                <FocusableCard
-                  onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
-                  // No id, no destination: a card the remote can select but
-                  // that does nothing reads as a dead button. The name still
-                  // renders below - it's information even without a link.
-                  disabled={!person.id}
-                  style={styles.castCard}
-                  accessibilityLabel={person.name}
-                >
-                  {person.thumbUrl ? (
-                    <Image source={{ uri: person.thumbUrl }} style={styles.castAvatar} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
-                      <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
-                    </View>
-                  )}
-                  <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
-                    {person.name}
-                  </Text>
-                  {/* The crew's job, translated from its enum - `role` here is
-                      the raw database role_type ("director"), unlike the cast
-                      where it is the character name. */}
-                  {personTypeLabelKey(person.type) || person.role ? (
-                    <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }} numberOfLines={1}>
-                      {(() => {
-                        const key = personTypeLabelKey(person.type);
-                        return key ? t(key) : person.role;
-                      })()}
-                    </Text>
-                  ) : null}
-                </FocusableCard>
-              )}
-            />
-          </View>
-        )}
-
-        {/* Sagas this title belongs to - just before Similar, as on the web. */}
-        {media.id ? <SagaSection mediaItemId={media.id} /> : null}
-
-        {/* A season page has no "similar seasons" to offer - same exclusion web
-            makes. */}
-        {media.id && !isSeason ? (
-          <SimilarShelf item={media} serverUrl={serverUrl} authHeaders={authHeaders} />
-        ) : null}
-
-        <PluginSlot name="media.detail.sidebar" context={{ mediaId: media.id }} />
-        </>
-      )}
+      {belowFoldReady ? (
+        <BelowFold media={media} isSeason={isSeason} serverUrl={serverUrl} authHeaders={authHeaders} />
+      ) : null}
 
       <View style={{ height: 64 }} />
       </View>
@@ -1059,7 +1187,10 @@ const styles = StyleSheet.create({
   meta: { fontSize: 18, marginTop: 8 },
   genres: { fontSize: 17, marginTop: 4 },
   studios: { fontSize: 17, marginTop: 4 },
-  actions: { flexDirection: "row", gap: 12, marginTop: 24 },
+  // Wraps: the localized action labels (resume with its time, "mark as unwatched",
+  // "add to playlist") add up to more than one TV row, and an unwrapped row
+  // pushed the last buttons past the screen edge.
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 24 },
   playGroup: { flexDirection: "row", alignItems: "stretch" },
   playButton: {
     paddingVertical: 11,
@@ -1110,5 +1241,5 @@ const styles = StyleSheet.create({
   episodeWatchedToggle: { padding: 12, marginLeft: 12 },
   ratingLine: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   castCard: { width: 120, alignItems: "center" },
-  castAvatar: { width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center" },
+  castAvatar: { width: CAST_AVATAR_SIZE, height: CAST_AVATAR_SIZE, borderRadius: CAST_AVATAR_SIZE / 2, justifyContent: "center", alignItems: "center" },
 });

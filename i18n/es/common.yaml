@@ -204,7 +204,6 @@ feeds:
   moveDown: Mover sección hacia abajo
   labels:
     resume_playback: "Reanudar reproducción"
-    next_up: "A continuación"
     recommended: "Recomendados"
     most_popular: "Más populares"
     collections: Colecciones

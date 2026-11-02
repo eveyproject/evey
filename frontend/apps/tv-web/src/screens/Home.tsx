@@ -11,7 +11,6 @@ import {
   useFeedServiceRecommended,
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
-  usePlaybackServiceGetNextUp,
   usePlaybackServiceGetResumeItems,
   type V1MediaItem,
 } from "@evey/api";
@@ -223,7 +222,6 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
   }, [sections]);
 
   const resume = usePlaybackServiceGetResumeItems({ limit: resolveMaxItems(maxItemsByType.resume_playback, 20) });
-  const nextUp = usePlaybackServiceGetNextUp({ limit: resolveMaxItems(maxItemsByType.next_episode, 20) });
   const recommended = useFeedServiceRecommended({ limit: resolveMaxItems(maxItemsByType.recommended, 20) });
   const popular = useMostPopular(resolveMaxItems(maxItemsByType.most_popular, 20));
   const collections = useCollections();
@@ -268,11 +266,11 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
   }, [resume.data?.progress]);
 
   const recommendedItems = useMemo(
-    () => (recommended.data?.items ?? []).filter((i) => !!i.mediaItemId).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem),
+    () => (recommended.data?.items ?? []).filter((i) => !!i.mediaItemId).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year || undefined }) as V1MediaItem),
     [recommended.data],
   );
   const popularItems = useMemo(
-    () => (popular.data ?? []).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem),
+    () => (popular.data ?? []).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year || undefined }) as V1MediaItem),
     [popular.data],
   );
   const placedPlugins = useMemo(() => placedPluginIds(feedConfigData?.configs ?? []), [feedConfigData]);
@@ -313,8 +311,6 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
       case "resume_playback":
       case "continue_watching":
         return resume.data?.items?.length ?? 0;
-      case "next_episode":
-        return nextUp.data?.items?.length ?? 0;
       case "collections":
         return collections.data?.collections?.length ?? 0;
       case "recommended":
@@ -327,10 +323,10 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
   });
   const focusTarget = sectionCounts.findIndex((n) => n > 0);
 
-  const isLoading = resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
-  const isError = resume.isError && nextUp.isError && recentlyAdded.isError;
+  const isLoading = resume.isLoading || recentlyAdded.isLoading;
+  const isError = resume.isError && recentlyAdded.isError;
   const transversePending = recommended.isLoading || popular.isLoading || collections.isLoading;
-  const transverseErrored = resume.isError || nextUp.isError || collections.isError || recommended.isError || popular.isError;
+  const transverseErrored = resume.isError || collections.isError || recommended.isError || popular.isError;
   const libraryLoading = libraryRows.some((q) => q.isLoading);
   const libraryUnsettled = libraryRows.some((q) => q.isLoading || q.isError);
   const revealed = !isLoading && (revealCapPassed || (!transversePending && !libraryLoading));
@@ -343,7 +339,6 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
         error
         onRetry={() => {
           void resume.refetch();
-          void nextUp.refetch();
           void recentlyAdded.refetch();
         }}
       />
@@ -382,8 +377,6 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
       case "resume_playback":
       case "continue_watching":
         return feed(t("media.home.continueWatching"), resume, resume.data?.items ?? [], watchPercents);
-      case "next_episode":
-        return feed(t("media.home.upNext"), nextUp, nextUp.data?.items ?? []);
       case "recommended":
         return feed(t("media.home.recommendedForYou"), recommended, recommendedItems);
       case "most_popular":

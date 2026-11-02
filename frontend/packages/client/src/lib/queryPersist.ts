@@ -27,7 +27,6 @@ const KEPT_PREFIXES = [
   "/api/v1/feeds/",
   "/api/v1/libraries",
   "/api/v1/playback/resume",
-  "/api/v1/playback/next-up",
   "/api/v1/popular",
   "/api/v1/collections",
   "/api/v1/media",

@@ -6,7 +6,6 @@ import { act, render, screen, fireEvent } from "@testing-library/react";
 const feedConfig = vi.fn();
 const libraries = vi.fn();
 const resume = vi.fn();
-const nextUp = vi.fn();
 const recommended = vi.fn();
 const listMediaItems = vi.fn();
 const collections = vi.fn();
@@ -33,7 +32,6 @@ vi.mock("@evey/api", () => ({
   useFeedServiceGetFeedConfig: () => feedConfig(),
   useFeedServiceRecommended: () => recommended(),
   useLibraryServiceListLibraries: () => libraries(),
-  usePlaybackServiceGetNextUp: () => nextUp(),
   usePlaybackServiceGetResumeItems: () => resume(),
   useLibraryServiceListMediaItems: () => recentlyAdded(),
   getPhotoServiceListPhotoAlbumsQueryOptions: (p: unknown) => ({ queryKey: ["photos", p] }),
@@ -72,7 +70,6 @@ beforeEach(() => {
     data: { items: [{ id: "res-1", title: "Resume me", type: "MEDIA_ITEM_TYPE_MOVIE" }], progress: [{ mediaItemId: "res-1", percentComplete: 42 }] },
     isLoading: false,
   });
-  nextUp.mockReturnValue({ data: { items: [] }, isLoading: false });
   recommended.mockReturnValue({ data: { items: [{ mediaItemId: "rec-1", title: "Recommended one" }] } });
   listMediaItems.mockReturnValue({ data: { items: [{ id: "lib-item", title: "From the library" }] } });
   collections.mockReturnValue({ data: { collections: [{ id: "col-1", name: "Saga" }] } });

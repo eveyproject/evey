@@ -4,6 +4,7 @@ export interface PopularItem {
   mediaItemId: string;
   title: string;
   type?: string;
+  year?: number;
   playCount: number;
 }
 
@@ -18,6 +19,7 @@ export function useMostPopular(limit = 20, enabled = true) {
             mediaItemId: it.mediaItemId ?? "",
             title: it.title ?? "",
             type: it.type,
+            year: it.year || undefined,
             playCount: it.playCount ?? 0,
           })),
         staleTime: 5 * 60_000,

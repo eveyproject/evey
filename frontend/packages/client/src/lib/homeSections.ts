@@ -18,7 +18,6 @@ import { selectHomeLibraryRows } from "./homeLibraryRows";
 // per-library rows, which already sort by date added.
 export const FEED_TYPES = [
   "resume_playback",
-  "next_episode",
   "collections",
   "recommended",
   "most_popular",

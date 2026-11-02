@@ -9,7 +9,6 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   usePlaybackServiceGetResumeItems,
-  usePlaybackServiceGetNextUp,
   useFeedServiceRecommended,
   useFeedServiceGetFeedConfig,
   useFeedServiceUpdateProfileFeedConfig,
@@ -223,7 +222,6 @@ function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress, 
 const FEED_LABELS: Record<string, string> = {
   resume_playback: "common.feeds.labels.resume_playback",
   continue_watching: "common.feeds.labels.resume_playback",
-  next_episode: "media.home.upNext",
   collections: "media.home.collections",
   recommended: "media.home.recommendedForYou",
   most_popular: "media.home.mostPopular",
@@ -498,13 +496,11 @@ export default function HomeScreen() {
   }, [feedConfigs]);
 
   const resume = usePlaybackServiceGetResumeItems({ limit: resolveMaxItems(maxItemsByType.resume_playback, 20) });
-  const nextUp = usePlaybackServiceGetNextUp({ limit: resolveMaxItems(maxItemsByType.next_episode, 20) });
   // The home tab is never unmounted and the player only invalidates these rows
   // when a title is marked watched: after a PARTIAL viewing the resume point
   // and the next episode on screen were the ones from before the film.
   useRefetchOnReturn(() => {
     void resume.refetch();
-    void nextUp.refetch();
   });
   const recommended = useFeedServiceRecommended({ limit: resolveMaxItems(maxItemsByType.recommended, 20) });
   const popular = useMostPopular(resolveMaxItems(maxItemsByType.most_popular, 20));
@@ -550,17 +546,15 @@ export default function HomeScreen() {
     setRefreshing(true);
     await Promise.all([
       resume.refetch(),
-      nextUp.refetch(),
       recommended.refetch(),
       popular.refetch(),
       collections.refetch(),
     ]);
     setRefreshing(false);
-  }, [resume, nextUp, recommended, popular, collections]);
+  }, [resume, recommended, popular, collections]);
 
   const isLoading =
     resume.isLoading ||
-    nextUp.isLoading ||
     recommended.isLoading ||
     popular.isLoading ||
     collections.isLoading;
@@ -587,6 +581,7 @@ export default function HomeScreen() {
           id: i.mediaItemId,
           title: i.title,
           type: i.type,
+          year: i.year || undefined,
           artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
         }) as V1MediaItem),
     [recommended.data?.items],
@@ -595,7 +590,7 @@ export default function HomeScreen() {
   const popularItems = useMemo(
     () =>
       (popular.data ?? []).map(
-        (i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem,
+        (i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year }) as V1MediaItem,
       ),
     [popular.data],
   );
@@ -619,9 +614,6 @@ export default function HomeScreen() {
       case "continue_watching":
         if (resume.isError) return <LoadFailed key={feedType} inline onRetry={() => void resume.refetch()} />;
         return <MediaRow key={feedType} title={t("common.feeds.labels.resume_playback")} items={resume.data?.items ?? []} onItemPress={handleItemPress} onItemLongPress={setActionItem} watchPercents={watchPercents} />;
-      case "next_episode":
-        if (nextUp.isError) return <LoadFailed key={feedType} inline onRetry={() => void nextUp.refetch()} />;
-        return <MediaRow key={feedType} title={t("media.home.upNext")} items={nextUp.data?.items ?? []} onItemPress={handleItemPress} onItemLongPress={setActionItem} />;
       case "collections": {
         if (collections.isError) return <LoadFailed key={feedType} inline onRetry={() => void collections.refetch()} />;
         const allCollections = collections.data?.collections ?? [];
@@ -666,7 +658,6 @@ export default function HomeScreen() {
   // still carry its own content, so its presence counts too.
   const homeHasContent =
     (resume.data?.items?.length ?? 0) > 0 ||
-    (nextUp.data?.items?.length ?? 0) > 0 ||
     recommendedItems.length > 0 ||
     popularItems.length > 0 ||
     (collections.data?.collections?.length ?? 0) > 0 ||

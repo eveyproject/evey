@@ -222,7 +222,6 @@ feeds:
   moveDown: Move section down
   labels:
     resume_playback: Resume Playback
-    next_up: Up Next
     recommended: Recommended
     most_popular: Most Popular
     collections: Collections

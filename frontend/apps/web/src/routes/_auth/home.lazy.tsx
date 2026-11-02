@@ -26,7 +26,6 @@ import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { CustomizePanel } from "@/features/home/CustomizePanel";
 import { useDemoFeedConfig } from "@/features/home/demoFeedConfig";
 import { useDemoMode } from "@/hooks/useDemoMode";
-import { NextUpRow } from "@/features/home/NextUpRow";
 import { coverArtSrc } from "../../lib/coverArtSrc";
 
 export const Route = createLazyFileRoute("/_auth/home")({
@@ -182,7 +181,7 @@ const MostPopularSlider = memo(function MostPopularSlider({ maxItems }: SectionP
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
-          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type, year: item.year || undefined }}
           showType
           lite
         />
@@ -202,7 +201,7 @@ const RecommendedSlider = memo(function RecommendedSlider({ maxItems }: SectionP
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
-          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type, year: item.year || undefined }}
           posterBlurhash={item.primaryBlurhash}
           showType
           lite
@@ -237,7 +236,6 @@ type SectionProps = { maxItems?: number };
 
 const SECTION_REGISTRY: Record<string, FC<SectionProps>> = {
   resume_playback: ResumePlaybackSlider,
-  next_episode: NextUpRow,
   collections: CollectionsSection,
   recommended: RecommendedSlider,
   most_popular: MostPopularSlider,
@@ -245,7 +243,7 @@ const SECTION_REGISTRY: Record<string, FC<SectionProps>> = {
 
 // Keep in sync with KNOWN_FEED_TYPES in features/home/feedTypes.ts.
 const FALLBACK_ORDER = [
-  "resume_playback", "next_episode", "collections",
+  "resume_playback", "collections",
   "recommended", "most_popular",
 ];
 

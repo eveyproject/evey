@@ -33,6 +33,21 @@ describe("useMostPopular", () => {
     ]);
   });
 
+  it("carries the release year, and drops an unknown one", async () => {
+    mockHook.mockReturnValue({
+      data: {
+        items: [
+          { mediaItemId: "m-1", title: "Movie A", type: "movie", playCount: 4, year: 1999 },
+          { mediaItemId: "m-2", title: "Movie B", type: "movie", playCount: 3, year: 0 },
+        ],
+      },
+      isSuccess: true,
+    });
+    const { useMostPopular } = await import("./usePopular");
+    const { result } = renderHook(() => useMostPopular());
+    expect(result.current.data?.map((i) => i.year)).toEqual([1999, undefined]);
+  });
+
   it("returns empty array when items is missing", async () => {
     mockHook.mockReturnValue({ data: {}, isSuccess: true });
     const { useMostPopular } = await import("./usePopular");

@@ -27,7 +27,6 @@ interface FeedRow {
 
 const FEED_LABEL_KEYS: Record<string, string> = {
   resume_playback: "common.feeds.labels.resume_playback",
-  next_episode: "common.feeds.labels.next_up",
   recommended: "common.feeds.labels.recommended",
   most_popular: "common.feeds.labels.most_popular",
   collections: "common.feeds.labels.collections",

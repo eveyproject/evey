@@ -8,7 +8,7 @@ import { eveyFetch, useLibraryServiceListMediaItems } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
-import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl, tmdbProfileSized } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { TV_SCREEN_WIDTH, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
@@ -20,6 +20,7 @@ const PAD_H = 48;
 const POSTER_WIDTH = (TV_SCREEN_WIDTH - PAD_H * 2 - POSTER_GAP * (POSTER_COLS - 1)) / POSTER_COLS;
 const FILMOGRAPHY_PAGE_SIZE = 24;
 const POSTER_HEIGHT = POSTER_WIDTH * POSTER_RATIO;
+const AVATAR_SIZE = 140;
 
 interface PersonInfo {
   id?: string;
@@ -99,7 +100,7 @@ export default function PersonDetailScreen() {
       <View style={styles.headerRow}>
         {person?.thumbUrl ? (
           <Image
-            source={{ uri: person.thumbUrl }}
+            source={{ uri: tmdbProfileSized(person.thumbUrl, artworkPx(AVATAR_SIZE)) }}
             style={styles.avatar}
             contentFit="cover"
           />
@@ -230,7 +231,7 @@ export default function PersonDetailScreen() {
 
 const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "center" },
-  avatar: { width: 140, height: 140, borderRadius: 70, justifyContent: "center", alignItems: "center" },
+  avatar: { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2, justifyContent: "center", alignItems: "center" },
   name: { fontSize: 30, fontWeight: "bold" },
   sectionTitle: { fontSize: 24, fontWeight: "600", marginTop: 32, marginBottom: 16 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: POSTER_GAP },
