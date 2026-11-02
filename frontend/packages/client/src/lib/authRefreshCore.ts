@@ -1,4 +1,7 @@
 import { useAuthStore } from "@evey/store";
+import { clientLogger } from "../log";
+
+const log = clientLogger("auth");
 
 // The refresh-token flow every client that holds its refresh token itself
 // runs: the phone and the television in their secure store, the browser TV
@@ -57,6 +60,17 @@ export interface RefreshTokenStorage {
 // give up early and answer "unavailable": the session is not dead, the link is.
 const REFRESH_TIMEOUT_MS = 8000;
 
+// True only for a token whose exp claim is in the past: an unreadable token
+// is the server's business, not a late answer.
+function expiredByClaim(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob((token.split(".")[1] ?? "").replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: unknown };
+    return typeof payload.exp === "number" && payload.exp < Date.now() / 1000;
+  } catch {
+    return false;
+  }
+}
+
 export interface AuthRefresh {
   ensureAccessToken(): Promise<AccessTokenState>;
   refreshAccessTokenIfNeeded(): Promise<boolean>;
@@ -74,7 +88,7 @@ export interface AuthRefresh {
 export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
   let inFlight: Promise<RefreshOutcome> | null = null;
 
-  async function doRefresh(): Promise<RefreshOutcome> {
+  async function doRefresh(lateAnswerRetried = false): Promise<RefreshOutcome> {
     const auth = useAuthStore.getState();
     // The keystore read can reject (Android SecureStore's DecryptException).
     // Thrown from here it escaped the outcome entirely: the mobile gate waited
@@ -86,7 +100,10 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
     try {
       stored = await storage.getRefreshToken();
       if (!stored) {
-        if (auth.accessToken) auth.logout();
+        if (auth.accessToken) {
+          log.warn("session ended: no refresh token in the store");
+          auth.logout();
+        }
         return "refused";
       }
       base = await storage.getServerUrl();
@@ -115,21 +132,37 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
       // Only a REFUSAL ends the session; any other non-ok answer is the
       // infrastructure, not the credential, and must leave the session intact.
       if (res.status === 401 || res.status === 403) {
+        log.warn(`session ended: refresh answered ${res.status}`);
         await storage.clearRefreshToken();
         auth.logout();
         return "refused";
       }
-      if (!res.ok) return "unavailable";
+      if (!res.ok) {
+        log.warn(`refresh unavailable: answered ${res.status}`);
+        return "unavailable";
+      }
       const data = (await res.json()) as { accessToken?: string; refreshToken?: string };
       // A 200 carrying no token is not a success: overwriting the live token with
       // undefined would log the user out just as surely, only more quietly.
       if (!data.accessToken) return "unavailable";
       if (data.refreshToken) await storage.setRefreshToken(data.refreshToken);
+      // A television that goes to sleep with this request in flight reads the
+      // answer only on wake, hours later: its access token expired long ago.
+      // Held, it reads as a renewal that left the session expired and the
+      // screen guard signs the viewer out. The rotated refresh token above is
+      // live: renew once more with it instead.
+      if (expiredByClaim(data.accessToken)) {
+        log.warn("refresh answer arrived already expired: renewing again");
+        if (lateAnswerRetried) return "unavailable";
+        clearTimeout(timer);
+        return doRefresh(true);
+      }
       auth.setTokens(data.accessToken);
       return "ok";
-    } catch {
+    } catch (err) {
       // Includes the abort above: a timed-out refresh is an absent answer, not a
       // rejected credential.
+      log.warn(`refresh unavailable: ${controller.signal.aborted ? "timed out" : (err as Error)?.message ?? "network error"}`);
       return "unavailable";
     } finally {
       clearTimeout(timer);

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useAuthStore } from "@evey/store";
 import { clientLogger } from "../log";
+import { isAccessExpired } from "./authRefreshCore";
 
 const log = clientLogger("device");
 
@@ -91,6 +92,10 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
       if (cancelled) return;
       const { accessToken: tok, serverUrl: url } = stateRef.current;
       if (!tok || !url) return;
+      // An expired token only buys a 401 handshake: an app back from hours in
+      // the background opened its socket before the resume refresh landed.
+      // The refreshed token restarts this effect, which connects then.
+      if (isAccessExpired(tok)) return;
       // wss:// when the server is https, ws:// otherwise. The backend
       // accepts the token via Sec-WebSocket-Protocol "Bearer.<token>"
       // (extractWSToken) - same auth mechanism as the syncplay socket.

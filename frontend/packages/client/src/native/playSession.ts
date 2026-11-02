@@ -499,6 +499,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         // The shared fetcher tags an unrecoverable auth failure with
         // httpStatus 401 (it has already tried the refresh by then).
         if ((err as { httpStatus?: number })?.httpStatus === 401) {
+          (dev.warn ?? console.warn)("[player] session expired screen: startStream answered 401 after the refresh");
           setIsAuthError(true);
         } else if (goneReasonFromError(err)) {
           // Deleted from disk or out of the catalogue: not a failure to retry.
