@@ -352,7 +352,7 @@ func TestOrphanPruner_PathChanged_OldRowsHeld(t *testing.T) {
 	if len(sus) != 1 {
 		t.Fatalf("want one held group, got %+v", sus)
 	}
-	if err := pruner.ConfirmPrune("lib-1", sus[0].Root, sus[0].Snapshot); err != nil {
+	if err = pruner.ConfirmPrune("lib-1", sus[0].Root, sus[0].Snapshot); err != nil {
 		t.Fatalf("confirm: %v", err)
 	}
 	removed, err = pruner.Prune(ctx, "lib-1", []string{"/new"}, seen(fresh), nil)
