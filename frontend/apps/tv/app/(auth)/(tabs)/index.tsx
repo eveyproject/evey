@@ -395,6 +395,17 @@ function LibraryMediaRow({
   return <MediaRow {...rowProps} items={items} onEndReached={loadMore} onTitleFocus={onTitleFocus} onTitleBlur={cancelPrefetch} />;
 }
 
+// The pixel width a tile's art is asked at.
+const TILE_PX = artworkPx(CARD_WIDTH);
+
+// A server path gets the server's resize (`?w=`), the same the music screens
+// ask for: a home tile pulled the full cover otherwise. An absolute url is a
+// third party's, with no resizer, and is left as is.
+export function sizedServerPath(url: string | undefined, px: number): string | undefined {
+  if (!url || /^https?:/i.test(url)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}w=${Math.round(px)}`;
+}
+
 // One tile of a TileRow. Memoised on plain values: the home rebuilds its tile
 // lists on each of its renders, and the tiles were re-rendered with them.
 const HomeTile = memo(function HomeTile({
@@ -849,7 +860,7 @@ export default function HomeScreen() {
               key: String(a.id ?? a.title ?? ""),
               label: String(a.title ?? ""),
               sublabel: a.artist ? String(a.artist) : undefined,
-              uri: serverImageUri(serverUrl, a.coverArtUrl ? String(a.coverArtUrl) : undefined, tokenParam),
+              uri: serverImageUri(serverUrl, sizedServerPath(a.coverArtUrl ? String(a.coverArtUrl) : undefined, TILE_PX), tokenParam),
               // Through the shared helper: the album screen needs the library
               // id too, and a bare id left it with a disabled query - a title
               // that was the raw id and "no track found" (device, 2026-08-03).
