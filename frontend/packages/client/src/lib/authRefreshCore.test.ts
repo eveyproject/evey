@@ -34,3 +34,56 @@ describe("createAuthRefresh - unreadable secure storage", () => {
     await expect(flow.forceRefresh()).rejects.toThrow(/unavailable/);
   });
 });
+
+// A JWT whose exp is offsetSec from now.
+function jwt(offsetSec: number, tag = ""): string {
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + offsetSec, tag }));
+  return `h.${payload}.s`;
+}
+
+// A television that goes to sleep while a refresh is in flight freezes it
+// there: the server answers, the app only reads the answer on wake, hours
+// later, and that answer carries an access token that expired long ago. The
+// screen guard renewing that token from the store's change listener joined the
+// same refresh and was told "refreshed" with the expired token still held: it
+// sent the viewer to sign in on a live session.
+describe("createAuthRefresh - an answer read long after it was sent", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("never reports success while the store holds an expired token", async () => {
+    const fresh = jwt(900, "fresh");
+    const answers = [
+      { accessToken: jwt(-36_000, "stale"), refreshToken: "rt2" },
+      { accessToken: fresh, refreshToken: "rt3" },
+    ];
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(answers.shift()), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    useAuthStore.setState({ accessToken: jwt(-40_000, "before-sleep") });
+    const flow = createAuthRefresh(storage({}));
+
+    // The screen guard: every expired token the store takes on gets renewed,
+    // from inside the store update, as the layout's effect does.
+    const verdicts: Array<{ state: string; heldExpired: boolean }> = [];
+    const unsubscribe = useAuthStore.subscribe((s, prev) => {
+      if (s.accessToken === prev.accessToken || !s.accessToken) return;
+      void flow.ensureAccessToken().then((state) => {
+        const held = useAuthStore.getState().accessToken;
+        const exp = JSON.parse(atob(held!.split(".")[1]!)).exp as number;
+        verdicts.push({ state, heldExpired: exp < Date.now() / 1000 });
+      });
+    });
+
+    const state = await flow.ensureAccessToken();
+    await vi.waitFor(() => expect(verdicts.length).toBeGreaterThan(0));
+    unsubscribe();
+    vi.unstubAllGlobals();
+
+    expect(state).toBe("refreshed");
+    expect(useAuthStore.getState().accessToken).toBe(fresh);
+    // Whatever the guard is told, it never holds an expired token with it.
+    for (const v of verdicts) expect(v.heldExpired).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
