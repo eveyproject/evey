@@ -31,7 +31,7 @@ import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl, tmdbProfileSized } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
@@ -63,6 +63,7 @@ const EPISODE_THUMB_WIDTH = 240;
 // counts and next-episode math keep seeing every sibling; only the RENDER pages.
 const EPISODE_PAGE_SIZE = 20;
 const POSTER_HEIGHT = POSTER_WIDTH * POSTER_RATIO;
+const CAST_AVATAR_SIZE = 80;
 
 function isSeriesType(type?: string) {
   return type === "MEDIA_ITEM_TYPE_SERIES";
@@ -408,6 +409,8 @@ function crewKey(p: V1MediaPerson) {
 // One cast or crew card. The crew's line is its job, translated from its
 // enum - `role` there is the raw database role_type ("director"), unlike the
 // cast where it is the character name.
+const CAST_AVATAR_PX = artworkPx(CAST_AVATAR_SIZE);
+
 const PersonCard = memo(function PersonCard({ person, crew }: { person: V1MediaPerson; crew?: boolean }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -424,7 +427,7 @@ const PersonCard = memo(function PersonCard({ person, crew }: { person: V1MediaP
       accessibilityLabel={person.name}
     >
       {person.thumbUrl ? (
-        <Image source={{ uri: person.thumbUrl }} style={styles.castAvatar} contentFit="cover" />
+        <Image source={{ uri: tmdbProfileSized(person.thumbUrl, CAST_AVATAR_PX) }} style={styles.castAvatar} contentFit="cover" />
       ) : (
         <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
@@ -1235,5 +1238,5 @@ const styles = StyleSheet.create({
   episodeWatchedToggle: { padding: 12, marginLeft: 12 },
   ratingLine: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   castCard: { width: 120, alignItems: "center" },
-  castAvatar: { width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center" },
+  castAvatar: { width: CAST_AVATAR_SIZE, height: CAST_AVATAR_SIZE, borderRadius: CAST_AVATAR_SIZE / 2, justifyContent: "center", alignItems: "center" },
 });
