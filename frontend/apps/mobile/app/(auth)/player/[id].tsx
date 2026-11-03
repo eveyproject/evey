@@ -51,6 +51,7 @@ import {
   createPlayerEventReporter,
   playerAudioStreams,
   playerSubtitleStreams,
+  subtitleBurnMode,
   parseTrackPick,
   parseVttCues,
   playbackServiceReportProgress,
@@ -373,7 +374,6 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const [externalSubtitle, setExternalSubtitle] = useState<{ name: string; cues: SubtitleCue[] } | null>(null);
 
   const audioStreams: AudioStream[] = useMemo(() => playerAudioStreams(streamInfo?.mediaStreams), [streamInfo]);
-  const subtitleStreams: SubtitleStream[] = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams), [streamInfo]);
 
   // The running profile, its languages and its "auto-play next episode"
   // choice: the same reading on every player (usePlayerProfilePrefs). A track
@@ -387,6 +387,13 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     autoplayNext,
     setAutoplayNext: handleAutoplayNextChange,
   } = usePlayerProfilePrefs();
+
+  // The profile's burn-in choice decides which tracks go to the server.
+  const burnMode = subtitleBurnMode(activeProfile?.preferences);
+  const subtitleStreams: SubtitleStream[] = useMemo(
+    () => playerSubtitleStreams(streamInfo?.mediaStreams, burnMode),
+    [streamInfo, burnMode],
+  );
 
   // The audio and subtitle choice, shared with the television
   // (usePlayerTrackSelection): the title page's pick and a hand pick win over

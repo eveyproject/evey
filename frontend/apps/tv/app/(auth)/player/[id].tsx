@@ -5,6 +5,7 @@ import {
   itemLabel,
   playerAudioStreams,
   playerSubtitleStreams,
+  subtitleBurnMode,
 } from "@evey/api";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler, BackHandler, findNodeHandle } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
@@ -159,6 +160,7 @@ export default function PlayerScreen() {
   // same reading on every player (usePlayerProfilePrefs). A track picked in
   // this session is never overridden by them (userPickedAudioRef / ...).
   const {
+    profile: activeProfile,
     audioLangs: profileAudioLangs,
     subtitleLangs: profileSubtitleLangs,
     autoplayNext,
@@ -256,7 +258,12 @@ export default function PlayerScreen() {
 
   useDisplayFrameRate(streamInfo);
   const audioStreams: AudioStream[] = useMemo(() => playerAudioStreams(streamInfo?.mediaStreams), [streamInfo]);
-  const subtitleStreams: SubtitleStream[] = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams), [streamInfo]);
+  // The profile's burn-in choice decides which tracks go to the server.
+  const burnMode = subtitleBurnMode(activeProfile?.preferences);
+  const subtitleStreams: SubtitleStream[] = useMemo(
+    () => playerSubtitleStreams(streamInfo?.mediaStreams, burnMode),
+    [streamInfo, burnMode],
+  );
 
   // The audio and subtitle choice, shared with the phone
   // (usePlayerTrackSelection): the title page's pick and a hand pick win over
