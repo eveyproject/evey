@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,21 +60,46 @@ func TestLineFit_FloorSurvivesPlanAsServed(t *testing.T) {
 	fps := 30000.0 / 1001
 	vfr[0].Framerate = &fps
 
-	for name, req := range map[string]*http.Request{"floor": lineReq("", true), "line and floor": lineReq("6000", true)} {
+	cases := map[string]struct {
+		req    *http.Request
+		rung   int // -1: whatever rung the line picks, above the lowest
+		reason string
+	}{
+		"floor":          {lineReq("", true), 0, "abr_floor_requested"},
+		"line and floor": {lineReq("6000", true), 0, "abr_floor_requested"},
+		"line only":      {lineReq("6000", false), -1, "client_line_exceeded"},
+	}
+	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			first := planFor(t, h, req, item, vfr)
+			first := planFor(t, h, tc.req, item, vfr)
 			require.Equal(t, "copy", first.Decision.VideoDecision, "premise: the codecs decide a copy")
 			require.False(t, first.IsCopy, "premise: the copy rung is closed on a variable frame rate")
 			require.Greater(t, len(first.Profiles), 1, "premise: a ladder with something to narrow")
-			require.Equal(t, apptranscoding.LineFit{Single: true, Rung: 0}, first.Plan.Fit, "premise: the first resolution fits the floor")
+			require.True(t, first.Plan.Fit.Single, "premise: the first resolution fits the plan")
+			want := tc.rung
+			if want < 0 {
+				want = first.Plan.Fit.Rung
+				require.Positive(t, want, "premise: a 6 Mbps line picks a rung above the lowest")
+			}
+			require.Equal(t, want, first.Plan.Fit.Rung)
 
-			r, rp := h.planAsServed(req, "m1", item, vfr, first)
+			r, rp := h.planAsServed(tc.req, "m1", item, vfr, first)
 			assert.Equal(t, "transcode", r.URL.Query().Get("vd"))
-			assert.Equal(t, apptranscoding.LineFit{Single: true, Rung: 0}, rp.Plan.Fit, "the fit rides the pin")
+			assert.Equal(t, apptranscoding.LineFit{Single: true, Rung: want}, rp.Plan.Fit, "the fit rides the pin")
+			assert.Contains(t, rp.Decision.TranscodeReasons, tc.reason, "the fit's reason rides along, the served cause is the viewer's reload")
 			master := masterOf(t, h, r, item, vfr, rp)
 			assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"), "the served master is mono-variant")
-			assert.Contains(t, master, "stream_0.m3u8")
-			assert.Contains(t, master, "abr=floor")
+			variantName := fmt.Sprintf("stream_%d.m3u8", want)
+			var variant string
+			for line := range strings.SplitSeq(master, "\n") {
+				if strings.HasPrefix(line, variantName) {
+					variant = line
+				}
+			}
+			require.NotEmpty(t, variant, "the fitted rung is the one offered")
+			assert.Contains(t, variant, "fp="+rp.FPHash, "the master seals the fingerprint of the plan as served")
+			vreq := withHTTPClaims(httptest.NewRequest("GET", "/api/v1/media/m1/hls/"+variant, nil), testClaims(false))
+			assert.Equal(t, rp.FPHash, planFor(t, h, vreq, item, vfr).FPHash, "the variant resolves the sealed fingerprint")
 		})
 	}
 }

@@ -1338,8 +1338,14 @@ func (h *hlsVODServe) planAsServed(r *http.Request, mediaID string, item *domain
 	// line or floor rides along: same ladder, same rung index. Without it the
 	// rescue reload on a title whose copy rung is closed was served the whole
 	// ladder again - the symptom the fit exists to end.
-	if fit := rp.Plan.Fit; fit.Single && !plan.Fit.Single && fit.Rung >= 0 && fit.Rung < len(plan.Ladder) {
+	// The pinned ladder is frozen under its own admission pin key: the fit's
+	// index only names the same rung on a ladder of the same shape.
+	if fit := rp.Plan.Fit; fit.Single && !plan.Fit.Single && fit.Rung >= 0 && fit.Rung < len(plan.Ladder) && len(plan.Ladder) == len(rp.Plan.Ladder) {
 		plan.Fit = fit
+		plan.Decision.TranscodeReasons = append(plan.Decision.TranscodeReasons, rp.Plan.FitReasons()...)
+		slog.InfoContext(r.Context(), "hls-vod: fit carried onto the plan as served",
+			slog.String("media_id", mediaID), slog.String("rung", plan.Ladder[fit.Rung].Name),
+			slog.Any("reasons", rp.Plan.FitReasons()), slog.String("fp", plan.FingerprintHash))
 	}
 	return pinned, &requestPlan{
 		Plan:       plan,
