@@ -468,21 +468,39 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}
-	wp := &playback.WatchProgress{
-		ID:           id.New("wp-"),
-		ProfileID:    shared.ProfileID(profileID),
-		MediaItemID:  shared.MediaItemID(mediaItemID),
-		Completed:    true,
-		PlayCount:    1,
-		LastPlayedAt: time.Now(),
+	// A series or a season is marked through its episodes: a row on the
+	// container alone reads as watched on the container's page while every
+	// episode, the next-up feed and the resume rail still say unwatched. The
+	// container rows are written too, as the home and detail pages read them.
+	// One transaction: a half-marked season is the state this replaces.
+	desc, err := s.progress.DescendantIDs(ctx, mediaItemID)
+	if err != nil {
+		return fmt.Errorf("CommandService.MarkAsWatched: %w", err)
 	}
-	if err := s.progress.Upsert(ctx, wp); err != nil {
+	now := time.Now()
+	entries := make([]*playback.WatchProgress, 0, 1+len(desc.Playable)+len(desc.Containers))
+	for _, target := range append([]string{mediaItemID}, desc.All()...) {
+		entries = append(entries, &playback.WatchProgress{
+			ID:           id.New("wp-"),
+			ProfileID:    shared.ProfileID(profileID),
+			MediaItemID:  shared.MediaItemID(target),
+			Completed:    true,
+			PlayCount:    1,
+			LastPlayedAt: now,
+		})
+	}
+	if err := s.transact(ctx, func(ctx context.Context) error {
+		return s.progress.UpsertMany(ctx, entries)
+	}); err != nil {
 		return fmt.Errorf("CommandService.MarkAsWatched: %w", err)
 	}
 	evtWatched := playback.MediaMarkedWatched{
 		ProfileID:   shared.ProfileID(profileID),
 		MediaItemID: shared.MediaItemID(mediaItemID),
 		OccurredAt:  time.Now(),
+	}
+	for _, ep := range desc.Playable {
+		evtWatched.MediaItemIDs = append(evtWatched.MediaItemIDs, shared.MediaItemID(ep))
 	}
 	if err := s.events.Publish(ctx, evtWatched); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtWatched.EventName()), slog.Any("err", err))
@@ -965,11 +983,28 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 	// Delete instead of upsert because Upsert keeps completed sticky-true:
 	// writing a Completed=false row would not actually flip the flag back.
 	// Deleting the row makes the item appear never-watched - the semantics
-	// callers expect from "mark as unwatched".
-	if err := s.progress.Delete(ctx, profileID, mediaItemID); err != nil {
+	// callers expect from "mark as unwatched". A container takes its
+	// episodes and seasons with it, the mirror of MarkAsWatched.
+	desc, err := s.progress.DescendantIDs(ctx, mediaItemID)
+	if err != nil {
+		return fmt.Errorf("CommandService.MarkAsUnwatched: %w", err)
+	}
+	targets := append([]string{mediaItemID}, desc.All()...)
+	if err := s.transact(ctx, func(ctx context.Context) error {
+		return s.progress.DeleteMany(ctx, profileID, targets)
+	}); err != nil {
 		return fmt.Errorf("CommandService.MarkAsUnwatched: %w", err)
 	}
 	return nil
+}
+
+// transact runs fn inside the unit of work when one is wired, directly
+// otherwise (tests, and a service built without WithUnitOfWork).
+func (s *CommandService) transact(ctx context.Context, fn func(ctx context.Context) error) error {
+	if s.uow != nil {
+		return s.uow.Do(ctx, fn)
+	}
+	return fn(ctx)
 }
 
 // ClearWatchHistory deletes every watch-progress row for the profile and

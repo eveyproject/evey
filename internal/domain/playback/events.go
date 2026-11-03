@@ -28,7 +28,10 @@ func (e PlaybackStopped) EventName() string { return "playback.stopped" }
 type MediaMarkedWatched struct {
 	ProfileID   shared.ProfileID
 	MediaItemID shared.MediaItemID
-	OccurredAt  time.Time
+	// MediaItemIDs are the playable items marked along with MediaItemID when
+	// it is a series or a season (its episodes); empty for a playable item.
+	MediaItemIDs []shared.MediaItemID
+	OccurredAt   time.Time
 }
 
 func (e MediaMarkedWatched) EventName() string { return "media.marked.watched" }

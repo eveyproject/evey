@@ -980,9 +980,8 @@ export default function MediaDetailScreen() {
           </Text>
         </Pressable>
 
-        {/* No series/season guard: marking a whole season watched from the
-            couch is a normal TV use, and the web equivalent
-            (MediaDetailActions.tsx) has no such guard either. */}
+        {/* Offered on a series and a season too: the server marks every
+            episode beneath the id it is given, and unmarks them the same way. */}
         <Pressable
           onPress={() => {
             if (!profileId) return;

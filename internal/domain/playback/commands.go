@@ -25,6 +25,27 @@ type ProgressCommandRepo interface {
 	// DeleteByProfile removes every watch-progress row for the profile (clear
 	// watch history). Returns the number of rows deleted.
 	DeleteByProfile(ctx context.Context, profileID string) (int, error)
+	// DeleteMany removes the profile's progress rows on the given items, so
+	// each appears never-watched again. Empty input is a no-op.
+	DeleteMany(ctx context.Context, profileID string, mediaItemIDs []string) error
+	// DescendantIDs walks the parent tree under a media item: the playable
+	// rows (episodes) and the containers (seasons) beneath it. Both are empty
+	// for a playable item, so a caller marking "this id" can tell a series
+	// from an episode without reading the item itself.
+	DescendantIDs(ctx context.Context, mediaItemID string) (Descendants, error)
+}
+
+// Descendants is what sits under a container in the media tree, by kind.
+type Descendants struct {
+	Playable   []string
+	Containers []string
+}
+
+// All lists every descendant, playable first.
+func (d Descendants) All() []string {
+	out := make([]string, 0, len(d.Playable)+len(d.Containers))
+	out = append(out, d.Playable...)
+	return append(out, d.Containers...)
 }
 
 type SessionCommandRepo interface {
