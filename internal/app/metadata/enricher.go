@@ -13,12 +13,32 @@ import (
 	domainlib "github.com/eveyproject/evey/internal/domain/library"
 	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/logger"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"golang.org/x/time/rate"
 )
+
+// providerWarnings holds the warnings a provider outage repeats to one line a
+// minute per message: enrichment asks once per person and per translation,
+// and an hour of failures would otherwise be an hour of identical lines.
+var providerWarnings = logger.NewSampler(time.Minute)
+
+// warnSampled writes msg at Warn unless providerWarnings already let the same
+// message through this minute; the line that goes through says how many were
+// held back.
+func warnSampled(ctx context.Context, sampler *logger.Sampler, msg string, attrs ...slog.Attr) {
+	allowed, held := sampler.Allow(msg)
+	if !allowed {
+		return
+	}
+	if held > 0 {
+		attrs = append(attrs, slog.Int("held_back", held))
+	}
+	slog.LogAttrs(ctx, slog.LevelWarn, msg, attrs...)
+}
 
 // bioRecheckTTL bounds how often a person the provider had NO biography for
 // is asked again. Without it, a bio-less person is re-fetched on every
@@ -617,7 +637,7 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 			// provider has no bio" - log it so the empty bio isn't read as fact.
 			// Do NOT stamp BioCheckedAt: a transient failure must not silence
 			// this person from being retried for the next bioRecheckTTL.
-			slog.WarnContext(ctx, "person bio fetch failed", slog.String("person", person.Name), slog.Any("err", detErr))
+			warnSampled(ctx, providerWarnings, "person bio fetch failed", slog.String("person", person.Name), slog.Any("err", detErr))
 			return
 		}
 		if details != nil && details.Biography != "" {
@@ -721,7 +741,7 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 	}
 	results, err := tp.FetchTranslations(ctx, providerID, mediaType, e.translationLocales)
 	if err != nil {
-		slog.WarnContext(ctx, "fetch translations", slog.String("item", string(item.ID)), slog.Any("err", err))
+		warnSampled(ctx, providerWarnings, "fetch translations", slog.String("item", string(item.ID)), slog.Any("err", err))
 		return
 	}
 	if len(results) == 0 {
@@ -766,7 +786,7 @@ func (e *Enricher) EnrichPersonTranslations(ctx context.Context, person *domainl
 	}
 	bios, err := tp.FetchPersonTranslations(ctx, strconv.Itoa(tmdbID), e.translationLocales)
 	if err != nil {
-		slog.WarnContext(ctx, "fetch person translations", slog.String("person", person.ID), slog.Any("err", err))
+		warnSampled(ctx, providerWarnings, "fetch person translations", slog.String("person", person.ID), slog.Any("err", err))
 		return
 	}
 	for locale, bio := range bios {
