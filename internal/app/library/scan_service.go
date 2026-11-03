@@ -906,10 +906,11 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		library.WithMediaItemID(shared.MediaItemID(uuid.New().String())),
 		library.WithMediaItemParent(parentID),
 		library.WithMediaItemFile(&library.MediaFile{
-			Path:        f.Path,
-			Size:        f.Size,
-			Fingerprint: f.Fingerprint,
-			ModTime:     f.ModTime,
+			Path:          f.Path,
+			Size:          f.Size,
+			Fingerprint:   f.Fingerprint,
+			ModTime:       f.ModTime,
+			ParserVersion: library.ParserVersion,
 		}),
 	}
 	if f.Episode != nil {

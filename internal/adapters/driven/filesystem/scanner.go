@@ -51,16 +51,25 @@ type Scanner struct{}
 // whose title was written by an older parser version). Pure function -
 // stat-less, idempotent, no I/O.
 func (s *Scanner) ParseTitle(path string) string {
-	return (&FilenameParser{}).Parse(path).Title
+	return ParsePath(path).Title
 }
 
 // ParseYear is the year Scan stores for path: the file name's, else its
 // folder's ("Show Name (2025)/"). Pure, no I/O.
 func (s *Scanner) ParseYear(path string) *int {
-	if year := (&FilenameParser{}).Parse(path).Year; year != nil {
-		return year
+	return parseScanned(path).Year
+}
+
+// parseScanned is the one parse Scan, ParseTitle and ParseYear share, so a
+// title healed later matches the title the scan wrote. The year falls back
+// on the file's own folder ("Show Name (2025)/") when neither the name nor
+// a season layout states one.
+func parseScanned(path string) ParsedInfo {
+	parsed := ParsePath(path)
+	if parsed.Year == nil {
+		parsed.Year = ParseFilename(filepath.Dir(path) + ".mkv").Year
 	}
-	return (&FilenameParser{}).Parse(filepath.Dir(path) + ".mkv").Year
+	return parsed
 }
 
 // FileExists reports whether path is still present on disk.
@@ -129,14 +138,7 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 			slog.Debug("scan: stat error", slog.String("path", path), slog.Any("err", err))
 			return nil
 		}
-		parsed := (&FilenameParser{}).Parse(path)
-		// If no year from filename, try parent directory (e.g. "Show Name (2025)/")
-		if parsed.Year == nil {
-			dirParsed := (&FilenameParser{}).Parse(filepath.Dir(path) + ".mkv")
-			if dirParsed.Year != nil {
-				parsed.Year = dirParsed.Year
-			}
-		}
+		parsed := parseScanned(path)
 		itemType := library.MovieItem
 		if parsed.Type == "series" {
 			itemType = library.Episode

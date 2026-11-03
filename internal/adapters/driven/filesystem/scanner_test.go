@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -179,4 +180,25 @@ func TestParseYear_FileThenFolder(t *testing.T) {
 	require.NotNil(t, s.ParseYear("/media/Dune (2021)/movie.mkv"))
 	assert.Equal(t, 2021, *s.ParseYear("/media/Dune (2021)/movie.mkv"))
 	assert.Nil(t, s.ParseYear("/media/untitled/movie.mkv"))
+}
+
+func TestScan_SeasonFolderLayoutYieldsEpisodes(t *testing.T) {
+	dir := t.TempDir()
+	show := filepath.Join(dir, "Show Name (2019)", "Season 2")
+	require.NoError(t, os.MkdirAll(show, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(show, "03 - Pilot.mkv"), []byte("x"), 0644))
+
+	s := NewScanner()
+	found, err := s.Scan(context.Background(), dir)
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, library.Episode, found[0].Type)
+	assert.Equal(t, "Show Name", found[0].Title)
+	require.NotNil(t, found[0].Season)
+	assert.Equal(t, 2, *found[0].Season)
+	require.NotNil(t, found[0].Episode)
+	assert.Equal(t, 3, *found[0].Episode)
+	require.NotNil(t, found[0].Year)
+	assert.Equal(t, 2019, *found[0].Year)
+	assert.Equal(t, "Show Name", s.ParseTitle(found[0].Path))
 }

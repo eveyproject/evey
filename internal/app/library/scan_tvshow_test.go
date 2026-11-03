@@ -496,3 +496,77 @@ func TestScanTVShow_SeriesKeepsFolderYear(t *testing.T) {
 		assert.Nil(t, c.Year, "no year invented for an undated show")
 	}
 }
+
+// A file an older parser read as a movie (one-file series named after the
+// episode) is refiled under the show and season the current parser names,
+// keeping its id: the row carries the watch history.
+func TestScanTVShow_RefilesItemParsedByOlderParser(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+	ctx := context.Background()
+	const path = "/tv/Show/Season 2/03 - Pilot.mkv"
+
+	// The layout the old parser produced: series "03 Pilot" > "Season 0" > a movie row.
+	staleSeries := &library.MediaItem{ID: "stale-series", LibraryID: "lib-tv", Type: library.Series, Title: "03 Pilot", ScanTitle: "03 Pilot",
+		File: &library.MediaFile{Fingerprint: "series:lib-tv:03 pilot"}}
+	staleSeason := &library.MediaItem{ID: "stale-season", LibraryID: "lib-tv", Type: library.Season, Title: "Season 0", ScanTitle: "Season 0", ParentID: "stale-series",
+		IndexNumber: intPtr(0), File: &library.MediaFile{Fingerprint: "season:lib-tv:03 pilot:0"}}
+	stale := &library.MediaItem{ID: "ep-1", LibraryID: "lib-tv", Type: library.MovieItem, Title: "03 Pilot", ScanTitle: "03 Pilot", ParentID: "stale-season",
+		File: &library.MediaFile{Path: path, Size: 500, Fingerprint: "fp-1", ParserVersion: 0}}
+	for _, it := range []*library.MediaItem{staleSeries, staleSeason, stale} {
+		require.NoError(t, mediaRepo.Create(ctx, it))
+	}
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: path, Size: 500, Fingerprint: "fp-1", Title: "Show", Season: intPtr(2), Episode: intPtr(3), Type: library.Episode},
+	}
+	_, _, err := svc.ScanLibrary(ctx, "lib-tv")
+	require.NoError(t, err)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1, "the one-file series is gone, the show remains")
+	assert.Equal(t, "Show", series[0].Title)
+	seasons := itemsByType(mediaRepo, "season")
+	require.Len(t, seasons, 1)
+	assert.Equal(t, "Season 2", seasons[0].Title)
+
+	got, err := mediaRepo.GetByID(ctx, "ep-1")
+	require.NoError(t, err, "same row, same id")
+	assert.Equal(t, library.Episode, got.Type)
+	assert.Equal(t, string(seasons[0].ID), got.ParentID)
+	require.NotNil(t, got.IndexNumber)
+	assert.Equal(t, 3, *got.IndexNumber)
+	assert.Equal(t, "S02E03", got.Title)
+	assert.Equal(t, library.ParserVersion, got.File.ParserVersion)
+	assert.Empty(t, itemsByType(mediaRepo, "movie"))
+}
+
+// A row the parser has already placed correctly is left as it is.
+func TestScanTVShow_LeavesCorrectlyFiledEpisodeAlone(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+	ctx := context.Background()
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/Season 2/03 - Pilot.mkv", Size: 500, Fingerprint: "fp-1", Title: "Show", Season: intPtr(2), Episode: intPtr(3), Type: library.Episode},
+	}
+	_, _, err := svc.ScanLibrary(ctx, "lib-tv")
+	require.NoError(t, err)
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 1)
+	episodes[0].Title = "Enriched title"
+	require.NoError(t, mediaRepo.Update(ctx, episodes[0]))
+
+	_, _, err = svc.ScanLibrary(ctx, "lib-tv")
+	require.NoError(t, err)
+	got, err := mediaRepo.GetByID(ctx, episodes[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Enriched title", got.Title, "the enriched title of a well-filed episode survives a re-scan")
+	assert.Equal(t, episodes[0].ParentID, got.ParentID)
+	require.Len(t, itemsByType(mediaRepo, "episode"), 1)
+}

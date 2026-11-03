@@ -279,7 +279,21 @@ type MediaFile struct {
 	// StreamProbeVersion is the StreamProbeVersion the file's streams were last
 	// probed at (0 = probed before versioning).
 	StreamProbeVersion int
+	// ParserVersion is the ParserVersion the file's path was last read at
+	// (0 = before versioning). A row below the current version may have been
+	// filed under the wrong series or type and is owed a re-read of its path.
+	ParserVersion int
 }
+
+// ParserVersion is the current revision of the path parser. Bump when the
+// parser learns a layout that changes where an existing file belongs (its
+// type, its series or season, its episode number): the TV scan then refiles
+// rows below the current version in place, keeping their id and history.
+//
+//	1: a file without a season/episode marker in its name is an episode of
+//	   the show two folders up when it sits in a "Season N" folder and its
+//	   name states an episode number.
+const ParserVersion = 1
 
 // StreamProbeVersion is the current prober revision. Bump when the prober
 // learns a field the scanner must re-read on existing rows.

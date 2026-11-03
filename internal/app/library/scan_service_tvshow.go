@@ -23,6 +23,38 @@ func normShowKey(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
+// refileStaleParse moves an item read by an older parser to where the current
+// parser files its path: same row, same id, same watch history, new type,
+// parent and episode number. Only a parse that names an episode refiles, and
+// only rows below library.ParserVersion are touched, so an item the parser
+// has already placed is left alone. The display title is reset only when the
+// row changes type: it was derived from a name the old parser misread.
+func (s *ScanService) refileStaleParse(ctx context.Context, existing *library.MediaItem, seasonID string, f library.ScannedFile) {
+	if existing == nil || existing.File == nil || existing.File.ParserVersion >= library.ParserVersion || f.Episode == nil {
+		return
+	}
+	sameIndex := existing.IndexNumber != nil && *existing.IndexNumber == *f.Episode
+	if existing.Type == library.Episode && existing.ParentID == seasonID && sameIndex {
+		return
+	}
+	if existing.Type != library.Episode {
+		existing.Type = library.Episode
+		existing.Title = f.Title
+	}
+	existing.ScanTitle = f.Title
+	existing.ParentID = seasonID
+	existing.IndexNumber = new(int)
+	*existing.IndexNumber = *f.Episode
+	existing.File.ParserVersion = library.ParserVersion
+	existing.UpdatedAt = time.Now()
+	if err := s.mediaItems.Update(ctx, existing); err != nil {
+		slog.WarnContext(ctx, "scan: refile item under its season failed",
+			slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+		return
+	}
+	s.indexItem(ctx, existing)
+}
+
 func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, files []library.ScannedFile) (added, updated int, err error) {
 	existing, err := s.mediaItems.ListByLibraryID(ctx, shared.LibraryID(libraryID))
 	if err != nil {
@@ -205,6 +237,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			}
 			episodeFile.Title = fmt.Sprintf("S%02dE%02d", se, *f.Episode)
 		}
+		s.refileStaleParse(ctx, byPath[f.Path], seasonID, episodeFile)
 		a, u, episodeErr := s.upsertMediaFileWithIndex(ctx, libraryID, seasonID, episodeFile, byPath, showTitle)
 		if episodeErr != nil {
 			// Skip this episode and keep scanning the rest - a single transient

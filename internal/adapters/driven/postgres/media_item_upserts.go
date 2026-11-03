@@ -136,10 +136,10 @@ func itemWriteQuery(item *library.MediaItem, create bool, scanTitle, sortTitle s
 			 WHERE file_fingerprint = `+fp+` AND media_item_id <> (SELECT id FROM u) RETURNING 1)`)
 			gate = ", (SELECT count(*) FROM fc) AS gate"
 		}
-		ctes = append(ctes, `fi AS (INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts, interleave_backstep_ms, stream_probe_version)
+		ctes = append(ctes, `fi AS (INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts, interleave_backstep_ms, stream_probe_version, parser_version)
 		 SELECT u.id, `+arg(f.Path, "text")+`, `+arg(f.Size, "bigint")+`, `+arg(fingerprint, "text")+`, `+arg(f.ModTime, "timestamptz")+`,
 		   `+arg(f.Duration.Milliseconds(), "bigint")+`, `+arg(f.Bitrate, "bigint")+`, `+arg(f.ContainerFormat, "text")+`,
-		   `+arg(f.StreamProbeAttempts, "integer")+`, `+arg(f.InterleaveBackstepMs, "bigint")+`, `+arg(f.StreamProbeVersion, "integer")+`
+		   `+arg(f.StreamProbeAttempts, "integer")+`, `+arg(f.InterleaveBackstepMs, "bigint")+`, `+arg(f.StreamProbeVersion, "integer")+`, `+arg(f.ParserVersion, "integer")+`
 		 FROM u`+gate+` WHERE true
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   file_path = EXCLUDED.file_path,
@@ -151,7 +151,8 @@ func itemWriteQuery(item *library.MediaItem, create bool, scanTitle, sortTitle s
 		   container_format = EXCLUDED.container_format,
 		   stream_probe_attempts = EXCLUDED.stream_probe_attempts,
 		   interleave_backstep_ms = EXCLUDED.interleave_backstep_ms,
-		   stream_probe_version = EXCLUDED.stream_probe_version)`)
+		   stream_probe_version = EXCLUDED.stream_probe_version,
+		   parser_version = EXCLUDED.parser_version)`)
 	} else if !create {
 		ctes = append(ctes, `fd AS (DELETE FROM media_files WHERE media_item_id IN (SELECT id FROM u))`)
 	}
