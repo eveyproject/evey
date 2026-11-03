@@ -34,7 +34,10 @@ func DefaultPublicMethodLimiters() map[string]*MethodLimiter {
 		"/evey.v1.UserService/ResetPassword":        {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
 		"/evey.v1.UserService/RegisterWithInvite":   {Limiter: ratelimit.NewWithBurst(10, 10), RetryAfterSecs: 6},
 		"/evey.v1.UserService/InitiateQuickConnect": {Limiter: ratelimit.NewWithBurst(10, 10), RetryAfterSecs: 6},
-		"/evey.v1.UserService/CheckQuickConnect":    {Limiter: ratelimit.NewWithBurst(30, 30), RetryAfterSecs: 2},
+		// Same budget as the HTTP route in front of it (quickConnectPollPerMinute):
+		// a smaller one here refused every other poll of the second television
+		// behind one address, before the HTTP limiter ever saw it.
+		"/evey.v1.UserService/CheckQuickConnect": {Limiter: ratelimit.NewWithBurst(60, 60), RetryAfterSecs: 1},
 		// Authenticated but a brute-force target: the QC short code is a
 		// 6-char hex derivation (2²⁴ ≈ 16M). An authenticated attacker
 		// binding a victim's pending code to their own user_id turns
