@@ -709,4 +709,3 @@ func TestParsePath_StaysAMovieOutsideASeasonFolder(t *testing.T) {
 		assert.Nil(t, info.Episode, path)
 	}
 }
-
