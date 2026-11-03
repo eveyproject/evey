@@ -732,7 +732,11 @@ func (r *MediaStreamRepository) VideoDims(ctx context.Context, mediaItemID share
 // RefreshProbedFields implements library.MediaStreamRepository: the probe's own
 // columns are written onto the matching rows, field by field, every other
 // column (the backfills' level, idet, frame-rate mode, keyframes and their
-// versions) stays as it is.
+// versions) stays as it is. The field order is the one column written as the
+// probe's verdict, NULL included: an unknown scan type is a finding of the
+// newer prober, not a gap to paper over with the stale value, and a
+// StreamProbeVersion bump raised for a field-order correction has to be able
+// to rewrite every row.
 func (r *MediaStreamRepository) RefreshProbedFields(ctx context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (library.RefreshResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.RefreshProbedFields")
 	defer span.End()
@@ -795,17 +799,18 @@ func (r *MediaStreamRepository) RefreshProbedFields(ctx context.Context, mediaIt
 			pixel_format = COALESCE($6, pixel_format), color_space = COALESCE($7, color_space),
 			color_transfer = COALESCE($8, color_transfer), hdr_type = COALESCE($9, hdr_type),
 			bitrate = COALESCE($10, bitrate), channels = COALESCE($11, channels),
-			channel_layout = COALESCE($12, channel_layout), codec = $13, title = $14
+			channel_layout = COALESCE($12, channel_layout), codec = $13, title = $14,
+			field_order = $15::text
 		WHERE media_item_id = $1 AND stream_index = $2 AND stream_type = $3 AND NOT is_external
 		  AND (framerate, bit_depth, pixel_format, color_space, color_transfer, hdr_type, bitrate, channels, channel_layout,
-		       codec, COALESCE(title, ''))
+		       codec, COALESCE(title, ''), field_order)
 		      IS DISTINCT FROM (COALESCE($4, framerate), COALESCE($5, bit_depth), COALESCE($6, pixel_format),
 		                        COALESCE($7, color_space), COALESCE($8, color_transfer), COALESCE($9, hdr_type),
 		                        COALESCE($10, bitrate), COALESCE($11, channels), COALESCE($12, channel_layout),
-		                        $13, $14)`,
+		                        $13, $14, $15::text)`,
 			string(mediaItemID), s.StreamIndex, string(s.StreamType),
 			s.Framerate, s.BitDepth, s.PixelFormat, s.ColorSpace, s.ColorTransfer, s.HDRType, s.Bitrate,
-			s.Channels, s.ChannelLayout, codec, title)
+			s.Channels, s.ChannelLayout, codec, title, s.FieldOrder)
 		if err != nil {
 			return res, fmt.Errorf("MediaStreamRepo.RefreshProbedFields update: %w", err)
 		}
