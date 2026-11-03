@@ -28,8 +28,11 @@ type MethodLimiter struct {
 // is per-IP.
 func DefaultPublicMethodLimiters() map[string]*MethodLimiter {
 	return map[string]*MethodLimiter{
-		"/evey.v1.UserService/Login":                {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
-		"/evey.v1.UserService/RefreshToken":         {Limiter: ratelimit.NewWithBurst(30, 30), RetryAfterSecs: 2},
+		"/evey.v1.UserService/Login": {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
+		// Same budget as the HTTP refresh route in front of it (refreshPerMinute):
+		// the gateway calls with the caller's real address, so a smaller one
+		// here refused renewals the HTTP route had admitted.
+		"/evey.v1.UserService/RefreshToken":         {Limiter: ratelimit.NewWithBurst(60, 60), RetryAfterSecs: 1},
 		"/evey.v1.UserService/RequestPasswordReset": {Limiter: ratelimit.NewWithBurst(3, 3), RetryAfterSecs: 20},
 		"/evey.v1.UserService/ResetPassword":        {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
 		"/evey.v1.UserService/RegisterWithInvite":   {Limiter: ratelimit.NewWithBurst(10, 10), RetryAfterSecs: 6},

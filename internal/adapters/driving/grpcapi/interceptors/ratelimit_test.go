@@ -294,3 +294,17 @@ func TestDefaultPublicMethodLimiters_QuickConnectPollFitsThreeTelevisions(t *tes
 		require.NoError(t, err, "poll %d of a burst three televisions produce in one minute", i)
 	}
 }
+
+// The gateway calls RefreshToken with the caller's real address, behind the
+// HTTP refresh route sized at 60 per minute: a smaller gRPC budget refused
+// the second half of a household's renewals before that route ever could.
+func TestDefaultPublicMethodLimiters_RefreshFitsTheHTTPRouteBudget(t *testing.T) {
+	interceptor := interceptors.RateLimitUnary(interceptors.DefaultPublicMethodLimiters())
+	handler := func(ctx context.Context, req any) (any, error) { return "ok", nil }
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.UserService/RefreshToken"}
+	ctx := ipCtx("10.0.0.9")
+	for i := range 60 {
+		_, err := interceptor(ctx, nil, info, handler)
+		require.NoError(t, err, "refresh %d of a burst the HTTP route admits", i)
+	}
+}
