@@ -181,6 +181,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		Cfg:              cfg,
 		StreamTokenStore: deps.media.streamTokenStore,
 		CastProgress:     deps.media.castProgress,
+		CastResume:       deps.media.playbackSvc.QueryService(),
 		ShareSvc:         deps.media.shareSvc,
 
 		LibCmdSvc:        deps.library.cmdSvc,

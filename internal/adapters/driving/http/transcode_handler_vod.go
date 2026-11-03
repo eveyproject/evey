@@ -160,6 +160,8 @@ type hlsVODServe struct {
 	// token - the only playback signal once the sender's browser closes
 	// (see cast_observe.go). nil = not wired.
 	castProgress CastFetchObserver
+	// castResume reads the saved position cast-next hands the receiver.
+	castResume CastResumeReader
 
 	// onDemandEncrypt AES-128-encrypts the on-demand rung's media segments
 	// (behind transcoding.hls_ondemand_encrypt). Off by default; requires
