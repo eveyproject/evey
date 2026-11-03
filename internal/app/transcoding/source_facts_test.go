@@ -386,6 +386,16 @@ func TestSourceCopyBlockerAndTranscodeCause(t *testing.T) {
 	copyDec := domaintranscoding.PlaybackDecision{VideoDecision: "copy"}
 	assert.Equal(t, "copy_blocked:level_unknown", TranscodeCause(copyDec, []*library.MediaStream{&noLevel}))
 	assert.Equal(t, "copy_rung_unavailable", TranscodeCause(copyDec, []*library.MediaStream{h264}))
+
+	// An audio reason or a mid-play pin says nothing about why the VIDEO is
+	// encoded: a copy-eligible picture pinned to transcode (its rung had
+	// no index) is a source-side cause, not an "audio_codec_unsupported"
+	// video transcode on the metric.
+	pinned := domaintranscoding.PlaybackDecision{VideoDecision: "transcode", TranscodeReasons: []string{"audio_codec_unsupported", "decision_pinned"}}
+	assert.Equal(t, "copy_blocked:no_keyframes", TranscodeCause(pinned, []*library.MediaStream{&noKf}))
+	assert.Equal(t, "copy_rung_unavailable", TranscodeCause(pinned, []*library.MediaStream{h264}))
+	resync := domaintranscoding.PlaybackDecision{VideoDecision: "transcode", TranscodeReasons: []string{"audio_resync_requested", "client_line_exceeded"}}
+	assert.Equal(t, "client_line_exceeded", TranscodeCause(resync, []*library.MediaStream{h264}), "the fit's own reason is a video cause")
 }
 
 // A telecined source is cut on the rate its encoder receives: inverse
