@@ -48,10 +48,12 @@ type Scanner struct{}
 
 // ParseTitle exposes the filename parser used by the scanner so the app
 // layer can re-derive a title from a known path (e.g. heal an orphan
-// whose title was written by an older parser version). Pure function -
+// whose title was written by an older parser version). It is the file
+// name's title, not the season-folder layout's show title: the heal only
+// rewrites movies, and a movie is named by its file. Pure function -
 // stat-less, idempotent, no I/O.
 func (s *Scanner) ParseTitle(path string) string {
-	return ParsePath(path).Title
+	return ParseFilename(path).Title
 }
 
 // ParseYear is the year Scan stores for path: the file name's, else its
@@ -146,15 +148,17 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 		size := info.Size()
 		modTime := info.ModTime()
 		files = append(files, library.ScannedFile{
-			Path:        path,
-			Size:        size,
-			ModTime:     modTime,
-			Fingerprint: fmt.Sprintf("%d-%d", size, modTime.UnixNano()),
-			Title:       parsed.Title,
-			Type:        itemType,
-			Year:        parsed.Year,
-			Season:      parsed.Season,
-			Episode:     parsed.Episode,
+			Path:         path,
+			Size:         size,
+			ModTime:      modTime,
+			Fingerprint:  fmt.Sprintf("%d-%d", size, modTime.UnixNano()),
+			Title:        parsed.Title,
+			Type:         itemType,
+			Year:         parsed.Year,
+			Season:       parsed.Season,
+			Episode:      parsed.Episode,
+			FolderSeason: parsed.FolderSeason,
+			NameTitle:    parsed.NameTitle,
 		})
 		return nil
 	})

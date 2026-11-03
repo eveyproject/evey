@@ -628,6 +628,32 @@ func TestScanTVShow_RefileDropsTheEnrichmentOfTheOldType(t *testing.T) {
 	assert.True(t, announced, "the refiled item is announced so it is matched again")
 }
 
+// In a movie library a "Season N" folder is just a folder: the two files
+// below are two movies named by their files, not episodes of a series that
+// a movie library cannot hold (the scan refused them and they vanished).
+func TestScanMovieLibrary_SeasonFolderFilesStayMovies(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-m", Name: "Movies", Type: "movie", Paths: []string{"/movies"}})
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/Collection/Season 1/01 - First Movie.mkv", Size: 500, Fingerprint: "fp-1", Title: "Collection", Season: new(1), Episode: new(1),
+			Type: library.Episode, FolderSeason: true, NameTitle: "01 First Movie"},
+		{Path: "/movies/Collection/Season 1/02 - Second Movie.mkv", Size: 600, Fingerprint: "fp-2", Title: "Collection", Season: new(1), Episode: new(2),
+			Type: library.Episode, FolderSeason: true, NameTitle: "02 Second Movie"},
+	}
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-m")
+	require.NoError(t, err)
+	movies := itemsByType(mediaRepo, "movie")
+	require.Len(t, movies, 2)
+	titles := map[string]bool{}
+	for _, m := range movies {
+		titles[m.Title] = true
+	}
+	assert.True(t, titles["01 First Movie"])
+	assert.True(t, titles["02 Second Movie"])
+	assert.Empty(t, itemsByType(mediaRepo, "episode"))
+}
+
 // The orphan heal never renames an episode: its stored title is the SxxEyy
 // label, and the path's title is its series'.
 func TestScanTVShow_HealLeavesAnEpisodeTitleAlone(t *testing.T) {

@@ -627,11 +627,30 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 			continue
 		}
 
-		work, u := s.detectChanges(ctx, files, idx)
+		work, u := s.detectChanges(ctx, filesOutsideTV(files), idx)
 		toProcess = append(toProcess, work...)
 		updated += u
 	}
 	return seenPaths, emptyRoots, failedPaths, toProcess, added, updated, nil
+}
+
+// filesOutsideTV reads a file the way a library that is not a TV library
+// must: a "Season N" folder there is just a folder. The scanner had typed such
+// a file an episode of the folder above, and an episode without a series is
+// refused, so the file vanished from a movie library. It is the movie its
+// name says.
+func filesOutsideTV(files []library.ScannedFile) []library.ScannedFile {
+	out := make([]library.ScannedFile, len(files))
+	for i, f := range files {
+		if f.FolderSeason {
+			f.Type = library.MovieItem
+			f.Title = f.NameTitle
+			f.Season, f.Episode = nil, nil
+			f.FolderSeason = false
+		}
+		out[i] = f
+	}
+	return out
 }
 
 func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanindex.Index) (toProcess []scanWork, moved int) {

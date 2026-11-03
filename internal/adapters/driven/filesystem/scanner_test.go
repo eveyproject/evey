@@ -200,5 +200,8 @@ func TestScan_SeasonFolderLayoutYieldsEpisodes(t *testing.T) {
 	assert.Equal(t, 3, *found[0].Episode)
 	require.NotNil(t, found[0].Year)
 	assert.Equal(t, 2019, *found[0].Year)
-	assert.Equal(t, "Show Name", s.ParseTitle(found[0].Path))
+	assert.True(t, found[0].FolderSeason)
+	assert.Equal(t, "03 Pilot", found[0].NameTitle)
+	// The heal reads the file name's title: a movie is named by its file.
+	assert.Equal(t, "03 Pilot", s.ParseTitle(found[0].Path))
 }

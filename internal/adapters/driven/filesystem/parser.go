@@ -196,6 +196,11 @@ type ParsedInfo struct {
 	Codec        string
 	Audio        string
 	ReleaseGroup string
+	// FolderSeason marks an episode read from the "Season N" folder layout
+	// rather than from the file name; NameTitle is then the title the file
+	// name alone gives, for a library where that layout means nothing.
+	FolderSeason bool
+	NameTitle    string
 }
 
 type FilenameParser struct{}
@@ -236,6 +241,8 @@ func ParsePath(path string) ParsedInfo {
 	if show.Title == "" {
 		return info
 	}
+	info.FolderSeason = true
+	info.NameTitle = info.Title
 	info.Type = "series"
 	info.Season = &season
 	info.Episode = &episode
