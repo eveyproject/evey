@@ -78,7 +78,7 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 	// The answer is built before the scan starts: the scan updates the
 	// library record it was handed, and the response must read the one the
 	// caller created.
-	resp := libraryToProto(lib)
+	resp := libraryToProto(lib, ctxIsAdmin(ctx))
 	h.scanNewLibrary(ctx, string(lib.ID))
 	return resp, nil
 }
@@ -101,7 +101,7 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.library.not_found")
 	}
-	return libraryToProto(lib), nil
+	return libraryToProto(lib, ctxIsAdmin(ctx)), nil
 }
 
 func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrariesRequest) (*eveyv1.ListLibrariesResponse, error) {
@@ -122,7 +122,7 @@ func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrar
 	counts := h.libraryItemCounts(ctx, libs)
 	resp := &eveyv1.ListLibrariesResponse{}
 	for _, lib := range libs {
-		pb := libraryToProto(lib)
+		pb := libraryToProto(lib, ctxIsAdmin(ctx))
 		if counts != nil {
 			n := int32(counts[lib.ID])
 			pb.ItemCount = &n
@@ -204,7 +204,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "update library", err)
 	}
-	return libraryToProto(lib), nil
+	return libraryToProto(lib, ctxIsAdmin(ctx)), nil
 }
 
 func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLibraryRequest) (*eveyv1.DeleteLibraryResponse, error) {

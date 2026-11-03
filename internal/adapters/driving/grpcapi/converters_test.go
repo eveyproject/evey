@@ -200,7 +200,7 @@ func TestLibraryToProto(t *testing.T) {
 		Type:  "movie",
 		Paths: []string{"/data/movies"},
 	}
-	pb := libraryToProto(lib)
+	pb := libraryToProto(lib, true)
 	if pb.Id != "lib-1" || pb.Name != "Movies" {
 		t.Error("basic fields mismatch")
 	}
@@ -487,7 +487,7 @@ func TestMediaStreamToProto(t *testing.T) {
 		IsExternal:    true,
 		ExternalPath:  &ext,
 	}
-	pb := mediaStreamToProto(s)
+	pb := mediaStreamToProto(s, true)
 	if pb.Width != 1920 || pb.Height != 1080 || pb.Codec != "h264" {
 		t.Error("basic fields mismatch")
 	}
@@ -499,7 +499,7 @@ func TestMediaStreamToProto(t *testing.T) {
 func TestMediaStreamToProto_NilOptionals(t *testing.T) {
 	t.Parallel()
 	s := &library.MediaStream{StreamIndex: 1, StreamType: "audio", Codec: "aac"}
-	pb := mediaStreamToProto(s)
+	pb := mediaStreamToProto(s, true)
 	if pb.Width != 0 || pb.Height != 0 || pb.Channels != 0 {
 		t.Error("nil optionals should be 0")
 	}
@@ -517,7 +517,7 @@ func TestMediaStreamToProto_PutsColorTransferOnTheWire(t *testing.T) {
 		ct := transfer
 		pb := mediaStreamToProto(&library.MediaStream{
 			StreamIndex: 0, StreamType: "video", Codec: "hevc", ColorTransfer: &ct,
-		})
+		}, true)
 		if pb.ColorTransfer != transfer {
 			t.Fatalf("ColorTransfer = %q, want %q", pb.ColorTransfer, transfer)
 		}

@@ -19,16 +19,23 @@ var libraryTypeFromProto = map[eveyv1.LibraryType]string{
 	eveyv1.LibraryType_LIBRARY_TYPE_PHOTOS: "photo",
 }
 
-func libraryToProto(lib *library.Library) *eveyv1.Library {
+// libraryToProto converts a Library to proto. When includePaths is false the
+// library's roots are omitted - admin-only, as the item's file_path is: they
+// are absolute paths of the host and lay its filesystem out to any viewer,
+// who streams through the media endpoints and never needs them. The admin
+// screens that manage libraries are the only readers.
+func libraryToProto(lib *library.Library, includePaths bool) *eveyv1.Library {
 	out := &eveyv1.Library{
 		Id:                 string(lib.ID),
 		Name:               lib.Name,
 		Type:               libraryTypeToProto[string(lib.Type)],
-		Paths:              lib.Paths,
 		ScanOnStartup:      lib.ScanOnStartup,
 		RealtimeMonitoring: lib.RealtimeMonitoring,
 		CreatedAt:          toTimestamppb(lib.CreatedAt),
 		UpdatedAt:          toTimestamppb(lib.UpdatedAt),
+	}
+	if includePaths {
+		out.Paths = lib.Paths
 	}
 	if lib.LastScannedAt != nil {
 		out.LastScannedAt = toTimestamppb(*lib.LastScannedAt)
@@ -189,7 +196,11 @@ var streamTypeToProto = map[library.StreamType]eveyv1.MediaStreamType{
 	library.StreamTypeAttachment: eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_ATTACHMENT,
 }
 
-func mediaStreamToProto(s *library.MediaStream) *eveyv1.MediaStream {
+// mediaStreamToProto converts a MediaStream to proto. When includePaths is
+// false the sidecar's absolute server path (external_path) is omitted, as the
+// item's file_path is: a viewer reads the sidecar through the subtitle
+// endpoints and never by its path on the host.
+func mediaStreamToProto(s *library.MediaStream, includePaths bool) *eveyv1.MediaStream {
 	pb := &eveyv1.MediaStream{
 		Index:         int32(s.StreamIndex),
 		Type:          streamTypeToProto[s.StreamType],
@@ -240,7 +251,7 @@ func mediaStreamToProto(s *library.MediaStream) *eveyv1.MediaStream {
 	if s.Bitrate != nil {
 		pb.Bitrate = *s.Bitrate
 	}
-	if s.ExternalPath != nil {
+	if includePaths && s.ExternalPath != nil {
 		pb.ExternalPath = *s.ExternalPath
 	}
 	return pb
