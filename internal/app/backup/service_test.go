@@ -244,6 +244,58 @@ func TestRestoreBackup_TarGz(t *testing.T) {
 	}
 }
 
+// A restore first puts the database as it stands into the store: the tables
+// are replaced in one transaction with no undo, so this backup is the only way
+// back from restoring the wrong archive.
+func TestRestoreBackup_SavesTheCurrentDatabaseFirst(t *testing.T) {
+	svc, store, dumper := setup()
+	dumper.DumpData = []byte("-- the database as it stands\n")
+	dump := []byte("-- PostgreSQL database dump\nCOPY users FROM stdin;\n")
+	archive := buildTarGz(t, makeManifest(dump), dump, nil)
+
+	if err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive)); err != nil {
+		t.Fatalf("RestoreBackup: %v", err)
+	}
+	if !bytes.Equal(dumper.Restored, dump) {
+		t.Fatalf("expected restored data to match dump")
+	}
+	list, err := store.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected the safety backup in the store, got %d backups", len(list))
+	}
+	if list[0].Reason != backupmodel.ReasonPreRestore {
+		t.Fatalf("safety backup reason = %q, want %q", list[0].Reason, backupmodel.ReasonPreRestore)
+	}
+	_, data, err := store.Get(context.Background(), list[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := io.ReadAll(data)
+	if !bytes.Equal(saved, dumper.DumpData) {
+		t.Fatalf("safety backup holds %q, want the current database", saved)
+	}
+}
+
+// When the safety backup cannot be stored, the tables are left as they are:
+// a restore with no way back is the outcome the backup exists to prevent.
+func TestRestoreBackup_WithoutSafetyBackup_DoesNotRestore(t *testing.T) {
+	svc, store, dumper := setup()
+	store.Err = errors.New("disk full")
+	dump := []byte("-- PostgreSQL database dump\n")
+	archive := buildTarGz(t, makeManifest(dump), dump, nil)
+
+	err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive))
+	if err == nil || !strings.Contains(err.Error(), "disk full") {
+		t.Fatalf("expected the store error, got %v", err)
+	}
+	if dumper.Restored != nil {
+		t.Fatal("the tables must not be replaced when the safety backup failed")
+	}
+}
+
 func TestRestoreBackup_TarGz_SHA256Mismatch(t *testing.T) {
 	svc, _, _ := setup()
 	dump := []byte("-- dump data\n")
