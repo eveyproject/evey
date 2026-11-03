@@ -78,7 +78,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				}
 				ex.File.Fingerprint = fp
 				if updateErr := s.mediaItems.Update(ctx, ex); updateErr != nil {
-					slog.WarnContext(ctx, "update media item fingerprint failed", slog.String("mediaItemID", string(ex.ID)), slog.Any("err", updateErr))
+					slog.WarnContext(ctx, "update media item fingerprint failed", slog.String("media_id", string(ex.ID)), slog.Any("err", updateErr))
 				}
 			}
 			return ex, false, nil
