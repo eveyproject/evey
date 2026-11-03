@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolvePlayTarget, sortByIndexNumber } from "./playTarget";
+import { compareEpisodeIndex, resolvePlayTarget, sortByIndexNumber, sortEpisodesByIndex } from "./playTarget";
 
 describe("resolvePlayTarget", () => {
   it("plays a movie by its own id", () => {
@@ -84,5 +84,32 @@ describe("sortByIndexNumber", () => {
   it("keeps items with no index number ahead rather than dropping them", () => {
     const ordered = sortByIndexNumber([{ id: "b", indexNumber: 2 }, { id: "a" }]);
     expect(ordered.map((e) => e.id)).toEqual(["a", "b"]);
+  });
+});
+
+// An episode the server holds without a number (a file of a season folder
+// whose name states none) reaches the client as indexNumber 0 or absent: the
+// proto field is a plain int32. Sorted as 0 it went ahead of episode 1, so
+// Play on the season, "next" and "previous" started on it.
+describe("sortEpisodesByIndex", () => {
+  it("puts unnumbered episodes after the numbered ones, never ahead of episode 1", () => {
+    const fromServer = [
+      { id: "mi-extra", indexNumber: 0 },
+      { id: "mi-ep2", indexNumber: 2 },
+      { id: "mi-bonus" },
+      { id: "mi-ep1", indexNumber: 1 },
+    ];
+
+    const ordered = sortEpisodesByIndex(fromServer);
+
+    expect(ordered.map((e) => e.id)).toEqual(["mi-ep1", "mi-ep2", "mi-extra", "mi-bonus"]);
+    expect(
+      resolvePlayTarget({ id: "mi-season", isSeries: false, isSeason: true, episodeIds: ordered.map((e) => e.id) }),
+    ).toBe("mi-ep1");
+  });
+
+  it("compares two unnumbered episodes as equal, so the sort keeps the server order", () => {
+    expect(compareEpisodeIndex({ indexNumber: 0 }, {})).toBe(0);
+    expect(compareEpisodeIndex({ indexNumber: 3 }, {})).toBeLessThan(0);
   });
 });

@@ -37,7 +37,7 @@ import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, CARD_WIDTH_GRID } from "../../../src/lib/tvLayout";
-import { resolvePlayTarget, sortByIndexNumber } from "../../../src/lib/playTarget";
+import { resolvePlayTarget, sortByIndexNumber, sortEpisodesByIndex } from "../../../src/lib/playTarget";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { SagaSection } from "../../../src/components/SagaSection";
@@ -743,7 +743,7 @@ export default function MediaDetailScreen() {
   // the first id in the array - the Play button started on whichever episode
   // sorted first by TITLE. Web and mobile already sorted; only the TV did not.
   const episodes = useMemo(
-    () => sortByIndexNumber(isSeason ? children : (episodesData?.items ?? [])),
+    () => sortEpisodesByIndex(isSeason ? children : (episodesData?.items ?? [])),
     [isSeason, children, episodesData?.items],
   );
 

@@ -31,3 +31,25 @@ export function resolvePlayTarget(args: {
 export function sortByIndexNumber<T extends { indexNumber?: number }>(items: T[]): T[] {
   return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
 }
+
+// An episode without a number (a file of a season folder whose name states
+// none) is listed after the numbered ones, as the server orders it
+// (index_number NULLS LAST). The proto field is a plain int32, so "no number"
+// arrives as 0 or absent; sorted as 0 it went ahead of episode 1, and Play,
+// "next" and "previous" started on it. Seasons keep sortByIndexNumber: their
+// 0 is the specials season, a real number.
+function episodeIndexKey(item: { indexNumber?: number }): number {
+  const n = item.indexNumber ?? 0;
+  return n === 0 ? Number.POSITIVE_INFINITY : n;
+}
+
+export function compareEpisodeIndex(a: { indexNumber?: number }, b: { indexNumber?: number }): number {
+  const ka = episodeIndexKey(a);
+  const kb = episodeIndexKey(b);
+  if (ka === kb) return 0;
+  return ka < kb ? -1 : 1;
+}
+
+export function sortEpisodesByIndex<T extends { indexNumber?: number }>(items: T[]): T[] {
+  return [...items].sort(compareEpisodeIndex);
+}

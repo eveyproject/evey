@@ -202,6 +202,33 @@ describe("useNextEpisode", () => {
 
 // What the web's own overlay already guarded, and the shared hook (the phone,
 // both televisions) did not.
+// An unnumbered episode arrives as indexNumber 0: sorted as a number it sat
+// before episode 1, which then offered it as "previous" and never reached it
+// as "next".
+describe("useNextEpisode - an unnumbered episode", () => {
+  const unnumbered = makeEpisode("extra", 0);
+  beforeEach(() => {
+    listMediaItemsMock.mockReturnValue({ data: { items: [unnumbered, ep2, ep1] } });
+  });
+
+  it("comes after the numbered episodes, never ahead of episode 1", () => {
+    const { result } = renderHook(
+      () => useNextEpisode({ media: ep1, currentTime: 0, duration: 100, onNavigate: vi.fn() }),
+      { wrapper: createWrapper() },
+    );
+    expect(result.current.previousEpisode).toBeNull();
+    expect(result.current.nextEpisode?.id).toBe("ep2");
+  });
+
+  it("is the next episode after the last numbered one", () => {
+    const { result } = renderHook(
+      () => useNextEpisode({ media: ep2, currentTime: 0, duration: 100, onNavigate: vi.fn() }),
+      { wrapper: createWrapper() },
+    );
+    expect(result.current.nextEpisode?.id).toBe("extra");
+  });
+});
+
 describe("useNextEpisode - the web's guards", () => {
   it("clears the end state when the viewer seeks back from the end", () => {
     const onNavigate = vi.fn();
