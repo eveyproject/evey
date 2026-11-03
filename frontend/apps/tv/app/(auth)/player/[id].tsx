@@ -1436,6 +1436,7 @@ export default function PlayerScreen() {
       <SubtitleOverlay
         mediaId={mediaId}
         subtitleIndex={clientSubtitleIndex}
+        style={subtitleStyle}
       />
 
       {isBuffering && (
