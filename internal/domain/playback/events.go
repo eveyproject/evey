@@ -16,11 +16,22 @@ type PlaybackStarted struct {
 
 func (e PlaybackStarted) EventName() string { return "playback.started" }
 
+// Why a session ended, carried by PlaybackStopped.
+const (
+	// StopReasonClient: the client said stop.
+	StopReasonClient = "client"
+	// StopReasonStale: no heartbeat for long enough, the server ended it.
+	StopReasonStale = "stale"
+)
+
 type PlaybackStopped struct {
 	SessionID   string
 	ProfileID   shared.ProfileID
 	MediaItemID shared.MediaItemID
-	OccurredAt  time.Time
+	// Reason is one of the StopReason constants; empty for an event raised
+	// before the field existed.
+	Reason     string
+	OccurredAt time.Time
 }
 
 func (e PlaybackStopped) EventName() string { return "playback.stopped" }

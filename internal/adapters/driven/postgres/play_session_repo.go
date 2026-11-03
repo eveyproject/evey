@@ -352,6 +352,57 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 	return int(n), nil
 }
 
+// CloseStaleReturning ends the sessions without a heartbeat since the cutoff
+// at their last heartbeat, with the duration measured to it, and returns them
+// so the caller can say they stopped.
+func (r *PlaySessionRepository) CloseStaleReturning(ctx context.Context, olderThan time.Duration) ([]*playback.PlaySession, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.CloseStaleReturning")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	cutoff := time.Now().Add(-olderThan)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`UPDATE play_sessions
+		 SET ended_at = updated_at,
+		     duration_ms = GREATEST(0, (EXTRACT(EPOCH FROM (updated_at - started_at)) * 1000)::bigint)
+		 WHERE ended_at IS NULL AND updated_at < $1
+		 RETURNING id, profile_id, media_item_id, started_at, ended_at, duration_ms, position_ms`, cutoff)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("PlaySessionRepo.CloseStaleReturning: %w", err)
+	}
+	defer rows.Close()
+	var ended []*playback.PlaySession
+	for rows.Next() {
+		s := &playback.PlaySession{}
+		var endedAt sql.NullTime
+		var durationMs, positionMs sql.NullInt64
+		if err := rows.Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.StartedAt, &endedAt, &durationMs, &positionMs); err != nil {
+			return nil, fmt.Errorf("PlaySessionRepo.CloseStaleReturning: %w", err)
+		}
+		if endedAt.Valid {
+			t := endedAt.Time
+			s.EndedAt = &t
+		}
+		if durationMs.Valid {
+			if d, dErr := shared.NewDurationMs(durationMs.Int64); dErr == nil {
+				s.Duration = &d
+			}
+		}
+		if positionMs.Valid {
+			if p, pErr := shared.NewDurationMs(positionMs.Int64); pErr == nil {
+				s.Position = &p
+			}
+		}
+		ended = append(ended, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("PlaySessionRepo.CloseStaleReturning: %w", err)
+	}
+	return ended, nil
+}
+
 func (r *PlaySessionRepository) ReopenEndedBefore(ctx context.Context, sessionID string, before time.Time, positionMs int64, isPaused bool, castDeviceName string) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.ReopenEndedBefore")
 	defer span.End()
@@ -384,8 +435,13 @@ func (r *PlaySessionRepository) CloseAllActive(ctx context.Context) (int, error)
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// The duration is stored with the end: a session closed by the shutdown
+	// otherwise has none, and the stats read it.
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE play_sessions SET ended_at = NOW() WHERE ended_at IS NULL`)
+		`UPDATE play_sessions
+		 SET ended_at = NOW(),
+		     duration_ms = GREATEST(0, (EXTRACT(EPOCH FROM (NOW() - started_at)) * 1000)::bigint)
+		 WHERE ended_at IS NULL`)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

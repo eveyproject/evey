@@ -76,6 +76,11 @@ type SessionCommandRepo interface {
 	// missed a column) blanked video_engine. The video columns are never named.
 	SetSessionAudioPath(ctx context.Context, sessionID, decision, engine, audioCodec string) (bool, error)
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
+	// CloseStaleReturning ends every session whose last heartbeat is older
+	// than olderThan and returns them, ended. The end is the last heartbeat,
+	// not the sweep: that is when the viewer was last there, and the duration
+	// stored is measured to it.
+	CloseStaleReturning(ctx context.Context, olderThan time.Duration) ([]*PlaySession, error)
 	// CloseAllActive ends every session still open, regardless of age. Called
 	// once as the server drains: the process is going away and every encode
 	// with it, so no open session can survive the exit as anything but a

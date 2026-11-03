@@ -1102,3 +1102,49 @@ func TestMarkAsWatched_SeasonLeavesOtherSeasonsAlone(t *testing.T) {
 	_, err = pr.GetByProfileAndMedia(ctx, "p1", "s2e1")
 	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
+
+// The stale sweep ends a session the way a client stop does: a stopped event
+// per session, with the reason, and a duration on the row. A fresh session is
+// left alone. A client stop still raises exactly one event, reason "client".
+func TestEndStaleSessions_PublishesStoppedPerSession(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, _, _, bus := setupCmd()
+	ctx := context.Background()
+	for _, s := range []*playback.PlaySession{
+		{ID: "s-stale-1", ProfileID: "p1", MediaItemID: "m1", StartedAt: time.Now().Add(-3 * time.Hour)},
+		{ID: "s-stale-2", ProfileID: "p2", MediaItemID: "m2", StartedAt: time.Now().Add(-4 * time.Hour)},
+		{ID: "s-fresh", ProfileID: "p1", MediaItemID: "m3", StartedAt: time.Now()},
+	} {
+		require.NoError(t, sr.Create(ctx, s))
+	}
+
+	n, err := cmd.CleanupStaleSessions(ctx, time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+
+	reasons := map[string]string{}
+	for _, e := range bus.PublishedEvents() {
+		if stopped, ok := e.(playback.PlaybackStopped); ok {
+			reasons[stopped.SessionID] = stopped.Reason
+		}
+	}
+	assert.Equal(t, map[string]string{"s-stale-1": playback.StopReasonStale, "s-stale-2": playback.StopReasonStale}, reasons)
+	ended, err := sr.GetByID(ctx, "s-stale-1")
+	require.NoError(t, err)
+	require.NotNil(t, ended.EndedAt)
+	require.NotNil(t, ended.Duration)
+	assert.Greater(t, ended.Duration.Milliseconds(), int64(0))
+	fresh, err := sr.GetByID(ctx, "s-fresh")
+	require.NoError(t, err)
+	assert.Nil(t, fresh.EndedAt)
+
+	require.NoError(t, cmd.StopStream(ctx, "s-fresh"))
+	var clientStops []playback.PlaybackStopped
+	for _, e := range bus.PublishedEvents() {
+		if stopped, ok := e.(playback.PlaybackStopped); ok && stopped.SessionID == "s-fresh" {
+			clientStops = append(clientStops, stopped)
+		}
+	}
+	require.Len(t, clientStops, 1)
+	assert.Equal(t, playback.StopReasonClient, clientStops[0].Reason)
+}

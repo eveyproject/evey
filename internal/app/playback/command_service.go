@@ -310,6 +310,7 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 		SessionID:   sessionID,
 		ProfileID:   session.ProfileID,
 		MediaItemID: session.MediaItemID,
+		Reason:      playback.StopReasonClient,
 		OccurredAt:  now,
 	}
 	if err := s.events.Publish(ctx, evtStopped); err != nil {
@@ -884,7 +885,43 @@ func (s *CommandService) EndAllSessions(ctx context.Context) (int, error) {
 func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.CleanupStaleSessions")
 	defer span.End()
-	return s.sessions.CloseStale(ctx, maxAge)
+	return s.EndStaleSessions(ctx, maxAge)
+}
+
+// EndStaleSessions ends every session with no heartbeat for maxAge and says so:
+// a closed tab, a TV switched off or a cast that died never send the stop, so
+// without this the stopped event (and the webhook behind it) was raised for a
+// minority of the sessions, and the rest ended with no duration. Returns how
+// many sessions ended.
+func (s *CommandService) EndStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.EndStaleSessions")
+	defer span.End()
+	var ended []*playback.PlaySession
+	err := s.transact(ctx, func(ctx context.Context) error {
+		var err error
+		ended, err = s.sessions.CloseStaleReturning(ctx, maxAge)
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("CommandService.EndStaleSessions: %w", err)
+	}
+	for _, session := range ended {
+		at := time.Now()
+		if session.EndedAt != nil {
+			at = *session.EndedAt
+		}
+		evt := playback.PlaybackStopped{
+			SessionID:   session.ID,
+			ProfileID:   session.ProfileID,
+			MediaItemID: session.MediaItemID,
+			Reason:      playback.StopReasonStale,
+			OccurredAt:  at,
+		}
+		if err := s.events.Publish(ctx, evt); err != nil {
+			slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		}
+	}
+	return len(ended), nil
 }
 
 // StartCleanup runs the stale-session cleanup loop with default parameters.
@@ -949,7 +986,7 @@ func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval,
 }
 
 func (s *CommandService) runCleanup(ctx context.Context, maxAge time.Duration) {
-	if n, err := s.sessions.CloseStale(ctx, maxAge); err != nil {
+	if n, err := s.EndStaleSessions(ctx, maxAge); err != nil {
 		slog.WarnContext(ctx, "stale session cleanup", slog.Any("err", err))
 	} else if n > 0 {
 		slog.InfoContext(ctx, "cleaned stale sessions", slog.Int("count", n))
