@@ -166,3 +166,26 @@ func TestRefresh_GraceSlotsSurviveRefusedAttempts(t *testing.T) {
 		t.Fatalf("refused attempts must not spend the sibling slots: %v", err)
 	}
 }
+
+// The purge of stale entries runs at most once per grace window: scanning
+// every entry on every admission made a burst of rotations quadratic under
+// the lock. Stale entries are still dropped once a window has passed.
+func TestGraceSiblingCounter_PurgesLazily(t *testing.T) {
+	var c graceSiblingCounter
+	t0 := time.Now()
+	c.admit("fresh", t0)
+	c.entries["stale"] = graceSiblingEntry{count: 1, first: t0.Add(-time.Hour)}
+
+	c.admit("other", t0.Add(time.Second))
+	if _, ok := c.entries["stale"]; !ok {
+		t.Fatal("an admission inside the window must not scan the entries")
+	}
+
+	c.admit("later", t0.Add(refreshRotationGrace+time.Second))
+	if _, ok := c.entries["stale"]; ok {
+		t.Fatal("a stale entry must be dropped once a window has passed")
+	}
+	if _, ok := c.entries["later"]; !ok {
+		t.Fatal("the admitted token must be counted")
+	}
+}

@@ -550,6 +550,9 @@ const maxGraceSiblings = 3
 type graceSiblingCounter struct {
 	mu      sync.Mutex
 	entries map[string]graceSiblingEntry
+	// lastPurge bounds the stale-entry scan to once per grace window: run on
+	// every admission it made a burst of rotations quadratic under the lock.
+	lastPurge time.Time
 }
 
 type graceSiblingEntry struct {
@@ -558,18 +561,23 @@ type graceSiblingEntry struct {
 }
 
 // admit reports whether one more sibling may be issued for tokenID, and
-// counts it if so. Entries older than the grace are dropped on the way: past
-// it the token is refused upstream anyway.
+// counts it if so. Entries older than the grace are dropped once a window has
+// passed since the last purge: past the grace the token is refused upstream
+// anyway, so a stale entry left a little longer changes no verdict.
 func (c *graceSiblingCounter) admit(tokenID string, now time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.entries == nil {
 		c.entries = make(map[string]graceSiblingEntry)
+		c.lastPurge = now
 	}
-	for id, e := range c.entries {
-		if now.Sub(e.first) > 2*refreshRotationGrace {
-			delete(c.entries, id)
+	if now.Sub(c.lastPurge) > refreshRotationGrace {
+		for id, e := range c.entries {
+			if now.Sub(e.first) > 2*refreshRotationGrace {
+				delete(c.entries, id)
+			}
 		}
+		c.lastPurge = now
 	}
 	e, ok := c.entries[tokenID]
 	if !ok {
