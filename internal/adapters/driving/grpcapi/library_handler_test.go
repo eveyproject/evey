@@ -1124,3 +1124,26 @@ func TestLibraryHandler_GetMediaItem_StampsOverlaidAncestorTitles(t *testing.T) 
 	assert.Equal(t, "Saison traduite", resp.SeasonTitle)
 	assert.Equal(t, int32(1), resp.SeasonIndexNumber)
 }
+
+// A root that is not an absolute, clean path is refused at the boundary: the
+// update path already refused it, the create path let it through to the
+// scanner.
+func TestLibraryHandler_CreateLibrary_RejectsUnsafePaths(t *testing.T) {
+	h, _, _, _, _, _, _, scanner := newTestLibraryHandlerWithScanner()
+	h.translator = eveyi18n.NewEmpty()
+	called := make(chan struct{}, 8)
+	scanner.OnScan = func(string) { called <- struct{}{} }
+
+	for _, p := range []string{".", "", "/", "../x"} {
+		_, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+			Name: "Movies", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{p},
+		})
+		require.Error(t, err, "path %q", p)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "path %q", p)
+	}
+	select {
+	case <-called:
+		t.Fatal("scan triggered for a library that was not created")
+	case <-time.After(50 * time.Millisecond):
+	}
+}

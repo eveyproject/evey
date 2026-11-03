@@ -47,6 +47,20 @@ func (h *libraryHandler) scanNewLibrary(ctx context.Context, libraryID string) {
 	}()
 }
 
+// cleanLibraryPaths normalises what an admin typed (a trailing slash, a
+// doubled separator) so the domain judges the path itself; what stays
+// relative or empty after cleaning is for the domain to refuse.
+func cleanLibraryPaths(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		if p == "" {
+			continue
+		}
+		out[i] = filepath.Clean(p)
+	}
+	return out
+}
+
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.library.CreateLibrary")
 	defer span.End()
@@ -54,7 +68,7 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 		shared.LibraryID(id.New("lib-")),
 		req.Name,
 		library.LibraryType(libraryTypeFromProto[req.Type]),
-		library.WithLibraryPaths(req.Paths),
+		library.WithLibraryPaths(cleanLibraryPaths(req.Paths)),
 		library.WithLibraryScanInterval(360),
 		library.WithLibraryScanOnStartup(req.ScanOnStartup),
 		library.WithLibraryRealtimeMonitoring(req.RealtimeMonitoring),
@@ -67,6 +81,8 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.name_required")
 		case !library.LibraryType(libraryTypeFromProto[req.Type]).IsValid():
 			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.type_invalid")
+		case errors.Is(err, library.ErrInvalidLibraryPath):
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.invalid_path")
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
@@ -194,7 +210,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.invalid_path")
 			}
 		}
-		lib.Paths = req.Paths
+		lib.Paths = cleanLibraryPaths(req.Paths)
 	}
 	if req.RealtimeMonitoring != nil {
 		lib.RealtimeMonitoring = *req.RealtimeMonitoring

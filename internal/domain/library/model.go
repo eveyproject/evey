@@ -3,6 +3,7 @@ package library
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -118,6 +119,20 @@ func NewLibrary(id shared.LibraryID, name string, libType LibraryType, opts ...L
 	return l, nil
 }
 
+// ErrInvalidLibraryPath is a root the scanner must not be pointed at: a
+// relative path walks whatever the server's working directory is, an
+// uncleaned one escapes the prefix checks every confinement rule is keyed on,
+// and the filesystem root is the whole host.
+var ErrInvalidLibraryPath = errors.New("library path must be an absolute, clean path other than the filesystem root")
+
+// ValidateLibraryPath says whether p may be a library root.
+func ValidateLibraryPath(p string) error {
+	if p == "" || !filepath.IsAbs(p) || filepath.Clean(p) != p || p == string(filepath.Separator) {
+		return fmt.Errorf("%w: %q", ErrInvalidLibraryPath, p)
+	}
+	return nil
+}
+
 func (l *Library) Validate() error {
 	if l.ID == "" {
 		return errors.New("library requires an ID")
@@ -127,6 +142,11 @@ func (l *Library) Validate() error {
 	}
 	if !l.Type.IsValid() {
 		return fmt.Errorf("library: invalid type %q", l.Type)
+	}
+	for _, p := range l.Paths {
+		if err := ValidateLibraryPath(p); err != nil {
+			return err
+		}
 	}
 	return nil
 }
