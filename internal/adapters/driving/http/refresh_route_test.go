@@ -31,10 +31,10 @@ func TestRefreshRoute_OwnBudgetSurvivesExhaustedLoginLimiter(t *testing.T) {
 	}
 
 	for i := range 60 {
-		rec := httptest.NewRecorder()
-		refresh(rec, httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", strings.NewReader(`{"refreshToken":"x"}`)))
-		if rec.Code != http.StatusOK {
-			t.Fatalf("refresh %d must pass on its own budget, got %d", i, rec.Code)
+		ok := httptest.NewRecorder()
+		refresh(ok, httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", strings.NewReader(`{"refreshToken":"x"}`)))
+		if ok.Code != http.StatusOK {
+			t.Fatalf("refresh %d must pass on its own budget, got %d", i, ok.Code)
 		}
 	}
 	rec = httptest.NewRecorder()
