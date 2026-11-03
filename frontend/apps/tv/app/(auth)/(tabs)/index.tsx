@@ -717,10 +717,7 @@ export default function HomeScreen() {
     [recommended.data, recommendedSize],
   );
   const popularItems = useMemo(
-    () =>
-      (popular.data ?? [])
-        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year }) as V1MediaItem)
-        .slice(0, popularSize),
+    () => feedItemsToCards(popular.data).slice(0, popularSize),
     [popular.data, popularSize],
   );
 

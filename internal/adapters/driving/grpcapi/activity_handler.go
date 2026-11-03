@@ -32,6 +32,8 @@ type activityHandler struct {
 	userAccess *appuser.AccessService
 	userQuery  *appuser.QueryService
 	translator *eveyi18n.Translator
+	// artwork batch-resolves the poster placeholders of the popular rail.
+	artwork artworkBatchGetter
 }
 
 // RecordPageView logs a client navigation as a "page_view" audit entry, so
@@ -416,8 +418,12 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 		if mi.Catalog != nil && mi.Catalog.Year != nil {
 			item.Year = int32(*mi.Catalog.Year)
 		}
+		if mi.Classification != nil && mi.Classification.CommunityRating != nil {
+			item.CommunityRating = *mi.Classification.CommunityRating
+		}
 		resp.Items = append(resp.Items, item)
 	}
+	fillPopularBlurhashes(ctx, h.artwork, resp.Items)
 	return resp, nil
 }
 

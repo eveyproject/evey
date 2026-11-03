@@ -49,6 +49,39 @@ func TestFeedQuerier_Recommended_GenrePrefilter(t *testing.T) {
 	assert.False(t, got["rec-b"], "rec-b shares no genre and must be excluded")
 }
 
+// The recommended rail's card prints the year and the audience score: both
+// ride on the FeedItem, read in one catalog lookup, and an item without them
+// keeps zeros instead of dropping out of the rail.
+func TestFeedQuerier_Recommended_CarriesYearAndRating(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	fq := postgres.NewFeedQuerier(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("ratedlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	rated := newTestMediaItem("rated-a", lib.ID)
+	rated.Catalog.Year = new(1999)
+	rated.Classification = &library.MediaClassification{CommunityRating: new(7.4)}
+	require.NoError(t, itemRepo.Create(ctx, rated))
+	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("bare-b", lib.ID)))
+
+	items, err := fq.Recommended(ctx, "prf-x", []string{"Action"}, 10)
+	require.NoError(t, err)
+	byID := map[string]*feed.FeedItem{}
+	for _, it := range items {
+		byID[string(it.MediaItemID)] = it
+	}
+	require.Contains(t, byID, "rated-a")
+	require.Contains(t, byID, "bare-b")
+	assert.Equal(t, 1999, byID["rated-a"].Year)
+	assert.InDelta(t, 7.4, byID["rated-a"].CommunityRating, 1e-9)
+	assert.Zero(t, byID["bare-b"].Year)
+	assert.Zero(t, byID["bare-b"].CommunityRating)
+}
+
 // SimilarItems must return only items sharing a genre with the target, ranked
 // by the number of shared genres, excluding the target itself - and only those
 // at the best level of match available (two shared genres at most): a title

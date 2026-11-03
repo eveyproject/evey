@@ -244,6 +244,9 @@ type FeedItem struct {
 	// Year is the release year, 0 when unknown. Filled by the postgres adapter
 	// for the movie/series rails so cards can show it under the title.
 	Year int
+	// CommunityRating is the audience score, 0 when unknown. Filled
+	// with Year, from the same catalog lookup.
+	CommunityRating float64
 	// PrimaryBlurhash is the encoded placeholder for the item's primary
 	// artwork. Populated by the postgres adapter after the main feed query;
 	// nil when no primary artwork exists or it pre-dates the blurhash field.

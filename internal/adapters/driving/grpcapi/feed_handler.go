@@ -411,6 +411,8 @@ func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
 		SeasonNumber:  int32(item.SeasonNumber),
 		EpisodeNumber: int32(item.EpisodeNumber),
 		Year:          int32(item.Year),
+
+		CommunityRating: item.CommunityRating,
 	}
 	if item.PrimaryBlurhash != nil {
 		pb.PrimaryBlurhash = *item.PrimaryBlurhash

@@ -182,7 +182,7 @@ const MostPopularSlider = memo(function MostPopularSlider({ maxItems }: SectionP
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
-          item={{ id: item.mediaItemId, title: item.title, type: item.type, year: item.year || undefined }}
+          item={feedItemToCard(item)}
           showType
           lite
         />

@@ -270,10 +270,7 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
     () => feedItemsToCards(recommended.data?.items),
     [recommended.data],
   );
-  const popularItems = useMemo(
-    () => (popular.data ?? []).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year || undefined }) as V1MediaItem),
-    [popular.data],
-  );
+  const popularItems = useMemo(() => feedItemsToCards(popular.data), [popular.data]);
   const placedPlugins = useMemo(() => placedPluginIds(feedConfigData?.configs ?? []), [feedConfigData]);
 
   type LibraryData = { items?: V1MediaItem[]; albums?: Record<string, unknown>[] } | undefined;

@@ -310,7 +310,7 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysW
 		return nil, err
 	}
 	q.fillPrimaryBlurhashes(ctx, items)
-	q.fillYears(ctx, items)
+	q.fillCatalogFacts(ctx, items)
 	return items, nil
 }
 
@@ -396,7 +396,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 		return nil, err
 	}
 	q.fillPrimaryBlurhashes(ctx, items)
-	q.fillYears(ctx, items)
+	q.fillCatalogFacts(ctx, items)
 	return items, nil
 }
 
@@ -478,14 +478,15 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 	}
 	items = keepMostRelevant(items, targetCount)
 	q.fillPrimaryBlurhashes(ctx, items)
-	q.fillYears(ctx, items)
+	q.fillCatalogFacts(ctx, items)
 	return items, nil
 }
 
-// fillYears batch-resolves the release year from media_catalog and stamps it
-// on each FeedItem in place. Best-effort like fillPrimaryBlurhashes: on a
-// query failure the items return with Year 0 and the card simply shows none.
-func (q *FeedQuerier) fillYears(ctx context.Context, items []*feed.FeedItem) {
+// fillCatalogFacts batch-resolves the release year and the audience score
+// and stamps them on each FeedItem in place. Best-effort like
+// fillPrimaryBlurhashes: on a query failure the items return with zeros and
+// the card simply shows neither.
+func (q *FeedQuerier) fillCatalogFacts(ctx context.Context, items []*feed.FeedItem) {
 	if len(items) == 0 {
 		return
 	}
@@ -496,30 +497,38 @@ func (q *FeedQuerier) fillYears(ctx context.Context, items []*feed.FeedItem) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx,
-		`SELECT media_item_id, year FROM media_catalog
-		 WHERE media_item_id = ANY($1) AND year IS NOT NULL`,
+		`SELECT i.id, mc.year, mcl.community_rating
+		 FROM unnest($1::text[]) AS i(id)
+		 LEFT JOIN media_catalog mc ON mc.media_item_id = i.id
+		 LEFT JOIN media_classifications mcl ON mcl.media_item_id = i.id`,
 		pq.Array(ids))
 	if err != nil {
-		slog.Debug("feed: fetch years failed", slog.Any("err", err))
+		slog.Debug("feed: fetch catalog facts failed", slog.Any("err", err))
 		return
 	}
 	defer rows.Close()
-	years := make(map[string]int, len(items))
+	type facts struct {
+		year   sql.NullInt64
+		rating sql.NullFloat64
+	}
+	byID := make(map[string]facts, len(items))
 	for rows.Next() {
 		var mediaID string
-		var year int
-		if err := rows.Scan(&mediaID, &year); err != nil {
-			slog.Debug("feed: scan year row failed", slog.Any("err", err))
+		var f facts
+		if err := rows.Scan(&mediaID, &f.year, &f.rating); err != nil {
+			slog.Debug("feed: scan catalog facts row failed", slog.Any("err", err))
 			return
 		}
-		years[mediaID] = year
+		byID[mediaID] = f
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		slog.Debug("feed: iterate year rows failed", slog.Any("err", rowsErr))
+		slog.Debug("feed: iterate catalog facts rows failed", slog.Any("err", rowsErr))
 		return
 	}
 	for _, it := range items {
-		it.Year = years[string(it.MediaItemID)]
+		f := byID[string(it.MediaItemID)]
+		it.Year = int(f.year.Int64)
+		it.CommunityRating = f.rating.Float64
 	}
 }
 
