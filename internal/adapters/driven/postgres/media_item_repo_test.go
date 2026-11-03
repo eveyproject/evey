@@ -593,3 +593,62 @@ func TestMediaItemRepo_DeleteByIDs_RecomputesSeriesLatest(t *testing.T) {
 	assert.WithinDuration(t, epOld.AddedAt, latest, time.Second,
 		"the series' latest_child_added_at must fall back to the episode left")
 }
+
+// The scan-time lists page a library that keeps changing under them: an item
+// deleted while the list is read (a prune, an admin) must not make the page
+// after it skip a row that is still there, or the scan would take that row
+// for a new file and recreate it. Keyset pages (after the last id read) hold;
+// offset pages slide.
+func TestMediaItemRepo_ScanLists_PagesHoldWhenARowVanishesBetweenPages(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	t.Cleanup(postgres.SetScanListBatchSizeForTest(2))
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("mlib-pages")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	ids := []string{"pg-1", "pg-2", "pg-3", "pg-4", "pg-5"}
+	for _, id := range ids {
+		it := newTestMediaItem(id, lib.ID)
+		it.File = &library.MediaFile{Path: "/media/" + id + ".mkv", Fingerprint: "fp-" + id}
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	// The first row goes between the first page and the second.
+	deleteFirstOnce := func() func() {
+		done := false
+		return func() {
+			if done {
+				return
+			}
+			done = true
+			_, err := db.ExecContext(ctx, `DELETE FROM media_items WHERE id = 'pg-1'`)
+			require.NoError(t, err)
+		}
+	}
+
+	t.Run("scan summaries", func(t *testing.T) {
+		t.Cleanup(postgres.SetScanListBetweenBatchesForTest(deleteFirstOnce()))
+		rows, err := itemRepo.ListScanSummaries(ctx, lib.ID)
+		require.NoError(t, err)
+		var got []string
+		for _, r := range rows {
+			got = append(got, r.ID)
+		}
+		assert.Subset(t, got, []string{"pg-2", "pg-3", "pg-4", "pg-5"}, "every row still in the library is listed")
+	})
+	_, err := db.ExecContext(ctx, `INSERT INTO media_items (id, library_id, type, title, sort_title, added_at, updated_at)
+		SELECT 'pg-1', library_id, type, title, sort_title, added_at, updated_at FROM media_items WHERE id = 'pg-2'`)
+	require.NoError(t, err)
+	t.Run("container info", func(t *testing.T) {
+		t.Cleanup(postgres.SetScanListBetweenBatchesForTest(deleteFirstOnce()))
+		rows, err := itemRepo.ListContainerInfo(ctx, lib.ID)
+		require.NoError(t, err)
+		var got []string
+		for _, r := range rows {
+			got = append(got, r.ID)
+		}
+		assert.Subset(t, got, []string{"pg-2", "pg-3", "pg-4", "pg-5"}, "every row still in the library is listed")
+	})
+}
