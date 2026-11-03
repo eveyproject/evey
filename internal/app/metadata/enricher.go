@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -259,6 +260,10 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 }
 
 func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.MetadataResult) {
+	// Season and episode details reach here without passing the cached
+	// provider (the enricher unwraps to the capability), so the text is
+	// cleaned again at the point it is written onto the item.
+	result.Sanitize()
 	// A season has no name of its own: its label is derived from its index
 	// number (scan writes "Season N", clients render "Saison N" from
 	// index_number). Providers hand one back anyway - TMDB returns "Gigantor"
@@ -344,8 +349,21 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 		// which delete directly, not here.
 		return nil, nil
 	}
-	if existing, err := e.artworkQuery.GetByMediaItem(ctx, mediaItemID); err == nil && artworkSetUnchanged(existing, artwork) {
-		return nil, nil
+	if existing, err := e.artworkQuery.GetByMediaItem(ctx, mediaItemID); err == nil {
+		if artworkSetUnchanged(existing, artwork) {
+			return nil, nil
+		}
+		// The same images in another order: only sort_order moves. Deleting
+		// and recreating the rows would drop their downloaded files and
+		// fetch every image again for a change of rank.
+		if moves, ok := artworkReorder(existing, artwork); ok {
+			for id, order := range moves {
+				if err := e.artworkCmd.UpdateSortOrder(ctx, id, order); err != nil {
+					return nil, fmt.Errorf("reorder artwork: %w", err)
+				}
+			}
+			return nil, nil
+		}
 	}
 	// Build the new records BEFORE deleting the old ones. If the provider gave
 	// artwork but none of it produced a valid record (bad type/URL), bail out
@@ -369,29 +387,58 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	return records, nil
 }
 
-// artworkSetUnchanged reports whether the persisted records cover exactly the
-// same (type, source URL) multiset as the incoming provider results - i.e. the
-// provider returned nothing new and there is nothing to do.
+// artworkSetUnchanged reports whether the persisted records are exactly the
+// incoming provider results, (type, source URL) in the same order - i.e. the
+// provider returned nothing new and there is nothing to do. The order counts:
+// sort_order is what makes a poster the first one, so a provider that only
+// reordered its images (its language ranking changed) must still be written.
 func artworkSetUnchanged(existing []*domainmetadata.ArtworkRecord, incoming []domainmetadata.ArtworkResult) bool {
 	if len(existing) != len(incoming) {
 		return false
 	}
-	have := make(map[string]int, len(existing))
+	ordered := slices.Clone(existing)
+	slices.SortStableFunc(ordered, func(a, b *domainmetadata.ArtworkRecord) int { return a.SortOrder - b.SortOrder })
+	for i, r := range ordered {
+		url := ""
+		if r.SourceURL != nil {
+			url = *r.SourceURL
+		}
+		if r.Type != incoming[i].Type || url != incoming[i].URL {
+			return false
+		}
+	}
+	return true
+}
+
+// artworkReorder maps each stored record to its rank among the incoming
+// results when both hold the same (type, source URL) multiset, and reports
+// false when they do not.
+func artworkReorder(existing []*domainmetadata.ArtworkRecord, incoming []domainmetadata.ArtworkResult) (map[string]int, bool) {
+	if len(existing) != len(incoming) {
+		return nil, false
+	}
+	byKey := make(map[string][]*domainmetadata.ArtworkRecord, len(existing))
 	for _, r := range existing {
 		url := ""
 		if r.SourceURL != nil {
 			url = *r.SourceURL
 		}
-		have[r.Type+"\x00"+url]++
+		k := r.Type + "\x00" + url
+		byKey[k] = append(byKey[k], r)
 	}
-	for _, a := range incoming {
+	moves := make(map[string]int, len(incoming))
+	for i, a := range incoming {
 		k := a.Type + "\x00" + a.URL
-		if have[k] == 0 {
-			return false
+		recs := byKey[k]
+		if len(recs) == 0 {
+			return nil, false
 		}
-		have[k]--
+		byKey[k] = recs[1:]
+		if recs[0].SortOrder != i {
+			moves[recs[0].ID] = i
+		}
 	}
-	return true
+	return moves, true
 }
 
 func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.ArtworkResult) *domainmetadata.ArtworkRecord {
@@ -732,9 +779,9 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 		batch = append(batch, &domainlib.MediaItemTranslation{
 			MediaItemID: item.ID,
 			Locale:      locale,
-			Title:       result.Title,
-			Overview:    result.Overview,
-			Tagline:     result.Tagline,
+			Title:       domainmetadata.SanitizeText(result.Title),
+			Overview:    domainmetadata.SanitizeText(result.Overview),
+			Tagline:     domainmetadata.SanitizeText(result.Tagline),
 		})
 	}
 	if err := e.mediaTranslations.UpsertBatch(ctx, batch); err != nil {

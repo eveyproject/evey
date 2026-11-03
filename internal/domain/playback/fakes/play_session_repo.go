@@ -182,6 +182,29 @@ func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time
 	return closed, nil
 }
 
+// CloseStaleReturning mirrors CloseStale (the fake has no heartbeat, the start
+// stands in for it) and hands the ended sessions back.
+func (r *FakePlaySessionRepository) CloseStaleReturning(_ context.Context, olderThan time.Duration) ([]*playback.PlaySession, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	cutoff := time.Now().Add(-olderThan)
+	var ended []*playback.PlaySession
+	for _, s := range r.items {
+		if s.EndedAt == nil && s.StartedAt.Before(cutoff) {
+			now := time.Now()
+			s.EndedAt = &now
+			if d, err := shared.NewDurationMs(now.Sub(s.StartedAt).Milliseconds()); err == nil {
+				s.Duration = &d
+			}
+			ended = append(ended, s)
+		}
+	}
+	return ended, nil
+}
+
 func (r *FakePlaySessionRepository) CloseAllActive(_ context.Context) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -17,6 +17,9 @@ type FakeWatchProgressRepository struct {
 	Err   error
 	// SeriesEpisodes answers ListSeriesEpisodes, by series id.
 	SeriesEpisodes map[string][]playback.SeriesEpisode
+	// Descendants answers DescendantIDs, by container id; an id absent from
+	// the map is a playable item (no descendants).
+	Descendants map[string]playback.Descendants
 }
 
 func NewFakeWatchProgressRepository() *FakeWatchProgressRepository {
@@ -76,6 +79,24 @@ func (r *FakeWatchProgressRepository) Delete(_ context.Context, profileID, media
 	}
 	delete(r.items, key(profileID, mediaItemID))
 	return nil
+}
+
+func (r *FakeWatchProgressRepository) DeleteMany(ctx context.Context, profileID string, mediaItemIDs []string) error {
+	for _, id := range mediaItemIDs {
+		if err := r.Delete(ctx, profileID, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *FakeWatchProgressRepository) DescendantIDs(_ context.Context, mediaItemID string) (playback.Descendants, error) {
+	if r.Err != nil {
+		return playback.Descendants{}, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.Descendants[mediaItemID], nil
 }
 
 func (r *FakeWatchProgressRepository) DeleteByProfile(_ context.Context, profileID string) (int, error) {

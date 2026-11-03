@@ -83,6 +83,8 @@ type ScanService struct {
 	mediaStreams library.MediaStreamRepository
 	persons      library.PersonRepository
 	mediaPersons library.MediaPersonRepository
+	// artworkPurger is optional (nil = refiled items keep their artwork rows).
+	artworkPurger ArtworkPurger
 
 	metadata     *MetadataExtractionService
 	musicScanner TypedDirectoryScanner
@@ -173,6 +175,19 @@ func (s *ScanService) isPlaying(ctx context.Context, id shared.MediaItemID) bool
 		return true
 	}
 	return playing[id]
+}
+
+// ArtworkPurger drops the artwork rows of one item. The artwork store lives
+// in the metadata context; the scan only needs this to forget the artwork of
+// an item it refiles under another type.
+type ArtworkPurger interface {
+	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
+}
+
+// WithArtworkPurger wires the artwork store for refiled items.
+func (s *ScanService) WithArtworkPurger(p ArtworkPurger) *ScanService {
+	s.artworkPurger = p
+	return s
 }
 
 // WithPruneGuard sets the mass-disappearance thresholds of the orphan prune.
@@ -494,6 +509,11 @@ func (s *ScanService) healOrphanTitles(ctx context.Context, libraryID string) in
 		if it.Catalog != nil && len(it.Catalog.ProviderIDs) > 0 {
 			continue
 		}
+		// An episode's stored title is its "SxxEyy" label, never a name the
+		// file states: rewriting it from the path named it after its series.
+		if it.Type == library.Episode {
+			continue
+		}
 		fresh := s.scanner.ParseTitle(it.File.Path)
 		if fresh == "" {
 			continue
@@ -625,11 +645,30 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 			continue
 		}
 
-		work, u := s.detectChanges(ctx, files, idx)
+		work, u := s.detectChanges(ctx, filesOutsideTV(files), idx)
 		toProcess = append(toProcess, work...)
 		updated += u
 	}
 	return seenPaths, emptyRoots, failedPaths, toProcess, added, updated, unsettled, nil
+}
+
+// filesOutsideTV reads a file the way a library that is not a TV library
+// must: a "Season N" folder there is just a folder. The scanner had typed such
+// a file an episode of the folder above, and an episode without a series is
+// refused, so the file vanished from a movie library. It is the movie its
+// name says.
+func filesOutsideTV(files []library.ScannedFile) []library.ScannedFile {
+	out := make([]library.ScannedFile, len(files))
+	for i, f := range files {
+		if f.FolderSeason {
+			f.Type = library.MovieItem
+			f.Title = f.NameTitle
+			f.Season, f.Episode = nil, nil
+			f.FolderSeason = false
+		}
+		out[i] = f
+	}
+	return out
 }
 
 func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanindex.Index) (toProcess []scanWork, moved int) {
@@ -969,10 +1008,11 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		library.WithMediaItemID(shared.MediaItemID(uuid.New().String())),
 		library.WithMediaItemParent(parentID),
 		library.WithMediaItemFile(&library.MediaFile{
-			Path:        f.Path,
-			Size:        f.Size,
-			Fingerprint: f.Fingerprint,
-			ModTime:     f.ModTime,
+			Path:          f.Path,
+			Size:          f.Size,
+			Fingerprint:   f.Fingerprint,
+			ModTime:       f.ModTime,
+			ParserVersion: library.ParserVersion,
 		}),
 	}
 	if f.Episode != nil {

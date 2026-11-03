@@ -1047,3 +1047,104 @@ func TestReportProgressBySession_ZeroBeforeAnyPositionKeepsTheResumePoint(t *tes
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), wp.Position.Milliseconds())
 }
+
+// Marking a series writes its episodes and seasons, not one row on the series:
+// the episodes, the next-up feed and the resume rail read per-episode rows.
+func TestMarkAsWatched_SeriesMarksEveryEpisode(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, _, pfr, bus := setupCmd()
+	ctx := context.Background()
+	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+	pr.Descendants = map[string]playback.Descendants{
+		"show": {Playable: []string{"s1e1", "s1e2", "s2e1"}, Containers: []string{"season1", "season2"}},
+	}
+
+	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "show"))
+
+	for _, id := range []string{"show", "season1", "season2", "s1e1", "s1e2", "s2e1"} {
+		wp, err := pr.GetByProfileAndMedia(ctx, "p1", id)
+		require.NoError(t, err, id)
+		assert.True(t, wp.Completed, id)
+	}
+	var found bool
+	for _, e := range bus.PublishedEvents() {
+		if e.EventName() == "media.marked.watched" {
+			watched := e.(playback.MediaMarkedWatched)
+			assert.Equal(t, shared.MediaItemID("show"), watched.MediaItemID)
+			assert.Equal(t, []shared.MediaItemID{"s1e1", "s1e2", "s2e1"}, watched.MediaItemIDs)
+			found = true
+		}
+	}
+	assert.True(t, found)
+
+	require.NoError(t, cmd.MarkAsUnwatched(ctx, "p1", "show"))
+	for _, id := range []string{"show", "season1", "season2", "s1e1", "s1e2", "s2e1"} {
+		_, err := pr.GetByProfileAndMedia(ctx, "p1", id)
+		assert.ErrorIs(t, err, shared.ErrNotFound, id)
+	}
+}
+
+// An episode of another season is not touched by marking one season.
+func TestMarkAsWatched_SeasonLeavesOtherSeasonsAlone(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, _, pfr, _ := setupCmd()
+	ctx := context.Background()
+	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+	pr.Descendants = map[string]playback.Descendants{
+		"season1": {Playable: []string{"s1e1"}},
+	}
+
+	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "season1"))
+
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "s1e1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed)
+	_, err = pr.GetByProfileAndMedia(ctx, "p1", "s2e1")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+// The stale sweep ends a session the way a client stop does: a stopped event
+// per session, with the reason, and a duration on the row. A fresh session is
+// left alone. A client stop still raises exactly one event, reason "client".
+func TestEndStaleSessions_PublishesStoppedPerSession(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, _, _, bus := setupCmd()
+	ctx := context.Background()
+	for _, s := range []*playback.PlaySession{
+		{ID: "s-stale-1", ProfileID: "p1", MediaItemID: "m1", StartedAt: time.Now().Add(-3 * time.Hour)},
+		{ID: "s-stale-2", ProfileID: "p2", MediaItemID: "m2", StartedAt: time.Now().Add(-4 * time.Hour)},
+		{ID: "s-fresh", ProfileID: "p1", MediaItemID: "m3", StartedAt: time.Now()},
+	} {
+		require.NoError(t, sr.Create(ctx, s))
+	}
+
+	n, err := cmd.CleanupStaleSessions(ctx, time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+
+	reasons := map[string]string{}
+	for _, e := range bus.PublishedEvents() {
+		if stopped, ok := e.(playback.PlaybackStopped); ok {
+			reasons[stopped.SessionID] = stopped.Reason
+		}
+	}
+	assert.Equal(t, map[string]string{"s-stale-1": playback.StopReasonStale, "s-stale-2": playback.StopReasonStale}, reasons)
+	ended, err := sr.GetByID(ctx, "s-stale-1")
+	require.NoError(t, err)
+	require.NotNil(t, ended.EndedAt)
+	require.NotNil(t, ended.Duration)
+	assert.Positive(t, ended.Duration.Milliseconds())
+	fresh, err := sr.GetByID(ctx, "s-fresh")
+	require.NoError(t, err)
+	assert.Nil(t, fresh.EndedAt)
+
+	require.NoError(t, cmd.StopStream(ctx, "s-fresh"))
+	var clientStops []playback.PlaybackStopped
+	for _, e := range bus.PublishedEvents() {
+		if stopped, ok := e.(playback.PlaybackStopped); ok && stopped.SessionID == "s-fresh" {
+			clientStops = append(clientStops, stopped)
+		}
+	}
+	require.Len(t, clientStops, 1)
+	assert.Equal(t, playback.StopReasonClient, clientStops[0].Reason)
+}

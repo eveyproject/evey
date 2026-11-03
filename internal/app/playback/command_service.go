@@ -310,6 +310,7 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 		SessionID:   sessionID,
 		ProfileID:   session.ProfileID,
 		MediaItemID: session.MediaItemID,
+		Reason:      playback.StopReasonClient,
 		OccurredAt:  now,
 	}
 	if err := s.events.Publish(ctx, evtStopped); err != nil {
@@ -468,21 +469,39 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}
-	wp := &playback.WatchProgress{
-		ID:           id.New("wp-"),
-		ProfileID:    shared.ProfileID(profileID),
-		MediaItemID:  shared.MediaItemID(mediaItemID),
-		Completed:    true,
-		PlayCount:    1,
-		LastPlayedAt: time.Now(),
+	// A series or a season is marked through its episodes: a row on the
+	// container alone reads as watched on the container's page while every
+	// episode, the next-up feed and the resume rail still say unwatched. The
+	// container rows are written too, as the home and detail pages read them.
+	// One transaction: a half-marked season is the state this replaces.
+	desc, err := s.progress.DescendantIDs(ctx, mediaItemID)
+	if err != nil {
+		return fmt.Errorf("CommandService.MarkAsWatched: %w", err)
 	}
-	if err := s.progress.Upsert(ctx, wp); err != nil {
+	now := time.Now()
+	entries := make([]*playback.WatchProgress, 0, 1+len(desc.Playable)+len(desc.Containers))
+	for _, target := range append([]string{mediaItemID}, desc.All()...) {
+		entries = append(entries, &playback.WatchProgress{
+			ID:           id.New("wp-"),
+			ProfileID:    shared.ProfileID(profileID),
+			MediaItemID:  shared.MediaItemID(target),
+			Completed:    true,
+			PlayCount:    1,
+			LastPlayedAt: now,
+		})
+	}
+	if err := s.transact(ctx, func(ctx context.Context) error {
+		return s.progress.UpsertMany(ctx, entries)
+	}); err != nil {
 		return fmt.Errorf("CommandService.MarkAsWatched: %w", err)
 	}
 	evtWatched := playback.MediaMarkedWatched{
 		ProfileID:   shared.ProfileID(profileID),
 		MediaItemID: shared.MediaItemID(mediaItemID),
 		OccurredAt:  time.Now(),
+	}
+	for _, ep := range desc.Playable {
+		evtWatched.MediaItemIDs = append(evtWatched.MediaItemIDs, shared.MediaItemID(ep))
 	}
 	if err := s.events.Publish(ctx, evtWatched); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtWatched.EventName()), slog.Any("err", err))
@@ -866,7 +885,43 @@ func (s *CommandService) EndAllSessions(ctx context.Context) (int, error) {
 func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.CleanupStaleSessions")
 	defer span.End()
-	return s.sessions.CloseStale(ctx, maxAge)
+	return s.EndStaleSessions(ctx, maxAge)
+}
+
+// EndStaleSessions ends every session with no heartbeat for maxAge and says so:
+// a closed tab, a TV switched off or a cast that died never send the stop, so
+// without this the stopped event (and the webhook behind it) was raised for a
+// minority of the sessions, and the rest ended with no duration. Returns how
+// many sessions ended.
+func (s *CommandService) EndStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.EndStaleSessions")
+	defer span.End()
+	var ended []*playback.PlaySession
+	err := s.transact(ctx, func(ctx context.Context) error {
+		var err error
+		ended, err = s.sessions.CloseStaleReturning(ctx, maxAge)
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("CommandService.EndStaleSessions: %w", err)
+	}
+	for _, session := range ended {
+		at := time.Now()
+		if session.EndedAt != nil {
+			at = *session.EndedAt
+		}
+		evt := playback.PlaybackStopped{
+			SessionID:   session.ID,
+			ProfileID:   session.ProfileID,
+			MediaItemID: session.MediaItemID,
+			Reason:      playback.StopReasonStale,
+			OccurredAt:  at,
+		}
+		if err := s.events.Publish(ctx, evt); err != nil {
+			slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		}
+	}
+	return len(ended), nil
 }
 
 // StartCleanup runs the stale-session cleanup loop with default parameters.
@@ -931,7 +986,7 @@ func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval,
 }
 
 func (s *CommandService) runCleanup(ctx context.Context, maxAge time.Duration) {
-	if n, err := s.sessions.CloseStale(ctx, maxAge); err != nil {
+	if n, err := s.EndStaleSessions(ctx, maxAge); err != nil {
 		slog.WarnContext(ctx, "stale session cleanup", slog.Any("err", err))
 	} else if n > 0 {
 		slog.InfoContext(ctx, "cleaned stale sessions", slog.Int("count", n))
@@ -965,11 +1020,28 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 	// Delete instead of upsert because Upsert keeps completed sticky-true:
 	// writing a Completed=false row would not actually flip the flag back.
 	// Deleting the row makes the item appear never-watched - the semantics
-	// callers expect from "mark as unwatched".
-	if err := s.progress.Delete(ctx, profileID, mediaItemID); err != nil {
+	// callers expect from "mark as unwatched". A container takes its
+	// episodes and seasons with it, the mirror of MarkAsWatched.
+	desc, err := s.progress.DescendantIDs(ctx, mediaItemID)
+	if err != nil {
+		return fmt.Errorf("CommandService.MarkAsUnwatched: %w", err)
+	}
+	targets := append([]string{mediaItemID}, desc.All()...)
+	if err := s.transact(ctx, func(ctx context.Context) error {
+		return s.progress.DeleteMany(ctx, profileID, targets)
+	}); err != nil {
 		return fmt.Errorf("CommandService.MarkAsUnwatched: %w", err)
 	}
 	return nil
+}
+
+// transact runs fn inside the unit of work when one is wired, directly
+// otherwise (tests, and a service built without WithUnitOfWork).
+func (s *CommandService) transact(ctx context.Context, fn func(ctx context.Context) error) error {
+	if s.uow != nil {
+		return s.uow.Do(ctx, fn)
+	}
+	return fn(ctx)
 }
 
 // ClearWatchHistory deletes every watch-progress row for the profile and

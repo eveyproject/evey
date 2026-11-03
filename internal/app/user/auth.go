@@ -75,7 +75,7 @@ func loginAttemptKeys(ctx context.Context, username string) (pairKey, userKey st
 
 // publishLoginFailed announces a refused login (webhook user.login.failed).
 func (s *CommandService) publishLoginFailed(ctx context.Context, username, reason string) {
-	evt := user.LoginFailed{Username: username, Reason: reason, AuthMethod: "local", OccurredAt: time.Now()}
+	evt := user.LoginFailed{Username: username, Reason: reason, ClientIP: LoginClientIP(ctx), AuthMethod: "local", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
@@ -208,7 +208,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		return "", "", fmt.Errorf("CommandService.Login: %w", err)
 	}
 
-	evtLogin := user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()}
+	evtLogin := user.LoginSucceeded{UserID: u.ID, ClientIP: LoginClientIP(ctx), AuthMethod: "local", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtLogin); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtLogin.EventName()), slog.Any("err", err))
 	}

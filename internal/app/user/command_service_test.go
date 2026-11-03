@@ -351,7 +351,8 @@ func TestLogin_FailureIsAnnounced(t *testing.T) {
 			if tc.seed {
 				seedAuthUser(t, d, "u1", "alice", "mypassword", false, true)
 			}
-			if _, _, err := d.svc.Login(context.Background(), tc.username, tc.password); err == nil {
+			ctx := WithLoginClientIP(context.Background(), "203.0.113.9")
+			if _, _, err := d.svc.Login(ctx, tc.username, tc.password); err == nil {
 				t.Fatal("this login was supposed to fail")
 			}
 			var got *user.LoginFailed
@@ -365,6 +366,10 @@ func TestLogin_FailureIsAnnounced(t *testing.T) {
 			}
 			if got.Username != tc.username || got.Reason != tc.reason {
 				t.Fatalf("event = %+v, want username %q reason %q", *got, tc.username, tc.reason)
+			}
+			// The login history row of a refusal carries where it came from.
+			if got.ClientIP != "203.0.113.9" {
+				t.Fatalf("event ClientIP = %q, want the caller's", got.ClientIP)
 			}
 			if strings.Contains(fmt.Sprintf("%+v", *got), tc.password) {
 				t.Fatal("the password must never ride the event")

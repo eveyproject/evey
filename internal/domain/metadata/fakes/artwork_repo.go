@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/metadata"
 )
@@ -11,6 +12,10 @@ type FakeArtworkRepository struct {
 	mu    sync.RWMutex
 	items map[string]*metadata.ArtworkRecord
 	Err   error
+	// fetch mirrors the adapter's fetch_attempts / next_fetch_at columns.
+	fetch map[string]fetchState
+	// SortOrderUpdates counts UpdateSortOrder calls.
+	SortOrderUpdates int
 
 	// DeleteByMediaItemIDCalls / DeleteByMediaItemIDsCalls count invocations
 	// of the single-item vs batch delete, so tests can assert the N+1 is gone.
@@ -110,19 +115,73 @@ func (r *FakeArtworkRepository) GetByPerson(_ context.Context, personID string) 
 	return result, nil
 }
 
-func (r *FakeArtworkRepository) ListMissingLocalPath(_ context.Context) ([]*metadata.ArtworkRecord, error) {
+func (r *FakeArtworkRepository) ListMissingLocalPath(_ context.Context, includeWaiting bool) ([]*metadata.ArtworkRecord, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	now := time.Now()
 	var result []*metadata.ArtworkRecord
 	for _, a := range r.items {
-		if a.SourceURL != nil && (a.LocalPath == nil || *a.LocalPath == "") {
-			result = append(result, a)
+		if a.SourceURL == nil || (a.LocalPath != nil && *a.LocalPath != "") {
+			continue
 		}
+		if f := r.fetch[a.ID]; !includeWaiting && (f.attempts >= metadata.ArtworkMaxFetchAttempts || f.nextAt.After(now)) {
+			continue
+		}
+		result = append(result, a)
 	}
 	return result, nil
+}
+
+type fetchState struct {
+	attempts int
+	nextAt   time.Time
+}
+
+// FetchAttempts reports how many failed fetches the record has, for tests.
+func (r *FakeArtworkRepository) FetchAttempts(id string) int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.fetch[id].attempts
+}
+
+func (r *FakeArtworkRepository) UpdateSortOrder(_ context.Context, id string, sortOrder int) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, ok := r.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	a.SortOrder = sortOrder
+	r.SortOrderUpdates++
+	return nil
+}
+
+func (r *FakeArtworkRepository) RecordFetchFailure(_ context.Context, id string, permanent bool) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.items[id]; !ok {
+		return ErrNotFound
+	}
+	if r.fetch == nil {
+		r.fetch = map[string]fetchState{}
+	}
+	f := r.fetch[id]
+	f.attempts++
+	if permanent {
+		f.attempts = max(f.attempts, metadata.ArtworkMaxFetchAttempts)
+	}
+	f.nextAt = time.Now().Add(metadata.ArtworkFetchBackoff(f.attempts))
+	r.fetch[id] = f
+	return nil
 }
 
 func (r *FakeArtworkRepository) ListMissingBlurhash(_ context.Context) ([]*metadata.ArtworkRecord, error) {
@@ -153,6 +212,9 @@ func (r *FakeArtworkRepository) LocalPathStats(_ context.Context) (metadata.Artw
 			stats.WithLocalPath++
 		} else {
 			stats.MissingLocalPath++
+			if r.fetch[a.ID].attempts >= metadata.ArtworkMaxFetchAttempts {
+				stats.Dead++
+			}
 		}
 	}
 	return stats, nil
@@ -169,6 +231,7 @@ func (r *FakeArtworkRepository) UpdateLocalPath(_ context.Context, id string, lo
 		return ErrNotFound
 	}
 	a.LocalPath = &localPath
+	delete(r.fetch, id)
 	return nil
 }
 

@@ -65,3 +65,28 @@ func TestNormalize(t *testing.T) {
 		}
 	}
 }
+
+// Un nom d'artiste n'a pas de suffixe d'édition : la tolérance de frontière de
+// mot d'Equivalent y rapprochait "Prince" de "Prince Royce", et la pochette de
+// l'un servait l'album de l'autre.
+func TestSameName(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		a, b string
+		want bool
+	}{
+		{"identique", "Neon Harbor", "Neon Harbor", true},
+		{"casse et ponctuation", "neon-harbor", "Neon Harbor", true},
+		{"accents simples", "Éxité", "exite", true},
+		{"préfixe de mots", "Prince", "Prince Royce", false},
+		{"préfixe de mots inversé", "Prince Royce", "Prince", false},
+		{"suffixe entre parenthèses", "Neon Harbor", "Neon Harbor (Live)", false},
+		{"vide", "", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := titlematch.SameName(tc.a, tc.b); got != tc.want {
+				t.Errorf("SameName(%q, %q) = %v, attendu %v", tc.a, tc.b, got, tc.want)
+			}
+		})
+	}
+}

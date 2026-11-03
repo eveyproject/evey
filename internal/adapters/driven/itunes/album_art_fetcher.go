@@ -126,7 +126,7 @@ func matchingArtwork(results []searchResult, artist, album string) (string, bool
 		if r.ArtworkURL100 == "" {
 			continue
 		}
-		if !titlematch.Equivalent(r.ArtistName, artist) {
+		if !titlematch.SameName(r.ArtistName, artist) {
 			continue
 		}
 		if !titlematch.Equivalent(r.CollectionName, album) {

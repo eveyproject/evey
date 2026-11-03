@@ -152,7 +152,7 @@ func (f *AlbumArtFetcher) findReleaseGroup(ctx context.Context, artist, album st
 			continue
 		}
 		if !slices.ContainsFunc(rg.ArtistCredit, func(ac artistCredit) bool {
-			return titlematch.Equivalent(ac.Name, artist)
+			return titlematch.SameName(ac.Name, artist)
 		}) {
 			continue
 		}

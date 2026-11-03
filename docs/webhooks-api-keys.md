@@ -31,6 +31,10 @@ form offers every event the server publishes; among them:
 A plugin that calls `EmitEvent` publishes `plugin.event.<type>`, which a
 webhook on **All events** receives too.
 
+`playback.stopped` is raised for every session that ends, with a `Reason`:
+`client` when the player said stop, `stale` when the server ended a session
+whose heartbeat went quiet (a closed tab, a television switched off).
+
 **Delivery.** Each event is a JSON `POST`, with these headers:
 
 - `X-Evey-Delivery`: an identifier that stays the same across the retries of

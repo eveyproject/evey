@@ -207,3 +207,32 @@ func TestCachedProvider_GetByIDKeyDiscriminatesLanguage(t *testing.T) {
 		t.Fatalf("language switch: getByIDCalls=%d, want 2", inner.getByIDCalls)
 	}
 }
+
+// Provider text is cleaned once, at the boundary: a result served from the
+// cache is as clean as the one that filled it.
+func TestCachedProvider_SanitizesProviderText(t *testing.T) {
+	inner := &decoratorFakeProvider{
+		name:         "omdb",
+		searchResult: []domainmetadata.MetadataResult{{Title: "Ti\x00tle", Overview: "\u202EOver\x07view"}},
+		idResult:     &domainmetadata.MetadataResult{Title: "By\x00ID", People: []domainmetadata.PersonResult{{Name: "Na\x00me"}}},
+	}
+	for _, ttl := range []time.Duration{0, time.Minute} {
+		c := NewCachedProvider(inner, ttl)
+		for range 2 {
+			got, err := c.Search(context.Background(), "q", nil, "movie")
+			if err != nil || len(got) != 1 {
+				t.Fatalf("search: err=%v got=%v", err, got)
+			}
+			if got[0].Title != "Title" || got[0].Overview != "Overview" {
+				t.Fatalf("ttl %v: search result not sanitized: %+v", ttl, got[0])
+			}
+			byID, err := c.GetByProviderID(context.Background(), "1", "movie")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if byID.Title != "ByID" || byID.People[0].Name != "Name" {
+				t.Fatalf("ttl %v: by-id result not sanitized: %+v", ttl, byID)
+			}
+		}
+	}
+}

@@ -659,3 +659,53 @@ func TestParse_SeriesWithYear(t *testing.T) {
 	require.NotNil(t, info.Episode)
 	assert.Equal(t, 1, *info.Episode)
 }
+
+// --- Folder fallback ---
+
+func TestParsePath_SeasonFolderNamesTheEpisode(t *testing.T) {
+	cases := []struct {
+		path            string
+		title           string
+		season, episode int
+		year            *int
+	}{
+		{"/tv/Show Name (2019)/Season 2/03 - Pilot.mkv", "Show Name", 2, 3, new(2019)},
+		{"/tv/Show Name/Saison 02/E03 Pilot.mkv", "Show Name", 2, 3, nil},
+		{"/tv/Show Name/S3/Episode 4.mkv", "Show Name", 3, 4, nil},
+		{"/tv/Show Name/Specials/01.mkv", "Show Name", 0, 1, nil},
+		{"/tv/Show.Name.2019/Season 1/101.mkv", "Show Name", 1, 101, new(2019)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			info := ParsePath(tc.path)
+			assert.Equal(t, "series", info.Type)
+			assert.Equal(t, tc.title, info.Title)
+			require.NotNil(t, info.Season)
+			assert.Equal(t, tc.season, *info.Season)
+			require.NotNil(t, info.Episode)
+			assert.Equal(t, tc.episode, *info.Episode)
+			assert.Equal(t, tc.year, info.Year)
+		})
+	}
+}
+
+func TestParsePath_KeepsTheFileNameWhenItStatesTheEpisode(t *testing.T) {
+	// The season folder is a fallback only: a name that carries S01E05 wins,
+	// even when the folder says otherwise.
+	info := ParsePath("/tv/Show Name/Season 2/Show.Name.S01E05.1080p.mkv")
+	assert.Equal(t, "series", info.Type)
+	assert.Equal(t, "Show Name", info.Title)
+	assert.Equal(t, "S01E05", info.SE)
+}
+
+func TestParsePath_StaysAMovieOutsideASeasonFolder(t *testing.T) {
+	for _, path := range []string{
+		"/movies/01 - Thing.mkv",                          // no season folder above
+		"/tv/Show Name/Season 2/Pilot.mkv",                // no episode number in the name
+		"/tv/Show Name/Season 2/2001 A Space Odyssey.mkv", // a year is not an episode number
+	} {
+		info := ParsePath(path)
+		assert.Equal(t, "movie", info.Type, path)
+		assert.Nil(t, info.Episode, path)
+	}
+}

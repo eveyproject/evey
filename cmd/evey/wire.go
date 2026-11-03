@@ -74,6 +74,9 @@ import (
 //   "notification.created"  → email adapter (send email, only when SMTP configured)
 //   "*"                     → webhook dispatcher (delivers matching webhooks)
 //
+//   "user.login.succeeded"  → login history (LoginRecorder)
+//   "user.login.failed"     → login history (LoginRecorder)
+//
 // All other domain events (user.*, playback.*, transcode.*, plugin.*, rating.*,
 // activity.*, music.*, photo.*, mkv.*, metadata.*) are published but have no
 // bus subscribers - they are consumed by the webhook "*" catch-all only.
@@ -159,6 +162,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		applibrary.WithFileSettle(applibrary.DefaultFileSettle),
 	)
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
+	libCmdSvc.WithArtworkPurger(r.Artwork)
 	libCmdSvc.WithPruneGuard(applibrary.PruneGuard{
 		MaxMissingRatio: cfg.Library.PruneMaxMissingPercent / 100,
 		MinMissing:      cfg.Library.PruneMinMissing,
@@ -387,6 +391,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	enricher.SetArtworkPostSaveHook(metadataCmdSvc.ArtworkAutoDownloadHook())
 
 	activityCmdSvc := appactivity.NewCommandService(r.LoginHistory, r.ServerMetric, r.AuditLog, bus)
+	// The login history is written from the login events; without this
+	// subscriber the table (and the admin's history) stayed empty.
+	appactivity.NewLoginRecorder(activityCmdSvc, r.User).Register(bus)
 	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory,
 		appactivity.WithAnalyticsReader(postgres.NewAnalyticsReader(db)),
 		appactivity.WithServerConfig(r.ServerCfg),

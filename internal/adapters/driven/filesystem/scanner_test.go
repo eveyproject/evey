@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -205,4 +206,28 @@ func TestScan_RootThatIsAFileIsAnError(t *testing.T) {
 
 	_, err := NewScanner().Scan(context.Background(), file)
 	require.Error(t, err)
+}
+
+func TestScan_SeasonFolderLayoutYieldsEpisodes(t *testing.T) {
+	dir := t.TempDir()
+	show := filepath.Join(dir, "Show Name (2019)", "Season 2")
+	require.NoError(t, os.MkdirAll(show, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(show, "03 - Pilot.mkv"), []byte("x"), 0644))
+
+	s := NewScanner()
+	found, err := s.Scan(context.Background(), dir)
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, library.Episode, found[0].Type)
+	assert.Equal(t, "Show Name", found[0].Title)
+	require.NotNil(t, found[0].Season)
+	assert.Equal(t, 2, *found[0].Season)
+	require.NotNil(t, found[0].Episode)
+	assert.Equal(t, 3, *found[0].Episode)
+	require.NotNil(t, found[0].Year)
+	assert.Equal(t, 2019, *found[0].Year)
+	assert.True(t, found[0].FolderSeason)
+	assert.Equal(t, "03 Pilot", found[0].NameTitle)
+	// The heal reads the file name's title: a movie is named by its file.
+	assert.Equal(t, "03 Pilot", s.ParseTitle(found[0].Path))
 }

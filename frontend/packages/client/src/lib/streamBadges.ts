@@ -39,14 +39,15 @@ export function isHdrStream(stream?: V1MediaStream): boolean {
 export { resolutionTier };
 
 // The ONE resolution label every surface prints: "4K", "1440p", "1080p",
-// "720p", and below that the height ("576p").
+// "720p", and below that the short side ("576p", portrait or not).
 export function resolutionLabel(stream?: Pick<V1MediaStream, "width" | "height">): string | null {
   const h = stream?.height ?? 0;
   if (h <= 0) return null;
-  const tier = resolutionTier(stream?.width, h);
+  const w = stream?.width ?? 0;
+  const tier = resolutionTier(w, h);
   if (tier === 2160) return "4K";
   if (tier > 0) return `${tier}p`;
-  return `${h}p`;
+  return `${w > 0 && w < h ? w : h}p`;
 }
 
 // The same tiers as filter bands, with everything under 720p as "SD".

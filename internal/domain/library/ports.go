@@ -319,6 +319,11 @@ type ScannedFile struct {
 	Year        *int
 	Season      *int
 	Episode     *int
+	// FolderSeason: Season and Episode come from a "Season N" folder, not
+	// from the file name, and Title is the show folder's. NameTitle is the
+	// file name's own title. Only a TV library reads that layout.
+	FolderSeason bool
+	NameTitle    string
 }
 
 type FileScanner interface {
