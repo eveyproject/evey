@@ -1835,3 +1835,18 @@ func TestGetStreamInfo_JudgesTheLanguagePreferredTrack(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "copy", resp.AudioDecision, "no language preference: the default English AAC")
 }
+
+// A commentary track flagged default is not the implicit pick (the master
+// skips it): the verdict judges the main track the master serves.
+func TestGetStreamInfo_SkipsACommentaryDefaultTrack(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-commentary", Title: "Commentary Default", Type: "movie", File: &library.MediaFile{ContainerFormat: "mp4"}})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-commentary", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-commentary", StreamIndex: 1, StreamType: "audio", Codec: "aac", Language: "eng", Channels: new(2), IsDefault: true, Commentary: true},
+		{MediaItemID: "mi-commentary", StreamIndex: 2, StreamType: "audio", Codec: "dts", Language: "eng", Channels: new(6)},
+	})
+	resp, err := h.GetStreamInfo(pbAdminCtx(), &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-commentary", SupportedAudioCodecs: []string{"aac", "mp3"}})
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", resp.AudioDecision, "the DTS main track the master serves is re-encoded, not the AAC commentary")
+}

@@ -1,8 +1,11 @@
 package httpapi
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 )
@@ -229,4 +232,38 @@ func TestResolveDefaultAudioTrack_3LetterCodeMatches(t *testing.T) {
 	}
 	got := resolveDefaultAudioTrack(streams, []string{"fr"})
 	assert.Equal(t, 1, got)
+}
+
+// The master and playback-info pick the same track: the commentary default
+// skipped, the explicit choice honoured, an out-of-range choice falling back
+// on the language default.
+func TestMasterAndInfoPickTheSameTrack(t *testing.T) {
+	streams := []*domainlibrary.MediaStream{
+		{StreamIndex: 0, StreamType: "video", Codec: "h264"},
+		{StreamIndex: 1, StreamType: "audio", Codec: "aac", Language: "eng", IsDefault: true, Commentary: true},
+		{StreamIndex: 2, StreamType: "audio", Codec: "ac3", Language: "eng"},
+		{StreamIndex: 3, StreamType: "audio", Codec: "dts", Language: "fre"},
+	}
+	master := &hlsVODServe{serverLang: func() string { return "en" }}
+	for _, c := range []struct {
+		langs []string
+		query string
+		want  int
+	}{
+		{nil, "", 1}, // the English main, not the commentary default
+		{[]string{"fr"}, "", 2},
+		{[]string{"fr"}, "?audioTrack=0", 0}, // an explicit choice may be the commentary
+		{[]string{"fr"}, "?audioTrack=9", 2}, // out of range: the language default
+		{[]string{"de"}, "", 1},              // no match: locale/server en, never the commentary
+	} {
+		prefs := apptranscoding.TranscodingPreferences{AudioLanguages: c.langs}
+		r := httptest.NewRequest(http.MethodGet, "/m"+c.query, nil)
+		m := master.resolveAudioTrackWith(r, streams, prefs)
+		info, explicit := explicitAudioTrack(r, streams)
+		if !explicit {
+			info = resolveDefaultAudioTrack(streams, buildPrefLangs(prefs.AudioLanguages, prefs.Locale, "en"))
+		}
+		assert.Equal(t, c.want, m, "master langs=%v q=%s", c.langs, c.query)
+		assert.Equal(t, m, info, "info langs=%v q=%s", c.langs, c.query)
+	}
 }
