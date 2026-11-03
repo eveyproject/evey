@@ -652,3 +652,40 @@ func TestMediaItemRepo_ScanLists_PagesHoldWhenARowVanishesBetweenPages(t *testin
 		assert.Subset(t, got, []string{"pg-2", "pg-3", "pg-4", "pg-5"}, "every row still in the library is listed")
 	})
 }
+
+// The batch delete is one unit of work: the rows go and the series' sort key
+// is recomputed, or neither happens. The pruner runs it with no transaction
+// around; a recompute that fails after the delete must not leave rows gone
+// that the caller, told of a failure, still takes for present (it would
+// neither de-index them nor announce their removal).
+func TestMediaItemRepo_DeleteByIDs_IsAtomicWithoutAnAmbientTx(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("mlib-delatomic")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	old := time.Now().UTC().Add(-72 * time.Hour)
+	series := &library.MediaItem{ID: "s-atomic", LibraryID: lib.ID, Type: library.Series, Title: "S", AddedAt: old, UpdatedAt: old}
+	season := &library.MediaItem{ID: "se-atomic", LibraryID: lib.ID, ParentID: "s-atomic", Type: library.Season, Title: "S01", AddedAt: old, UpdatedAt: old}
+	ep := &library.MediaItem{ID: "ep-atomic", LibraryID: lib.ID, ParentID: "se-atomic", Type: library.Episode, Title: "E01", AddedAt: old.Add(time.Hour), UpdatedAt: old}
+	for _, it := range []*library.MediaItem{series, season, ep} {
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	// The recompute fails once the rows are deleted.
+	_, err := db.ExecContext(ctx, `
+		CREATE FUNCTION refuse_latest_recompute() RETURNS trigger AS $$
+		BEGIN RAISE EXCEPTION 'injected recompute failure'; END $$ LANGUAGE plpgsql;
+		CREATE TRIGGER refuse_latest_recompute BEFORE UPDATE OF latest_child_added_at ON media_items
+		FOR EACH ROW EXECUTE FUNCTION refuse_latest_recompute()`)
+	require.NoError(t, err)
+
+	err = itemRepo.DeleteByIDs(ctx, []string{string(ep.ID)})
+
+	require.Error(t, err)
+	var n int
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT COUNT(*) FROM media_items WHERE id = $1`, ep.ID).Scan(&n))
+	assert.Equal(t, 1, n, "a failed batch delete leaves the rows in place")
+}
