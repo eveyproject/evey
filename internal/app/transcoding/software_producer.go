@@ -912,6 +912,8 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	procOpts := transcoding.HLSProcessOpts{
 		OutputDir:          outDir,
 		FilePath:           srcPath,
+		MediaID:            fp.MediaID,
+		SessionID:          hash,
 		ProgressLogPath:    ffmpegProgressLogPath(progressLogDir, hash, variantIdx, startSeg),
 		Profiles:           profilesToDomain(fp.Profiles[variantIdx : variantIdx+1]),
 		QualityTargets:     qualityTargetsSlice(fp.QualityTargets, variantIdx, variantIdx+1),

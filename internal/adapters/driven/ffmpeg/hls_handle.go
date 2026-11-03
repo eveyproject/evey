@@ -236,7 +236,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			}
 		}
 		if err := waitForSegment(ctx, h.procExited, h.opts.OutputDir, streamName, 10*time.Second, 100*time.Millisecond); err != nil {
-			slog.WarnContext(ctx, "hls: first segment not yet ready, proceeding anyway", slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
+			slog.WarnContext(ctx, "hls: first segment not yet ready, proceeding anyway", slog.String("media_id", h.opts.MediaID), slog.String("session_id", h.opts.SessionID), slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
 		}
 	} else {
 		masterPath := filepath.Join(h.opts.OutputDir, "master.m3u8")
@@ -252,7 +252,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			return
 		}
 		if err := waitForSegment(ctx, h.procExited, h.opts.OutputDir, "stream_0", 10*time.Second, 100*time.Millisecond); err != nil {
-			slog.WarnContext(ctx, "hls: first segment not yet ready, proceeding anyway", slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
+			slog.WarnContext(ctx, "hls: first segment not yet ready, proceeding anyway", slog.String("media_id", h.opts.MediaID), slog.String("session_id", h.opts.SessionID), slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
 		}
 	}
 
@@ -262,6 +262,8 @@ func (h *hlsHandle) run(ctx context.Context) {
 	h.setExitErr(we)
 	if we != nil && ctx.Err() == nil {
 		slog.WarnContext(ctx, "hls: ffmpeg exited with error",
+			slog.String("media_id", h.opts.MediaID),
+			slog.String("session_id", h.opts.SessionID),
 			slog.Any("err", we),
 			slog.String("stderr_tail", h.stderr.String()))
 	}
@@ -359,7 +361,7 @@ func (h *hlsHandle) Stop() error {
 		h.mu.Lock()
 		if h.cmd != nil && h.cmd.Process != nil {
 			if err := h.cmd.Process.Kill(); err != nil {
-				slog.Warn("ffmpeg kill after timeout failed", slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
+				slog.Warn("ffmpeg kill after timeout failed", slog.String("media_id", h.opts.MediaID), slog.String("session_id", h.opts.SessionID), slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
 			}
 		}
 		h.mu.Unlock()
