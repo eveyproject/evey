@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -385,6 +386,34 @@ func TestMediaItemRepo_ListByLibraryID(t *testing.T) {
 	items, err := itemRepo.ListByLibraryID(ctx, lib.ID)
 	require.NoError(t, err)
 	assert.Len(t, items, 2)
+}
+
+// The whole library, however large: a list cut at a fixed number of rows
+// left the scanner's preload blind to everything older, and every file past
+// the cut was created again until the unique fingerprint index refused it.
+func TestMediaItemRepo_ListByLibraryID_WalksPastOneBatch(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mlib10big")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	total := postgres.ListByLibraryIDBatchRows + 3
+	for i := range total {
+		require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(fmt.Sprintf("mi10big-%05d", i), lib.ID)))
+	}
+
+	items, err := itemRepo.ListByLibraryID(ctx, lib.ID)
+	require.NoError(t, err)
+	require.Len(t, items, total, "every row, not the first batch")
+	seen := make(map[string]bool, total)
+	for _, it := range items {
+		assert.False(t, seen[string(it.ID)], "a row is listed once: %s", it.ID)
+		seen[string(it.ID)] = true
+	}
 }
 
 func TestMediaItemRepo_ListScanSummaries(t *testing.T) {

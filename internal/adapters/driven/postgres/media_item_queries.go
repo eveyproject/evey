@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/lib/pq"
@@ -13,9 +14,11 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
-// listByLibraryIDMaxRows caps the non-paginated library-wide list so an
-// accidental caller can't slurp a whole library.
-const listByLibraryIDMaxRows = 10000
+// ListByLibraryIDBatchRows is the keyset page ListByLibraryID walks a whole
+// library with: the scanner needs every row (a cap there recreated what it
+// hid), so the bound is per query, not per library. Exported for the test
+// that crosses it.
+const ListByLibraryIDBatchRows = 2000
 
 func (r *MediaItemRepository) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.GetByID")
@@ -399,14 +402,37 @@ func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID share
 	return result, nil
 }
 
+// ListByLibraryID is the whole library, walked in keyset batches on mi.id: the
+// scanner preloads it to match every file it finds against the rows it has,
+// and a preload cut short recreated whatever lay past the cut - a series
+// older than the newest ten thousand rows hit the unique fingerprint index
+// on its second Create and the scan stopped there. Each batch carries its
+// own query budget, so a large library on a slow disk is paced, not timed
+// out as a whole.
 func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID shared.LibraryID) ([]*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.ListByLibraryID")
 	defer span.End()
+	var result []*library.MediaItem
+	afterID := ""
+	for {
+		batch, err := r.listByLibraryIDAfter(ctx, libraryID, afterID, ListByLibraryIDBatchRows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, batch...)
+		if len(batch) < ListByLibraryIDBatchRows {
+			return result, nil
+		}
+		afterID = string(batch[len(batch)-1].ID)
+	}
+}
+
+func (r *MediaItemRepository) listByLibraryIDAfter(ctx context.Context, libraryID shared.LibraryID, afterID string, limit int) ([]*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		fmt.Sprintf("SELECT %s %s WHERE mi.library_id = $1 ORDER BY mi.added_at DESC LIMIT $2", mediaItemColumns, mediaItemFromJoins),
-		libraryID, listByLibraryIDMaxRows)
+		fmt.Sprintf("SELECT %s %s WHERE mi.library_id = $1 AND mi.id > $2 ORDER BY mi.id LIMIT $3", mediaItemColumns, mediaItemFromJoins),
+		libraryID, afterID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.ListByLibraryID: %w", err)
 	}
@@ -423,6 +449,59 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID sha
 		return nil, fmt.Errorf("MediaItemRepo.ListByLibraryID rows: %w", err)
 	}
 	return result, nil
+}
+
+// FindReplacedFile implements library.MediaItemCommandRepo: the row a file
+// under a new name stands in for. An episode is matched on its season and
+// number, a movie on its folder, parsed title and year; the row's own path is
+// never f.Path (that is the path lookup's hit), and the oldest row wins when
+// several qualify, so a repeated upgrade keeps following the same item. A
+// file whose name carries no year matches on folder and title alone.
+func (r *MediaItemRepository) FindReplacedFile(ctx context.Context, libraryID shared.LibraryID, parentID string, f library.ScannedFile) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.FindReplacedFile")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var (
+		where string
+		args  []any
+	)
+	switch {
+	case f.Type == library.Episode && parentID != "" && f.Episode != nil:
+		where = `mi.library_id = $1 AND mi.type = 'episode' AND mi.parent_id = $2 AND mi.index_number = $3
+		         AND mf.file_path IS NOT NULL AND mf.file_path <> $4`
+		args = []any{libraryID, parentID, *f.Episode, f.Path}
+	case f.Type == library.MovieItem && f.Title != "":
+		var year any
+		if f.Year != nil {
+			year = *f.Year
+		}
+		where = `mi.library_id = $1 AND mi.type = 'movie'
+		         AND regexp_replace(mf.file_path, '/[^/]*$', '') = $2
+		         AND lower(COALESCE(NULLIF(mi.scan_title, ''), mi.title)) = lower($3)
+		         AND ($4::int IS NULL OR mc.year IS NOT DISTINCT FROM $4::int)
+		         AND mf.file_path <> $5`
+		args = []any{libraryID, filepath.Dir(f.Path), f.Title, year, f.Path}
+	default:
+		return nil, shared.ErrNotFound
+	}
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		fmt.Sprintf("SELECT %s %s WHERE %s ORDER BY mi.added_at ASC, mi.id ASC LIMIT 1", mediaItemColumns, mediaItemFromJoins, where), args...)
+	if err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.FindReplacedFile: %w", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if rerr := rows.Err(); rerr != nil {
+			return nil, fmt.Errorf("MediaItemRepo.FindReplacedFile rows: %w", rerr)
+		}
+		return nil, shared.ErrNotFound
+	}
+	item, err := r.scanMediaItemFromRows(rows)
+	if err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.FindReplacedFile scan: %w", err)
+	}
+	return item, nil
 }
 
 func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID shared.LibraryID) ([]library.MediaItemScanRow, error) {
