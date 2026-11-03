@@ -149,8 +149,11 @@ var knownQualities = map[string]bool{
 var reBogusResolution = regexp.MustCompile(`^\d{3,4}[pP]$`)
 
 var (
-	reSeriesPart = regexp.MustCompile(`(?i)^[sS](\d{1,2})[eE](\d{1,3})$`)
-	reSeasonX    = regexp.MustCompile(`(?i)^(\d{1,2})[xX](\d{1,3})$`)
+	// A multi-episode file ("S01E01E02", "1x01x02") keeps its first number:
+	// an item has one index, and the trailing ones only left the whole
+	// marker in the title, turning the file into a movie.
+	reSeriesPart = regexp.MustCompile(`(?i)^[sS](\d{1,2})[eE](\d{1,3})(?:[eE]\d{1,3})*$`)
+	reSeasonX    = regexp.MustCompile(`(?i)^(\d{1,2})[xX](\d{1,3})(?:[xX]\d{1,3})*$`)
 	reYear       = regexp.MustCompile(`^((?:19|20)\d{2})$`)
 	reCodec      = regexp.MustCompile(`(?i)\b(x264|x265|h\.?264|h\.?265|hevc|avc|av1|vp9|mpeg[24]|xvid|divx)\b`)
 	reAudio      = regexp.MustCompile(`(?i)\b(aac|dts-hd\.?ma|dts-hd|dts|truehd|atmos|flac|ac3|eac3|dd5\.?1|dd7\.?1|dd2\.?0|opus|pcm|mp3|lpcm)\b`)

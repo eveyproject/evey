@@ -709,3 +709,25 @@ func TestParsePath_StaysAMovieOutsideASeasonFolder(t *testing.T) {
 		assert.Nil(t, info.Episode, path)
 	}
 }
+
+// --- Multi-episode files and unnumbered season files ---
+
+// A file holding two episodes is filed under its first: the number scheme
+// has one index per item, and the first is where a viewer looks for it.
+func TestParseFilename_MultiEpisodeTakesTheFirstNumber(t *testing.T) {
+	for _, name := range []string{
+		"Show.Name.S01E01E02.1080p.mkv",
+		"Show.Name.S01E01-E02.1080p.mkv",
+		"Show Name - S01E01-02 - Two Parter.mkv",
+		"Show.Name.1x01x02.mkv",
+	} {
+		info := ParseFilename(name)
+		assert.Equal(t, "series", info.Type, name)
+		assert.Equal(t, "Show Name", info.Title, name)
+		require.NotNil(t, info.Season, name)
+		assert.Equal(t, 1, *info.Season, name)
+		require.NotNil(t, info.Episode, name)
+		assert.Equal(t, 1, *info.Episode, name)
+		assert.Equal(t, "S01E01", info.SE, name)
+	}
+}

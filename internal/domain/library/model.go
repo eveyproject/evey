@@ -313,7 +313,9 @@ type MediaFile struct {
 //	1: a file without a season/episode marker in its name is an episode of
 //	   the show two folders up when it sits in a "Season N" folder and its
 //	   name states an episode number.
-const ParserVersion = 1
+//	2: a multi-episode name ("S01E01E02", "1x01x02") is the episode of its
+//	   first number instead of a movie titled with the whole marker.
+const ParserVersion = 2
 
 // StreamProbeVersion is the current prober revision. Bump when the prober
 // learns a field the scanner must re-read on existing rows.
