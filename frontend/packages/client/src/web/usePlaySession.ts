@@ -109,23 +109,40 @@ export interface PlaySessionInitial {
  * browser says so.
  */
 export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_DEVICE, initial?: PlaySessionInitial): PlaySessionResult {
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  // Session and token are remembered WITH the title they were minted for:
+  // the route does not remount on an episode change, and exposing the
+  // previous title's pair mounted the next player on a stopped session with
+  // the wrong token.
+  const [sessionFor, setSessionFor] = useState<{ mediaId: string; id: string } | null>(null);
+  const [tokenFor, setTokenFor] = useState<{ mediaId: string; token: string } | null>(null);
+  const sessionId = sessionFor?.mediaId === mediaId ? sessionFor.id : null;
+  const streamToken = tokenFor?.mediaId === mediaId ? tokenFor.token : null;
   // The track the first verdict is asked for, fixed per title like the
   // native initialRef: a later pick goes through selectAudioStream.
   const initialAudioRef = useRef(initial?.audioStreamIndex);
   const sessionIdRef = useRef<string | null>(null);
   const stopped = useRef(false);
   const startedRef = useRef(false);
+  const streamTokenRef = useRef<string | null>(null);
   const prevMediaIdRef = useRef(mediaId);
   if (prevMediaIdRef.current !== mediaId) {
     prevMediaIdRef.current = mediaId;
     startedRef.current = false;
     initialAudioRef.current = initial?.audioStreamIndex;
+    // sessionIdRef is deliberately kept: the route stops the previous
+    // session through stopSession right after this render.
+    streamTokenRef.current = null;
   }
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState(false);
-  const { streamToken, fetchStreamToken } = useStreamToken();
-  const streamTokenRef = useRef<string | null>(null);
+  const { fetchStreamToken: mintStreamToken } = useStreamToken();
+  // A cast token is a parallel one for the receiver: the local player's
+  // token is only replaced by a local mint.
+  const fetchStreamToken = useCallback(async (forMediaId: string, opts?: { cast?: boolean; native?: boolean }): Promise<string> => {
+    const token = await mintStreamToken(forMediaId, opts);
+    if (!opts?.cast) setTokenFor({ mediaId: forMediaId, token });
+    return token;
+  }, [mintStreamToken]);
 
   const caps = useMemo(() => getBrowserCapabilities(), []);
   const initialAudio = initialAudioRef.current;
@@ -230,6 +247,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
     if (!mediaId || startedRef.current || !rawStreamInfo) return;
     startedRef.current = true;
     setStarting(true);
+    const forMediaId = mediaId;
 
     const playMethod = rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY"
       ? "PLAY_METHOD_DIRECT_PLAY"
@@ -243,12 +261,12 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
         // token mid-stream, so it gets the long-lived window up front; the
         // httpOnly evey_hls cookie then carries it across segments/pauses.
         const token = await fetchStreamToken(
-          mediaId,
+          forMediaId,
           prefersNativeHLS() ? { native: true } : undefined,
         );
-        streamTokenRef.current = token;
+        if (prevMediaIdRef.current === forMediaId) streamTokenRef.current = token;
         const session = await playbackServiceStartStream({
-          mediaItemId: mediaId,
+          mediaItemId: forMediaId,
           playMethod,
           deviceId: device.deviceId,
           deviceName: device.deviceName,
@@ -266,8 +284,15 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
           resolution: rawStreamInfo.resolution ?? "",
         });
         if (session.id) {
+          // The player was left, or moved to another title, while the start
+          // was in flight: nobody will ever stop this session, so stop it
+          // here rather than leave it in Now Playing until its TTL.
+          if (stopped.current || prevMediaIdRef.current !== forMediaId) {
+            postStopStream(session.id);
+            return;
+          }
           sessionIdRef.current = session.id;
-          setSessionId(session.id);
+          setSessionFor({ mediaId: forMediaId, id: session.id });
         }
       } catch {
         setStartError(true);

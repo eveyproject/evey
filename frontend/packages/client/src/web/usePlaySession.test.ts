@@ -259,6 +259,75 @@ describe("usePlaySession", () => {
     expect(startStreamFn).not.toHaveBeenCalled();
   });
 
+  // The route does not remount on an episode change: the hook kept the
+  // previous session id and token, so the next player mounted with a dead
+  // session and the wrong token, and the start that resolved late was never
+  // stopped (an orphan in the admin's Now Playing until its TTL).
+  it("forgets the previous session and token when the title changes while the start is pending", async () => {
+    const usePlaySession = await loadHook("");
+    const resolvers: Array<(v: { id: string }) => void> = [];
+    startStreamFn.mockImplementation(() => new Promise<{ id: string }>((r) => { resolvers.push(r); }));
+    // The second title's token mint is held back too, so the reset is
+    // observable before anything of B has landed.
+    let resolveTokenB!: (t: string) => void;
+    fetchStreamTokenFn
+      .mockImplementationOnce(() => Promise.resolve("stream-tok-abc"))
+      .mockImplementationOnce(() => new Promise<string>((r) => { resolveTokenB = r; }));
+    let hook!: ReturnType<typeof renderHook<ReturnType<typeof usePlaySession>, { id: string }>>;
+    await act(async () => {
+      hook = renderHook(({ id }) => usePlaySession(id), { initialProps: { id: "media-A" } });
+    });
+    expect(hook.result.current.streamToken).toBe("stream-tok-abc");
+    await act(async () => { resolvers[0]({ id: "session-A" }); });
+    expect(hook.result.current.sessionId).toBe("session-A");
+
+    await act(async () => { hook.rerender({ id: "media-B" }); });
+    expect(hook.result.current.sessionId).toBeNull();
+    expect(hook.result.current.streamToken).toBeNull();
+
+    await act(async () => { resolveTokenB("stream-tok-B"); });
+    expect(hook.result.current.streamToken).toBe("stream-tok-B");
+    expect(startStreamFn).toHaveBeenCalledTimes(2);
+    await act(async () => { resolvers[1]({ id: "session-B" }); });
+    expect(hook.result.current.sessionId).toBe("session-B");
+  });
+
+  it("stops a start that lands after the title changed, and keeps the new one", async () => {
+    const usePlaySession = await loadHook("");
+    const resolvers: Array<(v: { id: string }) => void> = [];
+    startStreamFn.mockImplementation(() => new Promise<{ id: string }>((r) => { resolvers.push(r); }));
+    let hook!: ReturnType<typeof renderHook<ReturnType<typeof usePlaySession>, { id: string }>>;
+    await act(async () => {
+      hook = renderHook(({ id }) => usePlaySession(id), { initialProps: { id: "media-A" } });
+    });
+    await act(async () => { hook.rerender({ id: "media-B" }); });
+    await act(async () => { resolvers[0]({ id: "session-A" }); });
+    const calls = stopCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toMatchObject({ body: JSON.stringify({ sessionId: "session-A" }) });
+    expect(hook.result.current.sessionId).toBeNull();
+    await act(async () => { resolvers[1]({ id: "session-B" }); });
+    expect(hook.result.current.sessionId).toBe("session-B");
+    expect(stopCalls()).toHaveLength(1);
+  });
+
+  it("stops a session whose start lands after the player was left", async () => {
+    const usePlaySession = await loadHook("");
+    let resolve!: (v: { id: string }) => void;
+    startStreamFn.mockImplementation(() => new Promise<{ id: string }>((r) => { resolve = r; }));
+    let unmountFn!: () => void;
+    await act(async () => {
+      const { unmount } = renderHook(() => usePlaySession("media-late"));
+      unmountFn = unmount;
+    });
+    act(() => { unmountFn(); });
+    expect(stopCalls()).toHaveLength(0);
+    await act(async () => { resolve({ id: "session-late" }); });
+    const calls = stopCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toMatchObject({ body: JSON.stringify({ sessionId: "session-late" }) });
+  });
+
   it("reads any other refused verdict as an error, without spinning", async () => {
     getStreamInfoFn.mockImplementation(() => ({
       data: undefined,
