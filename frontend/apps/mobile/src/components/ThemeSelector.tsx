@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect } from "react";
 import { ScrollView, View, Pressable, Text, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useThemeStore, useAuthStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes, FONT_SIZE } from "@evey/theme";
 import { pluginThemeKey, usePluginThemes } from "@evey/client";
@@ -40,6 +41,7 @@ function ThemeSelectorImpl() {
   // The theme belongs to the profile, not to this handset: pick it here and
   // the web and the television follow, and vice versa.
   const { data: user } = useUserServiceGetCurrentUser();
+  const qc = useQueryClient();
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
   const activeProfileId = useAuthStore((s) => s.profileId);
   const activeProfile =
@@ -59,12 +61,22 @@ function ThemeSelectorImpl() {
       setTheme(key, pluginId);
       // Demo: the profile is shared, the theme stays on this phone.
       if (!activeProfile?.id || isDemoMode()) return;
-      updateProfile.mutate({
-        id: activeProfile.id,
-        data: { preferences: themePreferences(activeProfile.preferences, key, pluginId) },
-      });
+      updateProfile.mutate(
+        {
+          id: activeProfile.id,
+          data: { preferences: themePreferences(activeProfile.preferences, key, pluginId) },
+        },
+        {
+          // The cached profile still carries the old theme: the playback
+          // screen merges its own choices into that cached map, and saving
+          // one of them within the cache's lifetime wrote the old theme back.
+          onSuccess: () => {
+            if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+          },
+        },
+      );
     },
-    [setTheme, updateProfile, activeProfile],
+    [setTheme, updateProfile, activeProfile, qc, user?.id],
   );
 
   const { data: pluginThemes } = usePluginThemes();

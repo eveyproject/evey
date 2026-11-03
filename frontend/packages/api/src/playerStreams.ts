@@ -1,5 +1,5 @@
 import type { V1MediaStream } from "./generated/library.schemas";
-import { isBurnInSubtitle } from "./imageSubtitles";
+import { isBurnInSubtitle, isImageSubtitle } from "./imageSubtitles";
 
 /** An audio track as every player lists it. */
 export interface PlayerAudioStream {
@@ -52,8 +52,30 @@ export function playerAudioStreams(streams: V1MediaStream[] | undefined): Player
     }));
 }
 
-/** The subtitle tracks of a title, in file order. */
-export function playerSubtitleStreams(streams: V1MediaStream[] | undefined): PlayerSubtitleStream[] {
+/**
+ * The profile's "subtitle burn-in" choice, as stored under subtitle_burn_in:
+ * "auto" burns only a bitmap the player cannot draw, "always" burns every
+ * bitmap track (PGS included, at the cost of the copy rung), "never" burns
+ * nothing, so a bitmap the player cannot draw stays off the picture rather
+ * than turning the stream into a transcode. Text is never burnt: the server
+ * only burns bitmaps, so a text track is drawn by the player in every mode.
+ */
+export type SubtitleBurnMode = "auto" | "always" | "never";
+
+/** Reads subtitle_burn_in off a profile's preferences; anything else is auto. */
+export function subtitleBurnMode(prefs: Record<string, string> | undefined): SubtitleBurnMode {
+  const v = (prefs?.["subtitle_burn_in"] ?? "").trim().toLowerCase();
+  return v === "always" || v === "never" ? v : "auto";
+}
+
+function burnsIn(codec: string | null | undefined, mode: SubtitleBurnMode): boolean {
+  if (mode === "never") return false;
+  if (mode === "always") return isImageSubtitle(codec);
+  return isBurnInSubtitle(codec);
+}
+
+/** The subtitle tracks of a title, in file order, flagged for burn-in by the profile's mode. */
+export function playerSubtitleStreams(streams: V1MediaStream[] | undefined, burnMode: SubtitleBurnMode = "auto"): PlayerSubtitleStream[] {
   return (streams ?? [])
     .filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
     .map((s, i) => ({
@@ -66,6 +88,6 @@ export function playerSubtitleStreams(streams: V1MediaStream[] | undefined): Pla
       isExternal: s.isExternal,
       externalPath: s.externalPath,
       codec: s.codec,
-      burnIn: isBurnInSubtitle(s.codec),
+      burnIn: burnsIn(s.codec, burnMode),
     }));
 }

@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Modal } from "react-nati
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes as builtInThemes } from "@evey/theme";
 import { pluginThemeKey, wikiUrl } from "@evey/client";
@@ -102,12 +102,22 @@ export default function SettingsScreen() {
       setTheme(value, pluginId);
       // Demo: the profile is shared, the theme stays on this television.
       if (!activeProfile?.id || isDemoMode()) return;
-      updateProfile.mutate({
-        id: activeProfile.id,
-        data: { preferences: themePreferences(activeProfile.preferences, value, pluginId) },
-      });
+      updateProfile.mutate(
+        {
+          id: activeProfile.id,
+          data: { preferences: themePreferences(activeProfile.preferences, value, pluginId) },
+        },
+        {
+          // The cached profile still carries the old theme: the playback
+          // screen merges its own choices into that cached map, and saving
+          // one of them within the cache's lifetime wrote the old theme back.
+          onSuccess: () => {
+            if (user?.id) void queryClient.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+          },
+        },
+      );
     },
-    [setTheme, updateProfile, activeProfile],
+    [setTheme, updateProfile, activeProfile, user?.id],
   );
   // The themes the installed plugins ship, listed after the built-ins.
   const { data: pluginThemes } = usePluginThemes();

@@ -103,8 +103,12 @@ vi.mock("../../../src/lib/server-config", () => ({
 // the next viewer would be served the previous account's rows), the on-disk
 // refresh token, and the in-memory parental unlocks.
 const queryClientClearMock = vi.fn();
+const queryClientInvalidateMock = vi.fn();
 vi.mock("../../../src/lib/query-client", () => ({
-  queryClient: { clear: (...a: unknown[]) => queryClientClearMock(...a) },
+  queryClient: {
+    clear: (...a: unknown[]) => queryClientClearMock(...a),
+    invalidateQueries: (...a: unknown[]) => queryClientInvalidateMock(...a),
+  },
 }));
 const clearRefreshTokenMock = vi.fn().mockResolvedValue(undefined);
 const signOutDeviceMock = vi.fn();
@@ -156,6 +160,7 @@ vi.mock("@evey/api", () => ({
   useAdminSystemServiceGetSystemInfo: (...args: unknown[]) => systemInfoMock(...args),
   userServiceLogout: (...args: unknown[]) => userServiceLogoutMock(...args),
   eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
+  getUserServiceListProfilesQueryKey: (userId: string) => ["/api/v1/users", userId, "profiles"],
 }));
 
 import SettingsScreen from "./settings";
@@ -472,5 +477,19 @@ describe("SettingsScreen (TV) themes", () => {
     fireEvent.click(screen.getByText("Dark Red"));
     expect(setThemeMock).toHaveBeenCalledWith("dark-red", undefined);
     pluginThemesRef.current = [];
+  });
+
+  // The profile list is cached for minutes: left as it was, the playback
+  // screen merged its next choice into the map that still held the old theme
+  // and wrote it back. Once the theme is saved, the cached list must go.
+  it("drops the cached profile list once the theme is saved", () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByText("Dark Red"));
+    expect(updateProfileMutateMock).toHaveBeenCalledTimes(1);
+    const [vars, opts] = updateProfileMutateMock.mock.calls[0] as [unknown, { onSuccess?: () => void } | undefined];
+    expect(vars).toMatchObject({ id: "prof-2", data: { preferences: { theme: "dark-red" } } });
+    expect(queryClientInvalidateMock).not.toHaveBeenCalled();
+    opts?.onSuccess?.();
+    expect(queryClientInvalidateMock).toHaveBeenCalledWith({ queryKey: ["/api/v1/users", "user-1", "profiles"] });
   });
 });
