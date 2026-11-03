@@ -368,8 +368,9 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		// into a silent, complete parental bypass for the whole token TTL, and
 		// a permanently unscannable profile row into a permanent one.
 		//
-		// Refusing logs the user out, which is recoverable. Handing out an
-		// unrestricted token is not.
+		// No token goes out: the handler reads this as a server fault the
+		// client retries later, not as a refusal that drops its refresh token.
+		// Handing out an unrestricted token is the one thing not recoverable.
 		slog.WarnContext(ctx, "refresh: profile lookup failed, refusing rather than dropping the profile binding",
 			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 		return "", "", fmt.Errorf("refresh: load profiles: %w", pErr)
@@ -534,8 +535,10 @@ const refreshRotationGrace = 30 * time.Second
 const rotationRecoveryWindow = 24 * time.Hour
 
 // validateRefreshToken performs the hash-lookup + reuse/expiry gating (it does
-// NOT consume the token; see markRefreshTokenUsed). Any failure path returns
-// ErrInvalidCredentials. The bool reports a GRACED token: one already rotated
+// NOT consume the token; see markRefreshTokenUsed). Every refusal returns
+// ErrInvalidCredentials; a store that could not answer returns its own error,
+// which the handler serves as a fault, never as a refusal (a refusal is what
+// makes a client drop its refresh token). The bool reports a GRACED token: one already rotated
 // within refreshRotationGrace - a multi-tab race loser, entitled to a sibling
 // session (the caller must then skip the claim). A rotation older than the
 // grace is a genuine replay and is rejected WITHOUT purging the user's other

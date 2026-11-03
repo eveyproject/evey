@@ -160,7 +160,15 @@ async function attemptRefresh(): Promise<string> {
         headers: refreshHeaders,
         body: JSON.stringify({}),
       });
-      if (!res.ok) throw Object.assign(new Error("refresh failed"), { httpStatus: res.status });
+      if (!res.ok) {
+        // A limiter's answer keeps its delay, so the caller backs off by it
+        // instead of reading the retry as an authorization failure.
+        const retryAfter = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
+        throw Object.assign(new Error("refresh failed"), {
+          httpStatus: res.status,
+          ...(Number.isFinite(retryAfter) ? { retryAfterSeconds: retryAfter } : {}),
+        });
+      }
       const data = await res.json() as { accessToken: string };
       updateTokens?.(data.accessToken);
       return data.accessToken;
@@ -224,7 +232,9 @@ async function fetchWithRefresh(
         refreshFailed = true;
         fireUnauthorized();
       }
-      if (status === 429) throw refreshErr; // its Retry-After rides along
+      // The browser's inline refresh carries the limiter's status and delay;
+      // the natives' forceRefresh answers without one and lands below.
+      if (status === 429) throw refreshErr;
       throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
     }
   }

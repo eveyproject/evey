@@ -115,7 +115,8 @@ describe("createAuthRefresh - a 403 is the gate, not the credential", () => {
     const logout = vi.spyOn(useAuthStore.getState(), "logout");
     const clear = vi.fn(async () => {});
     const flow = createAuthRefresh(storage({ clearRefreshToken: clear }));
-    await expect(flow.forceRefresh()).rejects.toThrow();
+    // forceRefresh's contract: null is a refusal, a throw an absent answer.
+    await expect(flow.forceRefresh()).resolves.toBeNull();
     vi.unstubAllGlobals();
     expect(clear).toHaveBeenCalledTimes(1);
     expect(logout).toHaveBeenCalledTimes(1);
