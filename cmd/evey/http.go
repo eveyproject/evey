@@ -422,7 +422,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		root = httpapi.DemoLockMiddlewareAt(level, mux, deps.translator, mux)
 	}
 
-	return httpapi.RequestIDMiddleware(httpapi.TokenRedactMiddlewareLive(srv.StreamTokenStore, cfg.EffectiveHTTPS, eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddlewareLive(cfg.EffectiveHTTPS, httpapi.CORSMiddlewareLive(cfg.EffectiveBaseURL, httpapi.CSRFMiddlewareLive(cfg.EffectiveHTTPS, proxyTrust.Middleware(httpapi.BodyReadTimeoutMiddleware(netMw(root))))))))), srv.PlaybackDecider(), nil
+	return httpapi.RequestIDMiddleware(httpapi.TokenRedactMiddlewareLive(srv.StreamTokenStore, cfg.EffectiveHTTPS, eveymetrics.InstrumentRoutes(httpapi.SecurityHeadersMiddlewareLive(cfg.EffectiveHTTPS, httpapi.CORSMiddlewareLive(cfg.EffectiveBaseURL, httpapi.CSRFMiddlewareLive(cfg.EffectiveHTTPS, proxyTrust.Middleware(httpapi.BodyReadTimeoutMiddleware(netMw(root)))))), mux))), srv.PlaybackDecider(), nil
 }
 
 func resolveVAPIDPublicKey(cfgRepo shared.ServerConfigRepository, cfg *config.Config) string {

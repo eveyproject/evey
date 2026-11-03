@@ -148,3 +148,60 @@ func TestPluginMetrics(t *testing.T) {
 		t.Fatal("response missing evey_plugin_errors_total metric")
 	}
 }
+
+// Labelled by the route it reached: an anonymous probe through a wildcard
+// route the guard refuses, a refusal under the catch-all "/" (the gateway),
+// an unclean path the mux redirects, each is one series however it is spelt,
+// and a route's own 404 keeps the route.
+func TestInstrumentRoutes_LabelsByPattern(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/stream", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	mux.HandleFunc("GET /api/v1/items/{id}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	h := metrics.InstrumentRoutes(mux, mux)
+	serve := func(path string) int {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		return w.Code
+	}
+	grown := func(name string, paths func(i int) string, wantStatus int) int {
+		t.Helper()
+		before := testutil.CollectAndCount(metrics.HTTPRequestsTotal)
+		for i := range 300 {
+			if got := serve(paths(i)); got != wantStatus {
+				t.Fatalf("%s: status %d, want %d", name, got, wantStatus)
+			}
+		}
+		return testutil.CollectAndCount(metrics.HTTPRequestsTotal) - before
+	}
+	cases := []struct {
+		name   string
+		path   func(i int) string
+		status int
+	}{
+		{"wildcard route refusing", func(i int) string { return "/api/v1/media/probe" + strconv.Itoa(i) + "/stream" }, http.StatusUnauthorized},
+		{"gateway refusing under /", func(i int) string { return "/api/v1/libraries/probe" + strconv.Itoa(i) }, http.StatusUnauthorized},
+		{"unclean path redirected", func(i int) string { return "/probe" + strconv.Itoa(i) + "//" }, http.StatusTemporaryRedirect},
+		{"route's own 404", func(i int) string { return "/api/v1/items/probe" + strconv.Itoa(i) }, http.StatusNotFound},
+	}
+	for _, c := range cases {
+		if n := grown(c.name, c.path, c.status); n > 1 {
+			t.Errorf("%s: 300 spellings grew the series by %d, want at most 1", c.name, n)
+		}
+	}
+
+	serve("/api/v1/items/one")
+	if got := testutil.ToFloat64(metrics.HTTPRequestsTotal.WithLabelValues("GET", "/api/v1/items/{id}", "404")); got < 1 {
+		t.Errorf("a route's own 404 is not labelled by the route (count %v)", got)
+	}
+}

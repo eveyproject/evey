@@ -667,27 +667,66 @@ func isUUID(s string) bool {
 	return true
 }
 
-// unmatchedPath is the one label every request no route answered shares: a
-// path nobody serves is whatever the caller typed, and one series per
-// spelling let any anonymous client grow the process without bound.
+// unmatchedPath is the one label every request no route of its own answered
+// shares: a path nobody serves is whatever the caller typed, and one series
+// per spelling let any anonymous client grow the process without bound.
 const unmatchedPath = "{unmatched}"
+
+// RoutePatterns resolves the route a request would reach, without serving
+// it: *http.ServeMux.Handler.
+type RoutePatterns interface {
+	Handler(r *http.Request) (http.Handler, string)
+}
 
 // InstrumentHandler wraps h to record request count and duration. The labels
 // stay bounded: the method is one of the verbs the server routes, a path no
 // route matched is one label, and the file names a session serves by the
-// hundred collapse into one (SanitizePath).
+// hundred collapse into one (SanitizePath). Prefer InstrumentRoutes where
+// the mux is at hand: a route with a wildcard answering 401 to an anonymous
+// probe keeps the probe's spelling here.
 func InstrumentHandler(h http.Handler) http.Handler {
+	return InstrumentRoutes(h, nil)
+}
+
+// InstrumentRoutes is InstrumentHandler labelled by the route the request
+// reaches: the mux pattern, whatever the request spelt in its wildcards and
+// whatever status the route answered. A request under the catch-all "/"
+// (the gRPC gateway, the single-page app) is labelled by its sanitized path
+// when served, and by one label otherwise: the gateway's wildcards are not
+// the mux's, and a refusal there must not mint a series per spelling. A
+// request no route answers is one label too.
+func InstrumentRoutes(h http.Handler, routes RoutePatterns) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Resolved before serving: the mux redirects an unclean path and
+		// the handlers rewrite the path they serve.
+		pattern := ""
+		if routes != nil {
+			_, pattern = routes.Handler(r)
+		}
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		start := time.Now()
 		h.ServeHTTP(rec, r)
 		elapsed := time.Since(start).Seconds()
-		path := SanitizePath(r.URL.Path)
-		if rec.status == http.StatusNotFound || rec.status == http.StatusMethodNotAllowed {
-			path = unmatchedPath
-		}
+		path := routeLabel(pattern, r.URL.Path, rec.status)
 		method := boundedMethod(r.Method)
 		HTTPRequestsTotal.WithLabelValues(method, path, strconv.Itoa(rec.status)).Inc()
 		HTTPRequestDuration.WithLabelValues(method, path).Observe(elapsed)
 	})
+}
+
+// routeLabel is the path label of a request that reached pattern (empty when
+// nothing matched) and was answered with status.
+func routeLabel(pattern, urlPath string, status int) string {
+	switch {
+	case pattern != "" && pattern != "/":
+		// "GET /api/v1/media/{id}/stream": the method is its own label.
+		if i := strings.IndexByte(pattern, ' '); i >= 0 {
+			return pattern[i+1:]
+		}
+		return pattern
+	case pattern == "/" && status >= 200 && status < 300:
+		return SanitizePath(urlPath)
+	default:
+		return unmatchedPath
+	}
 }
