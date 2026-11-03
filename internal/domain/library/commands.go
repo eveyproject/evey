@@ -37,8 +37,12 @@ type MediaItemCommandRepo interface {
 	// ListFilePaths returns id→filePath for all items in a library, feeding
 	// OrphanPruner.Prune's decision of which rows to DeleteByIDs.
 	ListFilePaths(ctx context.Context, libraryID shared.LibraryID) (map[string]string, error)
-	// ListByLibraryID backs ScanService.healOrphanTitles, which Updates any
-	// item whose stored title drifted from a fresher parser pass.
+	// ListByLibraryID is EVERY item of a library, whatever its size: the
+	// television scan preloads it to match each file against the rows it
+	// has, and ScanService.healOrphanTitles Updates any item whose stored
+	// title drifted from a fresher parser pass. An adapter that cut it short
+	// made the preload blind to the rows past the cut, so their files were
+	// created again until the unique fingerprint refused the scan.
 	ListByLibraryID(ctx context.Context, libraryID shared.LibraryID) ([]*MediaItem, error)
 	// ListScanSummaries seeds the scan-pass diff index (scanindex.Index) that
 	// drives every Create/Update decision for the rest of the scan.

@@ -13,9 +13,11 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
-// listByLibraryIDMaxRows caps the non-paginated library-wide list so an
-// accidental caller can't slurp a whole library.
-const listByLibraryIDMaxRows = 10000
+// ListByLibraryIDBatchRows is the keyset page ListByLibraryID walks a whole
+// library with: the scanner needs every row (a cap there recreated what it
+// hid), so the bound is per query, not per library. Exported for the test
+// that crosses it.
+const ListByLibraryIDBatchRows = 2000
 
 func (r *MediaItemRepository) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.GetByID")
@@ -399,14 +401,37 @@ func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID share
 	return result, nil
 }
 
+// ListByLibraryID is the whole library, walked in keyset batches on mi.id: the
+// scanner preloads it to match every file it finds against the rows it has,
+// and a preload cut short recreated whatever lay past the cut - a series
+// older than the newest ten thousand rows hit the unique fingerprint index
+// on its second Create and the scan stopped there. Each batch carries its
+// own query budget, so a large library on a slow disk is paced, not timed
+// out as a whole.
 func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID shared.LibraryID) ([]*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.ListByLibraryID")
 	defer span.End()
+	var result []*library.MediaItem
+	afterID := ""
+	for {
+		batch, err := r.listByLibraryIDAfter(ctx, libraryID, afterID, ListByLibraryIDBatchRows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, batch...)
+		if len(batch) < ListByLibraryIDBatchRows {
+			return result, nil
+		}
+		afterID = string(batch[len(batch)-1].ID)
+	}
+}
+
+func (r *MediaItemRepository) listByLibraryIDAfter(ctx context.Context, libraryID shared.LibraryID, afterID string, limit int) ([]*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		fmt.Sprintf("SELECT %s %s WHERE mi.library_id = $1 ORDER BY mi.added_at DESC LIMIT $2", mediaItemColumns, mediaItemFromJoins),
-		libraryID, listByLibraryIDMaxRows)
+		fmt.Sprintf("SELECT %s %s WHERE mi.library_id = $1 AND mi.id > $2 ORDER BY mi.id LIMIT $3", mediaItemColumns, mediaItemFromJoins),
+		libraryID, afterID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.ListByLibraryID: %w", err)
 	}
