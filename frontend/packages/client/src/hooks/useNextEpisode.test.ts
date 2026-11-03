@@ -202,11 +202,11 @@ describe("useNextEpisode", () => {
 
 // What the web's own overlay already guarded, and the shared hook (the phone,
 // both televisions) did not.
-// An unnumbered episode arrives as indexNumber 0: sorted as a number it sat
-// before episode 1, which then offered it as "previous" and never reached it
-// as "next".
+// An unnumbered episode arrives as indexNumber 0 with hasIndexNumber false:
+// sorted as a number it sat before episode 1, which then offered it as
+// "previous" and never reached it as "next". A real E00 stays first.
 describe("useNextEpisode - an unnumbered episode", () => {
-  const unnumbered = makeEpisode("extra", 0);
+  const unnumbered = { ...makeEpisode("extra", 0), hasIndexNumber: false } as V1MediaItem;
   beforeEach(() => {
     listMediaItemsMock.mockReturnValue({ data: { items: [unnumbered, ep2, ep1] } });
   });
@@ -218,6 +218,17 @@ describe("useNextEpisode - an unnumbered episode", () => {
     );
     expect(result.current.previousEpisode).toBeNull();
     expect(result.current.nextEpisode?.id).toBe("ep2");
+  });
+
+  it("leaves a real E00 ahead of episode 1", () => {
+    const e00 = { ...makeEpisode("ep0", 0), hasIndexNumber: true } as V1MediaItem;
+    listMediaItemsMock.mockReturnValue({ data: { items: [unnumbered, ep1, e00] } });
+    const { result } = renderHook(
+      () => useNextEpisode({ media: ep1, currentTime: 0, duration: 100, onNavigate: vi.fn() }),
+      { wrapper: createWrapper() },
+    );
+    expect(result.current.previousEpisode?.id).toBe("ep0");
+    expect(result.current.nextEpisode?.id).toBe("extra");
   });
 
   it("is the next episode after the last numbered one", () => {

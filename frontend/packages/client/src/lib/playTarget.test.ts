@@ -88,16 +88,18 @@ describe("sortByIndexNumber", () => {
 });
 
 // An episode the server holds without a number (a file of a season folder
-// whose name states none) reaches the client as indexNumber 0 or absent: the
-// proto field is a plain int32. Sorted as 0 it went ahead of episode 1, so
-// Play on the season, "next" and "previous" started on it.
+// whose name states none) reaches the client as indexNumber 0 or absent with
+// hasIndexNumber false. Sorted as 0 it went ahead of episode 1, so Play on
+// the season, "next" and "previous" started on it. A real E00 says
+// hasIndexNumber true (or comes from a server that predates the flag) and
+// stays first, as the server orders it.
 describe("sortEpisodesByIndex", () => {
   it("puts unnumbered episodes after the numbered ones, never ahead of episode 1", () => {
     const fromServer = [
-      { id: "mi-extra", indexNumber: 0 },
-      { id: "mi-ep2", indexNumber: 2 },
-      { id: "mi-bonus" },
-      { id: "mi-ep1", indexNumber: 1 },
+      { id: "mi-extra", indexNumber: 0, hasIndexNumber: false },
+      { id: "mi-ep2", indexNumber: 2, hasIndexNumber: true },
+      { id: "mi-bonus", hasIndexNumber: false },
+      { id: "mi-ep1", indexNumber: 1, hasIndexNumber: true },
     ];
 
     const ordered = sortEpisodesByIndex(fromServer);
@@ -109,7 +111,26 @@ describe("sortEpisodesByIndex", () => {
   });
 
   it("compares two unnumbered episodes as equal, so the sort keeps the server order", () => {
-    expect(compareEpisodeIndex({ indexNumber: 0 }, {})).toBe(0);
-    expect(compareEpisodeIndex({ indexNumber: 3 }, {})).toBeLessThan(0);
+    expect(compareEpisodeIndex({ indexNumber: 0, hasIndexNumber: false }, { hasIndexNumber: false })).toBe(0);
+    expect(compareEpisodeIndex({ indexNumber: 3, hasIndexNumber: true }, { hasIndexNumber: false })).toBeLessThan(0);
+  });
+
+  it("plays a real E00 first and the unnumbered episode last", () => {
+    const fromServer = [
+      { id: "mi-ep2", indexNumber: 2, hasIndexNumber: true },
+      { id: "mi-extra", indexNumber: 0, hasIndexNumber: false },
+      { id: "mi-ep0", indexNumber: 0, hasIndexNumber: true },
+      { id: "mi-ep1", indexNumber: 1, hasIndexNumber: true },
+    ];
+    const ordered = sortEpisodesByIndex(fromServer);
+    expect(ordered.map((e) => e.id)).toEqual(["mi-ep0", "mi-ep1", "mi-ep2", "mi-extra"]);
+    expect(
+      resolvePlayTarget({ id: "mi-season", isSeries: false, isSeason: true, episodeIds: ordered.map((e) => e.id) }),
+    ).toBe("mi-ep0");
+  });
+
+  it("keeps E00 first from a server that predates hasIndexNumber", () => {
+    const ordered = sortEpisodesByIndex([{ id: "mi-ep1", indexNumber: 1 }, { id: "mi-ep0" }]);
+    expect(ordered.map((e) => e.id)).toEqual(["mi-ep0", "mi-ep1"]);
   });
 });

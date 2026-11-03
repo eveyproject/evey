@@ -12,6 +12,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/domain/transcoding"
 	"github.com/eveyproject/evey/internal/domain/user"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -737,4 +738,22 @@ func TestArtworkRecordToProto_NilOptionals(t *testing.T) {
 	if pb.Url != "" || pb.Width != 0 || pb.Language != "" {
 		t.Error("nil optionals should be empty/zero")
 	}
+}
+
+// index_number reads 0 both for an item without a number (a file of a season
+// folder whose name states none) and for number 0 (an episode E00, the
+// specials season); has_index_number tells them apart so a client ranks E00
+// first and the unnumbered episode last, as the server orders them.
+func TestMediaItemToProto_HasIndexNumberTellsZeroFromNone(t *testing.T) {
+	none := mediaItemToProto(&library.MediaItem{ID: "ep-x", Type: library.Episode}, false)
+	assert.False(t, none.HasIndexNumber)
+	assert.Equal(t, int32(0), none.IndexNumber)
+
+	zero := mediaItemToProto(&library.MediaItem{ID: "ep-0", Type: library.Episode, IndexNumber: new(0)}, false)
+	assert.True(t, zero.HasIndexNumber)
+	assert.Equal(t, int32(0), zero.IndexNumber)
+
+	three := mediaItemToProto(&library.MediaItem{ID: "ep-3", Type: library.Episode, IndexNumber: new(3)}, false)
+	assert.True(t, three.HasIndexNumber)
+	assert.Equal(t, int32(3), three.IndexNumber)
 }

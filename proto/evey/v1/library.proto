@@ -211,6 +211,12 @@ message MediaItem {
   // Season number of an episode's season (0 elsewhere), so a client can build
   // the S01E03 code without fetching the season.
   int32 season_index_number = 34;
+  // has_index_number tells an episode or season without a number (a file of
+  // a season folder whose name states none) from number 0 (an episode E00,
+  // the specials season): index_number reads 0 for both. Additive rather
+  // than making index_number optional, a cardinality change buf breaking
+  // refuses.
+  bool has_index_number = 35;
 }
 
 message Rating {

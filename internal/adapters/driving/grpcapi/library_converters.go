@@ -114,6 +114,7 @@ func mediaItemToProto(item *library.MediaItem, includeFilePath bool) *eveyv1.Med
 	}
 	if item.IndexNumber != nil {
 		pb.IndexNumber = int32(*item.IndexNumber)
+		pb.HasIndexNumber = true
 	}
 	for _, t := range item.Trailers {
 		pb.Trailers = append(pb.Trailers, trailerToProto(t))
