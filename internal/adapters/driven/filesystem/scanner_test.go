@@ -231,3 +231,34 @@ func TestScan_SeasonFolderLayoutYieldsEpisodes(t *testing.T) {
 	// The heal reads the file name's title: a movie is named by its file.
 	assert.Equal(t, "03 Pilot", s.ParseTitle(found[0].Path))
 }
+
+// A sample is never indexed, in any library; another extra is listed with
+// its kind, for the TV scan to leave out and a movie library to keep.
+func TestScan_SkipsSamplesAndMarksExtras(t *testing.T) {
+	dir := t.TempDir()
+	season := filepath.Join(dir, "Show", "Season 1")
+	require.NoError(t, os.MkdirAll(filepath.Join(season, "Sample"), 0o755))
+	for _, f := range []string{
+		filepath.Join(season, "Show.S01E01.mkv"),
+		filepath.Join(season, "show-sample.mkv"),
+		filepath.Join(season, "Sample", "show.mkv"),
+		filepath.Join(season, "Trailer.mkv"),
+		filepath.Join(dir, "Sample.2019.mkv"),
+	} {
+		require.NoError(t, os.WriteFile(f, []byte("x"), 0o644))
+	}
+
+	found, err := NewScanner().Scan(context.Background(), dir)
+	require.NoError(t, err)
+	extra := map[string]string{}
+	for _, f := range found {
+		rel, relErr := filepath.Rel(dir, f.Path)
+		require.NoError(t, relErr)
+		extra[rel] = f.Extra
+	}
+	assert.Equal(t, map[string]string{
+		filepath.Join("Show", "Season 1", "Show.S01E01.mkv"): "",
+		filepath.Join("Show", "Season 1", "Trailer.mkv"):     "extra",
+		"Sample.2019.mkv": "",
+	}, extra)
+}

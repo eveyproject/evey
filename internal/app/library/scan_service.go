@@ -631,6 +631,9 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		}
 		files, n := s.splitSettled(all, time.Now())
 		unsettled += n
+		if lib.Type == "tvshow" {
+			files = withoutExtras(ctx, files)
+		}
 		listed = append(listed, files)
 	}
 
@@ -650,6 +653,21 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		updated += u
 	}
 	return seenPaths, emptyRoots, failedPaths, toProcess, added, updated, unsettled, nil
+}
+
+// withoutExtras leaves out of a TV library the trailers, featurettes and
+// other bonuses the scanner recognised: filed as episodes, autoplay chained
+// into them. They still count as seen, so the pruner reads them as present.
+func withoutExtras(ctx context.Context, files []library.ScannedFile) []library.ScannedFile {
+	out := make([]library.ScannedFile, 0, len(files))
+	for _, f := range files {
+		if f.Extra != "" {
+			slog.DebugContext(ctx, "scan: leaving a show extra out of the TV library", slog.String("path", f.Path))
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 // filesOutsideTV reads a file the way a library that is not a TV library

@@ -183,7 +183,40 @@ var (
 	reSpecialsFolder = regexp.MustCompile(`(?i)^specials?$`)
 	reLeadingEpisode = regexp.MustCompile(`^(\d{1,3})(?:[ ._-]|$)`)
 	reEpisodeMarker  = regexp.MustCompile(`(?i)(?:^|[ ._-])(?:e|ep|episode)[ ._-]*(\d{1,3})(?:[ ._-]|$)`)
+	// reExtraName finds the bonus words in a file name, reExtraFolder a folder
+	// that holds nothing else. Separators are any of . _ - and space.
+	reExtraName   = regexp.MustCompile(`(?i)(?:^|[ ._-])(samples?|trailers?|teasers?|featurettes?|behind[ ._-]the[ ._-]scenes|deleted[ ._-]scenes?|extras?|bonus)(?:[ ._-]|$)`)
+	reExtraFolder = regexp.MustCompile(`(?i)^(samples?|trailers?|teasers?|featurettes?|behind[ ._-]the[ ._-]scenes|deleted[ ._-]scenes?|extras?|bonus(?:es)?)$`)
 )
+
+// extraKind tells a show's bonus file from an episode, for a file whose name
+// states no episode: "sample", "extra" or "". A sample word that opens a
+// longer name is a title ("Sample.2019.mkv" is a film), not a sample: a
+// sample is dropped from every library, so that one guess is kept narrow.
+func extraKind(path string) string {
+	base := filepath.Base(path)
+	name := strings.TrimSpace(strings.TrimSuffix(base, filepath.Ext(base)))
+	if m := reExtraFolder.FindStringSubmatch(strings.TrimSpace(filepath.Base(filepath.Dir(path)))); m != nil {
+		return kindOf(m[1])
+	}
+	loc := reExtraName.FindStringSubmatchIndex(name)
+	if loc == nil {
+		return ""
+	}
+	word := name[loc[2]:loc[3]]
+	kind := kindOf(word)
+	if kind == "sample" && loc[2] == 0 && strings.TrimLeft(name[loc[3]:], " ._-") != "" {
+		return ""
+	}
+	return kind
+}
+
+func kindOf(word string) string {
+	if strings.HasPrefix(strings.ToLower(word), "sample") {
+		return "sample"
+	}
+	return "extra"
+}
 
 type ParsedInfo struct {
 	Title        string
@@ -204,6 +237,11 @@ type ParsedInfo struct {
 	// name alone gives, for a library where that layout means nothing.
 	FolderSeason bool
 	NameTitle    string
+	// Extra is "sample" or "extra" when the name or the folder holding the
+	// file says it is a sample, trailer, featurette or other bonus of a show
+	// rather than an episode, "" otherwise. Such a file is never promoted to
+	// an episode from a "Season N" folder.
+	Extra string
 }
 
 type FilenameParser struct{}
@@ -233,13 +271,21 @@ func ParsePath(path string) ParsedInfo {
 	if info.Type == "series" {
 		return info
 	}
+	base := filepath.Base(path)
+	episode, numbered := episodeNumberFromName(strings.TrimSuffix(base, filepath.Ext(base)))
+	if !numbered {
+		// A number in the name ("03 - Bonus Round") makes it an episode
+		// whatever words follow; without one, a bonus word or folder makes
+		// it an extra, never promoted.
+		if info.Extra = extraKind(path); info.Extra != "" {
+			return info
+		}
+	}
 	dir := filepath.Dir(path)
 	season, ok := seasonFolderNumber(filepath.Base(dir))
 	if !ok {
 		return info
 	}
-	base := filepath.Base(path)
-	episode, numbered := episodeNumberFromName(strings.TrimSuffix(base, filepath.Ext(base)))
 	show := ParseFilename(filepath.Base(filepath.Dir(dir)) + ".mkv")
 	if show.Title == "" {
 		return info

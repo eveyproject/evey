@@ -330,6 +330,10 @@ type ScannedFile struct {
 	// file name's own title. Only a TV library reads that layout.
 	FolderSeason bool
 	NameTitle    string
+	// Extra is "extra" for a trailer, featurette or other bonus the name or
+	// its folder announces: a TV library leaves it out instead of filing it
+	// as an episode. Samples never reach the scan.
+	Extra string
 }
 
 type FileScanner interface {

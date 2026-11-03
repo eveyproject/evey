@@ -761,3 +761,35 @@ func TestScanMovieLibrary_UnnumberedSeasonFolderFileStaysAMovie(t *testing.T) {
 	assert.Equal(t, "Pilot", movies[0].Title)
 	assert.Empty(t, itemsByType(mediaRepo, "episode"))
 }
+
+// A trailer or featurette of a show is not an episode: a TV library leaves it
+// out instead of filing it where autoplay would chain into it. A movie
+// library keeps it as the movie its name says.
+func TestScanTVShow_LeavesExtrasOut(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}})
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/Season 1/Show.S01E01.mkv", Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(1), Episode: new(1), Type: library.Episode},
+		{Path: "/tv/Show/Season 1/Trailer.mkv", Size: 600, Fingerprint: "fp-2", Title: "Trailer", Type: library.MovieItem, Extra: "extra"},
+	}
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	assert.Len(t, itemsByType(mediaRepo, "episode"), 1)
+	assert.Empty(t, itemsByType(mediaRepo, "movie"))
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1, "no one-file series made of the trailer")
+	assert.Equal(t, "Show", series[0].Title)
+}
+
+func TestScanMovieLibrary_KeepsExtrasAsMovies(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-m", Name: "Movies", Type: "movie", Paths: []string{"/movies"}})
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/Film/Film Trailer.mkv", Size: 600, Fingerprint: "fp-2", Title: "Film Trailer", Type: library.MovieItem, Extra: "extra"},
+	}
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-m")
+	require.NoError(t, err)
+	assert.Len(t, itemsByType(mediaRepo, "movie"), 1)
+}

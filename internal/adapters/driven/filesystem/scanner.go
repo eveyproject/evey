@@ -177,6 +177,10 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 			return nil
 		}
 		parsed := parseScanned(path)
+		if parsed.Extra == "sample" {
+			slog.Debug("scan: skipping sample file", slog.String("path", path))
+			return nil
+		}
 		itemType := library.MovieItem
 		if parsed.Type == "series" {
 			itemType = library.Episode
@@ -195,6 +199,7 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 			Episode:      parsed.Episode,
 			FolderSeason: parsed.FolderSeason,
 			NameTitle:    parsed.NameTitle,
+			Extra:        parsed.Extra,
 		})
 		return nil
 	})
