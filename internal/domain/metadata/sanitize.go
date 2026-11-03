@@ -7,10 +7,13 @@ import (
 
 // SanitizeText is what a provider's text must pass before it reaches the
 // catalogue. A JSON body may legally carry U+0000 (Postgres then refuses the
-// whole row, so the enrichment fails on every pass), C0/C1 controls, and the
-// bidi and zero-width characters that let a title read one way and sort or
-// search another. They are dropped; line and tab breaks in an overview stay,
-// invalid UTF-8 goes, and the ends are trimmed.
+// whole row, so the enrichment fails on every pass), C0/C1 controls, the bidi
+// overrides that make a title read one way and sort or search another, and
+// the zero-width space and byte-order mark that only hide in a string. They
+// are dropped; line and tab breaks in an overview stay, invalid UTF-8 goes,
+// and the ends are trimmed. The joiners (U+200C, U+200D: Persian words,
+// Indic conjuncts, emoji sequences), the LRM/RLM marks and the bidi isolates
+// (U+2066-2069) are text a title is written with and are kept.
 func SanitizeText(s string) string {
 	if s == "" {
 		return s
@@ -21,7 +24,7 @@ func SanitizeText(s string) string {
 			return r
 		case unicode.Is(unicode.Cc, r):
 			return -1
-		case r >= 0x200B && r <= 0x200F, r >= 0x202A && r <= 0x202E, r >= 0x2066 && r <= 0x2069, r == 0xFEFF:
+		case r == 0x200B, r == 0xFEFF, r >= 0x202A && r <= 0x202E:
 			return -1
 		}
 		return r
