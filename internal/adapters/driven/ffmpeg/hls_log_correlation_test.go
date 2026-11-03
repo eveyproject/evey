@@ -40,11 +40,14 @@ func (b *lockedBuffer) String() string {
 // failed encode could not be tied to the playback that asked for it.
 func TestHLSTranscoder_LogsCarryMediaAndSession(t *testing.T) {
 	bin := t.TempDir()
+	out := t.TempDir()
 	// Writes the playlist and a first segment so the handle reaches the exit
-	// it reports, then dies the way a mid-encode failure does.
+	// it reports, then dies the way a mid-encode failure does. The output
+	// directory is written into the script: ffmpeg runs with a minimal
+	// environment, so a variable set here would not reach it.
 	writeFakeBinary(t, filepath.Join(bin, "ffmpeg"), "#!/bin/sh\n"+
-		"echo '#EXTM3U' > \"$FAKE_HLS_OUT/stream_0.m3u8\"\n"+
-		"echo seg > \"$FAKE_HLS_OUT/stream_0_000.ts\"\n"+
+		"echo '#EXTM3U' > '"+out+"/stream_0.m3u8'\n"+
+		"echo seg > '"+out+"/stream_0_000.ts'\n"+
 		"echo 'fake encoder failure' >&2\nexit 1\n")
 	writeFakeBinary(t, filepath.Join(bin, "ffprobe"), "#!/bin/sh\nexit 1\n")
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -53,9 +56,6 @@ func TestHLSTranscoder_LogsCarryMediaAndSession(t *testing.T) {
 	prev := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(logs, nil)))
 	t.Cleanup(func() { slog.SetDefault(prev) })
-
-	out := t.TempDir()
-	t.Setenv("FAKE_HLS_OUT", out)
 	h, err := NewHLSTranscoder().Start(context.Background(), transcoding.HLSProcessOpts{
 		OutputDir:          out,
 		FilePath:           filepath.Join(out, "source.mkv"),

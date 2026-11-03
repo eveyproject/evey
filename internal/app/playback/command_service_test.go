@@ -861,6 +861,29 @@ func TestStartCleanup_RunsInitialCleanup(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond)
 }
 
+// A sweep that panics is skipped, not the loop: the next tick still closes
+// the stale session.
+func TestStartCleanup_SurvivesAPanicInOneSweep(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+	sr.PanicOnceOnCloseStale = true
+	sr.Create(ctx, &playback.PlaySession{
+		ID: "s-after-panic", ProfileID: "p1", MediaItemID: "m1",
+		StartedAt: time.Now().Add(-3 * time.Hour),
+	})
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	cmd.StartCleanupWithInterval(cancelCtx, 10*time.Millisecond, 2*time.Hour)
+
+	require.Eventually(t, func() bool {
+		stored, err := sr.GetByID(ctx, "s-after-panic")
+		return err == nil && stored != nil && stored.EndedAt != nil
+	}, 2*time.Second, 5*time.Millisecond, "the sweep after the panic must still run")
+}
+
 func TestStartCleanup_TickerCleansNewStale(t *testing.T) {
 	t.Parallel()
 	cmd, _, sr, ur, pfr, _ := setupCmd()

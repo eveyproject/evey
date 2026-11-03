@@ -48,6 +48,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/shared"
 	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 	"github.com/eveyproject/evey/internal/domain/webhook"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	"github.com/eveyproject/evey/internal/pkg/bgtasks"
 	"github.com/eveyproject/evey/internal/pkg/coalesce"
 	"github.com/eveyproject/evey/internal/pkg/cpubudget"
@@ -958,9 +959,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 				return
 			case <-reprobe.C:
 				timer.Stop()
-				calibrationSvc.ReprobeDemotedHW(ctx)
+				bgloop.Tick("calibration.reprobeDemotedHW", func() { calibrationSvc.ReprobeDemotedHW(ctx) })
 			case <-timer.C:
-				calibrationSvc.BenchWhenOpportune(ctx)
+				bgloop.Tick("calibration.benchWhenOpportune", func() { calibrationSvc.BenchWhenOpportune(ctx) })
 			}
 		}
 	}()

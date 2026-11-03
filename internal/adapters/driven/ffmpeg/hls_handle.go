@@ -213,7 +213,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			we := h.awaitProcExit()
 			h.setExitErr(we)
 			if we != nil {
-				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
+				slog.DebugContext(ctx, "ffmpeg wait after cancel", slog.Any("err", we))
 			}
 			h.closeReady()
 			return
@@ -229,7 +229,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 				we := h.awaitProcExit()
 				h.setExitErr(we)
 				if we != nil {
-					slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
+					slog.DebugContext(ctx, "ffmpeg wait after cancel", slog.Any("err", we))
 				}
 				h.closeReady()
 				return
@@ -246,7 +246,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			we := h.awaitProcExit()
 			h.setExitErr(we)
 			if we != nil {
-				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
+				slog.DebugContext(ctx, "ffmpeg wait after cancel", slog.Any("err", we))
 			}
 			h.closeReady()
 			return

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -54,24 +55,9 @@ type QoEEventRow struct {
 	RemoteIP         string
 }
 
-// Insert appends one CMCD event. Errors propagate; the caller (sink worker)
-// is responsible for swallowing them - a failed write must never bubble up
-// to the segment handler.
-func (r *PlaybackQoERepo) Insert(ctx context.Context, evt QoEEventRow) error {
-	ctx, span := tracing.StartSpan(ctx, "postgres.qoe.Insert")
-	defer span.End()
-	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
-	defer cancel()
-
-	rawJSON, err := json.Marshal(evt.Raw)
-	if err != nil {
-		// Should be unreachable for map[string]string; fall back to "{}" so
-		// the row still inserts.
-		rawJSON = []byte("{}")
-	}
-
-	const q = `
-		INSERT INTO playback_qoe_events (
+// qoeInsertColumns is the column list every QoE insert fills, in the order
+// qoeRowArgs lays the values out.
+const qoeInsertColumns = `(
 			user_id, media_item_id,
 			session_id, content_id,
 			variant_idx, segment_idx,
@@ -81,18 +67,25 @@ func (r *PlaybackQoERepo) Insert(ctx context.Context, evt QoEEventRow) error {
 			streaming_format, stream_type, cmcd_version,
 			buffer_starved, startup,
 			raw, device_class, remote_ip
-		) VALUES (
-			$1, $2,
-			$3, $4,
-			$5, $6,
-			$7, $8,
-			$9, $10, $11, $12,
-			$13, $14, $15,
-			$16, $17, $18,
-			$19, $20,
-			$21, $22, NULLIF($23, '')::inet
 		)`
-	_, err = txFromCtx(ctx, r.db).ExecContext(ctx, q,
+
+// qoeColumnsPerRow is the width of one VALUES tuple; InsertMany bounds its
+// batches so the statement stays under the driver's parameter limit.
+const qoeColumnsPerRow = 23
+
+// qoeMaxRowsPerStatement keeps one INSERT well under the 65535 parameters a
+// statement may carry.
+const qoeMaxRowsPerStatement = 1000
+
+// qoeRowArgs lays one row out as the arguments of its VALUES tuple.
+func qoeRowArgs(evt QoEEventRow) []any {
+	rawJSON, err := json.Marshal(evt.Raw)
+	if err != nil {
+		// Should be unreachable for map[string]string; fall back to "{}" so
+		// the row still inserts.
+		rawJSON = []byte("{}")
+	}
+	return []any{
 		evt.UserID, evt.MediaItemID,
 		nullIfEmpty(evt.SessionID), nullIfEmpty(evt.ContentID),
 		evt.VariantIdx, evt.SegmentIdx,
@@ -102,9 +95,73 @@ func (r *PlaybackQoERepo) Insert(ctx context.Context, evt QoEEventRow) error {
 		nullIfEmpty(evt.StreamingFormat), nullIfEmpty(evt.StreamType), evt.CMCDVersion,
 		evt.BufferStarved, evt.Startup,
 		rawJSON, nullIfEmpty(evt.DeviceClass), evt.RemoteIP,
-	)
-	if err != nil {
+	}
+}
+
+// qoeValuesTuple renders the placeholders of the row whose arguments start at
+// the 1-based index first.
+func qoeValuesTuple(first int) string {
+	var b strings.Builder
+	b.WriteByte('(')
+	for i := range qoeColumnsPerRow {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		if i == qoeColumnsPerRow-1 {
+			fmt.Fprintf(&b, "NULLIF($%d, '')::inet", first+i)
+			continue
+		}
+		fmt.Fprintf(&b, "$%d", first+i)
+	}
+	b.WriteByte(')')
+	return b.String()
+}
+
+// Insert appends one CMCD event. Errors propagate; the caller (sink worker)
+// is responsible for swallowing them - a failed write must never bubble up
+// to the segment handler.
+func (r *PlaybackQoERepo) Insert(ctx context.Context, evt QoEEventRow) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.qoe.Insert")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	q := "INSERT INTO playback_qoe_events " + qoeInsertColumns + " VALUES " + qoeValuesTuple(1)
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx, q, qoeRowArgs(evt)...); err != nil {
 		return fmt.Errorf("playback_qoe insert: %w", err)
+	}
+	return nil
+}
+
+// InsertMany appends the events in as few statements as the parameter limit
+// allows: the sink hands over what piled up behind a slow write, and one
+// round trip per segment and per viewer is what made the write slow.
+func (r *PlaybackQoERepo) InsertMany(ctx context.Context, evts []QoEEventRow) error {
+	if len(evts) == 0 {
+		return nil
+	}
+	ctx, span := tracing.StartSpan(ctx, "postgres.qoe.InsertMany")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	for start := 0; start < len(evts); start += qoeMaxRowsPerStatement {
+		chunk := evts[start:min(start+qoeMaxRowsPerStatement, len(evts))]
+		var q strings.Builder
+		q.WriteString("INSERT INTO playback_qoe_events ")
+		q.WriteString(qoeInsertColumns)
+		q.WriteString(" VALUES ")
+		args := make([]any, 0, len(chunk)*qoeColumnsPerRow)
+		for i, evt := range chunk {
+			if i > 0 {
+				q.WriteString(", ")
+			}
+			q.WriteString(qoeValuesTuple(len(args) + 1))
+			args = append(args, qoeRowArgs(evt)...)
+		}
+		if _, err := txFromCtx(ctx, r.db).ExecContext(ctx, q.String(), args...); err != nil {
+			return fmt.Errorf("playback_qoe insert many (%d rows): %w", len(chunk), err)
+		}
 	}
 	return nil
 }

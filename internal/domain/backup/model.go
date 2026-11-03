@@ -31,7 +31,15 @@ type BackupManifest struct {
 	Tables        []string  `json:"tables"`
 	Size          int64     `json:"size"`
 	DumpSHA256    string    `json:"dump_sha256,omitempty"`
+	// Reason says what the backup was taken for when it was not asked for:
+	// empty for an admin's or the schedule's, ReasonPreRestore for the dump
+	// a restore takes of the database it is about to overwrite.
+	Reason string `json:"reason,omitempty"`
 }
+
+// ReasonPreRestore marks the backup a restore takes first, the one way back
+// once the restored dump has replaced the tables.
+const ReasonPreRestore = "pre-restore"
 
 func (m *BackupManifest) Validate() error {
 	if m.ID == "" {
@@ -61,6 +69,11 @@ func WithBackupSHA256(sha string) BackupManifestOption {
 // dump into a schema that has since been migrated forward.
 func WithBackupSchemaVersion(v string) BackupManifestOption {
 	return func(m *BackupManifest) { m.SchemaVersion = v }
+}
+
+// WithBackupReason records what the backup was taken for.
+func WithBackupReason(reason string) BackupManifestOption {
+	return func(m *BackupManifest) { m.Reason = reason }
 }
 
 // NewBackupManifest is the canonical constructor. Stamps CreatedAt

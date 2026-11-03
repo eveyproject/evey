@@ -29,6 +29,11 @@ export interface CastProfile {
   // decoder is L4.2 same as Chromecast 3 - plateaus at 1080p60 in H.264 even
   // though it decodes 4K fine via HEVC/VP9.
   h264MaxHeight: number;
+  // maxH264Level: the highest H.264 level_idc the receiver decodes (41 =
+  // 4.1, 51 = 5.1). The height alone lets a 1080p file flagged L5.1 through
+  // as direct play on a decoder stopping at L4.2, and direct play goes to the
+  // receiver as the raw file, where the master path would have transcoded.
+  maxH264Level?: number;
   // maxAudioChannels: the channel ceiling of the receiver's OUTPUT chain, when
   // it was observed (profileFromReceiverCaps). Absent on the model table: the
   // table knows decoders, not the sink behind them.
@@ -47,20 +52,20 @@ const PROFILES: Array<{ match: (m: string) => boolean; profile: CastProfile }> =
     // Google TV Streamer: H.264 High L5.2 (4K60), HEVC Main/Main10 L5.1
     // (4K60), VP9 profile 2 (4K60), AV1 Main L5.1. HDR10/HDR10+/DV.
     match: (m) => m.includes("google tv streamer"),
-    profile: { videoCodecs: ["h264", "hevc", "vp9", "av1"], audioCodecs: ["aac", "mp3", "opus", "flac", "eac3", "ac3"], hdr: true, maxHeight: 2160, h264MaxHeight: 2160 },
+    profile: { videoCodecs: ["h264", "hevc", "vp9", "av1"], audioCodecs: ["aac", "mp3", "opus", "flac", "eac3", "ac3"], hdr: true, maxHeight: 2160, h264MaxHeight: 2160, maxH264Level: 52 },
   },
   {
     // Chromecast HD (with Google TV, HD tier): same modern decoders as the
     // rest of the Google TV family but a 1080p SDR-safe output stage - no
     // point negotiating HDR or > 1080p the panel/output never uses.
     match: (m) => m.includes("chromecast hd"),
-    profile: { videoCodecs: ["h264", "hevc", "vp9", "av1"], audioCodecs: ["aac", "mp3", "opus", "flac", "eac3", "ac3"], hdr: false, maxHeight: 1080, h264MaxHeight: 1080 },
+    profile: { videoCodecs: ["h264", "hevc", "vp9", "av1"], audioCodecs: ["aac", "mp3", "opus", "flac", "eac3", "ac3"], hdr: false, maxHeight: 1080, h264MaxHeight: 1080, maxH264Level: 51 },
   },
   {
     // Chromecast with Google TV (4K): H.264 L5.1 (4K30), HEVC Main/Main10
     // L5.1 (4K60), VP9 profile 2 (4K60). HDR10/HDR10+/DV.
     match: (m) => m.includes("google tv"),
-    profile: { videoCodecs: ["h264", "hevc", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac", "eac3", "ac3"], hdr: true, maxHeight: 2160, h264MaxHeight: 2160 },
+    profile: { videoCodecs: ["h264", "hevc", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac", "eac3", "ac3"], hdr: true, maxHeight: 2160, h264MaxHeight: 2160, maxH264Level: 51 },
   },
   {
     // Chromecast Ultra: H.264 L4.2 (plateaus at 1080p60, NOT 4K), HEVC
@@ -69,13 +74,13 @@ const PROFILES: Array<{ match: (m: string) => boolean; profile: CastProfile }> =
     // passthrough depends entirely on the TV behind it - never guaranteed,
     // and transcoding audio is cheap enough not to gamble on it.
     match: (m) => m.includes("ultra"),
-    profile: { videoCodecs: ["h264", "hevc", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: true, maxHeight: 2160, h264MaxHeight: 1080 },
+    profile: { videoCodecs: ["h264", "hevc", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: true, maxHeight: 2160, h264MaxHeight: 1080, maxH264Level: 42 },
   },
   {
     // Nest Hub (H.264 L4.1 720p60, VP9 L4.0 720p60) and Hub Max (same
     // decoders at 30fps) both output to a 720p screen - no HDR panel either.
     match: (m) => m.includes("nest hub") || m.includes("hub max"),
-    profile: { videoCodecs: ["h264", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: false, maxHeight: 720, h264MaxHeight: 720 },
+    profile: { videoCodecs: ["h264", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: false, maxHeight: 720, h264MaxHeight: 720, maxH264Level: 41 },
   },
   {
     // MiTV-AFMU0 (built-in cast, Android TV, Amlogic): first model
@@ -94,13 +99,13 @@ const PROFILES: Array<{ match: (m: string) => boolean; profile: CastProfile }> =
     // canDisplayType - HLS cast audio there is aac/mp3/opus, period.
     // (its codec-support helper)
     match: (m) => m.includes("mitv"),
-    profile: { videoCodecs: ["h264", "hevc", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: true, maxHeight: 2160, h264MaxHeight: 1080 },
+    profile: { videoCodecs: ["h264", "hevc", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: true, maxHeight: 2160, h264MaxHeight: 1080, maxH264Level: 42 },
   },
   {
     // Chromecast gen 1/2 ("Eureka Dongle") and gen 3: H.264 High L4.1/L4.2,
     // VP8. SDR only, no Dolby decoder at all.
     match: (m) => m.includes("chromecast") || m.includes("eureka"),
-    profile: { videoCodecs: ["h264"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: false, maxHeight: 1080, h264MaxHeight: 1080 },
+    profile: { videoCodecs: ["h264"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: false, maxHeight: 1080, h264MaxHeight: 1080, maxH264Level: 42 },
   },
 ];
 
@@ -151,6 +156,7 @@ export function profileFromReceiverCaps(caps: ObservedReceiverCaps): CastProfile
     hdr: caps.hdr,
     maxHeight: caps.maxHeight,
     h264MaxHeight: caps.h264MaxHeight ?? h264HeightFromLevel(caps.maxH264Level),
+    ...(caps.maxH264Level > 0 ? { maxH264Level: caps.maxH264Level } : {}),
     maxAudioChannels: caps.maxAudioChannels,
   };
 }
@@ -211,6 +217,10 @@ export function castStreamInfoParams(profile: CastProfile) {
     supportsHdr: profile.hdr,
     maxHeight: profile.maxHeight,
     maxH264Height: profile.h264MaxHeight,
+    // The level is what the direct-play verdict is judged on: without it a
+    // file flagged above the decoder's level is sent raw, and the receiver
+    // shows a black screen where the master path would have transcoded.
+    ...(profile.maxH264Level ? { maxH264Level: profile.maxH264Level } : {}),
     // The receiver's output ceiling rides the master URL (buildCastStreamUrl);
     // the verdict must be asked with it too, or it describes a 6ch copy of a
     // track the receiver's segments carry folded to stereo.
@@ -243,6 +253,7 @@ export function buildCastStreamUrl(
   params.set("containers", "mp4"); // receivers list no MKV support - never direct-play/remux mkv to a receiver
   params.set("maxHeight", String(profile.maxHeight));
   params.set("maxH264Height", String(profile.h264MaxHeight));
+  if (profile.maxH264Level) params.set("maxH264Level", String(profile.maxH264Level));
   if (profile.hdr) params.set("hdr", "1");
   // The output chain's channel ceiling, when observed: without it the server
   // applies its 5.1 default and a stereo-only sink refuses the AAC track.

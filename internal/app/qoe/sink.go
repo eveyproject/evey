@@ -54,6 +54,19 @@ type Storage interface {
 	InsertEvent(ctx context.Context, evt Event) error
 }
 
+// BatchStorage is the contract a backend may add to take the events the
+// worker found waiting in one write. One statement per segment and per viewer
+// otherwise costs the database a round trip for each, on the disk that is
+// serving the segments.
+type BatchStorage interface {
+	InsertEvents(ctx context.Context, evts []Event) error
+}
+
+// maxBatch bounds one write: what has piled up behind a slow insert is taken
+// in slices this size, so a statement never grows past what the backend
+// accepts in one call.
+const maxBatch = 256
+
 // DropCounter is the metric port. Pass a Prometheus counter via
 // prometheusDropCounter, or a no-op in tests.
 type DropCounter interface {
@@ -168,8 +181,49 @@ func (s *BufferedSink) Close(ctx context.Context) error {
 
 func (s *BufferedSink) worker() {
 	defer s.workerWG.Done()
+	batcher, batched := s.storage.(BatchStorage)
 	for evt := range s.ch {
-		s.processEvent(evt)
+		if !batched {
+			s.processEvent(evt)
+			continue
+		}
+		s.processBatch(batcher, s.drainWaiting([]Event{evt}))
+	}
+}
+
+// drainWaiting takes, without blocking, the events already queued behind the
+// one in hand, up to maxBatch; the channel staying open or closed changes
+// nothing, a closed one just hands over what remains.
+func (s *BufferedSink) drainWaiting(batch []Event) []Event {
+	for len(batch) < maxBatch {
+		select {
+		case evt, ok := <-s.ch:
+			if !ok {
+				return batch
+			}
+			batch = append(batch, evt)
+		default:
+			return batch
+		}
+	}
+	return batch
+}
+
+// processBatch persists the slice in one write, under the same per-iteration
+// recover as processEvent: a panic loses this batch, never the worker.
+func (s *BufferedSink) processBatch(storage BatchStorage, batch []Event) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("qoe sink: batch panic recovered (loop continues)",
+				slog.Int("events", len(batch)),
+				slog.Any("err", r),
+				slog.String("stack", string(debug.Stack())))
+		}
+	}()
+	if err := storage.InsertEvents(context.Background(), batch); err != nil {
+		s.logger.Warn("qoe sink: batch insert failed",
+			slog.Int("events", len(batch)),
+			slog.Any("err", err))
 	}
 }
 

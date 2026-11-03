@@ -9,16 +9,20 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	appmedia "github.com/eveyproject/evey/internal/app/media"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	transcodingfakes "github.com/eveyproject/evey/internal/domain/transcoding/fakes"
 )
 
 func castToken(mediaID string) *shared.StreamToken {
@@ -168,4 +172,41 @@ func TestCastNext_HappyPath_MintsCastTokenForNext(t *testing.T) {
 	assert.True(t, minted.Cast, "the minted token must stay a cast token (progress tracking keys on it)")
 	assert.Equal(t, shared.UserID("u1"), minted.UserID)
 	assert.Equal(t, shared.ProfileID("p1"), minted.ProfileID)
+}
+
+// The warm-up asks for the next file what the receiver will ask: its own
+// default track, not the audio index the sender baked for the current file.
+// A mixed pack (dub first on one episode, original first on the next) was
+// heated on the wrong language and switched cold onto the right one.
+func TestCastNext_PrewarmIgnoresCurrentAudioTrackIndex(t *testing.T) {
+	cur := newEpisode("ep-a", "lib-a")
+	next := newEpisode("ep-b", "lib-a")
+	libSvc := &prewarmStreamsGetter{
+		items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next},
+		next:  next,
+		streams: []*domainlibrary.MediaStream{
+			{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264"},
+			{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Language: "fre"},
+			{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Language: "eng", IsDefault: true},
+		},
+	}
+	h, _ := newCastNextHandler(t, libSvc, &libIDAccessChecker{allowed: map[string]bool{"lib-a": true}}, testFakeParentalChecker{})
+	spawns := &transcodingfakes.HLSProcess{}
+	orch := apptranscoding.NewSegmentOrchestrator(h.cache, spawns, &noopSourceResolver{},
+		apptranscoding.OrchestratorOptions{WaitBudgetDur: 50 * time.Millisecond}, slog.Default())
+	t.Cleanup(func() { orch.Close() })
+	h.orchestrator = orch
+
+	// The current master was baked with the dub at audio index 0 and a floor
+	// with a line cap, the receiver's answer to a stall.
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/ep-a/cast-next?audioTrack=0&abr=floor&maxKbps=800", nil)
+	req.SetPathValue("id", "ep-a")
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey, castToken("ep-a")))
+	w := httptest.NewRecorder()
+	h.serveCastNext(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	require.NotEmpty(t, spawns.Started, "the warm-up must spawn the next file's first segment")
+	assert.Equal(t, 1, spawns.Started[0].AudioTrackIndex,
+		"the next file is warmed on its own default track (the original, audio index 1), not the current file's index 0")
 }

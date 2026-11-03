@@ -62,7 +62,7 @@ func (fw *FSWatcher) loop() {
 			if ev.Has(fsnotify.Create) {
 				if info, err := os.Stat(ev.Name); err == nil && info.IsDir() {
 					if err := fw.watchRecursive(ev.Name); err != nil {
-						slog.Warn("watchRecursive", slog.Any("err", err))
+						slog.Warn("watcher: new directory not watched", slog.String("path", ev.Name), slog.Any("err", err))
 					}
 					fw.events <- library.FileEvent{Path: fw.configuredPath(ev.Name), Op: library.FileCreated}
 					continue

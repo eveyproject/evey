@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 )
 
 type Config struct {
@@ -199,14 +201,9 @@ func StartCleanup(ctx context.Context, dir string, retentionDays int, initDone .
 		retentionDays = 90
 	}
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// No ctx: detached log-retention goroutine, and this is the
-				// logger's own bootstrap - there is no request in flight.
-				slog.Error("panic in log cleanup", slog.Any("recover", r))
-			}
-		}()
-		cleanOldLogs(dir, retentionDays)
+		// Recovery is per tick: a retention sweep that stopped at its first
+		// panic would let the log directory grow for the life of the process.
+		bgloop.Tick("logger.retention", func() { cleanOldLogs(dir, retentionDays) })
 		for _, ch := range initDone {
 			if ch != nil {
 				close(ch)
@@ -219,7 +216,7 @@ func StartCleanup(ctx context.Context, dir string, retentionDays int, initDone .
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				cleanOldLogs(dir, retentionDays)
+				bgloop.Tick("logger.retention", func() { cleanOldLogs(dir, retentionDays) })
 			}
 		}
 	}()

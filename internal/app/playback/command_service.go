@@ -11,6 +11,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	"github.com/eveyproject/evey/internal/pkg/id"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -961,12 +962,9 @@ func (s *CommandService) StopProgressFlusher() {
 
 func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval, maxAge time.Duration, initDone ...chan<- struct{}) {
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.ErrorContext(ctx, "panic in playback cleanup", slog.Any("recover", r))
-			}
-		}()
-		s.runCleanup(ctx, maxAge)
+		// Recovery is per tick, so a panic on one stale session skips that
+		// sweep instead of ending them all.
+		bgloop.Tick("playback.sessionCleanup", func() { s.runCleanup(ctx, maxAge) })
 		for _, ch := range initDone {
 			if ch != nil {
 				close(ch)
@@ -979,7 +977,7 @@ func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval,
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				s.runCleanup(ctx, maxAge)
+				bgloop.Tick("playback.sessionCleanup", func() { s.runCleanup(ctx, maxAge) })
 			}
 		}
 	}()
