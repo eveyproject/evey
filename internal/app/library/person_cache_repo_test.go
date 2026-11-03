@@ -194,6 +194,9 @@ func (r *updateFailPersonRepo) GetByID(ctx context.Context, id string) (*library
 func (r *updateFailPersonRepo) GetByName(ctx context.Context, name string) (*library.Person, error) {
 	return r.inner.GetByName(ctx, name)
 }
+func (r *updateFailPersonRepo) GetByProviderID(ctx context.Context, provider, id string) (*library.Person, error) {
+	return r.inner.GetByProviderID(ctx, provider, id)
+}
 func (r *updateFailPersonRepo) GetByNamesBatch(ctx context.Context, names []string) (map[string]*library.Person, error) {
 	return r.inner.GetByNamesBatch(ctx, names)
 }
