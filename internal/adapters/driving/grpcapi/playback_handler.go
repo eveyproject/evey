@@ -60,6 +60,10 @@ type playbackHandler struct {
 	// clamped to the cap, and a change in Admin -> Remote Access applies to the
 	// next playback without a restart. nil or a zero cap = feature off.
 	remoteAccess func() (maxKbps int, lanNetworks []string)
+	// serverLang is the server's metadata language, the last language the
+	// default audio track is picked by (the HLS master reads the same one).
+	// Optional: nil reads as none.
+	serverLang func() string
 	// decider answers GetStreamInfo with the plan's decision (Decide with the
 	// request-time pins) - bound by the composition root once the HTTP
 	// pipeline that owns the resolver exists, before this server starts.
@@ -199,6 +203,10 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 				parsed := apptranscoding.ParseTranscodingPreferences(prof.Preferences)
 				// Keep network type from request; everything else from profile.
 				parsed.NetworkType = prefs.NetworkType
+				// The language columns, the way the HLS handlers load them:
+				// they pick the default audio track below.
+				parsed.AudioLanguages = prof.AudioLanguages
+				parsed.Locale = prof.Locale
 				prefs = parsed
 				if prof.MaxBitrateKbps != nil && *prof.MaxBitrateKbps > 0 {
 					if maxBitrateKbps == 0 || *prof.MaxBitrateKbps < maxBitrateKbps {
@@ -221,10 +229,24 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 
 	prefs.WasmAudio = req.WasmAudio
 
+	// The track the HLS master will serve: the selected one, else the one
+	// the profile's languages pick (then the source default). Judged on the
+	// container default instead, the verdict called a copy what the master
+	// re-encodes.
+	selected := false
 	if idx := int(req.AudioStreamIndex); idx > 0 {
 		if rel, ok := typeRelativeIndex(streams, library.StreamTypeAudio, idx); ok {
 			prefs.AudioTrack = rel
+			selected = true
 		}
+	}
+	if !selected {
+		serverLang := ""
+		if h.serverLang != nil {
+			serverLang = h.serverLang()
+		}
+		prefs.AudioTrack = apptranscoding.DefaultAudioTrack(streams,
+			apptranscoding.PreferredAudioLanguages(prefs.AudioLanguages, prefs.Locale, serverLang))
 	}
 	if idx := int(req.SubtitleStreamIndex); idx > 0 {
 		if rel, ok := typeRelativeIndex(streams, library.StreamTypeSubtitle, idx); ok {
