@@ -22,7 +22,7 @@ func TestScanService_UpgradeStillSettling_KeepsRowUntilMatched(t *testing.T) {
 	ctx := context.Background()
 	old := time.Now().Add(-2 * time.Hour)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", ModTime: old, Title: "Film", Year: intPtr(2020), Type: library.MovieItem},
+		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", ModTime: old, Title: "Film", Year: new(2020), Type: library.MovieItem},
 	}
 	_, _, err := h.svc.ScanLibrary(ctx, "lib-m")
 	require.NoError(t, err)
@@ -32,7 +32,7 @@ func TestScanService_UpgradeStillSettling_KeepsRowUntilMatched(t *testing.T) {
 
 	// The upgrade: new name, new size, written seconds ago; the old file gone.
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/Film (2020)/Film.2020.1080p.mkv", Size: 1500, Fingerprint: "1500-2", ModTime: time.Now().Add(-5 * time.Second), Title: "Film", Year: intPtr(2020), Type: library.MovieItem},
+		{Path: "/movies/Film (2020)/Film.2020.1080p.mkv", Size: 1500, Fingerprint: "1500-2", ModTime: time.Now().Add(-5 * time.Second), Title: "Film", Year: new(2020), Type: library.MovieItem},
 	}
 	_, _, err = h.svc.ScanLibrary(ctx, "lib-m")
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestScanService_TwoRoots_CandidateUnderLaterRoot_IsNotReplaced(t *testing.T
 	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv1", "/tv2"}})
 	scanner.Results["/tv1"] = nil
 	scanner.Results["/tv2"] = []library.ScannedFile{
-		{Path: "/tv2/Show/S01/Show.S01E01.mkv", Size: 500, Fingerprint: "500-1", Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv2/Show/S01/Show.S01E01.mkv", Size: 500, Fingerprint: "500-1", Title: "Show", Season: new(1), Episode: new(1), Type: library.Episode},
 	}
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestScanService_TwoRoots_CandidateUnderLaterRoot_IsNotReplaced(t *testing.T
 	id := before[0].ID
 
 	scanner.Results["/tv1"] = []library.ScannedFile{
-		{Path: "/tv1/Show/S01/Show.S01E01.1080p.mkv", Size: 1500, Fingerprint: "1500-2", Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv1/Show/S01/Show.S01E01.1080p.mkv", Size: 1500, Fingerprint: "1500-2", Title: "Show", Season: new(1), Episode: new(1), Type: library.Episode},
 	}
 	_, _, err = svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestScanService_ReplacedMovie_WithoutYear_StillMatches(t *testing.T) {
 	h.libCmd.Seed(lib)
 	ctx := context.Background()
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "Film", Year: intPtr(2020), Type: library.MovieItem},
+		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "Film", Year: new(2020), Type: library.MovieItem},
 	}
 	_, _, err := h.svc.ScanLibrary(ctx, "lib-m")
 	require.NoError(t, err)

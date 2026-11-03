@@ -492,8 +492,8 @@ func (r *MediaItemRepository) FindReplacedFile(ctx context.Context, libraryID sh
 	}
 	defer rows.Close()
 	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("MediaItemRepo.FindReplacedFile rows: %w", err)
+		if rerr := rows.Err(); rerr != nil {
+			return nil, fmt.Errorf("MediaItemRepo.FindReplacedFile rows: %w", rerr)
 		}
 		return nil, shared.ErrNotFound
 	}

@@ -40,13 +40,13 @@ func TestMediaItemRepo_FindReplacedFile(t *testing.T) {
 	elsewhere := upgrade
 	elsewhere.Path = "/m/Other/Film.2020.1080p.mkv"
 	_, err = itemRepo.FindReplacedFile(ctx, movies.ID, "", elsewhere)
-	assert.ErrorIs(t, err, shared.ErrNotFound, "another folder is another film")
+	require.ErrorIs(t, err, shared.ErrNotFound, "another folder is another film")
 
 	otherYear := 2021
 	remake := upgrade
 	remake.Year = &otherYear
 	_, err = itemRepo.FindReplacedFile(ctx, movies.ID, "", remake)
-	assert.ErrorIs(t, err, shared.ErrNotFound, "another year is another film")
+	require.ErrorIs(t, err, shared.ErrNotFound, "another year is another film")
 
 	noYear := upgrade
 	noYear.Path = "/m/Film (2020)/Film.mkv"
@@ -58,7 +58,7 @@ func TestMediaItemRepo_FindReplacedFile(t *testing.T) {
 	same := upgrade
 	same.Path = film.File.Path
 	_, err = itemRepo.FindReplacedFile(ctx, movies.ID, "", same)
-	assert.ErrorIs(t, err, shared.ErrNotFound, "the row at the file's own path is the path lookup's, not a replacement")
+	require.ErrorIs(t, err, shared.ErrNotFound, "the row at the file's own path is the path lookup's, not a replacement")
 
 	shows := newTestLibrary("rfshows")
 	shows.Type = library.TVShow
@@ -79,7 +79,7 @@ func TestMediaItemRepo_FindReplacedFile(t *testing.T) {
 	next := epUpgrade
 	next.Episode = &two
 	_, err = itemRepo.FindReplacedFile(ctx, shows.ID, "rf-season", next)
-	assert.ErrorIs(t, err, shared.ErrNotFound, "another number is another episode")
+	require.ErrorIs(t, err, shared.ErrNotFound, "another number is another episode")
 	_, err = itemRepo.FindReplacedFile(ctx, shows.ID, "rf-series", epUpgrade)
-	assert.ErrorIs(t, err, shared.ErrNotFound, "another parent is another season")
+	require.ErrorIs(t, err, shared.ErrNotFound, "another parent is another season")
 }

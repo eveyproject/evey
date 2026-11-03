@@ -19,7 +19,7 @@ func TestScan_ReplacedEpisodeUnderANewName_KeepsItsItem(t *testing.T) {
 	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
 	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}})
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/tv/MyShow/S01/MyShow.S01E01.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "MyShow", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/MyShow/S01/MyShow.S01E01.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "MyShow", Season: new(1), Episode: new(1), Type: library.Episode},
 	}
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
@@ -29,7 +29,7 @@ func TestScan_ReplacedEpisodeUnderANewName_KeepsItsItem(t *testing.T) {
 
 	// The upgrade: new name, new size, the old file gone.
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/tv/MyShow/S01/MyShow.S01E01.1080p.mkv", Size: 1500, Fingerprint: "1500-2", Title: "MyShow", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/MyShow/S01/MyShow.S01E01.1080p.mkv", Size: 1500, Fingerprint: "1500-2", Title: "MyShow", Season: new(1), Episode: new(1), Type: library.Episode},
 	}
 	added, updated, err := svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestScan_ReplacedMovieUnderANewName_KeepsItsItem(t *testing.T) {
 	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
 	libQueryRepo.Seed(&library.Library{ID: "lib-m", Name: "Movies", Type: "movie", Paths: []string{"/movies"}})
 	scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "Film", Year: intPtr(2020), Type: library.MovieItem},
+		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "Film", Year: new(2020), Type: library.MovieItem},
 	}
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-m")
 	require.NoError(t, err)
@@ -63,7 +63,7 @@ func TestScan_ReplacedMovieUnderANewName_KeepsItsItem(t *testing.T) {
 	id := before[0].ID
 
 	scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/Film (2020)/Film.2020.1080p.mkv", Size: 1500, Fingerprint: "1500-2", Title: "Film", Year: intPtr(2020), Type: library.MovieItem},
+		{Path: "/movies/Film (2020)/Film.2020.1080p.mkv", Size: 1500, Fingerprint: "1500-2", Title: "Film", Year: new(2020), Type: library.MovieItem},
 	}
 	added, _, err := svc.ScanLibrary(context.Background(), "lib-m")
 	require.NoError(t, err)
@@ -82,16 +82,16 @@ func TestScan_ANewFileNextToAnExistingOne_IsANewItem(t *testing.T) {
 	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
 	libQueryRepo.Seed(&library.Library{ID: "lib-m", Name: "Movies", Type: "movie", Paths: []string{"/movies"}})
 	scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "Film", Year: intPtr(2020), Type: library.MovieItem},
+		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "Film", Year: new(2020), Type: library.MovieItem},
 	}
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-m")
 	require.NoError(t, err)
 
 	scanner.ExistingPaths = map[string]bool{"/movies/Film (2020)/Film.2020.720p.mkv": true}
 	scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "Film", Year: intPtr(2020), Type: library.MovieItem},
-		{Path: "/movies/Film (2020)/Film.2020.1080p.mkv", Size: 1500, Fingerprint: "1500-2", Title: "Film", Year: intPtr(2020), Type: library.MovieItem},
-		{Path: "/movies/Other/Film.2020.1080p.mkv", Size: 1600, Fingerprint: "1600-3", Title: "Film", Year: intPtr(2020), Type: library.MovieItem},
+		{Path: "/movies/Film (2020)/Film.2020.720p.mkv", Size: 500, Fingerprint: "500-1", Title: "Film", Year: new(2020), Type: library.MovieItem},
+		{Path: "/movies/Film (2020)/Film.2020.1080p.mkv", Size: 1500, Fingerprint: "1500-2", Title: "Film", Year: new(2020), Type: library.MovieItem},
+		{Path: "/movies/Other/Film.2020.1080p.mkv", Size: 1600, Fingerprint: "1600-3", Title: "Film", Year: new(2020), Type: library.MovieItem},
 	}
 	added, _, err := svc.ScanLibrary(context.Background(), "lib-m")
 	require.NoError(t, err)
