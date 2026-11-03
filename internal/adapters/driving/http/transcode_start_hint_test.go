@@ -195,3 +195,31 @@ func TestStartHint_IsPerViewer(t *testing.T) {
 	seg, _ = h.prewarmSegment(startHintKey(bob, "m1"), 7980, legacyAt, now)
 	assert.Equal(t, 0, seg)
 }
+
+// TestPositionHints_SweepIsThrottled: the live-position map is written on every
+// segment served, under one lock shared by every viewer, so walking it on each
+// write grew with the history it holds. The expiry walk runs at most once per
+// positionHintSweepEvery; an expired entry it has not reached yet is still
+// refused by peek, and the next walk past the interval drops it.
+func TestPositionHints_SweepIsThrottled(t *testing.T) {
+	var hints positionHints[int]
+	t0 := time.Now()
+	ttl := time.Second
+
+	hints.rememberWithin("a", 1, t0, ttl)
+	// a expires at t0+1s; a write just after, inside the sweep interval, must
+	// not walk the map again.
+	hints.rememberWithin("b", 2, t0.Add(2*time.Second), ttl)
+	hints.mu.Lock()
+	_, kept := hints.m["a"]
+	hints.mu.Unlock()
+	assert.True(t, kept, "a write inside the sweep interval does not walk the map")
+	_, ok := hints.peekWithin("a", t0.Add(2*time.Second), ttl)
+	assert.False(t, ok, "an expired entry not yet swept is still refused")
+
+	hints.rememberWithin("c", 3, t0.Add(positionHintSweepEvery), ttl)
+	hints.mu.Lock()
+	n := len(hints.m)
+	hints.mu.Unlock()
+	assert.Equal(t, 1, n, "the next walk past the interval drops every expired entry")
+}

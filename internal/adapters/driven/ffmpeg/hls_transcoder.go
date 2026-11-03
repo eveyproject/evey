@@ -114,7 +114,9 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 		return nil, err
 	}
 	args := BuildFFmpegArgs(opts)
-	slog.Info("hls: ffmpeg start",
+	slog.InfoContext(ctx, "hls: ffmpeg start",
+		slog.String("media_id", opts.MediaID),
+		slog.String("session_id", opts.SessionID),
 		slog.String("media_path", opts.FilePath),
 		slog.String("video_decision", opts.VideoDecision),
 		slog.String("audio_decision", opts.AudioDecision),

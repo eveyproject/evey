@@ -74,7 +74,7 @@ func (s *ScanService) refileStaleParse(ctx context.Context, existing *library.Me
 	existing.UpdatedAt = time.Now()
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
 		slog.WarnContext(ctx, "scan: refile item under its season failed",
-			slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+			slog.String("media_id", string(existing.ID)), slog.Any("err", err))
 		return
 	}
 	*prior = cp
@@ -85,12 +85,12 @@ func (s *ScanService) refileStaleParse(ctx context.Context, existing *library.Me
 	}
 	if s.mediaPersons != nil {
 		if err := s.mediaPersons.DeleteByMediaItemID(ctx, existing.ID); err != nil {
-			slog.WarnContext(ctx, "scan: drop the cast of a refiled item", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "scan: drop the cast of a refiled item", slog.String("media_id", string(existing.ID)), slog.Any("err", err))
 		}
 	}
 	if s.artworkPurger != nil {
 		if err := s.artworkPurger.DeleteByMediaItemID(ctx, string(existing.ID)); err != nil {
-			slog.WarnContext(ctx, "scan: drop the artwork of a refiled item", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "scan: drop the artwork of a refiled item", slog.String("media_id", string(existing.ID)), slog.Any("err", err))
 		}
 	}
 	s.publish(ctx, library.MediaItemAdded{
@@ -159,7 +159,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				}
 				ex.File.Fingerprint = fp
 				if updateErr := s.mediaItems.Update(ctx, ex); updateErr != nil {
-					slog.WarnContext(ctx, "update media item fingerprint failed", slog.String("mediaItemID", string(ex.ID)), slog.Any("err", updateErr))
+					slog.WarnContext(ctx, "update media item fingerprint failed", slog.String("media_id", string(ex.ID)), slog.Any("err", updateErr))
 				}
 			}
 			return ex, false, nil
