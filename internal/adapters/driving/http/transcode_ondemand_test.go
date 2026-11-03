@@ -1597,3 +1597,33 @@ func TestServePackagerMaster_ViewerLeftDuringTheBuildServesNothing(t *testing.T)
 	assert.False(t, served)
 	assert.Equal(t, fallbackPackagerUnbuildable, fallback)
 }
+
+// The profile's channel cap (Admin -> profile -> max audio channels) folds
+// the muxed ladder's audio; the rendition the master advertises beside the
+// packager's video must fold the same way, and the ceiling must ride the
+// rendition URIs so its init and segments are produced at that layout.
+func TestAudioRendition_HonoursProfileChannelCap(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h.audioRenditionEnabled = true
+	h.audio = &audioServe{}
+	h.profilePrefs = &fakeProfilePrefsGetter{prefs: map[string]string{"max_audio_channels": "2"}}
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264&audioCodecs=aac,ac3&containers=mp4&audioTrack=2", nil)
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	streams := multiTrackTrueHDPlusAC3()
+	item := onDemandItem()
+	item.File.Duration, _ = shared.NewDurationMs(7_200_000)
+	rp := planFor(t, h, req, item, streams)
+	require.Equal(t, 2, rp.Decision.MaxAudioChannels, "the muxed verdict folds to the profile cap")
+
+	in, err := h.buildManifestInputWith(req, "m1", item, streams, rp)
+	require.NoError(t, err)
+	assert.Equal(t, 2, in.MaxAudioChannels, "the ceiling baked into every rendition URI")
+	require.NotEmpty(t, in.AudioRenditions)
+	for _, ar := range in.AudioRenditions {
+		assert.LessOrEqual(t, ar.Channels, 2, "rendition %d advertises the folded layout", ar.SourceTrackIdx)
+	}
+}
