@@ -299,19 +299,23 @@ func mapDetailArtwork(images *tmdbImages, serverLang, originalLang string) []dom
 		return nil
 	}
 	var artwork []domain.ArtworkResult
-	artwork = appendImages(artwork, rankImages(images.Posters, serverLang, originalLang), domain.ArtworkTypePoster, 5)
-	artwork = appendImages(artwork, rankImages(images.Backdrops, serverLang, originalLang), domain.ArtworkTypeBackdrop, 5)
-	artwork = appendImages(artwork, rankImages(images.Logos, serverLang, originalLang), domain.ArtworkTypeLogo, 3)
+	artwork = appendImages(artwork, rankImages(images.Posters, serverLang, originalLang, false), domain.ArtworkTypePoster, 5)
+	artwork = appendImages(artwork, rankImages(images.Backdrops, serverLang, originalLang, true), domain.ArtworkTypeBackdrop, 5)
+	artwork = appendImages(artwork, rankImages(images.Logos, serverLang, originalLang, false), domain.ArtworkTypeLogo, 3)
 	return artwork
 }
 
 // rankImages orders images by language: the server's, the title's original
-// one, untagged (a backdrop with no text), English, the rest. Stable, so
-// TMDB's vote order holds within a language.
-func rankImages(imgs []tmdbImage, serverLang, originalLang string) []tmdbImage {
+// one, untagged, English, the rest. A backdrop is shown behind the page's own
+// text, so for backdrops (textless) the untagged ones come first: an image
+// tagged with a language carries burnt-in text. Stable, so TMDB's vote order
+// holds within a rank.
+func rankImages(imgs []tmdbImage, serverLang, originalLang string, textlessFirst bool) []tmdbImage {
 	server, original := imageLanguage(serverLang), imageLanguage(originalLang)
 	rank := func(img tmdbImage) int {
 		switch lang := strings.ToLower(img.ISO639_1); {
+		case lang == "" && textlessFirst:
+			return -1
 		case server != "" && lang == server:
 			return 0
 		case original != "" && lang == original:

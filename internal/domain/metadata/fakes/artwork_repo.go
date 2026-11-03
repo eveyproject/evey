@@ -14,6 +14,8 @@ type FakeArtworkRepository struct {
 	Err   error
 	// fetch mirrors the adapter's fetch_attempts / next_fetch_at columns.
 	fetch map[string]fetchState
+	// SortOrderUpdates counts UpdateSortOrder calls.
+	SortOrderUpdates int
 
 	// DeleteByMediaItemIDCalls / DeleteByMediaItemIDsCalls count invocations
 	// of the single-item vs batch delete, so tests can assert the N+1 is gone.
@@ -143,6 +145,21 @@ func (r *FakeArtworkRepository) FetchAttempts(id string) int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.fetch[id].attempts
+}
+
+func (r *FakeArtworkRepository) UpdateSortOrder(_ context.Context, id string, sortOrder int) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, ok := r.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	a.SortOrder = sortOrder
+	r.SortOrderUpdates++
+	return nil
 }
 
 func (r *FakeArtworkRepository) RecordFetchFailure(_ context.Context, id string, permanent bool) error {

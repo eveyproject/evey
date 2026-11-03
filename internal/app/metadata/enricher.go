@@ -349,8 +349,21 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 		// which delete directly, not here.
 		return nil, nil
 	}
-	if existing, err := e.artworkQuery.GetByMediaItem(ctx, mediaItemID); err == nil && artworkSetUnchanged(existing, artwork) {
-		return nil, nil
+	if existing, err := e.artworkQuery.GetByMediaItem(ctx, mediaItemID); err == nil {
+		if artworkSetUnchanged(existing, artwork) {
+			return nil, nil
+		}
+		// The same images in another order: only sort_order moves. Deleting
+		// and recreating the rows would drop their downloaded files and
+		// fetch every image again for a change of rank.
+		if moves, ok := artworkReorder(existing, artwork); ok {
+			for id, order := range moves {
+				if err := e.artworkCmd.UpdateSortOrder(ctx, id, order); err != nil {
+					return nil, fmt.Errorf("reorder artwork: %w", err)
+				}
+			}
+			return nil, nil
+		}
 	}
 	// Build the new records BEFORE deleting the old ones. If the provider gave
 	// artwork but none of it produced a valid record (bad type/URL), bail out
@@ -395,6 +408,37 @@ func artworkSetUnchanged(existing []*domainmetadata.ArtworkRecord, incoming []do
 		}
 	}
 	return true
+}
+
+// artworkReorder maps each stored record to its rank among the incoming
+// results when both hold the same (type, source URL) multiset, and reports
+// false when they do not.
+func artworkReorder(existing []*domainmetadata.ArtworkRecord, incoming []domainmetadata.ArtworkResult) (map[string]int, bool) {
+	if len(existing) != len(incoming) {
+		return nil, false
+	}
+	byKey := make(map[string][]*domainmetadata.ArtworkRecord, len(existing))
+	for _, r := range existing {
+		url := ""
+		if r.SourceURL != nil {
+			url = *r.SourceURL
+		}
+		k := r.Type + "\x00" + url
+		byKey[k] = append(byKey[k], r)
+	}
+	moves := make(map[string]int, len(incoming))
+	for i, a := range incoming {
+		k := a.Type + "\x00" + a.URL
+		recs := byKey[k]
+		if len(recs) == 0 {
+			return nil, false
+		}
+		byKey[k] = recs[1:]
+		if recs[0].SortOrder != i {
+			moves[recs[0].ID] = i
+		}
+	}
+	return moves, true
 }
 
 func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.ArtworkResult) *domainmetadata.ArtworkRecord {

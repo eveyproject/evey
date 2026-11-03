@@ -896,7 +896,7 @@ func TestRankImages_ServerLanguageFirst(t *testing.T) {
 		{FilePath: "/fr2.jpg", ISO639_1: "fr"},
 		{FilePath: "/de.jpg", ISO639_1: "de"},
 	}
-	got := rankImages(imgs, "fr-FR", "ja")
+	got := rankImages(imgs, "fr-FR", "ja", false)
 	paths := make([]string, len(got))
 	for i, img := range got {
 		paths[i] = img.FilePath
@@ -906,6 +906,27 @@ func TestRankImages_ServerLanguageFirst(t *testing.T) {
 	art := mapDetailArtwork(&tmdbImages{Posters: imgs}, "fr", "ja")
 	require.NotEmpty(t, art)
 	assert.Equal(t, imageBaseURL+"/fr1.jpg", art[0].URL)
+}
+
+// A backdrop sits behind the page's own title: a textless one (untagged)
+// comes before one with burnt-in text, whatever its language.
+func TestRankImages_TextlessBackdropFirst(t *testing.T) {
+	imgs := []tmdbImage{
+		{FilePath: "/en-text.jpg", ISO639_1: "en"},
+		{FilePath: "/fr-text.jpg", ISO639_1: "fr"},
+		{FilePath: "/textless.jpg"},
+	}
+	art := mapDetailArtwork(&tmdbImages{Backdrops: imgs, Posters: imgs}, "fr", "en")
+	var backdrops, posters []string
+	for _, a := range art {
+		if a.Type == "backdrop" {
+			backdrops = append(backdrops, a.URL)
+		} else {
+			posters = append(posters, a.URL)
+		}
+	}
+	assert.Equal(t, imageBaseURL+"/textless.jpg", backdrops[0])
+	assert.Equal(t, imageBaseURL+"/fr-text.jpg", posters[0], "a poster still leads with the server language")
 }
 
 func TestImageLanguages_ReducesARegionTag(t *testing.T) {

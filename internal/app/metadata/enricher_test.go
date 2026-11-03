@@ -1666,3 +1666,33 @@ func TestArtworkSetUnchanged_OrderCounts(t *testing.T) {
 	assert.False(t, artworkSetUnchanged(existing, swapped), "same images, another first poster")
 	assert.False(t, artworkSetUnchanged(existing, same[:1]))
 }
+
+// The same images re-ranked by the provider move in sort_order only: the rows,
+// their downloaded files and blurhashes stay, and nothing is fetched again.
+func TestReplaceArtwork_ReorderOnlyMovesSortOrder(t *testing.T) {
+	e, artRepo, _, _, _, _ := newTestEnricher(&fakeProvider{name: "tmdb"}, nil, nil)
+	ctx := context.Background()
+	a, b := "https://img/a.jpg", "https://img/b.jpg"
+	local := "/data/artworks/m1/a.jpg"
+	require.NoError(t, artRepo.Create(ctx, &domain.ArtworkRecord{ID: "art-a", MediaItemID: "m1", Type: domain.ArtworkTypePoster, Provider: "tmdb", SourceURL: &a, LocalPath: &local, SortOrder: 0}))
+	require.NoError(t, artRepo.Create(ctx, &domain.ArtworkRecord{ID: "art-b", MediaItemID: "m1", Type: domain.ArtworkTypePoster, Provider: "tmdb", SourceURL: &b, SortOrder: 1}))
+
+	records, err := e.replaceArtwork(ctx, "m1", []domain.ArtworkResult{
+		{Type: domain.ArtworkTypePoster, URL: b, Provider: "tmdb"},
+		{Type: domain.ArtworkTypePoster, URL: a, Provider: "tmdb"},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, records, "nothing new to download")
+	assert.Zero(t, artRepo.DeleteByMediaItemIDCalls)
+	got, err := artRepo.GetByMediaItem(ctx, "m1")
+	require.NoError(t, err)
+	order := map[string]int{}
+	for _, r := range got {
+		order[r.ID] = r.SortOrder
+		if r.ID == "art-a" {
+			require.NotNil(t, r.LocalPath)
+			assert.Equal(t, local, *r.LocalPath)
+		}
+	}
+	assert.Equal(t, map[string]int{"art-b": 0, "art-a": 1}, order)
+}

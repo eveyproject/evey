@@ -123,6 +123,8 @@ type ArtworkCommandRepo interface {
 	// schedules the next try (ArtworkFetchBackoff), or gives the source up
 	// when permanent. ListMissingLocalPath leaves out what is not due.
 	RecordFetchFailure(ctx context.Context, id string, permanent bool) error
+	// UpdateSortOrder moves one record in its item's order (sort_order).
+	UpdateSortOrder(ctx context.Context, id string, sortOrder int) error
 	Delete(ctx context.Context, id string) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
 	// DeleteByMediaItemIDs is the batch form of DeleteByMediaItemID: one
