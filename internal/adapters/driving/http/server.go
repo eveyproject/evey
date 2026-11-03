@@ -983,6 +983,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 // GetStreamInfo) answer with: the HLS pipeline's own resolver, so the answer
 // is the plan's decision with its pins, not the bare core. Read lazily: the
 // pipeline is built by Routes, after the gRPC server that asks for this.
+// Reported answers for a playback that would start now, under the packaging
+// switches as they are now (transcoding.remux_copy, transcoding.hls_ondemand):
+// right after a toggle it describes the next playback, while a playback
+// already running keeps the engines it started with until its master is
+// fetched again.
 func (s *HTTPServer) PlaybackDecider() apptranscoding.PlaybackDecider {
 	return playbackDeciderFunc(func(ctx context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision {
 		if s.vod == nil {
