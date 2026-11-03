@@ -13,8 +13,8 @@ vi.mock("@evey/api", () => ({
 }));
 
 vi.mock("./MediaCard", () => ({
-  MediaCard: ({ item }: { item: { id: string; title?: string }; lite?: boolean }) => (
-    <div data-testid={`card-${item.id}`}>{item.title}</div>
+  MediaCard: ({ item }: { item: { id: string; title?: string; year?: number; artwork?: { blurhash?: string }[] }; lite?: boolean }) => (
+    <div data-testid={`card-${item.id}`} data-blurhash={item.artwork?.[0]?.blurhash}>{item.title}{item.year ? ` (${item.year})` : ""}</div>
   ),
 }));
 
@@ -55,6 +55,17 @@ describe("SimilarSection", () => {
     const { container } = render(<SimilarSection item={makeItem()} />);
     expect(container.innerHTML).toBe("");
     expect(mockListMediaItems).not.toHaveBeenCalled();
+  });
+
+  // The server writes the year and the blurhash on the similar rail; the
+  // projection used to keep only id and title.
+  it("hands the card the year and the blurhash the feed carries", () => {
+    mockSimilarItems.mockReturnValue({
+      data: { items: [{ mediaItemId: "s-1", title: "Similar A", year: 2001, primaryBlurhash: "LKO2" }] },
+    });
+    render(<SimilarSection item={makeItem()} />);
+    expect(screen.getByTestId("card-s-1")).toHaveTextContent("Similar A (2001)");
+    expect(screen.getByTestId("card-s-1").getAttribute("data-blurhash")).toBe("LKO2");
   });
 
   it("filters out items without mediaItemId from feed", () => {
