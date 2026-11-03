@@ -14,7 +14,11 @@ package httpapi
 // the stamp was minted while the gate was open, and stays open.
 
 import (
+	"context"
+	"errors"
+	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -31,34 +35,44 @@ const (
 	// config store: a burst of masters costs one read, and a toggle reaches
 	// new playbacks within this delay.
 	servingFlagRefresh = 5 * time.Second
+	// servingFlagReadTimeout bounds how long a master waits on the store.
+	servingFlagReadTimeout = 500 * time.Millisecond
 )
 
-// liveServerFlag is an operator flag read through resolveServerFlag at use
-// time (row, then env, then default), the last value kept for refresh.
-// A nil flag is open: a handler built without one keeps its wiring as the
-// only gate.
+// liveServerFlag is an operator flag read at use time (row, then env, then
+// default), the last value kept for refresh. It sits on the master path, so
+// the store is never trusted to answer: one read is in flight at a time, its
+// caller waits at most readTimeout, every other caller answers with the last
+// value read, and a failed read keeps that value - a switch the admin turned
+// off does not reopen on a transient store error. The default stands only
+// until a first read succeeds. A nil flag is open: a handler built without
+// one keeps its wiring as the only gate.
 type liveServerFlag struct {
-	cfgRepo   shared.ServerConfigRepository
-	dbKey     string
-	envVar    string
-	defaultOn bool
-	refresh   time.Duration
-	now       func() time.Time
+	cfgRepo     shared.ServerConfigRepository
+	dbKey       string
+	envVar      string
+	defaultOn   bool
+	refresh     time.Duration
+	readTimeout time.Duration
+	now         func() time.Time
 
-	mu     sync.Mutex
-	value  bool
-	readAt time.Time
-	read   bool
+	mu       sync.Mutex
+	value    bool
+	readAt   time.Time
+	tried    bool
+	inflight chan struct{} // closed when the read in flight lands; nil when none
 }
 
 func newLiveServerFlag(cfgRepo shared.ServerConfigRepository, dbKey, envVar string, defaultOn bool) *liveServerFlag {
 	return &liveServerFlag{
-		cfgRepo:   cfgRepo,
-		dbKey:     dbKey,
-		envVar:    envVar,
-		defaultOn: defaultOn,
-		refresh:   servingFlagRefresh,
-		now:       time.Now,
+		cfgRepo:     cfgRepo,
+		dbKey:       dbKey,
+		envVar:      envVar,
+		defaultOn:   defaultOn,
+		refresh:     servingFlagRefresh,
+		readTimeout: servingFlagReadTimeout,
+		now:         time.Now,
+		value:       flagEnabled(os.Getenv(envVar), defaultOn),
 	}
 }
 
@@ -67,13 +81,61 @@ func (f *liveServerFlag) enabled() bool {
 		return true
 	}
 	f.mu.Lock()
-	defer f.mu.Unlock()
-	now := f.now()
-	if !f.read || now.Sub(f.readAt) >= f.refresh {
-		f.value = serverFlagEnabled(f.cfgRepo, f.dbKey, f.envVar, f.defaultOn)
-		f.readAt, f.read = now, true
+	if f.inflight != nil || (f.tried && f.now().Sub(f.readAt) < f.refresh) {
+		v := f.value
+		f.mu.Unlock()
+		return v
 	}
+	done := make(chan struct{})
+	f.inflight = done
+	f.mu.Unlock()
+
+	// Detached from any request on purpose: the value is shared by every
+	// master, and one viewer leaving must not cancel the read the others
+	// will use. The timeout bounds the store, the goroutine outlives a store
+	// that ignores it, and the in-flight mark keeps that to one.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), f.readTimeout)
+		defer cancel()
+		raw, err := readServerFlag(ctx, f.cfgRepo, f.dbKey, f.envVar)
+		f.mu.Lock()
+		if err == nil {
+			f.value = flagEnabled(raw, f.defaultOn)
+		} else {
+			slog.Warn("server flag: read failed, keeping the last value",
+				slog.String("key", f.dbKey), slog.Bool("value", f.value), slog.Any("err", err))
+		}
+		f.readAt, f.tried, f.inflight = f.now(), true, nil
+		f.mu.Unlock()
+		close(done)
+	}()
+
+	timer := time.NewTimer(f.readTimeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.value
+}
+
+// readServerFlag is resolveServerFlag that reports a store failure instead
+// of reading it as "unset": a missing row is unset, an error is an error.
+func readServerFlag(ctx context.Context, cfgRepo shared.ServerConfigRepository, dbKey, envVar string) (string, error) {
+	if cfgRepo != nil {
+		for _, k := range [...]string{dbKey, envVar} {
+			entry, err := cfgRepo.Get(ctx, k)
+			switch {
+			case err == nil && entry != nil && entry.Value != "":
+				return entry.Value, nil
+			case err != nil && !errors.Is(err, shared.ErrNotFound):
+				return "", err
+			}
+		}
+	}
+	return os.Getenv(envVar), nil
 }
 
 // stampServingGates is called where a playback starts: each switch that is

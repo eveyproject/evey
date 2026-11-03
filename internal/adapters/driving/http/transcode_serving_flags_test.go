@@ -2,11 +2,14 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -275,4 +278,63 @@ func TestOnDemandFlag_OffRefusesThePackagerEntryPointsNotARunningSession(t *test
 	}
 	w = doVODRequestQ(h, "m1", "od_playlist.m3u8", servingFlagsCopyQuery)
 	assert.Equal(t, http.StatusOK, w.Code, "a running packager session keeps its resources")
+}
+
+// serverCfgStub answers Get through fn, the rest of the port unused.
+type serverCfgStub struct {
+	shared.ServerConfigRepository
+	fn func(ctx context.Context, key string) (*shared.ServerConfigEntry, error)
+}
+
+func (s serverCfgStub) Get(ctx context.Context, key string) (*shared.ServerConfigEntry, error) {
+	return s.fn(ctx, key)
+}
+
+// A store that hangs must not hang the masters: one read is in flight at a
+// time, its caller waits at most the read timeout, and every other master
+// answers with the last known value.
+func TestLiveServerFlag_HungStoreDoesNotHoldTheMasters(t *testing.T) {
+	t.Setenv("EVEY_TEST_LIVE_FLAG", "")
+	release := make(chan struct{})
+	var calls atomic.Int32
+	f := newLiveServerFlag(serverCfgStub{fn: func(context.Context, string) (*shared.ServerConfigEntry, error) {
+		calls.Add(1)
+		<-release
+		return &shared.ServerConfigEntry{Value: "off"}, nil
+	}}, "transcoding.test_live_flag", "EVEY_TEST_LIVE_FLAG", true)
+	f.refresh, f.readTimeout = 0, 50*time.Millisecond
+	defer close(release)
+
+	start := time.Now()
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() { assert.True(t, f.enabled(), "nothing read yet: the default") })
+	}
+	wg.Wait()
+	assert.Less(t, time.Since(start), time.Second, "a hung store held the masters past the read timeout")
+	assert.Equal(t, int32(1), calls.Load(), "one read in flight at a time")
+}
+
+// A failed read keeps the last value read: a switch the admin turned off
+// stays off through a transient store error instead of falling back to its
+// default (on).
+func TestLiveServerFlag_ReadErrorKeepsTheLastValue(t *testing.T) {
+	t.Setenv("EVEY_TEST_LIVE_FLAG", "")
+	var fail atomic.Bool
+	f := newLiveServerFlag(serverCfgStub{fn: func(context.Context, string) (*shared.ServerConfigEntry, error) {
+		if fail.Load() {
+			return nil, errors.New("store unavailable")
+		}
+		return &shared.ServerConfigEntry{Value: "off"}, nil
+	}}, "transcoding.test_live_flag", "EVEY_TEST_LIVE_FLAG", true)
+	f.refresh = 0
+
+	require.False(t, f.enabled())
+	fail.Store(true)
+	assert.False(t, f.enabled(), "a read error must keep the switch off, not reopen it")
+
+	never := newLiveServerFlag(serverCfgStub{fn: func(context.Context, string) (*shared.ServerConfigEntry, error) {
+		return nil, errors.New("store unavailable")
+	}}, "transcoding.test_live_flag", "EVEY_TEST_LIVE_FLAG", true)
+	assert.True(t, never.enabled(), "nothing ever read: the default")
 }
