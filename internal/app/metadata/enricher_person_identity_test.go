@@ -146,3 +146,47 @@ func TestEnrichItem_LostClaimLinksTheOwner(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, idless.ProviderIDs["tmdb"], "the id stays on one row")
 }
+
+// orderRecordingPersons records the order the cast's people are resolved in.
+type orderRecordingPersons struct {
+	*libfakes.FakePersonRepository
+	resolved []string
+}
+
+func (r *orderRecordingPersons) GetByProviderID(ctx context.Context, provider, id string) (*domainlib.Person, error) {
+	r.resolved = append(r.resolved, id)
+	return r.FakePersonRepository.GetByProviderID(ctx, provider, id)
+}
+
+// Two enrichments whose casts share people take the per-id locks of the
+// person writes in their own cast order: crossed, each waits on the other
+// (a deadlock Postgres breaks by failing one). Resolving every cast in one
+// global order (provider id, then name) takes the locks in that order; the
+// links keep the provider's billing order.
+func TestEnrichItem_ResolvesTheCastInProviderIDOrderKeepsBillingOrder(t *testing.T) {
+	ctx := context.Background()
+	persons := &orderRecordingPersons{FakePersonRepository: libfakes.NewFakePersonRepository()}
+	mp := libfakes.NewFakeMediaPersonRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
+	e := NewEnricher(metafakes.NewFakeArtworkRepository(), persons, mp, miRepo, miRepo, libfakes.NewFakeSearchIndex(),
+		&fakeProvider{name: "tmdb"}, nil, nil, nil)
+	require.NoError(t, miRepo.Create(ctx, &domainlib.MediaItem{ID: "item-a", Type: "movie"}))
+
+	enrichCast(t, e, "item-a",
+		domain.PersonResult{Name: "Lead", Role: "Actor", ProviderID: "300"},
+		domain.PersonResult{Name: "Second", Role: "Actor", ProviderID: "100"},
+		domain.PersonResult{Name: "Third", Role: "Actor", ProviderID: "200"},
+	)
+
+	assert.Equal(t, []string{"100", "200", "300"}, persons.resolved)
+	links, err := mp.GetByMediaItemID(ctx, "item-a")
+	require.NoError(t, err)
+	require.Len(t, links, 3)
+	order := map[int]string{}
+	for _, l := range links {
+		p, getErr := persons.GetByID(ctx, l.PersonID)
+		require.NoError(t, getErr)
+		order[l.SortOrder] = p.Name
+	}
+	assert.Equal(t, map[int]string{0: "Lead", 1: "Second", 2: "Third"}, order)
+}

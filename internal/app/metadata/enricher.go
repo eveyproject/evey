@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -505,22 +506,29 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		known = map[string]*domainlib.Person{}
 	}
 
-	batch := make([]*domainlib.MediaPerson, 0, len(people))
+	// One link per person: two credits of one id collapse, two homonyms with
+	// distinct ids do not.
+	credits := make([]domainmetadata.PersonResult, 0, len(people))
 	seen := make(map[string]bool, len(people))
-	var bioPending []*domainlib.Person
-	sortIdx := 0
 	for _, p := range people {
-		// One link per person: two credits of one id collapse, two homonyms
-		// with distinct ids do not.
-		key := "name:" + p.Name
-		if p.ProviderID != "" {
-			key = "tmdb:" + p.ProviderID
-		}
+		key := creditKey(p)
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-
+		credits = append(credits, p)
+	}
+	// Resolved in one global order (provider id, then name), not the cast's:
+	// each person write holds a per-id lock to the end of the enrichment
+	// transaction, and two enrichments taking shared people's locks in
+	// crossed orders deadlocked. The links keep the billing order below.
+	resolveOrder := slices.Clone(credits)
+	slices.SortStableFunc(resolveOrder, func(a, b domainmetadata.PersonResult) int {
+		return cmp.Or(cmp.Compare(a.ProviderID, b.ProviderID), cmp.Compare(a.Name, b.Name))
+	})
+	resolved := make(map[string]*domainlib.Person, len(credits))
+	var bioPending []*domainlib.Person
+	for _, p := range resolveOrder {
 		person, needsBio, err := e.findOrCreatePerson(ctx, p, known[p.Name])
 		if err != nil {
 			return nil, fmt.Errorf("Enricher.upsertPeople: %w", err)
@@ -528,7 +536,11 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		if needsBio {
 			bioPending = append(bioPending, person)
 		}
+		resolved[creditKey(p)] = person
+	}
 
+	batch := make([]*domainlib.MediaPerson, 0, len(credits))
+	for sortIdx, p := range credits {
 		var charName *string
 		if p.Character != "" {
 			c := p.Character
@@ -536,12 +548,11 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		}
 		batch = append(batch, &domainlib.MediaPerson{
 			MediaItemID:   shared.MediaItemID(mediaItemID),
-			PersonID:      person.ID,
+			PersonID:      resolved[creditKey(p)].ID,
 			RoleType:      roleType(p.Role),
 			CharacterName: charName,
 			SortOrder:     sortIdx,
 		})
-		sortIdx++
 	}
 	// Build the batch BEFORE deleting the old links. If the provider returned no
 	// people (or none survived dedup), skip the delete entirely - otherwise we'd
@@ -564,6 +575,15 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		return nil, fmt.Errorf("upsertPeople: create media_person batch: %w", err)
 	}
 	return bioPending, nil
+}
+
+// creditKey is a credit's person identity within one cast: its provider id,
+// or its name when the provider gave none.
+func creditKey(p domainmetadata.PersonResult) string {
+	if p.ProviderID != "" {
+		return "tmdb:" + p.ProviderID
+	}
+	return "name:" + p.Name
 }
 
 // personNeedsBio reports whether the provider should be asked for this
