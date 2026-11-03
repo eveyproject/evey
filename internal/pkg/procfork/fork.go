@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -151,6 +152,7 @@ func command(ctx context.Context, budget *cpubudget.Budget, o Options, bin strin
 	argv = append(argv, bin)
 	argv = append(argv, args...)
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) //nolint:gosec // fixed binaries, args built by the callers
+	cmd.Env = childEnv(os.Environ())
 	DieWithParent(cmd)
 
 	started := time.Now()
