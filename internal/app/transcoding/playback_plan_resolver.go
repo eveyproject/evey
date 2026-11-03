@@ -336,6 +336,11 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 			d.VideoCodec = "h264"
 		}
 	}
+	// The pins and the HDR re-add above can turn a direct play into a
+	// segmented session after the core ran: the packaged-audio gate it
+	// skipped (no reason on the board then) must be replayed on what is
+	// served now, or "copy" is baked into every child URL over AAC bytes.
+	applyPackagedAudioPassthrough(d, toStreamSpecs(req.Streams), req.Client, prefs)
 	return *d
 }
 
