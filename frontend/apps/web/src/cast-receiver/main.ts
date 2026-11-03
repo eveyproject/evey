@@ -535,6 +535,8 @@ async function autoAdvance(): Promise<void> {
     request.media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
     request.media.metadata = new cast.framework.messages.GenericMediaMetadata();
     request.media.metadata.title = label.title;
+    // Where this profile left the episode, as the apps resume it; 0 = top.
+    if (info.resumePositionMs > 0) request.currentTime = info.resumePositionMs / 1000;
     request.autoplay = true;
     playerManager.load(request).catch((e: unknown) => reportFallbackFailure("episode suivant", e));
   }, 1_000);
