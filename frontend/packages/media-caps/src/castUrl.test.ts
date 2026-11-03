@@ -73,9 +73,9 @@ describe("castStreamInfoParams", () => {
   // direct play sends it raw to the receiver.
   it("declares the H.264 level the model decodes, so a file flagged above it is not direct-played", () => {
     expect(castStreamInfoParams(pickCastProfile("Nest Hub")).maxH264Level).toBe(41);
-    expect(castStreamInfoParams(pickCastProfile("Chromecast Ultra")).maxH264Level).toBe(42);
+    expect(castStreamInfoParams(pickCastProfile("Ultra")).maxH264Level).toBe(42);
     expect(castStreamInfoParams(pickCastProfile("Google TV Streamer")).maxH264Level).toBe(52);
-    expect(castStreamInfoParams(pickCastProfile("Chromecast with Google TV")).maxH264Level).toBe(51);
+    expect(castStreamInfoParams(pickCastProfile("Google TV")).maxH264Level).toBe(51);
     expect(castStreamInfoParams(pickCastProfile("Some TV Nobody Knows")).maxH264Level).toBe(42);
   });
 
