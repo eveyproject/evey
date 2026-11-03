@@ -19,11 +19,11 @@ func NewTMDBPersonFetcher(tmdb *TMDBProvider) *TMDBPersonFetcher {
 	return &TMDBPersonFetcher{tmdb: tmdb}
 }
 
-func (f *TMDBPersonFetcher) GetPersonDetails(ctx context.Context, name string) (*domainlibrary.PersonDetailsResult, error) {
+func (f *TMDBPersonFetcher) GetPersonDetails(ctx context.Context, name, tmdbID string) (*domainlibrary.PersonDetailsResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "metadata.person.GetPersonDetails")
 	defer span.End()
 
-	details, err := f.tmdb.GetPersonDetails(ctx, name)
+	details, err := f.tmdb.GetPersonDetails(ctx, name, tmdbID)
 	if err != nil || details == nil {
 		return nil, err
 	}

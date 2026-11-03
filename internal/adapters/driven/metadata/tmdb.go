@@ -507,11 +507,16 @@ func (p *TMDBProvider) AlternativeTitles(ctx context.Context, providerID string,
 	return titles, nil
 }
 
-// GetPersonDetails searches TMDB for a person by name and returns biographical info.
-func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*PersonDetails, error) {
+// GetPersonDetails returns a person's biographical info: read by tmdbID when
+// it is known, else searched by name (first result). Two homonyms are two
+// TMDB people, and the name search answered the first one for both.
+func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name, tmdbID string) (*PersonDetails, error) {
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetPersonDetails")
 	defer span.End()
 
+	if tmdbID != "" {
+		return p.personDetail(ctx, tmdbID)
+	}
 	searchURL := fmt.Sprintf("%s/search/person?query=%s&language=%s", p.baseURL, url.QueryEscape(name), p.language())
 	body, err := p.doRequestWithRetry(ctx, searchURL)
 	if err != nil {
@@ -524,10 +529,12 @@ func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*Pers
 	if len(searchResp.Results) == 0 {
 		return nil, nil
 	}
-	tmdbID := searchResp.Results[0].ID
+	return p.personDetail(ctx, strconv.Itoa(searchResp.Results[0].ID))
+}
 
-	detailURL := fmt.Sprintf("%s/person/%d?language=%s", p.baseURL, tmdbID, p.language())
-	body, err = p.doRequestWithRetry(ctx, detailURL)
+func (p *TMDBProvider) personDetail(ctx context.Context, tmdbID string) (*PersonDetails, error) {
+	detailURL := fmt.Sprintf("%s/person/%s?language=%s", p.baseURL, url.PathEscape(tmdbID), p.language())
+	body, err := p.doRequestWithRetry(ctx, detailURL)
 	if err != nil {
 		return nil, fmt.Errorf("tmdb get person detail: %w", err)
 	}

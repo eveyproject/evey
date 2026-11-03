@@ -685,7 +685,7 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 	// failed. One rate-limited call nobody read was enough to leave a person
 	// with an empty bio that reads as "the provider has none".
 	if fetcher, ok2 := capabilityFrom[personDetailFetcher](e.chain.Primary()); ok2 {
-		details, detErr := fetcher.GetPersonDetails(ctx, person.Name)
+		details, detErr := fetcher.GetPersonDetails(ctx, person.Name, person.ProviderIDs["tmdb"])
 		if detErr != nil {
 			// A swallowed 429/timeout here is indistinguishable from "the
 			// provider has no bio" - log it so the empty bio isn't read as fact.
@@ -726,7 +726,7 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 
 // personDetailFetcher is an optional capability for providers that can fetch person details.
 type personDetailFetcher interface {
-	GetPersonDetails(ctx context.Context, name string) (*domainlib.PersonDetailsResult, error)
+	GetPersonDetails(ctx context.Context, name, tmdbID string) (*domainlib.PersonDetailsResult, error)
 }
 
 func (e *Enricher) indexSearch(ctx context.Context, item *domainlib.MediaItem, people []domainmetadata.PersonResult) {

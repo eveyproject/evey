@@ -594,7 +594,9 @@ type PersonDetailsResult struct {
 }
 
 type PersonDetailsFetcher interface {
-	GetPersonDetails(ctx context.Context, name string) (*PersonDetailsResult, error)
+	// GetPersonDetails reads the person by tmdbID when it is known, by name
+	// otherwise: a name is shared by homonyms, an id is not.
+	GetPersonDetails(ctx context.Context, name, tmdbID string) (*PersonDetailsResult, error)
 }
 
 type PersonTranslationFetcher interface {

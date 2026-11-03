@@ -25,7 +25,7 @@ type bioCacheProviderStub struct {
 	detailHits atomic.Int32
 }
 
-func (s *bioCacheProviderStub) GetPersonDetails(_ context.Context, _ string) (*domainlib.PersonDetailsResult, error) {
+func (s *bioCacheProviderStub) GetPersonDetails(_ context.Context, _, _ string) (*domainlib.PersonDetailsResult, error) {
 	s.detailHits.Add(1)
 	return s.details, s.detailsErr
 }
