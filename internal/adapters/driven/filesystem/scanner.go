@@ -82,12 +82,48 @@ func NewScanner() *Scanner {
 	return &Scanner{}
 }
 
+// errRootNotDir is a library root that resolves to something other than a
+// folder: there is nothing to walk, and walking it as one file read as an
+// empty mount.
+var errRootNotDir = errors.New("library root is not a directory")
+
+// walkLibraryRoot is filepath.WalkDir with the root resolved through any
+// symbolic link first: WalkDir never follows a link, so a linked root was
+// visited as one file and yielded nothing, which the scan took for an empty
+// mount. A root that is not a folder is reported to fn as the root's error,
+// the same way a missing one is. Paths handed to fn keep the configured root
+// as their prefix: the catalog rows, the pruner's roots and the watcher are
+// all keyed on it, not on where the link points.
+func walkLibraryRoot(root string, fn fs.WalkDirFunc) error {
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return fn(root, nil, err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return fn(root, nil, err)
+	}
+	if !info.IsDir() {
+		return fn(root, nil, &fs.PathError{Op: "scan", Path: root, Err: errRootNotDir})
+	}
+	if resolved == root {
+		return filepath.WalkDir(root, fn)
+	}
+	return filepath.WalkDir(resolved, func(path string, d fs.DirEntry, walkErr error) error {
+		rel, relErr := filepath.Rel(resolved, path)
+		if relErr != nil || rel == "." {
+			return fn(root, d, walkErr)
+		}
+		return fn(filepath.Join(root, rel), d, walkErr)
+	})
+}
+
 func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile, error) {
 	ctx, span := tracing.StartSpan(ctx, "filesystem.scanner.Scan")
 	defer span.End()
 
 	var files []library.ScannedFile
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	err := walkLibraryRoot(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			if path == root {
 				return err

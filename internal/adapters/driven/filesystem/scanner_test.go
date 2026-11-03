@@ -180,3 +180,29 @@ func TestParseYear_FileThenFolder(t *testing.T) {
 	assert.Equal(t, 2021, *s.ParseYear("/media/Dune (2021)/movie.mkv"))
 	assert.Nil(t, s.ParseYear("/media/untitled/movie.mkv"))
 }
+
+// A library root that is a symbolic link is walked through the link: the walk
+// does not follow links by itself, so a linked root used to be visited as one
+// file and yield nothing, which read as an empty mount. The paths found keep
+// the configured root as their prefix, the one the catalog is keyed on.
+func TestScan_SymlinkedRootIsWalked(t *testing.T) {
+	target := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(target, "movie.mkv"), []byte("x"), 0644))
+	link := filepath.Join(t.TempDir(), "movies")
+	require.NoError(t, os.Symlink(target, link))
+
+	found, err := NewScanner().Scan(context.Background(), link)
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, filepath.Join(link, "movie.mkv"), found[0].Path)
+}
+
+// A root that resolves to a file is not a library: said as an error, so the
+// scan reports the path instead of walking nothing in silence.
+func TestScan_RootThatIsAFileIsAnError(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "movie.mkv")
+	require.NoError(t, os.WriteFile(file, []byte("x"), 0644))
+
+	_, err := NewScanner().Scan(context.Background(), file)
+	require.Error(t, err)
+}
