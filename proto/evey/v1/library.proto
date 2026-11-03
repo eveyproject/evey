@@ -267,6 +267,13 @@ message MediaStream {
   int64 bitrate = 21;
   string profile = 22;
   string level = 23;
+  // Matroska/ffprobe disposition flags. Clients skip a commentary track when
+  // picking the default audio, as the server-side default selection does, and
+  // label commentary and accessibility tracks in the track picker.
+  bool is_commentary = 24;
+  bool is_hearing_impaired = 25;
+  bool is_visual_impaired = 26;
+  bool is_original = 27;
 }
 
 enum MediaStreamType {

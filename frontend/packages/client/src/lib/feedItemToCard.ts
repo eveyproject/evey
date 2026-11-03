@@ -1,12 +1,13 @@
 import type { V1MediaItem } from "@evey/api";
 
-/** The fields of a feed item (recommended, similar, recently added) a card reads. */
+/** The fields of a feed item (recommended, similar, recently added, popular) a card reads. */
 export interface FeedItemLike {
   mediaItemId?: string;
   title?: string;
   type?: string;
   year?: number;
   primaryBlurhash?: string;
+  communityRating?: number;
 }
 
 /** A feed item projected onto the card shape every app renders. */
@@ -22,6 +23,7 @@ export function feedItemToCard(fi: FeedItemLike): FeedCard {
     title: fi.title,
     type: fi.type,
     year: fi.year || undefined,
+    communityRating: fi.communityRating || undefined,
     artwork: fi.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: fi.primaryBlurhash }] : undefined,
   } as FeedCard;
 }

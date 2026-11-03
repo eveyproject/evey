@@ -1,5 +1,6 @@
 import type { V1MediaStream } from "./generated/library.schemas";
 import { isBurnInSubtitle, isImageSubtitle } from "./imageSubtitles";
+import { pickPreferredStreamIndex } from "./langCodes";
 
 /** An audio track as every player lists it. */
 export interface PlayerAudioStream {
@@ -13,6 +14,11 @@ export interface PlayerAudioStream {
   /** Source codec (ac3/eac3/aac...): drives the web's wasm-audio path. */
   codec?: string;
   channels?: number;
+  /** Director/cast commentary: never the automatic pick while a main track exists. */
+  isCommentary?: boolean;
+  isHearingImpaired?: boolean;
+  /** Audio description for the visually impaired. */
+  isVisualImpaired?: boolean;
 }
 
 /** A subtitle track as every player lists it. */
@@ -49,7 +55,38 @@ export function playerAudioStreams(streams: V1MediaStream[] | undefined): Player
       isDefault: s.isDefault,
       codec: s.codec,
       channels: s.channels,
+      isCommentary: s.isCommentary,
+      isHearingImpaired: s.isHearingImpaired,
+      isVisualImpaired: s.isVisualImpaired,
     }));
+}
+
+/**
+ * The audio tracks an automatic pick may land on: every non-commentary track,
+ * or all of them when every track is commentary (commentary beats silence).
+ * The server's default selection applies the same filter before any other
+ * rule, so a client that picks its own default names the track the server
+ * would serve.
+ */
+export function defaultAudioCandidates<T extends { isCommentary?: boolean }>(streams: T[]): T[] {
+  const main = streams.filter((s) => !s.isCommentary);
+  return main.length > 0 ? main : streams;
+}
+
+/**
+ * The absolute index of the default audio track: the profile's languages in
+ * order, then the file's default flag, then the first track - each step among
+ * defaultAudioCandidates. Null when the title has no audio.
+ */
+export function pickDefaultAudioIndex(
+  streams: { index: number; language?: string; isDefault?: boolean; isCommentary?: boolean }[],
+  preferredLangs: string[],
+): number | null {
+  const candidates = defaultAudioCandidates(streams);
+  if (candidates.length === 0) return null;
+  return pickPreferredStreamIndex(candidates, preferredLangs)
+    ?? candidates.find((s) => s.isDefault)?.index
+    ?? candidates[0].index;
 }
 
 /**

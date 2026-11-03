@@ -574,13 +574,7 @@ export default function HomeScreen() {
     [recommended.data?.items],
   );
 
-  const popularItems = useMemo(
-    () =>
-      (popular.data ?? []).map(
-        (i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year }) as V1MediaItem,
-      ),
-    [popular.data],
-  );
+  const popularItems = useMemo(() => feedItemsToCards(popular.data), [popular.data]);
 
   const handleItemPress = useCallback((item: V1MediaItem) => {
     router.push(`/media/${item.id}`);

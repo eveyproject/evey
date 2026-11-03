@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { playerAudioStreams, playerSubtitleStreams, subtitleBurnMode } from "./playerStreams";
+import { defaultAudioCandidates, pickDefaultAudioIndex, playerAudioStreams, playerSubtitleStreams, subtitleBurnMode } from "./playerStreams";
 import type { V1MediaStream } from "./generated/library.schemas";
 
 const streams = [
@@ -48,5 +48,41 @@ describe("playerStreams", () => {
   it("answers an empty list before the stream info lands", () => {
     expect(playerAudioStreams(undefined)).toEqual([]);
     expect(playerSubtitleStreams(undefined)).toEqual([]);
+  });
+});
+
+// The same cases as the server's DefaultAudioTrack test: a client that picks
+// its own default must land on the track the server would serve, so a
+// commentary track is never the implicit pick while a main track exists.
+describe("pickDefaultAudioIndex", () => {
+  const a = (index: number, language: string, isDefault: boolean, isCommentary: boolean) =>
+    ({ index, trackIndex: index, language, isDefault, isCommentary });
+  const streams = [a(1, "eng", true, true), a(2, "eng", false, false), a(3, "fre", false, false)];
+
+  it("skips a commentary track at every step while a main track exists", () => {
+    expect(pickDefaultAudioIndex(streams, ["en"])).toBe(2);
+    expect(pickDefaultAudioIndex(streams, [])).toBe(2);
+    expect(pickDefaultAudioIndex(streams, ["fr"])).toBe(3);
+    expect(pickDefaultAudioIndex(streams, ["de"])).toBe(2);
+    expect(pickDefaultAudioIndex([a(1, "fre", false, true), a(2, "fre", true, false)], ["fr"])).toBe(2);
+  });
+
+  it("falls back on commentary only when every track is one", () => {
+    const all = [a(1, "eng", false, true), a(2, "fre", true, true)];
+    expect(pickDefaultAudioIndex(all, [])).toBe(2);
+    expect(pickDefaultAudioIndex(all, ["en"])).toBe(1);
+    expect(defaultAudioCandidates(all)).toEqual(all);
+    expect(pickDefaultAudioIndex([], ["en"])).toBeNull();
+  });
+
+  it("carries the disposition flags onto the player's audio list", () => {
+    const flagged = [
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1, isCommentary: true },
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 2, isHearingImpaired: true, isVisualImpaired: true },
+    ] as V1MediaStream[];
+    expect(playerAudioStreams(flagged).map((s) => [s.isCommentary, s.isHearingImpaired, s.isVisualImpaired])).toEqual([
+      [true, undefined, undefined],
+      [undefined, true, true],
+    ]);
   });
 });

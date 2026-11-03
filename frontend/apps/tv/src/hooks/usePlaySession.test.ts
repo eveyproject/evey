@@ -5,7 +5,9 @@ const getStreamInfoMock = vi.fn();
 const startStreamMock = vi.fn();
 const stopStreamMock = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  // The real track rule: the verdict is read against the track it names.
+  defaultAudioCandidates: (await importOriginal<typeof import("@evey/api")>()).defaultAudioCandidates,
   eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
   playbackServiceGetStreamInfo: (...args: unknown[]) => getStreamInfoMock(...args),
   playbackServiceStartStream: (...args: unknown[]) => startStreamMock(...args),

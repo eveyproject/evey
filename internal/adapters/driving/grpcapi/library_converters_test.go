@@ -88,6 +88,27 @@ func TestConverters_ServerPathsAreAdminOnly(t *testing.T) {
 	assert.Equal(t, sidecar, mediaStreamToProto(s, true).ExternalPath)
 }
 
+// The clients pick their default audio track themselves and must skip a
+// commentary track the way the server's default selection does, so the
+// disposition flags have to reach the wire, each on its own field.
+func TestMediaStreamToProto_DispositionFlags(t *testing.T) {
+	t.Parallel()
+
+	commentary := mediaStreamToProto(&library.MediaStream{StreamType: library.StreamTypeAudio, Commentary: true}, false)
+	assert.True(t, commentary.IsCommentary)
+	assert.False(t, commentary.IsHearingImpaired)
+	assert.False(t, commentary.IsVisualImpaired)
+	assert.False(t, commentary.IsOriginal)
+
+	access := mediaStreamToProto(&library.MediaStream{
+		StreamType: library.StreamTypeAudio, HearingImpaired: true, VisualImpaired: true, Original: true,
+	}, false)
+	assert.False(t, access.IsCommentary)
+	assert.True(t, access.IsHearingImpaired)
+	assert.True(t, access.IsVisualImpaired)
+	assert.True(t, access.IsOriginal)
+}
+
 func TestSortFieldAndOrderMapping(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "title", mediaSortFieldFromProto[eveyv1.MediaSortField_MEDIA_SORT_FIELD_TITLE])

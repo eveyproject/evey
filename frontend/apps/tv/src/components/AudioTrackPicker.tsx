@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
 import { FONT_SIZE } from "@evey/theme";
-import { formatChannelLayout } from "@evey/api";
+import { formatChannelLayout, tagAudioTrackLabel } from "@evey/api";
 
 // The track shapes every player lists: one definition in @evey/api.
 export type { PlayerAudioStream as AudioStream } from "@evey/api";
@@ -44,7 +44,7 @@ export function AudioTrackPicker({ visible, onClose, streams, currentIndex, onSe
           <View style={styles.list}>
             {streams.map((s) => {
               const active = s.index === currentIndex;
-              const label = formatLabel(s);
+              const label = tagAudioTrackLabel(formatLabel(s), s, (k) => t(k));
               return (
                 <FocusableCard
                   key={s.index}

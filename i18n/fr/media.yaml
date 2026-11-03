@@ -596,6 +596,8 @@ streams:
   subtitles: Sous-titres
   default: Par défaut
   forced: Forcé
+  commentary: Commentaire
+  audioDescription: Audiodescription
   external: Externe
   auto: Automatique
   none: Aucun

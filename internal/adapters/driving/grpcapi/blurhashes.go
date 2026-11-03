@@ -49,13 +49,42 @@ func fillPrimaryBlurhashes(ctx context.Context, svc artworkBatchGetter, items []
 		if it == nil || len(it.Artwork) > 0 {
 			continue
 		}
-		// Records are ordered by sort_order: the first poster carrying a hash
-		// is the most-preferred one, same rule as the feed querier.
-		for _, a := range byItem[it.Id] {
-			if a != nil && a.Type == "poster" && a.Blurhash != nil && *a.Blurhash != "" {
-				it.Artwork = append(it.Artwork, artworkRecordToProto(a))
-				break
-			}
+		if a := primaryPosterWithBlurhash(byItem[it.Id]); a != nil {
+			it.Artwork = append(it.Artwork, artworkRecordToProto(a))
+		}
+	}
+}
+
+// primaryPosterWithBlurhash is the first poster record carrying a blurhash.
+// Records are ordered by sort_order, so it is the most-preferred one - the
+// same rule as the feed querier.
+func primaryPosterWithBlurhash(records []*metadata.ArtworkRecord) *metadata.ArtworkRecord {
+	for _, a := range records {
+		if a != nil && a.Type == "poster" && a.Blurhash != nil && *a.Blurhash != "" {
+			return a
+		}
+	}
+	return nil
+}
+
+// fillPopularBlurhashes stamps the primary poster placeholder on the popular
+// rail's items, one batched fetch. Best-effort like fillPrimaryBlurhashes.
+func fillPopularBlurhashes(ctx context.Context, svc artworkBatchGetter, items []*eveyv1.PopularMediaItem) {
+	if svc == nil || len(items) == 0 {
+		return
+	}
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = it.MediaItemId
+	}
+	byItem, err := svc.BatchGetArtwork(ctx, ids)
+	if err != nil {
+		slog.DebugContext(ctx, "popular blurhashes: batch artwork fetch failed", slog.Any("err", err))
+		return
+	}
+	for _, it := range items {
+		if a := primaryPosterWithBlurhash(byItem[it.MediaItemId]); a != nil {
+			it.PrimaryBlurhash = *a.Blurhash
 		}
 	}
 }

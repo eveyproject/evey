@@ -77,6 +77,18 @@ beforeEach(() => {
   recentlyAdded.mockReturnValue({ data: { items: [{ id: "recent-1" }] }, isLoading: false });
 });
 
+// The popular endpoint names the type like the feed rails (the enum name): a
+// series card gets the series label and opens the series page.
+describe("the popular rail", () => {
+  it("labels a series card and opens its page", () => {
+    popular.mockReturnValue({ data: [{ mediaItemId: "pop-show", title: "Popular Show", type: "MEDIA_ITEM_TYPE_SERIES" }] });
+    render(<HomeScreen />);
+    expect(screen.getByText("media.itemType.series")).toBeTruthy();
+    fireEvent.click(screen.getByText("Popular Show"));
+    expect(navigate).toHaveBeenLastCalledWith({ name: "media", mediaId: "pop-show" });
+  });
+});
+
 describe("the home follows the server's row plan", () => {
   it("renders the rows the profile's feed config asks for, in its order", () => {
     feedConfig.mockReturnValue({

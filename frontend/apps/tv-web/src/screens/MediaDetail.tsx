@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   formatAudioTrackLabel,
+  tagAudioTrackLabel,
   formatDurationMs,
   formatTimeMs,
   getRatingServiceGetMyThumbRatingQueryKey,
@@ -174,7 +175,7 @@ function TrackPickRow({ streams, pick, onChange }: { streams: V1MediaStream[]; p
         <FocusRoot className="track-pick-row">
           <span className="track-pick-title">{t("media.streams.audio")}</span>
           {pill("a:auto", t("media.streams.auto"), pick.audio === undefined, () => onChange({ ...pick, audio: undefined }))}
-          {audio.map((s) => pill(`a:${s.index}`, formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language), pick.audio === s.index, () => onChange({ ...pick, audio: s.index })))}
+          {audio.map((s) => pill(`a:${s.index}`, tagAudioTrackLabel(formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language), s, (k) => t(k)), pick.audio === s.index, () => onChange({ ...pick, audio: s.index })))}
         </FocusRoot>
       ) : null}
       {subtitles.length > 0 ? (

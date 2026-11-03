@@ -31,4 +31,17 @@ describe("pickedAudioStream", () => {
   it("is nothing for a picked index the file does not have", () => {
     expect(pickedAudioStream(info, 9)).toBeUndefined();
   });
+
+  // The server's implicit pick skips a commentary track whatever the container
+  // flags; the client must read its verdict against that same track.
+  it("is never a default-flagged commentary track while a main track exists", () => {
+    const commentary: V1StreamInfo = {
+      mediaStreams: [
+        { index: 1, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", isDefault: true, isCommentary: true },
+        { index: 2, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "ac3" },
+      ],
+    };
+    expect(pickedAudioStream(commentary, undefined)?.index).toBe(2);
+    expect(pickedAudioStream(commentary, 1)?.index).toBe(1);
+  });
 });
