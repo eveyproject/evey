@@ -83,6 +83,8 @@ type ScanService struct {
 	mediaStreams library.MediaStreamRepository
 	persons      library.PersonRepository
 	mediaPersons library.MediaPersonRepository
+	// artworkPurger is optional (nil = refiled items keep their artwork rows).
+	artworkPurger ArtworkPurger
 
 	metadata     *MetadataExtractionService
 	musicScanner TypedDirectoryScanner
@@ -173,6 +175,19 @@ func (s *ScanService) isPlaying(ctx context.Context, id shared.MediaItemID) bool
 		return true
 	}
 	return playing[id]
+}
+
+// ArtworkPurger drops the artwork rows of one item. The artwork store lives
+// in the metadata context; the scan only needs this to forget the artwork of
+// an item it refiles under another type.
+type ArtworkPurger interface {
+	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
+}
+
+// WithArtworkPurger wires the artwork store for refiled items.
+func (s *ScanService) WithArtworkPurger(p ArtworkPurger) *ScanService {
+	s.artworkPurger = p
+	return s
 }
 
 // WithPruneGuard sets the mass-disappearance thresholds of the orphan prune.

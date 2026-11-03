@@ -162,6 +162,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		applibrary.WithFileSettle(applibrary.DefaultFileSettle),
 	)
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
+	libCmdSvc.WithArtworkPurger(r.Artwork)
 	libCmdSvc.WithPruneGuard(applibrary.PruneGuard{
 		MaxMissingRatio: cfg.Library.PruneMaxMissingPercent / 100,
 		MinMissing:      cfg.Library.PruneMinMissing,

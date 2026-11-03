@@ -29,17 +29,42 @@ func normShowKey(s string) string {
 // only rows below library.ParserVersion are touched, so an item the parser
 // has already placed is left alone. The display title is reset only when the
 // row changes type: it was derived from a name the old parser misread.
-func (s *ScanService) refileStaleParse(ctx context.Context, existing *library.MediaItem, seasonID string, f library.ScannedFile) {
+//
+// A row that changes type also loses what enrichment matched for its old
+// type: a provider id from the movie space, the movie's overview, cast and
+// artwork describe another work. They are dropped and the item is announced
+// as added, so the enricher matches it again as an episode. The id, and with
+// it the progress, favourites and playlists, stays.
+func (s *ScanService) refileStaleParse(ctx context.Context, existing *library.MediaItem, seasonID string, f library.ScannedFile, showTitle string) {
 	if existing == nil || existing.File == nil || existing.File.ParserVersion >= library.ParserVersion || f.Episode == nil {
 		return
 	}
+	// A row already typed episode with the right number only needs a new
+	// parent, which updateMediaFile writes (and reports) for any moved file:
+	// refiling it here too wrote the row twice and hid that update's errors.
 	sameIndex := existing.IndexNumber != nil && *existing.IndexNumber == *f.Episode
-	if existing.Type == library.Episode && existing.ParentID == seasonID && sameIndex {
+	if existing.Type == library.Episode && sameIndex {
 		return
 	}
-	if existing.Type != library.Episode {
+	// Refiled on a copy: a failed write leaves the caller's row as it was,
+	// so the regular update still sees, writes and reports the move.
+	prior := existing
+	cp := *existing
+	fileCopy := *existing.File
+	cp.File = &fileCopy
+	if existing.Catalog != nil {
+		catCopy := *existing.Catalog
+		cp.Catalog = &catCopy
+	}
+	existing = &cp
+	retyped := existing.Type != library.Episode
+	if retyped {
 		existing.Type = library.Episode
 		existing.Title = f.Title
+		existing.Overview, existing.Tagline, existing.OriginalTitle = "", "", ""
+		if existing.Catalog != nil {
+			existing.Catalog.ProviderIDs = nil
+		}
 	}
 	existing.ScanTitle = f.Title
 	existing.ParentID = seasonID
@@ -52,7 +77,31 @@ func (s *ScanService) refileStaleParse(ctx context.Context, existing *library.Me
 			slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 		return
 	}
+	*prior = cp
+	existing = prior
 	s.indexItem(ctx, existing)
+	if !retyped {
+		return
+	}
+	if s.mediaPersons != nil {
+		if err := s.mediaPersons.DeleteByMediaItemID(ctx, existing.ID); err != nil {
+			slog.WarnContext(ctx, "scan: drop the cast of a refiled item", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+		}
+	}
+	if s.artworkPurger != nil {
+		if err := s.artworkPurger.DeleteByMediaItemID(ctx, string(existing.ID)); err != nil {
+			slog.WarnContext(ctx, "scan: drop the artwork of a refiled item", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+		}
+	}
+	s.publish(ctx, library.MediaItemAdded{
+		MediaItemID: existing.ID,
+		LibraryID:   existing.LibraryID,
+		Title:       existing.Title,
+		SeriesTitle: showTitle,
+		Type:        existing.Type,
+		Genres:      catalogGenres(existing),
+		OccurredAt:  time.Now(),
+	})
 }
 
 func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, files []library.ScannedFile) (added, updated int, err error) {
@@ -237,7 +286,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			}
 			episodeFile.Title = fmt.Sprintf("S%02dE%02d", se, *f.Episode)
 		}
-		s.refileStaleParse(ctx, byPath[f.Path], seasonID, episodeFile)
+		s.refileStaleParse(ctx, byPath[f.Path], seasonID, episodeFile, showTitle)
 		a, u, episodeErr := s.upsertMediaFileWithIndex(ctx, libraryID, seasonID, episodeFile, byPath, showTitle)
 		if episodeErr != nil {
 			// Skip this episode and keep scanning the rest - a single transient

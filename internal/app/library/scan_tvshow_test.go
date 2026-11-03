@@ -570,3 +570,60 @@ func TestScanTVShow_LeavesCorrectlyFiledEpisodeAlone(t *testing.T) {
 	assert.Equal(t, episodes[0].ParentID, got.ParentID)
 	require.Len(t, itemsByType(mediaRepo, "episode"), 1)
 }
+
+type recordingArtworkPurger struct{ purged []string }
+
+func (p *recordingArtworkPurger) DeleteByMediaItemID(_ context.Context, id string) error {
+	p.purged = append(p.purged, id)
+	return nil
+}
+
+// A misfiled row the enricher had matched as a movie keeps nothing of that
+// match once refiled as an episode: the movie-space provider id, overview,
+// cast and artwork describe another work. The item is announced as added so
+// it is matched again as an episode; its id, and the history on it, stay.
+func TestScanTVShow_RefileDropsTheEnrichmentOfTheOldType(t *testing.T) {
+	t.Parallel()
+	mediaPersons := libfakes.NewFakeMediaPersonRepository()
+	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvcWith(&cmdSvcDeps{mediaPersons: mediaPersons})
+	purger := &recordingArtworkPurger{}
+	svc.WithArtworkPurger(purger)
+	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}})
+	ctx := context.Background()
+	const path = "/tv/Show/Season 2/03 - Pilot.mkv"
+	stale := &library.MediaItem{ID: "ep-1", LibraryID: "lib-tv", Type: library.MovieItem, Title: "Pilot (the movie)", ScanTitle: "03 Pilot",
+		Overview: "A movie overview", Tagline: "A movie tagline", OriginalTitle: "Pilot",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "999"}},
+		File:    &library.MediaFile{Path: path, Size: 500, Fingerprint: "fp-1"}}
+	require.NoError(t, mediaRepo.Create(ctx, stale))
+	require.NoError(t, mediaPersons.Create(ctx, &library.MediaPerson{MediaItemID: "ep-1", PersonID: "p-1", RoleType: "actor"}))
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: path, Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(2), Episode: new(3), Type: library.Episode},
+	}
+	_, _, err := svc.ScanLibrary(ctx, "lib-tv")
+	require.NoError(t, err)
+
+	got, err := mediaRepo.GetByID(ctx, "ep-1")
+	require.NoError(t, err)
+	assert.Equal(t, library.Episode, got.Type)
+	assert.Empty(t, got.Overview)
+	assert.Empty(t, got.Tagline)
+	assert.Empty(t, got.OriginalTitle)
+	if got.Catalog != nil {
+		assert.Empty(t, got.Catalog.ProviderIDs, "a movie-space provider id does not name an episode")
+	}
+	cast, err := mediaPersons.GetByMediaItemID(ctx, "ep-1")
+	require.NoError(t, err)
+	assert.Empty(t, cast)
+	assert.Equal(t, []string{"ep-1"}, purger.purged)
+	var announced bool
+	for _, e := range bus.PublishedEvents() {
+		if added, ok := e.(library.MediaItemAdded); ok && added.MediaItemID == "ep-1" {
+			announced = true
+			assert.Equal(t, library.Episode, added.Type)
+			assert.Equal(t, "Show", added.SeriesTitle)
+		}
+	}
+	assert.True(t, announced, "the refiled item is announced so it is matched again")
+}
