@@ -1170,6 +1170,33 @@ func TestLibraryHandler_CreateLibrary_RejectsUnsafePaths(t *testing.T) {
 	}
 }
 
+// Create and update judge a root by the same rule: any absolute, clean path.
+// Update used to demand a "/media" prefix (which "/mediafoo" also met), so a
+// library created on another mount could never have its roots edited.
+func TestLibraryHandler_UpdateAcceptsTheRootsCreateAccepts(t *testing.T) {
+	h, libQuery, _, _, _, _, _, _ := newTestLibraryHandlerWithScanner()
+	h.translator = eveyi18n.NewEmpty()
+
+	created, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+		Name: "NAS", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{"/mnt/nas"},
+	})
+	require.NoError(t, err)
+	libQuery.Seed(&library.Library{ID: shared.LibraryID(created.Id), Name: "NAS", Type: "movie", Paths: []string{"/mnt/nas"}})
+
+	updated, err := h.UpdateLibrary(adminCtx(), &eveyv1.UpdateLibraryRequest{Id: created.Id, Paths: []string{"/mnt/nas", "/srv/films/"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/mnt/nas", "/srv/films"}, updated.Paths)
+
+	for _, p := range []string{"/mnt/../etc", "mnt/nas", "/"} {
+		_, err = h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+			Name: "NAS", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{p},
+		})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "create %q: %v", p, err)
+		_, err = h.UpdateLibrary(adminCtx(), &eveyv1.UpdateLibraryRequest{Id: created.Id, Paths: []string{p}})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "update %q: %v", p, err)
+	}
+}
+
 // A path with "." or ".." in it is refused as typed, on create and on update:
 // normalising it first would turn "/media/../etc" into "/etc" and accept a
 // root the admin never named.

@@ -218,7 +218,10 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	if len(req.Paths) > 0 {
 		paths := cleanLibraryPaths(req.Paths)
 		for _, p := range paths {
-			if !filepath.IsAbs(p) || !strings.HasPrefix(filepath.Clean(p), "/media") || library.ValidateLibraryPath(p) != nil {
+			// Create's rule exactly: absolute and clean, "." and ".." refused
+			// as typed by cleanLibraryPaths. Which mount holds the media is
+			// the admin's call, not a prefix's.
+			if library.ValidateLibraryPath(p) != nil {
 				span.SetStatus(otelcodes.Error, "invalid path")
 				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.invalid_path")
 			}
