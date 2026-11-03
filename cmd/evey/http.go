@@ -36,6 +36,10 @@ import (
 // IP: a TV polls every 3 s (20/min), three of them behind one NAT still fit.
 const quickConnectPollPerMinute = 60
 
+// refreshPerMinute bounds the silent session renewal per client IP: every
+// device of a household renewing at once after a restart fits, a flood does not.
+const refreshPerMinute = 60
+
 // buildHTTPHandler also returns the plan's decider the HTTP pipeline owns, for
 // the gRPC GetStreamInfo built before it (main binds it with SetPlaybackDecider).
 func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, startTime time.Time, logDir string, ctx context.Context, qcHub *quickconnecthub.Hub) (http.Handler, apptranscoding.PlaybackDecider, error) {
@@ -64,6 +68,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	// from the poll cadence, the same on every environment, no knob: a few
 	// televisions behind one NAT fit, a flood does not.
 	quickConnectPollRL := ratelimit.New(quickConnectPollPerMinute)
+	refreshRL := ratelimit.New(refreshPerMinute)
 	// Snapshot/frame extraction spawns one ffmpeg per request: burst covers an
 	// admin thumbnail grid, the 1/s refill caps sustained spawn abuse.
 	snapshotRL := ratelimit.NewWithBurst(30, 60.0)
@@ -104,6 +109,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		passwordResetRL.Stop()
 		oidcLoginRL.Stop()
 		quickConnectPollRL.Stop()
+		refreshRL.Stop()
 		snapshotRL.Stop()
 		subtitleRL.Stop()
 		syncPreviewRL.Stop()
@@ -344,6 +350,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PasswordResetRL:    passwordResetRL,
 		OIDCLoginRL:        oidcLoginRL,
 		QuickConnectPollRL: quickConnectPollRL,
+		RefreshRL:          refreshRL,
 
 		Translator:           deps.translator,
 		AudioNormalizeGetter: audioNormalizeGetter,
