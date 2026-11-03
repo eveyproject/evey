@@ -33,6 +33,10 @@ func TestAudioOnlyArgs_ShiftTheInputLikeTheMuxedLadder(t *testing.T) {
 		"the user's resync, audio later":   {0.5, 0, "0.500"},
 		"the user's resync, audio earlier": {-0.3, 0, "-0.300"},
 		"both compose":                     {0.5, 0.896, "-0.396"},
+		// A delay under the floor is left alone on its own; a resync over
+		// it must not drag it in, or the first step is not worth its label.
+		"a resync over an under-floor delay": {0.1, 0.06, "0.100"},
+		"the same, audio earlier":            {-0.1, 0.06, "-0.100"},
 	}
 	for name, c := range cases {
 		o := base

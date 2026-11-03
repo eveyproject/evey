@@ -502,11 +502,5 @@ func audioOnlyShiftSec(opts transcoding.AudioProcessOpts) float64 {
 	if opts.SilenceDurationSec > 0 || resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder) == "copy" {
 		return 0
 	}
-	if opts.AudioUserOffsetSec != 0 {
-		return opts.AudioUserOffsetSec - opts.AudioStartDelaySec
-	}
-	if opts.AudioStartDelaySec > audioDelayCancelMinSec {
-		return -opts.AudioStartDelaySec
-	}
-	return 0
+	return opts.AudioUserOffsetSec - cancelledAudioDelaySec(opts.AudioStartDelaySec)
 }
