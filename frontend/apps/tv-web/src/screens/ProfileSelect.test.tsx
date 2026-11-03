@@ -1,7 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { refreshToken, listProfiles, replaceMock, setTokens, setProfile, setRefreshToken } = vi.hoisted(() => ({
+const { refreshToken, listProfiles, replaceMock, setTokens, setProfile, setRefreshToken, qcClear, clearUnlocked } = vi.hoisted(() => ({
+  qcClear: vi.fn(),
+  clearUnlocked: vi.fn(),
   refreshToken: vi.fn(),
   listProfiles: vi.fn(),
   replaceMock: vi.fn(),
@@ -34,7 +36,11 @@ vi.mock("@evey/store", () => ({
 }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-  useQueryClient: () => ({ invalidateQueries: () => Promise.resolve() }),
+  useQueryClient: () => ({ invalidateQueries: () => Promise.resolve(), clear: qcClear }),
+}));
+vi.mock("@evey/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/client")>()),
+  clearUnlocked: () => clearUnlocked(),
 }));
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
@@ -54,6 +60,8 @@ const PROFILES = [
 beforeEach(() => {
   refreshToken.mockReset();
   replaceMock.mockReset();
+  qcClear.mockReset();
+  clearUnlocked.mockReset();
   listProfiles.mockReturnValue({ data: { profiles: PROFILES }, isLoading: false });
 });
 
@@ -66,6 +74,27 @@ describe("who is watching", () => {
     expect(refreshToken).toHaveBeenCalledWith({ profileId: "prf-kid", refreshToken: "refresh-1", pinToken: undefined });
     expect(setRefreshToken).toHaveBeenCalledWith("rotated");
     expect(replaceMock).toHaveBeenCalledWith({ name: "home" });
+  });
+
+  // The cache and the parental unlocks belong to the previous viewer: kept
+  // across the switch, a kids profile saw the adult's rows and opened the
+  // titles the adult had unlocked.
+  it("drops the cached data and every parental unlock once the server confirmed the switch", async () => {
+    refreshToken.mockResolvedValue({ accessToken: "new-access", refreshToken: "rotated" });
+    render(<ProfileSelectScreen />);
+    fireEvent.click(screen.getByText("Locked"));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith({ name: "home" }));
+    expect(qcClear).toHaveBeenCalledTimes(1);
+    expect(clearUnlocked).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps both when the server refuses the switch", async () => {
+    refreshToken.mockRejectedValueOnce(Object.assign(new Error("forbidden"), { httpStatus: 403 }));
+    render(<ProfileSelectScreen />);
+    fireEvent.click(screen.getByText("Locked"));
+    await waitFor(() => expect(screen.getByText("enter-pin")).toBeTruthy());
+    expect(qcClear).not.toHaveBeenCalled();
+    expect(clearUnlocked).not.toHaveBeenCalled();
   });
 
   it("asks for the PIN when the server refuses, then switches with the proof", async () => {
