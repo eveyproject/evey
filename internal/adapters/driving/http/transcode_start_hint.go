@@ -128,7 +128,10 @@ func copySegmentAt(plan []apptranscoding.CopySegment, sec float64) int {
 	if len(plan) == 0 {
 		return 0
 	}
-	ms := int64(sec * 1000)
+	// Nearest millisecond: a start written in seconds carries no finer
+	// figure, and a truncation of a value a hair under the boundary would
+	// land in the segment before.
+	ms := int64(math.Round(sec * 1000))
 	i := sort.Search(len(plan), func(i int) bool { return plan[i].EndMs > ms })
 	return min(i, len(plan)-1)
 }

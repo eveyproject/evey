@@ -69,6 +69,16 @@ func TestPrewarmSegment_ConvertsOnTheRungsOwnSegments(t *testing.T) {
 	assert.Equal(t, 449, seg, "a copy rung's plan: the keyframe segment holding 3600 s")
 	assert.Equal(t, 0, copySegmentAt(nil, 3600), "no plan: 0")
 	assert.Equal(t, len(plan)-1, copySegmentAt(plan, 1e6), "past the end: the last segment")
+	// The exact start of a keyframe segment, in seconds, is that segment:
+	// a millisecond figure divided then multiplied by 1000 may come back a
+	// hair under the integer, and a truncation would pick the one before.
+	wrong := 0
+	for i := range plan {
+		if copySegmentAt(plan, float64(plan[i].StartMs)/1000) != i {
+			wrong++
+		}
+	}
+	assert.Zero(t, wrong, "exact starts mapped to the previous keyframe segment")
 }
 
 func TestAudioServe_HintForUsesTheRenditionGrid(t *testing.T) {
