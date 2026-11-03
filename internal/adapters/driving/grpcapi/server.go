@@ -206,7 +206,7 @@ func (s *GRPCServer) RegisterServices() {
 	playbackRemoteAccess := remoteAccessFromConfig(d.Cfg)
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, scheduler: d.Scheduler, translator: d.Translator})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg})
-	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteAccess: playbackRemoteAccess, hours: d.ProfileHours, rescanLibrary: backgroundLibraryRescan(d.LibCmd)}
+	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteAccess: playbackRemoteAccess, serverLang: serverLanguageFromConfig(d.Cfg), hours: d.ProfileHours, rescanLibrary: backgroundLibraryRescan(d.LibCmd)}
 	eveyv1.RegisterPlaybackServiceServer(s.server, s.playback)
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
@@ -394,5 +394,17 @@ func remoteAccessFromConfig(cfg *config.Config) func() (int, []string) {
 			lan = slices.Clone(cfg.RemoteAccess.LANNetworks)
 		})
 		return maxKbps, lan
+	}
+}
+
+// serverLanguageFromConfig is the server's metadata language, the last
+// language the default audio track is picked by: the HLS master reads the
+// same fallback, so the stream-info verdict judges the track it serves.
+func serverLanguageFromConfig(cfg *config.Config) func() string {
+	return func() string {
+		if cfg == nil {
+			return "en"
+		}
+		return cfg.Metadata.Language
 	}
 }

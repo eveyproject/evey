@@ -259,6 +259,9 @@ func (o *AudioSegmentOrchestrator) indexSessionLocked(sess *audioSession) {
 
 func (o *AudioSegmentOrchestrator) unindexSessionLocked(sess *audioSession) {
 	byStart := o.byHash[sess.hash]
+	if byStart[sess.startSeg] != sess {
+		return // a successor at the same start owns the slot now
+	}
 	delete(byStart, sess.startSeg)
 	if len(byStart) == 0 {
 		delete(o.byHash, sess.hash)
@@ -527,7 +530,12 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		producedStart := o.cache.IsReady(startKey, true)
 
 		o.mu.Lock()
-		delete(o.sessions, sessKey)
+		// A successor spawned at the same start segment while this session
+		// was stopping sits under the same key: only this session's own
+		// entries come off the books, never the successor's.
+		if o.sessions[sessKey] == sess {
+			delete(o.sessions, sessKey)
+		}
 		o.unindexSessionLocked(sess)
 		if producedStart {
 			// A healthy run clears the strike history for this start segment.

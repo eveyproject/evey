@@ -28,7 +28,7 @@ type fakeDec struct {
 	calls int
 }
 
-func (d *fakeDec) DecodePacketToJPEG(_ context.Context, _ []byte, _ string, _ int) ([]byte, error) {
+func (d *fakeDec) DecodePacketToJPEG(_ context.Context, _ string, _ []byte, _ string, _ int) ([]byte, error) {
 	d.calls++
 	return d.out, d.err
 }

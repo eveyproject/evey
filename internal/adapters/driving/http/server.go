@@ -645,7 +645,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("DELETE /api/v1/admin/media/{id}/segments", deleteSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
-	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.PlaybackDecider(), s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
+	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandlerFor(s.serverLanguage, s.PlaybackDecider(), s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
 
 	// VOD-style HLS pipeline: manifest precomputed in Go from durationMs,
 	// segments produced on demand by SegmentOrchestrator into SegmentCache.
@@ -996,4 +996,13 @@ func (s *HTTPServer) https() bool {
 		return s.HTTPSMode()
 	}
 	return s.HTTPSOnly
+}
+
+// serverLanguage is the server's metadata language, the last language the
+// default audio track is picked by: the same fallback the HLS master reads.
+func (s *HTTPServer) serverLanguage() string {
+	if s.Cfg == nil {
+		return "en"
+	}
+	return s.Cfg.Metadata.Language
 }

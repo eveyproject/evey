@@ -116,7 +116,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		// Each rendition advertises what it will really carry: the source
 		// codec, rate, layout and bits when it is copied, the AAC encode's when
 		// it is re-encoded.
-		clientMax := maxAudioChannelsQuery(r)
+		clientMax := audioChannelCeiling(r, rp.Request.Prefs)
 		for i := range audioRenditions {
 			ar := &audioRenditions[i]
 			copyCodec := h.audioRenditionCopyCodec(r, item, streams, ar.SourceTrackIdx)
@@ -210,7 +210,23 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 	// (bakeClientInputs): the child URIs re-ask for the client the master was
 	// decided for.
 	bakeClientInputs(r, &in)
+	// The ceiling the renditions were shaped under, profile cap included:
+	// baked into their URIs so the init and segments the audio handler
+	// produces from the query fold the same way the master advertised.
+	in.MaxAudioChannels = audioChannelCeiling(r, rp.Request.Prefs)
 	return in, nil
+}
+
+// audioChannelCeiling folds the client's declared channel ceiling with the
+// profile's own cap (the lower non-zero one): the muxed ladder reads both in
+// the decision, and a rendition shaped from the query alone served 5.1 to a
+// profile capped at stereo.
+func audioChannelCeiling(r *http.Request, prefs apptranscoding.TranscodingPreferences) int {
+	ceiling := maxAudioChannelsQuery(r)
+	if prefs.MaxAudioChannels > 0 && (ceiling == 0 || prefs.MaxAudioChannels < ceiling) {
+		ceiling = prefs.MaxAudioChannels
+	}
+	return ceiling
 }
 
 // audioOffsetMsQuery parses the user's audio resync request (ms; positive =

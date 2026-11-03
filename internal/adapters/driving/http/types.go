@@ -135,7 +135,7 @@ type KeyframeExtractor interface {
 // extracts the packet, ffmpeg decodes just that one frame instead of the whole
 // GOP up to the requested position.
 type FramePacketDecoder interface {
-	DecodePacketToJPEG(ctx context.Context, packet []byte, ext string, width int) ([]byte, error)
+	DecodePacketToJPEG(ctx context.Context, filePath string, packet []byte, ext string, width int) ([]byte, error)
 }
 
 // ArtworkRepo reads and updates artwork records.
