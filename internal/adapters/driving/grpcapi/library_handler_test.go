@@ -248,6 +248,28 @@ func TestLibraryHandler_ListLibraries_FilteredByAccess(t *testing.T) {
 	assert.False(t, ids["lib-2"])
 }
 
+// A library's roots are the host's absolute paths: the admin screens that
+// manage libraries read them, a viewer listing the libraries it may browse
+// never does - as for the item's file_path, they lay the filesystem out.
+func TestLibraryHandler_ListLibraries_PathsAreAdminOnly(t *testing.T) {
+	h, libQuery, _, _, libraryAccess, _, _ := newTestLibraryHandler()
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/srv/media/movies"}})
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	viewer, err := h.ListLibraries(userCtx("user-2", "profile-2"), &eveyv1.ListLibrariesRequest{})
+	require.NoError(t, err)
+	require.Len(t, viewer.Libraries, 1)
+	assert.Empty(t, viewer.Libraries[0].Paths, "a viewer never sees where the files live")
+	one, err := h.GetLibrary(userCtx("user-2", "profile-2"), &eveyv1.GetLibraryRequest{Id: "lib-1"})
+	require.NoError(t, err)
+	assert.Empty(t, one.Paths)
+
+	admin, err := h.ListLibraries(adminCtx(), &eveyv1.ListLibrariesRequest{})
+	require.NoError(t, err)
+	require.Len(t, admin.Libraries, 1)
+	assert.Equal(t, []string{"/srv/media/movies"}, admin.Libraries[0].Paths)
+}
+
 func TestLibraryHandler_DeleteLibrary(t *testing.T) {
 	h, _, _, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()

@@ -318,7 +318,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		}
 	}
 	for _, s := range streams {
-		resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s))
+		resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s, ctxIsAdmin(ctx)))
 	}
 
 	client := clientProfileFromRequest(req, interceptors.UserAgentFromCtx(ctx))
