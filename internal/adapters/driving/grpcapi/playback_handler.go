@@ -145,19 +145,22 @@ func clientProfileFromRequest(req *eveyv1.GetStreamInfoRequest, userAgent string
 	if len(req.Fmp4AudioPassthrough) > 0 {
 		client.FMP4AudioPassthrough = req.Fmp4AudioPassthrough
 	}
-	if req.MaxWidth > 0 {
-		client.MaxWidth = int(req.MaxWidth)
+	// Same ranges the HLS master reads ?maxWidth / ?maxHeight within: a
+	// figure the master ignores must not become a ceiling here, or the
+	// verdict would describe a ladder the manifest never builds.
+	if n := int(req.MaxWidth); transcoding.DeclaredWidthInRange(n) {
+		client.MaxWidth = n
 	}
-	if req.MaxHeight > 0 {
-		client.MaxHeight = int(req.MaxHeight)
+	if n := int(req.MaxHeight); transcoding.DeclaredHeightInRange(n) {
+		client.MaxHeight = n
 	}
 	if req.SupportsHdr {
 		client.SupportsHDR = true
 	}
 	// Same level ceiling the HLS master reads from ?maxH264Level=: the
 	// stream-info verdict and the manifest must judge the same decoder.
-	if req.MaxH264Height > 0 {
-		client.MaxH264Height = int(req.MaxH264Height)
+	if n := int(req.MaxH264Height); transcoding.DeclaredHeightInRange(n) {
+		client.MaxH264Height = n
 	}
 	if req.MaxH264Level > 0 {
 		client.MaxH264Level = int(req.MaxH264Level)
