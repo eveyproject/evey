@@ -45,11 +45,18 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 	if err := os.MkdirAll(s.dir, 0700); err != nil {
 		return fmt.Errorf("create backup dir: %w", err)
 	}
+	// The archive is written under a temporary name and takes the final one in
+	// a single rename once it is whole and on disk: a dump that stops halfway,
+	// or a process that dies, must not leave a truncated file where a restore
+	// would take it for a valid backup. A failure removes the temporary file,
+	// which nothing lists or purges.
 	archivePath := filepath.Join(s.dir, m.ID+".tar.gz")
-	f, err := os.OpenFile(archivePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	tmpPath := archivePath + ".tmp"
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("create archive: %w", err)
 	}
+	defer os.Remove(tmpPath) //nolint:errcheck // gone already once renamed
 	defer f.Close()
 
 	gw := gzip.NewWriter(f)
@@ -73,8 +80,14 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 	if closeErr := gw.Close(); closeErr != nil {
 		return closeErr
 	}
+	if syncErr := f.Sync(); syncErr != nil {
+		return fmt.Errorf("sync archive: %w", syncErr)
+	}
 	if closeErr := f.Close(); closeErr != nil {
 		return closeErr
+	}
+	if renameErr := os.Rename(tmpPath, archivePath); renameErr != nil {
+		return fmt.Errorf("publish archive: %w", renameErr)
 	}
 
 	fi, err := os.Stat(archivePath)

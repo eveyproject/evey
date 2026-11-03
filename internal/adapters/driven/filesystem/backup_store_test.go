@@ -3,6 +3,7 @@ package filesystem
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -232,4 +233,60 @@ func TestStreamTarEntry_NonSeeker(t *testing.T) {
 	require.NoError(t, getErr)
 	defer rc.Close()
 	assert.Equal(t, "bk-pipe", got.ID)
+}
+
+type failingReader struct {
+	n   int
+	err error
+}
+
+func (r *failingReader) Read(p []byte) (int, error) {
+	if r.n <= 0 {
+		return 0, r.err
+	}
+	n := min(len(p), r.n)
+	for i := range n {
+		p[i] = 'x'
+	}
+	r.n -= n
+	return n, nil
+}
+
+// An archive is a backup only once it is whole on disk: a dump that stops
+// halfway (or a process that dies) must not leave a truncated file under the
+// final name, where a restore would take it for a valid backup, nor a
+// temporary one that nothing lists or purges.
+func TestBackupStore_Create_FailedDumpLeavesNoArchive(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBackupStore(dir)
+	m := &backup.BackupManifest{ID: "bk-cut", CreatedAt: time.Now(), Version: "1.0", Tables: []string{"t"}}
+
+	err := store.Create(context.Background(), m, &failingReader{n: 4096, err: errors.New("pg_dump died")})
+	require.Error(t, err)
+
+	entries, readErr := os.ReadDir(dir)
+	require.NoError(t, readErr)
+	for _, e := range entries {
+		t.Errorf("a failed backup left %q behind", e.Name())
+	}
+	list, listErr := store.List(context.Background())
+	require.NoError(t, listErr)
+	assert.Empty(t, list)
+}
+
+// A finished backup is the final name alone: the temporary name it was
+// written under is gone.
+func TestBackupStore_Create_LeavesNoTemporaryFile(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBackupStore(dir)
+	m := &backup.BackupManifest{ID: "bk-whole", CreatedAt: time.Now(), Version: "1.0", Tables: []string{"t"}}
+	require.NoError(t, store.Create(context.Background(), m, bytes.NewReader([]byte("dump"))))
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	assert.ElementsMatch(t, []string{"bk-whole.tar.gz", "bk-whole.json"}, names)
 }
