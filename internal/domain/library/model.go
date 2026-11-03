@@ -302,7 +302,12 @@ type MediaFile struct {
 //	   a MOV's QuickTime title is read, a long LPCM track and an MP4 cut short
 //	   are described instead of refused, and an empty DisplayWidth or
 //	   DisplayHeight means square pixels.
-const StreamProbeVersion = 4
+//	5: mkvgo 0.63 - a Matroska FieldOrder of 9 or 14 reads tb or bt (the two
+//	   were swapped, so every persisted tb/bt is the other one), an H.264
+//	   track with frame_mbs_only_flag 0 alone is unknown instead of
+//	   interlaced, and the first samples prove an H.264, HEVC or MPEG-2 track
+//	   interlaced with its field order.
+const StreamProbeVersion = 5
 
 // LevelProbeVersion is the current revision of the video level backfill's
 // probe. media_streams.level_probe_version records the revision at which a
