@@ -559,7 +559,38 @@ func sanitizeSegment(seg string) string {
 	if len(seg) >= 16 && isAllHex(seg) {
 		return "{id}"
 	}
+	if isNumberedFile(seg) {
+		return "{file}"
+	}
 	return seg
+}
+
+// isNumberedFile: a file name carrying a number, such as the HLS segments
+// (stream_0_123.m4s, audio_1_45.m4s, sub0_12.vtt) and the trickplay sheets
+// a session serves by the hundred - one series per film with the raw name,
+// and a memory the process never gave back. A plain name (master.m3u8,
+// init.mp4, remux.mp4) is a bounded set and stays.
+func isNumberedFile(seg string) bool {
+	dot := strings.LastIndexByte(seg, '.')
+	if dot <= 0 || dot == len(seg)-1 {
+		return false
+	}
+	for i := 0; i < dot; i++ {
+		if seg[i] >= '0' && seg[i] <= '9' {
+			return true
+		}
+	}
+	return false
+}
+
+// boundedMethod keeps the method label to the verbs the server routes: a
+// client inventing one must not mint a series per spelling.
+func boundedMethod(m string) string {
+	switch m {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions:
+		return m
+	}
+	return "OTHER"
 }
 
 func isAllDigits(s string) bool {
@@ -636,7 +667,15 @@ func isUUID(s string) bool {
 	return true
 }
 
-// InstrumentHandler wraps h to record request count and duration.
+// unmatchedPath is the one label every request no route answered shares: a
+// path nobody serves is whatever the caller typed, and one series per
+// spelling let any anonymous client grow the process without bound.
+const unmatchedPath = "{unmatched}"
+
+// InstrumentHandler wraps h to record request count and duration. The labels
+// stay bounded: the method is one of the verbs the server routes, a path no
+// route matched is one label, and the file names a session serves by the
+// hundred collapse into one (SanitizePath).
 func InstrumentHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
@@ -644,7 +683,11 @@ func InstrumentHandler(h http.Handler) http.Handler {
 		h.ServeHTTP(rec, r)
 		elapsed := time.Since(start).Seconds()
 		path := SanitizePath(r.URL.Path)
-		HTTPRequestsTotal.WithLabelValues(r.Method, path, strconv.Itoa(rec.status)).Inc()
-		HTTPRequestDuration.WithLabelValues(r.Method, path).Observe(elapsed)
+		if rec.status == http.StatusNotFound || rec.status == http.StatusMethodNotAllowed {
+			path = unmatchedPath
+		}
+		method := boundedMethod(r.Method)
+		HTTPRequestsTotal.WithLabelValues(method, path, strconv.Itoa(rec.status)).Inc()
+		HTTPRequestDuration.WithLabelValues(method, path).Observe(elapsed)
 	})
 }
