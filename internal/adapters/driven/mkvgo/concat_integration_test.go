@@ -196,9 +196,9 @@ func TestConcatPackagerIntegration_OpenServesResourceBytes(t *testing.T) {
 
 // A chain is served with the resync each episode gets on its own: two
 // episodes whose audio starts late by the same amount are planned with that
-// shift (the audio init segment carries an edit list the unshifted plan has
-// not), and a late episode beside an aligned one refuses the chain, since one
-// shift cannot be right for both.
+// shift (each part's audio init differs from the one the unprobed plan
+// serves), and a late episode beside an aligned one refuses the chain, since
+// one shift cannot be right for both.
 func TestConcatPackagerIntegration_AudioStartDelayResynced(t *testing.T) {
 	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
 		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
@@ -228,34 +228,33 @@ func TestConcatPackagerIntegration_AudioStartDelayResynced(t *testing.T) {
 		t.Fatalf("an aligned episode chained with a late one must refuse, got err=%v", err)
 	}
 
-	audioInit := func(p *ConcatPackager, sources []string) []byte {
+	audioInits := func(p *ConcatPackager, sources []string) [][]byte {
 		plan, err := p.Plan(ctx, sources, apptranscoding.ConcatOptions{SegmentMs: 6000, URLPrefix: "cc_"})
 		if err != nil {
 			t.Fatalf("Plan: %v", err)
 		}
-		for _, name := range plan.Resources() {
-			if name == "p0/init_a1.mp4" {
-				data, _, err := plan.Resource(ctx, name)
-				if err != nil {
-					t.Fatalf("Resource(%s): %v", name, err)
-				}
-				return data
+		var inits [][]byte
+		for _, name := range []string{"p0/init_a1.mp4", "p1/init_a1.mp4"} {
+			data, _, err := plan.Resource(ctx, name)
+			if err != nil {
+				t.Fatalf("Resource(%s): %v (resources: %v)", name, err, plan.Resources())
 			}
+			inits = append(inits, data)
 		}
-		t.Fatalf("no audio init for part 0 in %v", plan.Resources())
-		return nil
+		return inits
 	}
-	resynced := audioInit(pkg, []string{late1, late2})
+	resynced := audioInits(pkg, []string{late1, late2})
 
 	unprobed := NewConcatPackager()
 	defer unprobed.Close()
 	unprobed.audioDelays = nil
-	verbatim := audioInit(unprobed, []string{late1, late2})
+	verbatim := audioInits(unprobed, []string{late1, late2})
 
-	if bytes.Equal(resynced, verbatim) {
-		t.Fatalf("the chain of two late episodes is served as if it were aligned: the audio init is the unshifted one (%d bytes)", len(verbatim))
-	}
-	if !bytes.Contains(resynced, []byte("elst")) {
-		t.Errorf("the resynced audio init carries no edit list")
+	// Every part of the chain is resynced, as each would be on its own: the
+	// audio init of each part differs from the one served without the probe.
+	for k := range resynced {
+		if bytes.Equal(resynced[k], verbatim[k]) {
+			t.Errorf("part %d of a chain of late episodes is served as if it were aligned: the audio init is the unshifted one (%d bytes)", k, len(verbatim[k]))
+		}
 	}
 }

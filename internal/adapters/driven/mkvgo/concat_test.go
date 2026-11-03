@@ -43,20 +43,29 @@ func fixedDelays(byPath map[string]map[uint64]int64) delaysFunc {
 func TestConcatAudioShift_AgreeingSources(t *testing.T) {
 	ctx := t.Context()
 	late := map[uint64]int64{2: 500_000_000}
-	shift, err := concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": late, "e2.mkv": late}))
+	shift, probed, err := concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": late, "e2.mkv": late}))
 	require.NoError(t, err)
+	assert.True(t, probed)
 	assert.Equal(t, late, shift, "the shift every source calls for")
 
+	// Sub-millisecond jitter between two encodes of one series is the same
+	// edit list once written: the chain is served with it.
+	jitter := map[uint64]int64{2: 500_400_000}
+	shift, _, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": late, "e2.mkv": jitter}))
+	require.NoError(t, err)
+	assert.Equal(t, late, shift, "shifts that round to the same millisecond agree")
+
 	priming := map[uint64]int64{2: 20_000_000}
-	shift, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": priming, "e2.mkv": nil}))
+	shift, _, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": priming, "e2.mkv": nil}))
 	require.NoError(t, err)
 	assert.Nil(t, shift, "codec priming is not a delay")
 
-	shift, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": nil}))
+	shift, probed, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": nil}))
 	require.NoError(t, err)
 	assert.Nil(t, shift, "a failed probe on a part that would need no shift still plans")
+	assert.False(t, probed, "and the plan is not one to keep")
 
-	shift, err = concatAudioShift(ctx, []string{"e1.mp4", "e2.mp4"}, fixedDelays(nil))
+	shift, _, err = concatAudioShift(ctx, []string{"e1.mp4", "e2.mp4"}, fixedDelays(nil))
 	require.NoError(t, err)
 	assert.Nil(t, shift, "a non-Matroska source is never probed")
 }
@@ -66,15 +75,49 @@ func TestConcatAudioShift_AgreeingSources(t *testing.T) {
 func TestConcatAudioShift_DisagreeingSourcesRefuse(t *testing.T) {
 	ctx := t.Context()
 	late := map[uint64]int64{2: 500_000_000}
-	_, err := concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": nil, "e2.mkv": late}))
-	assert.ErrorIs(t, err, ErrConcatAudioShiftMismatch, "one late episode in a chain of aligned ones")
+	_, _, err := concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": nil, "e2.mkv": late}))
+	require.ErrorIs(t, err, ErrConcatAudioShiftMismatch, "one late episode in a chain of aligned ones")
 
 	later := map[uint64]int64{2: 900_000_000}
-	_, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": late, "e2.mkv": later}))
-	assert.ErrorIs(t, err, ErrConcatAudioShiftMismatch, "two late episodes by different amounts")
+	_, _, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": late, "e2.mkv": later}))
+	require.ErrorIs(t, err, ErrConcatAudioShiftMismatch, "two late episodes by different amounts")
 
-	_, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e2.mkv": late}))
-	assert.ErrorIs(t, err, ErrConcatAudioShiftMismatch, "a failed probe beside a part that needs a shift")
+	_, _, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv", "e3.mkv"}, fixedDelays(map[string]map[uint64]int64{"e1.mkv": late, "e2.mkv": late, "e3.mkv": later}))
+	require.ErrorIs(t, err, ErrConcatAudioShiftMismatch, "the third episode of a chain disagreeing")
+
+	_, _, err = concatAudioShift(ctx, []string{"e1.mkv", "e2.mkv"}, fixedDelays(map[string]map[uint64]int64{"e2.mkv": late}))
+	require.ErrorIs(t, err, ErrConcatAudioShiftMismatch, "a failed probe beside a part that needs a shift")
+}
+
+// A refused chain is refused again from memory while its sources stand:
+// every episode start of the series does not probe every file again.
+func TestConcatPackager_Plan_RefusalIsRemembered(t *testing.T) {
+	p := NewConcatPackager()
+	defer p.Close()
+	probes := 0
+	inner := fixedDelays(map[string]map[uint64]int64{"e1.mkv": nil, "e2.mkv": {2: 500_000_000}})
+	p.audioDelays = func(ctx context.Context, path string) (map[uint64]int64, error) {
+		probes++
+		return inner(ctx, path)
+	}
+	for range 3 {
+		_, err := p.Plan(t.Context(), []string{"e1.mkv", "e2.mkv"}, apptranscoding.ConcatOptions{})
+		require.ErrorIs(t, err, ErrConcatAudioShiftMismatch)
+	}
+	assert.Equal(t, 2, probes, "three requests, one probe of each source")
+}
+
+// A single source is refused before any probe: mkvgo's own guard, kept
+// ahead of the work.
+func TestConcatPackager_Plan_SingleSourceIsNotProbed(t *testing.T) {
+	p := NewConcatPackager()
+	defer p.Close()
+	p.audioDelays = func(context.Context, string) (map[uint64]int64, error) {
+		t.Fatal("a single source was probed")
+		return nil, nil
+	}
+	_, err := p.Plan(t.Context(), []string{"one.mkv"}, apptranscoding.ConcatOptions{})
+	require.Error(t, err)
 }
 
 // The packager refuses the chain before any source is opened: the sources
