@@ -226,7 +226,7 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 		opts.AudioStartDelaySec = probedAudioStartDelay(ctx, opts.FilePath, opts.SourceTrackIdx)
 	}
 	args := BuildFFmpegAudioOnlyArgs(opts)
-	slog.Info("hls: ffmpeg audio-only start",
+	slog.InfoContext(ctx, "hls: ffmpeg audio-only start",
 		slog.String("media_path", opts.FilePath),
 		slog.Int("track_idx", opts.SourceTrackIdx),
 		slog.String("codec", opts.AudioCodec),
@@ -236,6 +236,7 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 
 	processCtx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(processCtx, "ffmpeg", args...)
+	cmd.Env = procfork.ChildEnv()
 	procfork.DieWithParent(cmd)
 	stderr := newRingBuffer(8 * 1024)
 	cmd.Stderr = stderr
@@ -338,7 +339,7 @@ func (h *audioHandle) run(ctx context.Context) {
 		we := h.awaitProcExit()
 		h.setExitErr(we)
 		if we != nil {
-			slog.Debug("ffmpeg audio wait after cancel", slog.Any("err", we))
+			slog.DebugContext(ctx, "ffmpeg audio wait after cancel", slog.Any("err", we))
 		}
 		h.closeReady()
 		return

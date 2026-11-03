@@ -1,6 +1,9 @@
 package procfork
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 // childEnvExact names the variables a media child (ffmpeg, mkvgo, the prober)
 // is handed as they are: where to find binaries and libraries, where to put
@@ -49,4 +52,10 @@ func childEnvAllowed(name string) bool {
 		}
 	}
 	return false
+}
+
+// ChildEnv is the environment a media child spawned outside Command is
+// handed: the same allowlist, read from the server's environment now.
+func ChildEnv() []string {
+	return childEnv(os.Environ())
 }

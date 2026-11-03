@@ -54,3 +54,16 @@ func TestCommand_ChildDoesNotInheritTheServerEnvironment(t *testing.T) {
 		t.Fatalf("the child must still have a PATH:\n%s", out)
 	}
 }
+
+// ChildEnv reads the server's environment through the same allowlist.
+func TestChildEnv_ReadsTheServerEnvironmentThroughTheAllowlist(t *testing.T) {
+	t.Setenv("EVEY_TEST_SECRET_NOT_FOR_CHILDREN", "hunter2")
+	t.Setenv("LIBVA_DRIVER_NAME", "iHD")
+	got := ChildEnv()
+	if slices.Contains(got, "EVEY_TEST_SECRET_NOT_FOR_CHILDREN=hunter2") {
+		t.Fatal("the server's variable reached the child's environment")
+	}
+	if !slices.Contains(got, "LIBVA_DRIVER_NAME=iHD") {
+		t.Fatal("the hardware variable must reach the child")
+	}
+}
