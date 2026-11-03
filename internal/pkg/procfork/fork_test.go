@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -101,6 +102,42 @@ func TestCommand_ProbeAndNoNiceAndNoMemCap(t *testing.T) {
 	finish(nil, nil)
 	if !slices.Equal(cmd.Args, []string{"ffmpeg", "-i", "f"}) {
 		t.Fatalf("NoNice+NoMemCap+UnboundedThreads runs untouched, got %v", cmd.Args)
+	}
+}
+
+// A measured working set above the class cap raises both the address-space
+// cap and the admission reservation: the process is admitted for what it will
+// really hold, not for the decoder-sized paper cap it would die under.
+func TestCommand_MinMemRaisesTheCapAndTheReservation(t *testing.T) {
+	t.Parallel()
+	need := RSSCap(Production, memBudget()) + gib
+	before := Reserved()
+	cmd, finish, err := Command(context.Background(), Options{Class: Production, Site: "t", MinMemBytes: need}, "ffmpeg", "-i", "f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Reserved() - before; got < need {
+		t.Fatalf("admission must reserve the declared need (%d), reserved %d", need, got)
+	}
+	if prlimitPath() != "" {
+		want := "--as=" + strconv.FormatInt(addressSpaceCap(need), 10)
+		if !slices.Contains(cmd.Args, want) {
+			t.Fatalf("the cap must rise to the declared need: want %s in %v", want, cmd.Args)
+		}
+	}
+	finish(nil, nil)
+
+	// Below the class cap it is a no-op: the class policy still rules.
+	cmd, finish, err = Command(context.Background(), Options{Class: Production, Site: "t", MinMemBytes: 1}, "ffmpeg", "-i", "f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	finish(nil, nil)
+	if prlimitPath() != "" {
+		want := "--as=" + strconv.FormatInt(addressSpaceCap(RSSCap(Production, memBudget())), 10)
+		if !slices.Contains(cmd.Args, want) {
+			t.Fatalf("a need under the class cap keeps the class cap: want %s in %v", want, cmd.Args)
+		}
 	}
 }
 

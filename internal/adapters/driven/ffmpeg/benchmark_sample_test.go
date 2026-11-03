@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -98,6 +100,107 @@ func TestResolveBenchSample_Cascade(t *testing.T) {
 	got, fb = r.resolveBenchSample(context.Background(), "T", benchSampleSource{}, filepath.Join(dir, "d5.hevc"), func(string) error { return errors.New("boom") })
 	if got != "" || !fb {
 		t.Fatalf("fallback step: got %q fallback=%v", got, fb)
+	}
+}
+
+// sampleTestRunner is a runner whose "ffmpeg" is the given binary, with its
+// samples under dir.
+func sampleTestRunner(t *testing.T, dir, ffmpeg string) *BenchmarkRunner {
+	t.Helper()
+	return NewBenchmarkRunner(BenchmarkOpts{FfmpegPath: ffmpeg, SamplePath: filepath.Join(dir, "sample.hevc")}, slog.New(slog.DiscardHandler))
+}
+
+// fakeEncoder is an "ffmpeg" that writes payload to its output (the last
+// argument) and exits with code.
+func fakeEncoder(t *testing.T, dir, payload string, code int) string {
+	t.Helper()
+	bin := filepath.Join(dir, "ffmpeg")
+	script := "#!/bin/sh\nfor out; do :; done\nprintf '%s' '" + payload + "' > \"$out\"\nexit " + strconv.Itoa(code) + "\n"
+	if err := os.WriteFile(bin, []byte(script), 0o700); err != nil { //nolint:gosec // G306: a test helper must be executable
+		t.Fatal(err)
+	}
+	return bin
+}
+
+// A sample encode that fails leaves NOTHING at dst: ffmpeg opens its output
+// before the first frame, and the 0-byte clip a crash left behind used to be
+// found "cached", condemned and paid for again at every calibration.
+func TestEncodeSample_FailureLeavesNoFile(t *testing.T) {
+	dir := t.TempDir()
+	dst := filepath.Join(dir, "sample-hdr10.hevc")
+
+	crash := fakeEncoder(t, dir, "partial", 139)
+	err := sampleTestRunner(t, dir, crash).encodeSample(dst, "t", 0, "-i", "x")
+	if err == nil {
+		t.Fatal("a crashed encode must be an error")
+	}
+	if _, statErr := os.Stat(dst); !os.IsNotExist(statErr) {
+		t.Fatalf("a failed encode must leave no clip at dst, stat: %v", statErr)
+	}
+
+	mute := fakeEncoder(t, dir, "", 0)
+	if err = sampleTestRunner(t, dir, mute).encodeSample(dst, "t", 0, "-i", "x"); err == nil {
+		t.Fatal("a clean exit that wrote nothing must be an error, not a 0-byte clip")
+	}
+	if _, statErr := os.Stat(dst); !os.IsNotExist(statErr) {
+		t.Fatalf("an empty encode must leave no clip at dst, stat: %v", statErr)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Fatalf("temp file left behind: %s", e.Name())
+		}
+	}
+}
+
+// A clean encode lands at dst, whole, with no temp file left beside it.
+func TestEncodeSample_SuccessRenamesIntoPlace(t *testing.T) {
+	dir := t.TempDir()
+	dst := filepath.Join(dir, "sample-hdr10.hevc")
+	ok := fakeEncoder(t, dir, "clip-bytes", 0)
+	if err := sampleTestRunner(t, dir, ok).encodeSample(dst, "t", 0, "-i", "x"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil || string(got) != "clip-bytes" {
+		t.Fatalf("dst must hold the encode: %q, %v", got, err)
+	}
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Fatalf("temp file left behind: %s", e.Name())
+		}
+	}
+}
+
+// The HDR sample is resolved once per bench: the software HDR ladder and the
+// HW bridge both ask for it, and a generation that failed is not retried
+// within the bench (a crashing x265 used to be paid twice per calibration).
+// The next bench looks again.
+func TestResolveHDRSample_OncePerBench(t *testing.T) {
+	dir := t.TempDir()
+	r := sampleTestRunner(t, dir, "ffmpeg")
+	calls := 0
+	r.hdrGenerate = func(string) error { calls++; return errors.New("x265 crashed") }
+
+	path, fallback := r.resolveHDRSample(context.Background())
+	if path != "" || !fallback {
+		t.Fatalf("a failed generation falls back: got %q fallback=%v", path, fallback)
+	}
+	path, fallback = r.resolveHDRSample(context.Background())
+	if path != "" || !fallback || calls != 1 {
+		t.Fatalf("the second caller gets the first verdict without a retry: calls=%d got %q fallback=%v", calls, path, fallback)
+	}
+
+	r.forgetHDRSample()
+	r.hdrGenerate = func(dst string) error { calls++; return os.WriteFile(dst, []byte("hdr"), 0o600) }
+	path, fallback = r.resolveHDRSample(context.Background())
+	if path != r.hdrSamplePath() || fallback || calls != 2 {
+		t.Fatalf("a new bench generates again: calls=%d got %q fallback=%v", calls, path, fallback)
 	}
 }
 
