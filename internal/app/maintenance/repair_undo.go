@@ -131,9 +131,18 @@ func (s *SeekIndexService) UndoLastRepair(ctx context.Context, path string) erro
 		// whole track, and a damaged result is put back by replaying the
 		// shift that was being undone - the inverse of an exact shift is
 		// exact in both directions.
-		if err := s.RetimeTracksGuarded(ctx, path, inverse); err != nil {
-			rec.Outcome, rec.Error = repairOutcomeAfterGuard(err), err.Error()
-			s.journalRepair(ctx, rec)
+		// The same rewrite of the library disk as the repair it undoes: in
+		// the job slot, not over a viewer, and refused before anything is
+		// journalled when it cannot have either.
+		err := s.runInSlot(JobUndoRepair, path, func(ctx context.Context) error {
+			if gerr := s.RetimeTracksGuarded(ctx, path, inverse); gerr != nil {
+				rec.Outcome, rec.Error = repairOutcomeAfterGuard(gerr), gerr.Error()
+				s.journalRepair(ctx, rec)
+				return gerr
+			}
+			return nil
+		})
+		if err != nil {
 			return fmt.Errorf("undo repair: %w", err)
 		}
 	default:

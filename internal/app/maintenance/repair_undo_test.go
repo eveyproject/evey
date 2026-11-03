@@ -180,3 +180,27 @@ func TestUndo_NothingToUndo(t *testing.T) {
 	err := svc.UndoLastRepair(context.Background(), "/media/films/x.mkv")
 	assert.ErrorIs(t, err, appmaintenance.ErrNoRepairToUndo)
 }
+
+// Undoing a repair rewrites the file as the repair did: refused over a
+// viewer, with nothing journalled, and allowed once playback stops.
+func TestUndo_RefusedWhilePlaybackIsActive(t *testing.T) {
+	j := &readableJournal{history: []appmaintenance.RepairRecord{
+		retimeEntry("/media/films/x.mkv", map[uint64]float64{2: 2.538}),
+	}}
+	r := &fakeRetimer{}
+	streams := &countingStreams{}
+	streams.active.Store(1)
+	svc := undoService(j, r).WithActiveStreamChecker(streams)
+
+	err := svc.UndoLastRepair(context.Background(), "/media/films/x.mkv")
+
+	require.ErrorIs(t, err, appmaintenance.ErrPlaybackActive)
+	assert.Empty(t, r.calls)
+	assert.Empty(t, j.written, "nothing happened, nothing is journalled")
+
+	streams.active.Store(0)
+	require.NoError(t, svc.UndoLastRepair(context.Background(), "/media/films/x.mkv"))
+	require.Len(t, r.calls, 1)
+	require.Len(t, j.written, 1)
+	assert.Equal(t, "applied", j.written[0].Outcome)
+}
