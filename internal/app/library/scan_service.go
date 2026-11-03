@@ -771,7 +771,9 @@ func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, li
 
 	now := time.Now()
 	lib.LastScannedAt = &now
-	if err := s.libraries.Update(ctx, lib); err != nil {
+	// Only the timestamp: lib is the record read when the scan started, and an
+	// admin may have saved other paths or a new name since.
+	if err := s.libraries.TouchLastScannedAt(ctx, lib.ID, now); err != nil {
 		slog.WarnContext(ctx, "update library last scanned failed", slog.String("libraryID", libraryID), slog.Any("err", err))
 	}
 
