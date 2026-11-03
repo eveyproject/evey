@@ -1026,6 +1026,13 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	existing.File.Fingerprint = f.Fingerprint
 	existing.File.ModTime = f.ModTime
 	existing.UpdatedAt = time.Now()
+	// The row goes out with the new fingerprint and a re-probe owed: the
+	// streams it still carries are the OLD content's. Should the probe below
+	// fail and the second Update time out with it, the next scan sees an
+	// unchanged fingerprint and only this budget brings it back to probe the
+	// file - without it the item kept the previous file's streams and
+	// duration for good.
+	existing.File.StreamProbeAttempts = 1
 	// Persist the new fingerprint + mtime BEFORE the heavy probe/chapters
 	// pipeline. Otherwise on a 4K 46GB file the probe + extractChapters can
 	// eat the whole workerCtx budget (30s) and the Update that follows
