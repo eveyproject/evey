@@ -52,6 +52,7 @@ type hlsVODServe struct {
 	subtitlePrewarm *subtitlePrewarmer
 	startHints      positionHints[float64] // master's ?startSec= (seconds) -> variant pre-warm
 	livePositions   positionHints[int]     // decision hash -> last segment served, for a later init
+	firstSegment    firstSegmentClock      // master -> first media segment, evey_hls_first_segment_seconds
 
 	// servingRecord: see SessionServingRecord; nil = not wired (tests).
 	servingRecord SessionServingRecord
@@ -594,6 +595,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// follows still warms its rafale.
 	sec, _ := startSecondsHint(r)
 	h.startHints.remember(startHintKey(r, mediaID), sec, time.Now())
+	h.firstSegment.arm(startHintKey(r, mediaID), time.Now())
 
 	// ONE resolution: decision, route, shaped ladder, fingerprint and the
 	// delivery strategy - which engine carries the video and the audio. From
@@ -1285,6 +1287,11 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		servedBy = "ffmpeg-copy"
 	}
 	w.Header().Set("X-Evey-Served-By", servedBy)
+	if !isInit {
+		if d, ok := h.firstSegment.take(startHintKey(r, mediaID), time.Now()); ok {
+			metrics.HLSFirstSegmentSeconds.WithLabelValues(servedBy).Observe(d.Seconds())
+		}
+	}
 	switch filepath.Ext(path) {
 	case ".ts":
 		w.Header().Set("Content-Type", "video/mp2t")

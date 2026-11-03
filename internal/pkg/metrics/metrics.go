@@ -334,6 +334,14 @@ var (
 		Name: "evey_hlsvod_starvation_resumes_total",
 		Help: "ffmpeg SIGCONTs triggered by CMCD bs=1 starvation signal.",
 	})
+	// HLSFirstSegmentSeconds is the startup a viewer waits on: from the master
+	// playlist to the first media segment served for it, by serving path
+	// (transcode, ffmpeg-copy). Labels stay bounded - no media, no session.
+	HLSFirstSegmentSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "evey_hls_first_segment_seconds",
+		Help:    "Seconds from a playback's master playlist to its first media segment served, by serving path.",
+		Buckets: []float64{0.25, 0.5, 1, 2, 3, 5, 8, 13, 20, 30, 45, 60},
+	}, []string{"served_by"})
 
 	// MkvgoWalksInFlight is how many source windows the on-demand packager is
 	// reading right now, process-wide - the gauge behind the walk cap
@@ -434,6 +442,7 @@ func init() {
 		HLSVODCopyTimelineDrift, HLSVODTranscodeSeekTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
+		HLSFirstSegmentSeconds,
 		QoEIngestEvents, QoEIngestDrops,
 		MkvgoWalksInFlight, MkvgoPlanBuildSeconds, MkvgoPlanStats,
 		RateLimitRejected,
