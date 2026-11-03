@@ -230,3 +230,44 @@ func TestResolveDefaultAudioTrack_3LetterCodeMatches(t *testing.T) {
 	got := resolveDefaultAudioTrack(streams, []string{"fr"})
 	assert.Equal(t, 1, got)
 }
+
+func commentaryStream(lang string, isDefault bool) *domainlibrary.MediaStream {
+	s := audioStream(lang, isDefault)
+	s.Commentary = true
+	return s
+}
+
+// A commentary track flagged default in the file is not what a viewer
+// expects to hear first: the plain track wins, at every step of the rule.
+func TestResolveDefaultAudioTrack_SkipsCommentaryWhileAPlainTrackExists(t *testing.T) {
+	t.Parallel()
+	// The file's default is the commentary; no language preference.
+	streams := []*domainlibrary.MediaStream{
+		commentaryStream("eng", true), // audio-index 0
+		audioStream("eng", false),     // audio-index 1
+	}
+	assert.Equal(t, 1, resolveDefaultAudioTrack(streams, nil))
+
+	// The first track in the preferred language is the commentary.
+	streams = []*domainlibrary.MediaStream{
+		audioStream("eng", true),       // 0
+		commentaryStream("fre", false), // 1
+		audioStream("fre", false),      // 2
+	}
+	assert.Equal(t, 2, resolveDefaultAudioTrack(streams, []string{"fr"}))
+
+	// The preferred language exists only as a commentary: the plain default
+	// in another language is still better than talk over the film.
+	streams = []*domainlibrary.MediaStream{
+		audioStream("eng", true),       // 0
+		commentaryStream("fre", false), // 1
+	}
+	assert.Equal(t, 0, resolveDefaultAudioTrack(streams, []string{"fr"}))
+
+	// Only commentary tracks: the old rule applies, something must play.
+	streams = []*domainlibrary.MediaStream{
+		commentaryStream("eng", false), // 0
+		commentaryStream("fre", true),  // 1
+	}
+	assert.Equal(t, 1, resolveDefaultAudioTrack(streams, nil))
+}
