@@ -62,6 +62,11 @@ vi.mock("../src/components/ParentalPINModal", () => ({
   },
 }));
 
+const clearUnlockedMock = vi.fn();
+vi.mock("../src/hooks/useParentalGate", () => ({
+  clearUnlocked: () => clearUnlockedMock(),
+}));
+
 const invalidateQueriesMock = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock }),
@@ -140,6 +145,42 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
     await waitFor(() => expect(refreshTokenMock).toHaveBeenCalledWith({ profileId: "prof-adult", pinToken: undefined }));
     expect(setTokensMock).toHaveBeenCalledWith("new-access-token");
     await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
+  });
+
+  // A parental unlock belongs to the viewer who typed the PIN: carried over
+  // the switch, a kids profile picked next would open the gated titles.
+  it("forgets every parental unlock once the server confirmed the switch", async () => {
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [
+        { id: "prof-kids", name: "Kid", isKids: true },
+        { id: "prof-adult", name: "Adult", isKids: false },
+      ] },
+      isLoading: false,
+    });
+    refreshTokenMock.mockResolvedValueOnce({ accessToken: "new-access-token" });
+
+    render(<ProfileSelect />);
+    fireEvent.click(screen.getByText("Adult"));
+
+    await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
+    expect(clearUnlockedMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the unlocks when the server refuses the switch", async () => {
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [
+        { id: "prof-kids", name: "Kid", isKids: true },
+        { id: "prof-adult", name: "Adult", isKids: false },
+      ] },
+      isLoading: false,
+    });
+    refreshTokenMock.mockRejectedValueOnce(Object.assign(new Error("forbidden"), { httpStatus: 403 }));
+
+    render(<ProfileSelect />);
+    fireEvent.click(screen.getByText("Adult"));
+
+    await waitFor(() => expect(screen.getByLabelText("confirm-pin")).toBeTruthy());
+    expect(clearUnlockedMock).not.toHaveBeenCalled();
   });
 
   it("never applies the switch locally when the server rejects with 403 - it opens the PIN gate instead", async () => {

@@ -26,6 +26,7 @@ import { useServerUrl } from "../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../src/components/FocusableCard";
 import { ParentalPINModal } from "../src/components/ParentalPINModal";
+import { clearUnlocked } from "../src/hooks/useParentalGate";
 
 type SwitchOutcome = "ok" | "pin" | "fail";
 
@@ -99,6 +100,9 @@ export default function ProfileSelect() {
     try {
       const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
       if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
+      // The parental unlock belongs to the viewer who typed the PIN, not to
+      // the next profile: carried over, a kids profile would open the gated titles.
+      clearUnlocked();
       await qc.invalidateQueries();
       return "ok";
     } catch (err) {
