@@ -33,7 +33,7 @@ func (s *MusicScanner) WalkAudioFiles(ctx context.Context, dir string, fn func(m
 	ctx, span := tracing.StartSpan(ctx, "filesystem.musicscanner.WalkAudioFiles")
 	defer span.End()
 
-	return filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
+	return walkLibraryRoot(dir, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// The ROOT failing means the walk saw NOTHING - a dead mount must
 			// surface as an error, not read as an empty library (prod

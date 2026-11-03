@@ -253,11 +253,82 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
-	if err != nil {
+	// One unit of work: the rows go and the series' sort key follows, or
+	// neither. The pruner calls this with no transaction around it, and a
+	// recompute failing after the delete would report rows as still present
+	// that are gone (never de-indexed, never announced). An ambient
+	// transaction is joined as it is.
+	exec := txFromCtx(ctx, nil)
+	if exec == nil {
+		tx, err := r.db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("MediaItemRepo.DeleteByIDs begin tx: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }() // a no-op once committed
+		exec = tx
+	}
+	if err := deleteByIDsIn(ctx, exec, ids); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if tx, ok := exec.(*sql.Tx); ok {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("MediaItemRepo.DeleteByIDs commit: %w", err)
+		}
+	}
+	return nil
+}
+
+// deleteByIDsIn is the batch delete inside exec: the series whose episodes
+// are going are read before the delete, which takes the rows that lead to
+// them, and recomputed after it so the sort key falls back to the newest
+// episode left, as the unit delete does.
+// seriesOfEpisodes is the series the episodes among ids lead to, read and
+// released before the delete runs on the same connection.
+func seriesOfEpisodes(ctx context.Context, exec dbExecutor, ids []string) ([]string, error) {
+	rows, err := exec.QueryContext(ctx, `
+		SELECT DISTINCT se.parent_id FROM media_items ep
+		JOIN media_items se ON se.id = ep.parent_id AND se.type = 'season'
+		WHERE ep.id = ANY($1) AND ep.type = 'episode' AND se.parent_id IS NOT NULL`, pq.Array(ids))
+	if err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.DeleteByIDs: read series: %w", err)
+	}
+	defer rows.Close()
+	var touched []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("MediaItemRepo.DeleteByIDs: scan series: %w", err)
+		}
+		touched = append(touched, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.DeleteByIDs: series rows: %w", err)
+	}
+	return touched, nil
+}
+
+func deleteByIDsIn(ctx context.Context, exec dbExecutor, ids []string) error {
+	touched, err := seriesOfEpisodes(ctx, exec, ids)
+	if err != nil {
+		return err
+	}
+	if _, err := exec.ExecContext(ctx, `DELETE FROM media_items WHERE id = ANY($1)`, pq.Array(ids)); err != nil {
 		return fmt.Errorf("MediaItemRepo.DeleteByIDs: %w", err)
+	}
+	if len(touched) == 0 {
+		return nil
+	}
+	if _, err := exec.ExecContext(ctx, `
+		UPDATE media_items s
+		SET latest_child_added_at = (
+			SELECT MAX(ep.added_at) FROM media_items ep
+			JOIN media_items se ON se.id = ep.parent_id AND se.type = 'season'
+			WHERE se.parent_id = s.id AND ep.type = 'episode'
+		)
+		WHERE s.id = ANY($1) AND s.type = 'series'`, pq.Array(touched)); err != nil {
+		return fmt.Errorf("MediaItemRepo.DeleteByIDs: recompute series latest_child_added_at: %w", err)
 	}
 	return nil
 }

@@ -504,15 +504,27 @@ func (r *MediaItemRepository) FindReplacedFile(ctx context.Context, libraryID sh
 	return item, nil
 }
 
+// scanListBatchSize is one page of the scan-time lists (ListScanSummaries,
+// ListContainerInfo). A variable so a test can page a handful of rows.
+var scanListBatchSize = 5000
+
+// scanListBetweenBatches, when set, runs between two pages of a scan-time
+// list: a test's seam for a catalog that changes while the list is read.
+var scanListBetweenBatches func()
+
+// ListScanSummaries reads the library in keyset pages (after the last id
+// read, each page under its own deadline): a row deleted while the list is
+// read must not slide the next page over a row that is still there, which
+// an offset page does, and a large library must not spend one deadline on
+// the whole walk.
 func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID shared.LibraryID) ([]library.MediaItemScanRow, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.ListScanSummaries")
 	defer span.End()
-	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
-	defer cancel()
-	const batchSize = 5000
+	batchSize := scanListBatchSize
 	var result []library.MediaItemScanRow
-	for offset := 0; ; offset += batchSize {
-		batch, err := r.listScanSummariesBatch(ctx, libraryID, batchSize, offset)
+	after := ""
+	for {
+		batch, err := r.listScanSummariesBatch(ctx, libraryID, after, batchSize)
 		if err != nil {
 			return nil, fmt.Errorf("MediaItemRepo.ListScanSummaries: %w", err)
 		}
@@ -520,11 +532,17 @@ func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID s
 		if len(batch) < batchSize {
 			break
 		}
+		after = batch[len(batch)-1].ID
+		if scanListBetweenBatches != nil {
+			scanListBetweenBatches()
+		}
 	}
 	return result, nil
 }
 
-func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]library.MediaItemScanRow, error) {
+func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, libraryID shared.LibraryID, after string, limit int) ([]library.MediaItemScanRow, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT mi.id,
 		        COALESCE(mf.file_path, ''),
@@ -535,8 +553,8 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 		        COALESCE(mf.stream_probe_version, 0)
 		 FROM media_items mi
 		 LEFT JOIN media_files mf ON mf.media_item_id = mi.id
-		 WHERE mi.library_id = $1 ORDER BY mi.id LIMIT $2 OFFSET $3`,
-		libraryID, limit, offset)
+		 WHERE mi.library_id = $1 AND mi.id > $2 ORDER BY mi.id LIMIT $3`,
+		libraryID, after, limit)
 	if err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.listScanSummariesBatch: %w", err)
 	}
@@ -626,12 +644,12 @@ func (r *MediaItemRepository) DescendantIDs(ctx context.Context, id shared.Media
 func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID shared.LibraryID) ([]library.MediaItemContainerRow, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.ListContainerInfo")
 	defer span.End()
-	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
-	defer cancel()
-	const batchSize = 5000
+	// Keyset pages, each under its own deadline: see ListScanSummaries.
+	batchSize := scanListBatchSize
 	var result []library.MediaItemContainerRow
-	for offset := 0; ; offset += batchSize {
-		batch, err := r.listContainerInfoBatch(ctx, libraryID, batchSize, offset)
+	after := ""
+	for {
+		batch, err := r.listContainerInfoBatch(ctx, libraryID, after, batchSize)
 		if err != nil {
 			return nil, fmt.Errorf("MediaItemRepo.ListContainerInfo: %w", err)
 		}
@@ -639,14 +657,20 @@ func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID s
 		if len(batch) < batchSize {
 			break
 		}
+		after = batch[len(batch)-1].ID
+		if scanListBetweenBatches != nil {
+			scanListBetweenBatches()
+		}
 	}
 	return result, nil
 }
 
-func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]library.MediaItemContainerRow, error) {
+func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, libraryID shared.LibraryID, after string, limit int) ([]library.MediaItemContainerRow, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, parent_id, type FROM media_items WHERE library_id = $1 ORDER BY id LIMIT $2 OFFSET $3`,
-		libraryID, limit, offset)
+		`SELECT id, parent_id, type FROM media_items WHERE library_id = $1 AND id > $2 ORDER BY id LIMIT $3`,
+		libraryID, after, limit)
 	if err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.listContainerInfoBatch: %w", err)
 	}

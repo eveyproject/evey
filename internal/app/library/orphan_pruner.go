@@ -266,14 +266,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, roots []stri
 						slog.WarnContext(ctx, "remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
 					}
 				}
-				evt := library.MediaItemRemoved{
-					MediaItemID: shared.MediaItemID(id),
-					LibraryID:   shared.LibraryID(libraryID),
-					OccurredAt:  time.Now(),
-				}
-				if pubErr := p.events.Publish(ctx, evt); pubErr != nil {
-					slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
-				}
+				p.publishRemoved(ctx, libraryID, id)
 			}
 		}
 	}
@@ -313,6 +306,7 @@ func (p *OrphanPruner) pruneEmptyContainers(ctx context.Context, libraryID strin
 			continue
 		}
 		childCount[item.ParentID]--
+		p.publishRemoved(ctx, libraryID, item.ID)
 		pruned++
 	}
 	for _, item := range all {
@@ -331,7 +325,22 @@ func (p *OrphanPruner) pruneEmptyContainers(ctx context.Context, libraryID strin
 				slog.WarnContext(ctx, "remove empty series from search index", slog.String("id", item.ID), slog.Any("err", rmErr))
 			}
 		}
+		p.publishRemoved(ctx, libraryID, item.ID)
 		pruned++
 	}
 	return pruned, nil
+}
+
+// publishRemoved tells the subscribers an item left the catalog. A container
+// the prune empties out goes the same way as a file: what cleans up after a
+// removed item (notifications, caches, clients) must hear of both.
+func (p *OrphanPruner) publishRemoved(ctx context.Context, libraryID, id string) {
+	evt := library.MediaItemRemoved{
+		MediaItemID: shared.MediaItemID(id),
+		LibraryID:   shared.LibraryID(libraryID),
+		OccurredAt:  time.Now(),
+	}
+	if pubErr := p.events.Publish(ctx, evt); pubErr != nil {
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
+	}
 }

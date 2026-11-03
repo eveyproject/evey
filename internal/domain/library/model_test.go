@@ -1,6 +1,7 @@
 package library_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -582,5 +583,24 @@ func TestMediaFile_BitrateBps(t *testing.T) {
 		if got := c.file.BitrateBps(); got != c.want {
 			t.Errorf("%s: BitrateBps() = %d, want %d", c.name, got, c.want)
 		}
+	}
+}
+
+// A library root is walked by the scanner and keys every confinement check:
+// a relative path walks whatever the server's working directory is, an
+// uncleaned one escapes the prefix checks, and the filesystem root is the
+// whole host.
+func TestLibrary_Validate_RejectsUnsafePaths(t *testing.T) {
+	t.Parallel()
+	for _, p := range []string{"", ".", "/", "../x", "relative/x", "/media/../x", "/media/movies/"} {
+		l := &library.Library{ID: "lib-1", Name: "Movies", Type: library.Movie, Paths: []string{"/media/ok", p}}
+		err := l.Validate()
+		if !errors.Is(err, library.ErrInvalidLibraryPath) {
+			t.Errorf("path %q: want ErrInvalidLibraryPath, got %v", p, err)
+		}
+	}
+	ok := &library.Library{ID: "lib-1", Name: "Movies", Type: library.Movie, Paths: []string{"/media/movies", "/mnt/nas/films"}}
+	if err := ok.Validate(); err != nil {
+		t.Errorf("absolute clean paths rejected: %v", err)
 	}
 }

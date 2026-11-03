@@ -789,7 +789,9 @@ func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, li
 
 	now := time.Now()
 	lib.LastScannedAt = &now
-	if err := s.libraries.Update(ctx, lib); err != nil {
+	// Only the timestamp: lib is the record read when the scan started, and an
+	// admin may have saved other paths or a new name since.
+	if err := s.libraries.TouchLastScannedAt(ctx, lib.ID, now); err != nil {
 		slog.WarnContext(ctx, "update library last scanned failed", slog.String("libraryID", libraryID), slog.Any("err", err))
 	}
 
@@ -1202,7 +1204,19 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 // probe keeps the old streams. Either way the version is stamped: retrying an
 // unchanged file every scan only reruns the probe, and a change to the file
 // probes it again in full.
+//
+// A row with no container streams stored is the exception: a refresh has
+// nothing to refresh against, so it would write none and stamp the row as
+// current, streamless for good. That row takes the full probe, stamped only
+// once streams were written, and on failure the bounded retries.
 func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.MediaItem, path string) {
+	if s.prober != nil {
+		stored, err := s.mediaStreams.GetByMediaItemID(ctx, item.ID)
+		if err == nil && !hasContainerStream(stored) {
+			s.reprobeStreamlessFile(ctx, item, path)
+			return
+		}
+	}
 	item.File.StreamProbeVersion = library.StreamProbeVersion
 	defer func() {
 		if err := s.mediaItems.Update(ctx, item); err != nil {
@@ -1244,6 +1258,17 @@ func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.Med
 		item.File.ContainerFormat = result.Container
 	}
 	item.UpdatedAt = time.Now()
+}
+
+// hasContainerStream reports whether any stored stream came from the
+// container itself; sidecar subtitles alone do not make a probed file.
+func hasContainerStream(streams []*library.MediaStream) bool {
+	for _, st := range streams {
+		if !st.IsExternal {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) (dur shared.Duration, container string, probedOK bool) {

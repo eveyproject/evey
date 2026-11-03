@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
 )
@@ -10,6 +11,10 @@ type LibraryCommandRepo interface {
 	Create(ctx context.Context, lib *Library) error
 	Update(ctx context.Context, lib *Library) error
 	Delete(ctx context.Context, id shared.LibraryID) error
+	// TouchLastScannedAt records when a scan ran and writes nothing else: a
+	// scan holds a copy of the library read at its start, and writing that
+	// copy back would undo an edit the admin saved while it ran.
+	TouchLastScannedAt(ctx context.Context, id shared.LibraryID, at time.Time) error
 }
 
 // MediaItemCommandRepo is the write port for media items, per ADR-0009. It

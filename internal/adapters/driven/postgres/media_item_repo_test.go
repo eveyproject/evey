@@ -591,3 +591,130 @@ func TestMediaItemRepository_AddedAtCursor_SeriesRanksByNewestEpisodeOnEveryPage
 	}
 	assert.Equal(t, []string{"ad-4", "ad-show", "ad-3", "ad-2", "ad-1"}, order)
 }
+
+// The batch delete the prune uses must leave the series' sort key where the
+// unit delete leaves it: deleting the newest episode of a series moves its
+// latest_child_added_at back to the newest episode left.
+func TestMediaItemRepo_DeleteByIDs_RecomputesSeriesLatest(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mlib-delbatch")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	old := time.Now().UTC().Add(-72 * time.Hour)
+	series := &library.MediaItem{ID: "s-batch", LibraryID: lib.ID, Type: library.Series, Title: "S", AddedAt: old, UpdatedAt: old}
+	season := &library.MediaItem{ID: "se-batch", LibraryID: lib.ID, ParentID: "s-batch", Type: library.Season, Title: "S01", AddedAt: old, UpdatedAt: old}
+	epOld := &library.MediaItem{ID: "ep-batch-old", LibraryID: lib.ID, ParentID: "se-batch", Type: library.Episode, Title: "E01", AddedAt: old.Add(24 * time.Hour), UpdatedAt: old}
+	epNew := &library.MediaItem{ID: "ep-batch-new", LibraryID: lib.ID, ParentID: "se-batch", Type: library.Episode, Title: "E02", AddedAt: old.Add(71 * time.Hour), UpdatedAt: old}
+	for _, it := range []*library.MediaItem{series, season, epOld, epNew} {
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+
+	require.NoError(t, itemRepo.DeleteByIDs(ctx, []string{string(epNew.ID)}))
+
+	var latest time.Time
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT latest_child_added_at FROM media_items WHERE id=$1`, series.ID).Scan(&latest))
+	assert.WithinDuration(t, epOld.AddedAt, latest, time.Second,
+		"the series' latest_child_added_at must fall back to the episode left")
+}
+
+// The scan-time lists page a library that keeps changing under them: an item
+// deleted while the list is read (a prune, an admin) must not make the page
+// after it skip a row that is still there, or the scan would take that row
+// for a new file and recreate it. Keyset pages (after the last id read) hold;
+// offset pages slide.
+func TestMediaItemRepo_ScanLists_PagesHoldWhenARowVanishesBetweenPages(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	t.Cleanup(postgres.SetScanListBatchSizeForTest(2))
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("mlib-pages")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	ids := []string{"pg-1", "pg-2", "pg-3", "pg-4", "pg-5"}
+	for _, id := range ids {
+		it := newTestMediaItem(id, lib.ID)
+		it.File = &library.MediaFile{Path: "/media/" + id + ".mkv", Fingerprint: "fp-" + id}
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	// The first row goes between the first page and the second.
+	deleteFirstOnce := func() func() {
+		done := false
+		return func() {
+			if done {
+				return
+			}
+			done = true
+			_, err := db.ExecContext(ctx, `DELETE FROM media_items WHERE id = 'pg-1'`)
+			require.NoError(t, err)
+		}
+	}
+
+	t.Run("scan summaries", func(t *testing.T) {
+		t.Cleanup(postgres.SetScanListBetweenBatchesForTest(deleteFirstOnce()))
+		rows, err := itemRepo.ListScanSummaries(ctx, lib.ID)
+		require.NoError(t, err)
+		var got []string
+		for _, r := range rows {
+			got = append(got, r.ID)
+		}
+		assert.Subset(t, got, []string{"pg-2", "pg-3", "pg-4", "pg-5"}, "every row still in the library is listed")
+	})
+	_, err := db.ExecContext(ctx, `INSERT INTO media_items (id, library_id, type, title, sort_title, added_at, updated_at)
+		SELECT 'pg-1', library_id, type, title, sort_title, added_at, updated_at FROM media_items WHERE id = 'pg-2'`)
+	require.NoError(t, err)
+	t.Run("container info", func(t *testing.T) {
+		t.Cleanup(postgres.SetScanListBetweenBatchesForTest(deleteFirstOnce()))
+		rows, err := itemRepo.ListContainerInfo(ctx, lib.ID)
+		require.NoError(t, err)
+		var got []string
+		for _, r := range rows {
+			got = append(got, r.ID)
+		}
+		assert.Subset(t, got, []string{"pg-2", "pg-3", "pg-4", "pg-5"}, "every row still in the library is listed")
+	})
+}
+
+// The batch delete is one unit of work: the rows go and the series' sort key
+// is recomputed, or neither happens. The pruner runs it with no transaction
+// around; a recompute that fails after the delete must not leave rows gone
+// that the caller, told of a failure, still takes for present (it would
+// neither de-index them nor announce their removal).
+func TestMediaItemRepo_DeleteByIDs_IsAtomicWithoutAnAmbientTx(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("mlib-delatomic")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	old := time.Now().UTC().Add(-72 * time.Hour)
+	series := &library.MediaItem{ID: "s-atomic", LibraryID: lib.ID, Type: library.Series, Title: "S", AddedAt: old, UpdatedAt: old}
+	season := &library.MediaItem{ID: "se-atomic", LibraryID: lib.ID, ParentID: "s-atomic", Type: library.Season, Title: "S01", AddedAt: old, UpdatedAt: old}
+	ep := &library.MediaItem{ID: "ep-atomic", LibraryID: lib.ID, ParentID: "se-atomic", Type: library.Episode, Title: "E01", AddedAt: old.Add(time.Hour), UpdatedAt: old}
+	for _, it := range []*library.MediaItem{series, season, ep} {
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	// The recompute fails once the rows are deleted.
+	_, err := db.ExecContext(ctx, `
+		CREATE FUNCTION refuse_latest_recompute() RETURNS trigger AS $$
+		BEGIN RAISE EXCEPTION 'injected recompute failure'; END $$ LANGUAGE plpgsql;
+		CREATE TRIGGER refuse_latest_recompute BEFORE UPDATE OF latest_child_added_at ON media_items
+		FOR EACH ROW EXECUTE FUNCTION refuse_latest_recompute()`)
+	require.NoError(t, err)
+
+	err = itemRepo.DeleteByIDs(ctx, []string{string(ep.ID)})
+
+	require.Error(t, err)
+	var n int
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT COUNT(*) FROM media_items WHERE id = $1`, ep.ID).Scan(&n))
+	assert.Equal(t, 1, n, "a failed batch delete leaves the rows in place")
+}

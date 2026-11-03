@@ -153,3 +153,26 @@ func TestScanLibrary_NonexistentLibrary_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get library")
 }
+
+// An admin edit that lands while a scan runs must survive it: the scan owns
+// last_scanned_at and nothing else, so it must not write back the record it
+// read at its start over the one the admin saved since.
+func TestScanLibrary_FinalizeKeepsEditsMadeDuringTheScan(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/m"}})
+	// The walk is where the scan spends its time: the edit lands then.
+	h.scanner.OnScan = func(string) {
+		h.libCmd.Seed(&library.Library{ID: "lib-1", Name: "Films", Type: "movie", Paths: []string{"/m", "/n"}})
+	}
+
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+
+	got := h.libCmd.Get("lib-1")
+	require.NotNil(t, got)
+	assert.Equal(t, "Films", got.Name)
+	assert.Equal(t, []string{"/m", "/n"}, got.Paths, "the edit made during the scan is kept")
+	require.NotNil(t, got.LastScannedAt, "the scan still records when it ran")
+	assert.WithinDuration(t, time.Now(), *got.LastScannedAt, time.Minute)
+}

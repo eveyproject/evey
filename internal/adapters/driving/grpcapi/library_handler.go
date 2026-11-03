@@ -47,6 +47,32 @@ func (h *libraryHandler) scanNewLibrary(ctx context.Context, libraryID string) {
 	}()
 }
 
+// cleanLibraryPaths tidies what an admin typed (a trailing slash, a doubled
+// separator) so the domain judges the path itself. A path with a "." or ".."
+// segment is handed over as typed: cleaned, "/media/../etc" would read as
+// "/etc" and name a root the admin never asked for; left alone, the domain
+// refuses it as unclean. What stays relative or empty is refused there too.
+func cleanLibraryPaths(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		if p == "" || hasDotSegment(p) {
+			out[i] = p
+			continue
+		}
+		out[i] = filepath.Clean(p)
+	}
+	return out
+}
+
+func hasDotSegment(p string) bool {
+	for seg := range strings.SplitSeq(p, string(filepath.Separator)) {
+		if seg == "." || seg == ".." {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.library.CreateLibrary")
 	defer span.End()
@@ -54,7 +80,7 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 		shared.LibraryID(id.New("lib-")),
 		req.Name,
 		library.LibraryType(libraryTypeFromProto[req.Type]),
-		library.WithLibraryPaths(req.Paths),
+		library.WithLibraryPaths(cleanLibraryPaths(req.Paths)),
 		library.WithLibraryScanInterval(360),
 		library.WithLibraryScanOnStartup(req.ScanOnStartup),
 		library.WithLibraryRealtimeMonitoring(req.RealtimeMonitoring),
@@ -67,6 +93,8 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.name_required")
 		case !library.LibraryType(libraryTypeFromProto[req.Type]).IsValid():
 			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.type_invalid")
+		case errors.Is(err, library.ErrInvalidLibraryPath):
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.invalid_path")
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
@@ -188,13 +216,14 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 		lib.Name = *req.Name
 	}
 	if len(req.Paths) > 0 {
-		for _, p := range req.Paths {
-			if !filepath.IsAbs(p) || !strings.HasPrefix(filepath.Clean(p), "/media") {
+		paths := cleanLibraryPaths(req.Paths)
+		for _, p := range paths {
+			if !filepath.IsAbs(p) || !strings.HasPrefix(filepath.Clean(p), "/media") || library.ValidateLibraryPath(p) != nil {
 				span.SetStatus(otelcodes.Error, "invalid path")
 				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.invalid_path")
 			}
 		}
-		lib.Paths = req.Paths
+		lib.Paths = paths
 	}
 	if req.RealtimeMonitoring != nil {
 		lib.RealtimeMonitoring = *req.RealtimeMonitoring

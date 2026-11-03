@@ -45,11 +45,18 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 	if err := os.MkdirAll(s.dir, 0700); err != nil {
 		return fmt.Errorf("create backup dir: %w", err)
 	}
+	// The archive is written under a temporary name and takes the final one in
+	// a single rename once it is whole and on disk: a dump that stops halfway,
+	// or a process that dies, must not leave a truncated file where a restore
+	// would take it for a valid backup. A failure removes the temporary file,
+	// which nothing lists or purges.
 	archivePath := filepath.Join(s.dir, m.ID+".tar.gz")
-	f, err := os.OpenFile(archivePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	tmpPath := archivePath + ".tmp"
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("create archive: %w", err)
 	}
+	defer os.Remove(tmpPath) //nolint:errcheck // gone already once renamed
 	defer f.Close()
 
 	gw := gzip.NewWriter(f)
@@ -73,18 +80,38 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 	if closeErr := gw.Close(); closeErr != nil {
 		return closeErr
 	}
+	if syncErr := f.Sync(); syncErr != nil {
+		return fmt.Errorf("sync archive: %w", syncErr)
+	}
 	if closeErr := f.Close(); closeErr != nil {
 		return closeErr
+	}
+
+	// The sidecar is what List reads, so it names the archive: it is staged
+	// under a temporary name before the archive takes its final one, then
+	// published after it. A stop between the two leaves a whole archive that
+	// is invisible, never a listed backup nothing can restore; an archive
+	// whose sidecar cannot be published is taken back rather than left as a
+	// complete file nothing lists or purges.
+	sidecarPath := filepath.Join(s.dir, m.ID+".json")
+	sidecarTmp := sidecarPath + ".tmp"
+	if writeErr := os.WriteFile(sidecarTmp, manifestBytes, 0600); writeErr != nil {
+		return fmt.Errorf("stage sidecar: %w", writeErr)
+	}
+	defer os.Remove(sidecarTmp) //nolint:errcheck // gone already once renamed
+	if renameErr := os.Rename(tmpPath, archivePath); renameErr != nil {
+		return fmt.Errorf("publish archive: %w", renameErr)
+	}
+	if renameErr := os.Rename(sidecarTmp, sidecarPath); renameErr != nil {
+		os.Remove(archivePath) //nolint:errcheck // best-effort take-back of an unlisted archive
+		return fmt.Errorf("publish sidecar: %w", renameErr)
 	}
 
 	fi, err := os.Stat(archivePath)
 	if err == nil {
 		m.Size = fi.Size()
 	}
-
-	// sidecar for fast listing
-	sidecarPath := filepath.Join(s.dir, m.ID+".json")
-	return os.WriteFile(sidecarPath, manifestBytes, 0600)
+	return nil
 }
 
 func streamTarEntry(tw *tar.Writer, name string, r io.Reader) error {

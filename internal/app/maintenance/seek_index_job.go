@@ -124,6 +124,40 @@ func (s *SeekIndexService) startSingle(ctx context.Context, kind, mediaID string
 	return nil
 }
 
+// runInSlot runs one rewrite of a single file, asked for by hand, inside the
+// job slot and synchronously: refused while another job holds the slot,
+// refused while someone is watching (a request cannot sit and poll for an
+// idle server the way a batch does), and shown in Status while it runs. The
+// rewrite runs under the job's context, so Cancel and the server's shutdown
+// reach it; the caller's context only bounds what came before the slot.
+func (s *SeekIndexService) runInSlot(kind, path string, fn func(ctx context.Context) error) (err error) {
+	if s.activeStreams != nil && s.activeStreams.ActivePlaybackCount() > 0 {
+		return ErrPlaybackActive
+	}
+	bg, ok := s.tryStart(kind, "")
+	if !ok {
+		return ErrJobRunning
+	}
+	defer func() {
+		// The slot must not stay taken by a rewrite that panicked: close the
+		// job, then let the panic reach the caller's recovery.
+		if r := recover(); r != nil {
+			s.finish(fmt.Errorf("job panicked: %v", r))
+			panic(r)
+		}
+	}()
+	s.setPhase(PhaseProcessing, 1)
+	s.setCurrent(path)
+	err = fn(bg)
+	if err != nil {
+		s.recordFailure(path, err)
+	} else {
+		s.recordDone(false)
+	}
+	s.finish(nil)
+	return err
+}
+
 // startBatch runs scan → optional preflight → per-file processing → optional
 // epilogue as one job. The preflight sees the kept candidates (with sizes)
 // after the scan and can refuse the whole batch before a single file is
