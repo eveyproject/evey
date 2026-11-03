@@ -49,18 +49,13 @@ func buildPrefLangs(audioLanguages []string, locale, serverLang string) []string
 //  2. First audio stream with IsDefault == true.
 //  3. Audio index 0 (hard fallback - always valid).
 //
-// A commentary track is never the answer while a plain track exists: each
-// step is tried over the plain tracks first, then over all of them, so a
-// file whose only French track is the director's commentary still starts on
-// the feature audio, not on the people talking over it. An empty prefLangs
-// list skips step 1 and falls through to IsDefault / 0.
+// An empty prefLangs list skips step 1 and falls through to IsDefault / 0.
 func resolveDefaultAudioTrack(streams []*domainlibrary.MediaStream, prefLangs []string) int {
 	// Build the audio-only slice (preserves audio-index == position in this slice).
 	type audioEntry struct {
-		audioIdx   int
-		lang       string
-		isDefault  bool
-		commentary bool
+		audioIdx  int
+		lang      string
+		isDefault bool
 	}
 	var audioStreams []audioEntry
 	for _, s := range streams {
@@ -68,46 +63,34 @@ func resolveDefaultAudioTrack(streams []*domainlibrary.MediaStream, prefLangs []
 			continue
 		}
 		audioStreams = append(audioStreams, audioEntry{
-			audioIdx:   len(audioStreams),
-			lang:       normalizeLanguageCode(s.Language),
-			isDefault:  s.IsDefault,
-			commentary: s.Commentary,
+			audioIdx:  len(audioStreams),
+			lang:      normalizeLanguageCode(s.Language),
+			isDefault: s.IsDefault,
 		})
 	}
 	if len(audioStreams) == 0 {
 		return 0
 	}
 
-	pick := func(plainOnly bool) (int, bool) {
-		eligible := func(a audioEntry) bool { return !plainOnly || !a.commentary }
-		// Step 1: match by preferred language, in preference order.
-		for _, pref := range prefLangs {
-			if pref == "" {
-				continue
-			}
-			for _, a := range audioStreams {
-				if eligible(a) && a.lang == pref {
-					return a.audioIdx, true
-				}
-			}
+	// Step 1: match by preferred language, in preference order.
+	for _, pref := range prefLangs {
+		if pref == "" {
+			continue
 		}
-		// Step 2: source-flagged default.
 		for _, a := range audioStreams {
-			if eligible(a) && a.isDefault {
-				return a.audioIdx, true
+			if a.lang == pref {
+				return a.audioIdx
 			}
 		}
-		// Step 3: first audio track.
-		for _, a := range audioStreams {
-			if eligible(a) {
-				return a.audioIdx, true
-			}
+	}
+
+	// Step 2: source-flagged default.
+	for _, a := range audioStreams {
+		if a.isDefault {
+			return a.audioIdx
 		}
-		return 0, false
 	}
-	if idx, ok := pick(true); ok {
-		return idx
-	}
-	idx, _ := pick(false)
-	return idx
+
+	// Step 3: first audio track.
+	return 0
 }
