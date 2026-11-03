@@ -67,6 +67,7 @@ func (r *LoginRecorder) handleFailed(ctx context.Context, ev shared.Event) {
 	r.record(ctx, &activity.LoginEntry{
 		ID:            uuid.New().String(),
 		UserID:        u.ID,
+		ClientIP:      evt.ClientIP,
 		AuthMethod:    evt.AuthMethod,
 		Success:       false,
 		FailureReason: &reason,

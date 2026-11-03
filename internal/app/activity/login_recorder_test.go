@@ -26,7 +26,7 @@ func TestLoginRecorder_WritesTheHistoryFromTheLoginEvents(t *testing.T) {
 	appactivity.NewLoginRecorder(cmdSvc, users).Register(bus)
 
 	require.NoError(t, bus.Publish(ctx, user.LoginSucceeded{UserID: "u1", ClientIP: "10.0.0.2", AuthMethod: "local", OccurredAt: time.Now()}))
-	require.NoError(t, bus.Publish(ctx, user.LoginFailed{Username: "alice", Reason: "bad_password", AuthMethod: "local", OccurredAt: time.Now()}))
+	require.NoError(t, bus.Publish(ctx, user.LoginFailed{Username: "alice", Reason: "bad_password", ClientIP: "10.0.0.3", AuthMethod: "local", OccurredAt: time.Now()}))
 	require.NoError(t, bus.Publish(ctx, user.LoginFailed{Username: "nobody", Reason: "unknown_user", AuthMethod: "local", OccurredAt: time.Now()}))
 
 	entries, err := querySvc.GetLoginHistory(ctx, "u1", 10, 0)
@@ -42,6 +42,7 @@ func TestLoginRecorder_WritesTheHistoryFromTheLoginEvents(t *testing.T) {
 			failures++
 			require.NotNil(t, e.FailureReason)
 			assert.Equal(t, "bad_password", *e.FailureReason)
+			assert.Equal(t, "10.0.0.3", e.ClientIP)
 		}
 		assert.False(t, e.CreatedAt.IsZero())
 	}
