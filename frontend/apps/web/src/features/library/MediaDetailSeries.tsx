@@ -13,7 +13,7 @@ import {
 } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
-import { formatDurationMs, seasonLabel } from "@evey/api";
+import { formatDurationMs, isPositive, seasonLabel } from "@evey/api";
 import { artworkUrl } from "./artworkUrl";
 import { useSeriesPlayTarget, useWatchProgressMaps } from "@evey/client";
 import { DownloadButton } from "@/features/playback/DownloadButton";
@@ -153,7 +153,7 @@ function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number
             E{ep.indexNumber ?? "?"}
           </span>
           <span className="text-base font-medium truncate">{ep.title}</span>
-          {ep.durationMs && (
+          {isPositive(ep.durationMs) && (
             <span className="text-sm flex-shrink-0 ml-auto text-[var(--text-muted)]">{formatDurationMs(ep.durationMs)}</span>
           )}
         </div>

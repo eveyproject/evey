@@ -5,7 +5,7 @@ import type { V1MediaItem } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { StreamList } from "./StreamList";
 import { MediaTechSummary } from "./MediaTechSummary";
-import { formatBytes, formatDurationMs } from "@evey/api";
+import { formatBytes, formatDurationMs, isPositive } from "@evey/api";
 
 export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
@@ -63,7 +63,7 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
             <div className="text-xs font-mono truncate text-[var(--text-muted)]">{item.filePath}</div>
           )}
           <div className="flex gap-4 flex-wrap">
-            {item.fileSize && <Badge variant="default">{formatBytes(item.fileSize)}</Badge>}
+            {isPositive(item.fileSize) && <Badge variant="default">{formatBytes(item.fileSize)}</Badge>}
             {item.containerFormat && <Badge variant="default">{item.containerFormat.toUpperCase()}</Badge>}
             {bitrateKbps > 0 && <Badge variant="default">{bitrateKbps} kbps</Badge>}
             {duration && <Badge variant="default">{duration}</Badge>}
