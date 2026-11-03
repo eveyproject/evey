@@ -62,6 +62,12 @@ vi.mock("../src/components/ParentalPINModal", () => ({
   },
 }));
 
+const clearUnlockedMock = vi.fn();
+vi.mock("../src/hooks/useParentalGate", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/hooks/useParentalGate")>()),
+  clearUnlocked: () => clearUnlockedMock(),
+}));
+
 const invalidateQueriesMock = vi.fn();
 const clearQueriesMock = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
@@ -155,6 +161,8 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
     await waitFor(() => expect(setRefreshTokenMock).toHaveBeenCalledWith("rotated-rt"));
     // Every screen under the picker refetches as the new profile, kids filter included.
     expect(clearQueriesMock).toHaveBeenCalledTimes(1);
+    // The unlocks of the profile left behind do not follow the viewer.
+    expect(clearUnlockedMock).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
   });
 
@@ -172,6 +180,7 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
     fireEvent.click(screen.getByText("Adult"));
 
     await waitFor(() => expect(screen.getByLabelText("confirm-pin")).toBeTruthy());
+    expect(clearUnlockedMock).not.toHaveBeenCalled();
     // Critically: no local profile switch happened while the PIN is pending.
     expect(setTokensMock).not.toHaveBeenCalled();
     expect(dismissToMock).not.toHaveBeenCalledWith("/(auth)/(tabs)");
