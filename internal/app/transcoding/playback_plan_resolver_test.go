@@ -246,3 +246,25 @@ func TestPlanResolver_Reported_NamesTheClosedCopyGate(t *testing.T) {
 	assert.Equal(t, "copy", direct.VideoDecision)
 	assert.Empty(t, direct.TranscodeReasons)
 }
+
+// The ffmpeg copy rung may be switched off while the packager still carries
+// a copy-eligible source verbatim: the master dispatches on the delivery
+// (packager first), so the report must read the same delivery instead of
+// calling the served copy a transcode behind a closed ffmpeg gate.
+func TestReported_PackagerCopyWithoutFFmpegCopyProducer(t *testing.T) {
+	pr := &PlanResolver{UseFMP4: true, OnDemandPackager: true}
+	req := resolverTestRequest()
+	req.Streams = deliveryStreams("aac")
+	req.Client = transcoding.ClientProfile{VideoCodecs: []string{"h264"}, AudioCodecs: []string{"aac"}, Containers: []string{"mp4", "webm"}}
+	d := pr.Reported(context.Background(), req)
+	assert.Equal(t, "copy", d.VideoDecision, "the packager serves the copy")
+	assert.NotContains(t, d.TranscodeReasons, "copy_rung_unavailable")
+	assert.Equal(t, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo},
+		pr.resolveDelivery(context.Background(), req, d, ResolvedRoute{}), "what the master dispatches on")
+
+	// Without the packager the closed ffmpeg gate is the served truth.
+	noPackager := &PlanResolver{UseFMP4: true}
+	d = noPackager.Reported(context.Background(), req)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "copy_rung_unavailable")
+}

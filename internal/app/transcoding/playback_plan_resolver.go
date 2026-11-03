@@ -363,8 +363,11 @@ func (pr *PlanResolver) Reported(ctx context.Context, req PlaybackRequest) trans
 	// an H.264 ladder in the segments). Name the gate, the way the master's
 	// log does (TranscodeCause), and say transcode.
 	// A direct play hands the raw file over: no rung, no gate, nothing to
-	// correct - the rule is for the packaged sessions only.
-	if d.VideoDecision == "copy" && d.PlayMethod != "direct_play" && !isCopy {
+	// correct - the rule is for the packaged sessions only. Nor is a copy
+	// the packager carries: the master dispatches on the delivery first,
+	// and the packager needs no ffmpeg producer to serve the source verbatim.
+	packaged := pr.resolveDelivery(ctx, req, d, route).Video == EngineMkvgo
+	if d.VideoDecision == "copy" && d.PlayMethod != "direct_play" && !isCopy && !packaged {
 		d.VideoDecision = "transcode"
 		gate := SourceCopyBlocker(req.Streams)
 		if gate == "" {
