@@ -90,6 +90,14 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 	if !audioCopy && decision.AudioDecision == "copy" && audioChannelsFor(snap, videoAudioTrack, audioTrack) > 2 {
 		audioChannels = reencodedAudioChannels(audioChannelsFor(snap, videoAudioTrack, audioTrack), req.Client, req.Prefs)
 	}
+	servedAudioCodec := ServedAudioCodec(audioCopy, srcAudio, decision)
+	if decision.AudioDecision == "wasm" {
+		// The wasm master carries no audio (the client decodes the track);
+		// its key hashed the AAC target the audio verdict named before the
+		// wasm verdict existed, and keeps it: a session in flight at a deploy
+		// must find its cached segments, whose bytes did not change.
+		servedAudioCodec, audioChannels = wasmMasterAudioTarget(snap.AudioChannels, req.Client, req.Prefs)
+	}
 	fp := DecisionFingerprint{
 		MediaID:           req.MediaID,
 		SourcePath:        req.SourcePath,
@@ -113,7 +121,7 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 		// The codec the segments actually carry (source codec on passthrough).
 		// The builder only reads it on the transcode branch; here it keeps the
 		// hash truthful per served bytes.
-		AudioCodec:          ServedAudioCodec(audioCopy, srcAudio, decision),
+		AudioCodec:          servedAudioCodec,
 		AudioTrack:          videoAudioTrack,
 		SubtitleBurnInTrack: subBurnIn,
 		SubtitleBurnInCodec: snap.SubtitleCodec,
@@ -257,4 +265,32 @@ func reencodedAudioChannels(sourceChannels int, client transcoding.ClientProfile
 		return 0 // the builder's stereo default, the pre-feature bytes and hash
 	}
 	return target
+}
+
+// wasmMasterAudioTarget is the AAC target a transcode verdict names for the
+// track (evaluateAudio's channel cap, then applyAudioChannelTarget's layout):
+// what the wasm master hashed before the wasm verdict, kept for its key.
+func wasmMasterAudioTarget(sourceChannels int, client transcoding.ClientProfile, prefs TranscodingPreferences) (codec string, channels int) {
+	if client.MaxAudioChannels > 0 && sourceChannels > client.MaxAudioChannels {
+		channels = client.MaxAudioChannels
+	}
+	if prefs.MaxAudioChannels > 0 && sourceChannels > prefs.MaxAudioChannels && (channels == 0 || prefs.MaxAudioChannels < channels) {
+		channels = prefs.MaxAudioChannels
+	}
+	if sourceChannels > 2 {
+		target := min(sourceChannels, aacMaxTargetChannels)
+		if client.MaxAudioChannels > 0 {
+			target = min(target, client.MaxAudioChannels)
+		}
+		if prefs.MaxAudioChannels > 0 {
+			target = min(target, prefs.MaxAudioChannels)
+		}
+		if channels > 0 {
+			target = min(target, channels)
+		}
+		if target > 2 {
+			channels = target
+		}
+	}
+	return transcoding.DefaultAudioCodec, channels
 }

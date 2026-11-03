@@ -287,3 +287,31 @@ func TestFingerprint_MultiRungReencodeOfACopyVerdictKeepsSurround(t *testing.T) 
 	assert.Equal(t, 6, plan.Fingerprint.MaxAudioChannels, "the re-encode keeps the 5.1 layout")
 	assert.Empty(t, plan.Fingerprint.AudioCodec, "the builder's AAC default, the bytes every other re-encode gets")
 }
+
+// The wasm master carries no audio (the client decodes the track itself),
+// and its cache key predates the wasm verdict: it hashed the AAC target the
+// audio verdict named then. The key must stay that one, or the sessions in
+// flight at a deploy lose their cached segments for bytes that did not change.
+func TestFingerprint_WasmMasterKeepsItsCacheKey(t *testing.T) {
+	pr := &PlanResolver{UseFMP4: true}
+	mk := func(wasm bool) DecisionFingerprint {
+		req := PlaybackRequest{
+			MediaID: "m1", SourcePath: "/f.mkv", Streams: deliveryStreams("eac3"), Container: "matroska",
+			Client: transcoding.DefaultWebProfile, Prefs: DefaultTranscodingPreferences(),
+			AudioTrack: 0, SubtitleBurnInTrack: -1, WasmAudio: wasm,
+		}
+		plan, err := pr.Resolve(context.Background(), req)
+		require.NoError(t, err)
+		return plan.Fingerprint
+	}
+	plain, wasm := mk(false), mk(true)
+	require.Equal(t, -1, wasm.AudioTrack, "the wasm master is video-only")
+	require.Equal(t, "aac", plain.AudioCodec, "the plain session re-encodes the track")
+	require.Equal(t, 6, plain.MaxAudioChannels)
+
+	// The historical key: the wasm fingerprint with the AAC target of the
+	// plain re-encode, which is what the audio verdict named before "wasm".
+	want := wasm
+	want.AudioCodec, want.MaxAudioChannels = plain.AudioCodec, plain.MaxAudioChannels
+	assert.Equal(t, want.Hash(), wasm.Hash(), "the wasm master keeps the key it has always had")
+}
