@@ -67,7 +67,10 @@ func TestGrpcLibraryUpdate_NotFound(t *testing.T) {
 	}
 }
 
-// UpdateLibrary: invalid path (not under /media) → InvalidArgument.
+// UpdateLibrary: a root that is not an absolute clean path → InvalidArgument.
+// It used to pin "/etc/passwd" as refused for not being under /media; the
+// rule is now Create's (any absolute clean root), and the path a root names
+// is the admin's call, so the refused input is a relative one.
 func TestGrpcLibraryUpdate_InvalidPath(t *testing.T) {
 	t.Parallel()
 	h, _, libQuery := newUpdateLibHandler()
@@ -75,7 +78,7 @@ func TestGrpcLibraryUpdate_InvalidPath(t *testing.T) {
 
 	_, err := h.UpdateLibrary(context.Background(), &eveyv1.UpdateLibraryRequest{
 		Id:    "lib-1",
-		Paths: []string{"/etc/passwd"},
+		Paths: []string{"etc/passwd"},
 	})
 	if err == nil {
 		t.Fatal("want error")

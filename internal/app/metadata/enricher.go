@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -505,16 +506,29 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		known = map[string]*domainlib.Person{}
 	}
 
-	batch := make([]*domainlib.MediaPerson, 0, len(people))
+	// One link per person: two credits of one id collapse, two homonyms with
+	// distinct ids do not.
+	credits := make([]domainmetadata.PersonResult, 0, len(people))
 	seen := make(map[string]bool, len(people))
-	var bioPending []*domainlib.Person
-	sortIdx := 0
 	for _, p := range people {
-		if seen[p.Name] {
+		key := creditKey(p)
+		if seen[key] {
 			continue
 		}
-		seen[p.Name] = true
-
+		seen[key] = true
+		credits = append(credits, p)
+	}
+	// Resolved in one global order (provider id, then name), not the cast's:
+	// each person write holds a per-id lock to the end of the enrichment
+	// transaction, and two enrichments taking shared people's locks in
+	// crossed orders deadlocked. The links keep the billing order below.
+	resolveOrder := slices.Clone(credits)
+	slices.SortStableFunc(resolveOrder, func(a, b domainmetadata.PersonResult) int {
+		return cmp.Or(cmp.Compare(a.ProviderID, b.ProviderID), cmp.Compare(a.Name, b.Name))
+	})
+	resolved := make(map[string]*domainlib.Person, len(credits))
+	var bioPending []*domainlib.Person
+	for _, p := range resolveOrder {
 		person, needsBio, err := e.findOrCreatePerson(ctx, p, known[p.Name])
 		if err != nil {
 			return nil, fmt.Errorf("Enricher.upsertPeople: %w", err)
@@ -522,7 +536,11 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		if needsBio {
 			bioPending = append(bioPending, person)
 		}
+		resolved[creditKey(p)] = person
+	}
 
+	batch := make([]*domainlib.MediaPerson, 0, len(credits))
+	for sortIdx, p := range credits {
 		var charName *string
 		if p.Character != "" {
 			c := p.Character
@@ -530,12 +548,11 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		}
 		batch = append(batch, &domainlib.MediaPerson{
 			MediaItemID:   shared.MediaItemID(mediaItemID),
-			PersonID:      person.ID,
+			PersonID:      resolved[creditKey(p)].ID,
 			RoleType:      roleType(p.Role),
 			CharacterName: charName,
 			SortOrder:     sortIdx,
 		})
-		sortIdx++
 	}
 	// Build the batch BEFORE deleting the old links. If the provider returned no
 	// people (or none survived dedup), skip the delete entirely - otherwise we'd
@@ -560,6 +577,15 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 	return bioPending, nil
 }
 
+// creditKey is a credit's person identity within one cast: its provider id,
+// or its name when the provider gave none.
+func creditKey(p domainmetadata.PersonResult) string {
+	if p.ProviderID != "" {
+		return "tmdb:" + p.ProviderID
+	}
+	return "name:" + p.Name
+}
+
 // personNeedsBio reports whether the provider should be asked for this
 // person's biography: it is missing AND either never checked, or last
 // checked longer than bioRecheckTTL ago. A person the provider genuinely has
@@ -578,42 +604,43 @@ func (e *Enricher) personNeedsBio(p *domainlib.Person) bool {
 	return clock().Sub(*p.BioCheckedAt) >= bioRecheckTTL
 }
 
-// findOrCreatePerson takes the preloaded person (may be nil when absent
-// from DB) and either enriches the existing row with new provider IDs/
-// thumbnails, or creates a fresh row. needsBio reports that the row has a
-// TMDB ID but no biography yet - the CALLER fetches it after the enrichment
-// transaction commits (a TMDB round-trip must not run under row locks).
+// findOrCreatePerson resolves a credit to its person row, creating it when
+// absent. The provider id is the identity: the credit's id is looked up
+// first, and the name only stands for a person stored WITHOUT an id (it is
+// then claimed by setting the id). A homonym that already carries another id
+// is another person. preloaded is the GetByNamesBatch row for the name (nil
+// when absent). needsBio reports that the row has no biography yet - the
+// CALLER fetches it after the enrichment transaction commits (a TMDB
+// round-trip must not run under row locks). Homonyms merged before the id
+// became the identity stay merged: nothing here splits a row.
 func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult, preloaded *domainlib.Person) (person *domainlib.Person, needsBio bool, err error) {
-	if preloaded != nil {
-		person = e.refreshKnownPerson(ctx, p, preloaded)
+	if p.ProviderID != "" {
+		if preloaded != nil && preloaded.ProviderIDs["tmdb"] == p.ProviderID {
+			person = e.refreshKnownPerson(ctx, p, preloaded)
+			return person, e.personNeedsBio(person), nil
+		}
+		person, err = e.persons.GetByProviderID(ctx, "tmdb", p.ProviderID)
+		if err == nil {
+			person = e.refreshKnownPerson(ctx, p, person)
+			return person, e.personNeedsBio(person), nil
+		}
+		if !errors.Is(err, shared.ErrNotFound) {
+			return nil, false, fmt.Errorf("get person by provider id: %w", err)
+		}
+	}
+	if preloaded == nil {
+		preloaded, err = e.persons.GetByName(ctx, p.Name)
+		if err != nil && !errors.Is(err, shared.ErrNotFound) {
+			return nil, false, fmt.Errorf("get person by name: %w", err)
+		}
+	}
+	// A credit without an id takes the name's person whatever it carries; a
+	// credit with an id only claims an id-less one.
+	if preloaded != nil && (p.ProviderID == "" || preloaded.ProviderIDs["tmdb"] == "") {
 		// needsBio no longer requires a tmdb id: the bio lookup is by NAME
 		// (see fetchPersonBio), so the id gated nothing but the attempt.
+		person = e.refreshKnownPerson(ctx, p, preloaded)
 		return person, e.personNeedsBio(person), nil
-	}
-	person, err = e.persons.GetByName(ctx, p.Name)
-	if err == nil {
-		// Update provider ID + thumb if missing
-		updated := false
-		if p.ProviderID != "" && person.ProviderIDs["tmdb"] == "" {
-			if person.ProviderIDs == nil {
-				person.ProviderIDs = map[string]string{}
-			}
-			person.ProviderIDs["tmdb"] = p.ProviderID
-			updated = true
-		}
-		if p.ThumbURL != "" && person.ThumbPath == nil {
-			person.ThumbPath = &p.ThumbURL
-			updated = true
-		}
-		if updated {
-			if err := e.persons.Update(ctx, person); err != nil {
-				slog.WarnContext(ctx, "update person failed", slog.String("personID", person.ID), slog.Any("err", err))
-			}
-		}
-		return person, e.personNeedsBio(person), nil
-	}
-	if !errors.Is(err, shared.ErrNotFound) {
-		return nil, false, fmt.Errorf("get person by name: %w", err)
 	}
 	thumbPath := p.ThumbURL
 	var thumbPtr *string
@@ -637,19 +664,15 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 	return person, true, nil
 }
 
-// refreshKnownPerson mirrors the "already exists" branch of findOrCreatePerson
-// for a person already loaded via GetByNamesBatch: fill missing provider IDs
-// and thumbnail if the TMDB payload has them, and persist when anything
-// changed. Bio fetching is the caller's post-commit duty.
+// refreshKnownPerson is the "already exists" branch of findOrCreatePerson:
+// fill missing provider IDs and thumbnail if the TMDB payload has them, and
+// persist when anything changed. Bio fetching is the caller's post-commit
+// duty.
 func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.PersonResult, person *domainlib.Person) *domainlib.Person {
-	updated := false
 	if p.ProviderID != "" && person.ProviderIDs["tmdb"] == "" {
-		if person.ProviderIDs == nil {
-			person.ProviderIDs = map[string]string{}
-		}
-		person.ProviderIDs["tmdb"] = p.ProviderID
-		updated = true
+		person = e.claimProviderID(ctx, p.ProviderID, person)
 	}
+	updated := false
 	if p.ThumbURL != "" && person.ThumbPath == nil {
 		person.ThumbPath = &p.ThumbURL
 		updated = true
@@ -659,6 +682,31 @@ func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.Pers
 			slog.WarnContext(ctx, "update person failed", slog.String("personID", person.ID), slog.Any("err", err))
 		}
 	}
+	return person
+}
+
+// claimProviderID gives an id-less person the credit's TMDB id through the
+// repository's claim, serialised with the creates of that id: when another
+// enrichment wrote a row holding it in the meantime, that row is the person
+// and the id-less one is left as it was. A failed claim keeps the row as
+// read; the next enrichment claims again.
+func (e *Enricher) claimProviderID(ctx context.Context, tmdbID string, person *domainlib.Person) *domainlib.Person {
+	owner, err := e.persons.ClaimProviderID(ctx, person.ID, "tmdb", tmdbID)
+	if err != nil {
+		slog.WarnContext(ctx, "claim person provider id failed", slog.String("personID", person.ID), slog.Any("err", err))
+		return person
+	}
+	if owner != person.ID {
+		if holder, getErr := e.persons.GetByID(ctx, owner); getErr == nil {
+			return holder
+		}
+		slog.WarnContext(ctx, "load the person holding a provider id failed", slog.String("personID", owner))
+		return person
+	}
+	if person.ProviderIDs == nil {
+		person.ProviderIDs = map[string]string{}
+	}
+	person.ProviderIDs["tmdb"] = tmdbID
 	return person
 }
 
@@ -678,7 +726,7 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 	// failed. One rate-limited call nobody read was enough to leave a person
 	// with an empty bio that reads as "the provider has none".
 	if fetcher, ok2 := capabilityFrom[personDetailFetcher](e.chain.Primary()); ok2 {
-		details, detErr := fetcher.GetPersonDetails(ctx, person.Name)
+		details, detErr := fetcher.GetPersonDetails(ctx, person.Name, person.ProviderIDs["tmdb"])
 		if detErr != nil {
 			// A swallowed 429/timeout here is indistinguishable from "the
 			// provider has no bio" - log it so the empty bio isn't read as fact.
@@ -719,7 +767,7 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 
 // personDetailFetcher is an optional capability for providers that can fetch person details.
 type personDetailFetcher interface {
-	GetPersonDetails(ctx context.Context, name string) (*domainlib.PersonDetailsResult, error)
+	GetPersonDetails(ctx context.Context, name, tmdbID string) (*domainlib.PersonDetailsResult, error)
 }
 
 func (e *Enricher) indexSearch(ctx context.Context, item *domainlib.MediaItem, people []domainmetadata.PersonResult) {

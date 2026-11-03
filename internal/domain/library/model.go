@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -125,10 +126,24 @@ func NewLibrary(id shared.LibraryID, name string, libType LibraryType, opts ...L
 // and the filesystem root is the whole host.
 var ErrInvalidLibraryPath = errors.New("library path must be an absolute, clean path other than the filesystem root")
 
+// systemTrees are the kernel and system trees no library may be rooted in:
+// a root there hands the scanner, the probe and the stream endpoints the
+// host's devices, process table or configuration. /run/media is left out of
+// /run: it is where a desktop host mounts removable drives.
+var systemTrees = []string{"/proc", "/sys", "/dev", "/etc", "/boot", "/run"}
+
 // ValidateLibraryPath says whether p may be a library root.
 func ValidateLibraryPath(p string) error {
 	if p == "" || !filepath.IsAbs(p) || filepath.Clean(p) != p || p == string(filepath.Separator) {
 		return fmt.Errorf("%w: %q", ErrInvalidLibraryPath, p)
+	}
+	if p == "/run/media" || strings.HasPrefix(p, "/run/media/") {
+		return nil
+	}
+	for _, tree := range systemTrees {
+		if p == tree || strings.HasPrefix(p, tree+"/") {
+			return fmt.Errorf("%w: %q is a system tree", ErrInvalidLibraryPath, p)
+		}
 	}
 	return nil
 }
@@ -313,7 +328,12 @@ type MediaFile struct {
 //	1: a file without a season/episode marker in its name is an episode of
 //	   the show two folders up when it sits in a "Season N" folder and its
 //	   name states an episode number.
-const ParserVersion = 1
+//	2: a multi-episode name ("S01E01E02", "1x01x02") is the episode of its
+//	   first number instead of a movie titled with the whole marker; a file
+//	   without a number in a "Season N" folder is an episode of that season
+//	   without an episode number instead of a movie (a one-file series in a
+//	   TV library).
+const ParserVersion = 2
 
 // StreamProbeVersion is the current prober revision. Bump when the prober
 // learns a field the scanner must re-read on existing rows.

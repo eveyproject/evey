@@ -39,6 +39,7 @@ import {
   resolvePlayTarget,
   useSeriesPlayTarget,
   sortByIndexNumber,
+  sortEpisodesByIndex,
   sortTrailers,
   trailerUrl,
   useIsFavorite,
@@ -269,7 +270,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
     { query: { enabled: isSeries && !!firstSeasonId } },
   );
   const episodes = useMemo(
-    () => sortByIndexNumber(isSeason ? children : (firstSeasonEpisodes?.items ?? [])),
+    () => sortEpisodesByIndex(isSeason ? children : (firstSeasonEpisodes?.items ?? [])),
     [isSeason, children, firstSeasonEpisodes?.items],
   );
 

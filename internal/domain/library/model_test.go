@@ -604,3 +604,24 @@ func TestLibrary_Validate_RejectsUnsafePaths(t *testing.T) {
 		t.Errorf("absolute clean paths rejected: %v", err)
 	}
 }
+
+// The kernel and system trees are no media library: a root there hands the
+// scanner, the probe and the stream endpoints the host's devices, process
+// table or configuration. The tree itself and every path under it are
+// refused; a name that only starts with the same letters is not.
+func TestValidateLibraryPath_RefusesSystemTrees(t *testing.T) {
+	for _, p := range []string{
+		"/proc", "/proc/self", "/sys", "/sys/class", "/dev", "/dev/sda1",
+		"/etc", "/etc/ssl", "/boot", "/boot/efi", "/run", "/run/secrets",
+	} {
+		if err := library.ValidateLibraryPath(p); !errors.Is(err, library.ErrInvalidLibraryPath) {
+			t.Errorf("%s: want refused, got %v", p, err)
+		}
+	}
+	// /run/media is where removable drives mount on a desktop host.
+	for _, p := range []string{"/mnt/nas", "/media", "/srv/films", "/devices", "/etcetera", "/running", "/run/media/disk"} {
+		if err := library.ValidateLibraryPath(p); err != nil {
+			t.Errorf("%s: want accepted, got %v", p, err)
+		}
+	}
+}

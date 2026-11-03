@@ -38,7 +38,7 @@ func TestTMDBPersonFetcher_GetPersonDetails_Success(t *testing.T) {
 	defer srv.Close()
 
 	f := NewTMDBPersonFetcher(p)
-	got, err := f.GetPersonDetails(context.Background(), "Brad Pitt")
+	got, err := f.GetPersonDetails(context.Background(), "Brad Pitt", "")
 	if err != nil {
 		t.Fatalf("GetPersonDetails: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestTMDBPersonFetcher_GetPersonDetails_NoMatch(t *testing.T) {
 	defer srv.Close()
 
 	f := NewTMDBPersonFetcher(p)
-	got, err := f.GetPersonDetails(context.Background(), "Nobody Nowhere")
+	got, err := f.GetPersonDetails(context.Background(), "Nobody Nowhere", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -127,5 +127,43 @@ func TestTMDBPersonFetcher_FetchPersonTranslations_NoMatch(t *testing.T) {
 	}
 	if out != nil {
 		t.Errorf("expected nil map when search empty, got %v", out)
+	}
+}
+
+// Two homonyms are two TMDB people: searching by name answered the first
+// result for both, so each got the other's biography. A known id is read
+// directly, without a search.
+func TestTMDBPersonFetcher_GetPersonDetails_KnownIDSkipsTheNameSearch(t *testing.T) {
+	search := tmdbPersonSearchResult{}
+	search.Results = append(search.Results, struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}{ID: 101, Name: "Sam Taylor"})
+	searched := false
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/search/person"):
+			searched = true
+			_ = json.NewEncoder(w).Encode(search)
+		case r.URL.Path == "/person/101":
+			_ = json.NewEncoder(w).Encode(tmdbPersonDetail{ID: 101, Name: "Sam Taylor", Biography: "The first one."})
+		case r.URL.Path == "/person/202":
+			_ = json.NewEncoder(w).Encode(tmdbPersonDetail{ID: 202, Name: "Sam Taylor", Biography: "The second one."})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer srv.Close()
+
+	got, err := NewTMDBPersonFetcher(p).GetPersonDetails(context.Background(), "Sam Taylor", "202")
+	if err != nil {
+		t.Fatalf("GetPersonDetails: %v", err)
+	}
+	if got == nil || got.Biography != "The second one." {
+		t.Fatalf("Biography = %+v, want the second homonym's", got)
+	}
+	if searched {
+		t.Error("a known id must not go through the name search")
 	}
 }

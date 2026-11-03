@@ -1,4 +1,5 @@
 import type { V1MediaItem } from "@evey/api";
+import { compareEpisodeIndex } from "@evey/client";
 import { hasMediaFile } from "../components/media/mediaFile";
 
 export interface EpisodeTarget {
@@ -20,7 +21,7 @@ export async function seriesDownloadTargets(
   for (const season of [...seasons].sort(byIndex)) {
     if (!season.id) continue;
     const episodes = await listEpisodes(season.id);
-    for (const episode of [...episodes].sort(byIndex)) {
+    for (const episode of [...episodes].sort(compareEpisodeIndex)) {
       if (episode.id && hasMediaFile(episode)) targets.push({ episode, seasonNumber: season.indexNumber });
     }
   }

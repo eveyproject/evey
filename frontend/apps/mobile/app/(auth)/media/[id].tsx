@@ -66,7 +66,7 @@ import { MetadataEditSheet } from "../../../src/components/media/MetadataEditShe
 import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { RESUME_PROGRESS_QUERY, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, compareEpisodeIndex, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { StarIcons } from "../../../src/components/media/StarIcons";
 import { personKeyExtractor, renderCastItem } from "../../../src/components/media/CastCard";
@@ -323,9 +323,7 @@ export default function MediaDetailScreen() {
 
   const episodes = useMemo(
     () =>
-      [...(isSeason ? children : (episodesData?.items ?? []))].sort(
-        (a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0),
-      ),
+      [...(isSeason ? children : (episodesData?.items ?? []))].sort(compareEpisodeIndex),
     [isSeason, children, episodesData?.items],
   );
   const seasons = useMemo(
