@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -125,10 +126,24 @@ func NewLibrary(id shared.LibraryID, name string, libType LibraryType, opts ...L
 // and the filesystem root is the whole host.
 var ErrInvalidLibraryPath = errors.New("library path must be an absolute, clean path other than the filesystem root")
 
+// systemTrees are the kernel and system trees no library may be rooted in:
+// a root there hands the scanner, the probe and the stream endpoints the
+// host's devices, process table or configuration. /run/media is left out of
+// /run: it is where a desktop host mounts removable drives.
+var systemTrees = []string{"/proc", "/sys", "/dev", "/etc", "/boot", "/run"}
+
 // ValidateLibraryPath says whether p may be a library root.
 func ValidateLibraryPath(p string) error {
 	if p == "" || !filepath.IsAbs(p) || filepath.Clean(p) != p || p == string(filepath.Separator) {
 		return fmt.Errorf("%w: %q", ErrInvalidLibraryPath, p)
+	}
+	if p == "/run/media" || strings.HasPrefix(p, "/run/media/") {
+		return nil
+	}
+	for _, tree := range systemTrees {
+		if p == tree || strings.HasPrefix(p, tree+"/") {
+			return fmt.Errorf("%w: %q is a system tree", ErrInvalidLibraryPath, p)
+		}
 	}
 	return nil
 }
