@@ -437,7 +437,7 @@ func (g *TrickplayGenerator) ExtractFrame(ctx context.Context, filePath string, 
 		"-ss", ss,
 		"-i", filePath,
 		"-frames:v", "1",
-		"-vf", fmt.Sprintf("scale=%d:-1", width),
+		"-vf", g.snapshotFilter(ctx, filePath, width),
 		"-f", "image2",
 		"-c:v", "mjpeg",
 		"-q:v", "3",
@@ -449,12 +449,22 @@ func (g *TrickplayGenerator) ExtractFrame(ctx context.Context, filePath string, 
 	return out, nil
 }
 
+// snapshotFilter is the one-frame scale, tone-mapped when the source is
+// HDR/DoVi: a snapshot is a small SDR picture like the trickplay strip and
+// the player, and sampled as if it were SDR it came out grey and washed out.
+// The colour is read off the FILE (filePath), not the frame: a bare keyframe
+// packet carries no container tags, and the DoVi record lives in the
+// container only. SDR sources keep the bare scale, byte for byte.
+func (g *TrickplayGenerator) snapshotFilter(ctx context.Context, filePath string, width int) string {
+	return trickplayFilter(fmt.Sprintf("scale=%d:-1", width), g.probeColour(ctx, filePath))
+}
+
 // DecodePacketToJPEG decodes a single encoded keyframe packet (from mkvgo's
 // ExtractKeyframeSample - Annex-B or IVF) into a scaled JPEG. It decodes just
 // that one frame, so on a weak NAS it avoids the seek + GOP decode ExtractFrame
 // pays. ext selects the input demuxer (.h264/.hevc/.ivf); an unknown ext errors
 // so the caller falls back to the exact ffmpeg -ss path.
-func (g *TrickplayGenerator) DecodePacketToJPEG(ctx context.Context, packet []byte, ext string, width int) ([]byte, error) {
+func (g *TrickplayGenerator) DecodePacketToJPEG(ctx context.Context, filePath string, packet []byte, ext string, width int) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.trickplay.DecodePacketToJPEG")
 	defer span.End()
 
@@ -467,7 +477,7 @@ func (g *TrickplayGenerator) DecodePacketToJPEG(ctx context.Context, packet []by
 		"-f", inFmt,
 		"-i", "pipe:0",
 		"-frames:v", "1",
-		"-vf", fmt.Sprintf("scale=%d:-1", width),
+		"-vf", g.snapshotFilter(ctx, filePath, width),
 		"-f", "image2",
 		"-c:v", "mjpeg",
 		"-q:v", "3",

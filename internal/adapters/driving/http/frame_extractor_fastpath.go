@@ -52,7 +52,7 @@ func (e *fastFrameExtractor) ExtractFrame(ctx context.Context, filePath string, 
 			slog.Debug("snapshot fast path: keyframe extract failed, using exact decoder",
 				slog.String("path", filePath), slog.Any("err", err))
 		case len(packet) > 0 && abs64(atMs-ptsMs) <= maxSnapshotDriftMs:
-			jpeg, derr := e.dec.DecodePacketToJPEG(ctx, packet, ext, width)
+			jpeg, derr := e.dec.DecodePacketToJPEG(ctx, filePath, packet, ext, width)
 			if derr == nil && len(jpeg) > 0 {
 				return jpeg, nil
 			}
