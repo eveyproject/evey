@@ -220,6 +220,10 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	// while the user plays an AAC track, or vice-versa). Mirrors the audioTrack
 	// resolution the fingerprint and the ffmpeg -map already use.
 	prefs.AudioTrack = req.AudioTrack
+	// The client's wasm opt-in rides the request (the delivery serves the
+	// audio client-side from it): the verdict must read the same flag, or
+	// the session is logged and counted as a re-encode it never does.
+	prefs.WasmAudio = req.WasmAudio
 	prefs.SourceBitrateKbps = req.SourceBitrateKbps
 	prefs.SourceNeedsRemux = req.SourceNeedsRemux
 	d := MakePlaybackDecisionWithPrefs(ctx, req.Streams, req.Container, req.Client, req.MaxBitrateKbps, prefs, req.SourcePath)
