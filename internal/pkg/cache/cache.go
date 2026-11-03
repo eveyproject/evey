@@ -2,9 +2,10 @@ package cache
 
 import (
 	"container/list"
-	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 )
 
 const defaultMaxSize = 10000
@@ -71,14 +72,6 @@ func NewWithMaxSize[T any](cleanupInterval time.Duration, maxSize int) (*TTLCach
 	}
 	done := make(chan struct{})
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// No ctx: this is the detached cleanup ticker, started once at
-				// construction. It belongs to no request, so there is no
-				// request_id to correlate against.
-				slog.Error("recovered panic in cache cleanup", "panic", r)
-			}
-		}()
 		t := time.NewTicker(cleanupInterval)
 		defer t.Stop()
 		for {
@@ -86,7 +79,10 @@ func NewWithMaxSize[T any](cleanupInterval time.Duration, maxSize int) (*TTLCach
 			case <-done:
 				return
 			case <-t.C:
-				c.evict()
+				// Recovery is per tick: an eviction that stopped at its first
+				// panic would let the auth caches grow for the life of the
+				// process.
+				bgloop.Tick("cache.evict", c.evict)
 			}
 		}
 	}()

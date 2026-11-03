@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 )
 
 // Cast progress derivation (user-requested 2026-07-20): once the sender's
@@ -54,6 +56,8 @@ type CastProgressTracker struct {
 	stop    chan struct{}
 	done    chan struct{}
 	once    sync.Once
+	// flushEvery overrides castFlushInterval; zero keeps it. Tests shorten it.
+	flushEvery time.Duration
 }
 
 func NewCastProgressTracker(report CastProgressReporter) *CastProgressTracker {
@@ -91,7 +95,11 @@ func (t *CastProgressTracker) ObserveFetch(profileID, mediaItemID string, endMs 
 func (t *CastProgressTracker) Start(ctx context.Context) {
 	go func() {
 		defer close(t.done)
-		ticker := time.NewTicker(castFlushInterval)
+		every := t.flushEvery
+		if every <= 0 {
+			every = castFlushInterval
+		}
+		ticker := time.NewTicker(every)
 		defer ticker.Stop()
 		for {
 			select {
@@ -100,7 +108,7 @@ func (t *CastProgressTracker) Start(ctx context.Context) {
 			case <-t.stop:
 				return
 			case <-ticker.C:
-				t.flushOnce(ctx)
+				bgloop.Tick("playback.castProgress", func() { t.flushOnce(ctx) })
 			}
 		}
 	}()

@@ -17,6 +17,7 @@ import (
 
 	"github.com/eveyproject/evey/internal/domain/backup"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	"github.com/eveyproject/evey/internal/pkg/id"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -288,14 +289,14 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 		return
 	}
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.ErrorContext(ctx, "panic in backup scheduler", slog.Any("recover", r))
+		// Recovery is per tick: a recover around the loop would end the
+		// schedule at its first panic, and a backup that silently stops
+		// is its own outage.
+		bgloop.Tick("backup.retention", func() {
+			if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
+				slog.WarnContext(ctx, "backup retention cleanup", slog.Any("err", err))
 			}
-		}()
-		if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
-			slog.WarnContext(ctx, "backup retention cleanup", slog.Any("err", err))
-		}
+		})
 		for _, ch := range initDone {
 			if ch != nil {
 				close(ch)
@@ -308,7 +309,7 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				s.runScheduledBackupCycle(ctx, retentionDays)
+				bgloop.Tick("backup.schedule", func() { s.runScheduledBackupCycle(ctx, retentionDays) })
 			}
 		}
 	}()
