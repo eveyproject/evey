@@ -1144,14 +1144,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// otherwise spawns an encoder that dies on ENOSPC and the next request spawns
 	// another - the respawn storm of 2026-10-08. AdmitWrite fails open, gates only
 	// a NON-copy, MISSING segment, and a cached segment is served below regardless.
-	//
-	// The cache is probed ONCE per request (a probe is two stats and a read of
-	// the box headers): the answer gates the disk guard and spares Wait its own.
-	// A segment complete here stays complete - the cache only ever publishes a
-	// finished segment by rename - so a rewrite started meanwhile does not turn
-	// it back into a wait.
-	ready := h.cache.IsReady(key, fp.UseFMP4)
-	if !rp.IsCopy && !ready {
+	if !rp.IsCopy && !h.cache.IsReady(key, fp.UseFMP4) {
 		if err := h.cache.AdmitWrite(); errors.Is(err, apptranscoding.ErrCacheFull) {
 			slog.WarnContext(r.Context(), "hls-vod: transcode cache full, shedding segment",
 				slog.String("media_id", mediaID), slog.Int("variant", variantIdx), slog.Int("seg", segmentIdx))
@@ -1226,9 +1219,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	waitBudget := producer.WaitBudget()
 	waitCtx, cancel := context.WithTimeout(r.Context(), waitBudget)
 	defer cancel()
-	if ready {
-		// Already complete at the probe above: nothing to wait for.
-	} else if err := h.cache.Wait(waitCtx, key, fp.UseFMP4, waitBudget); err != nil {
+	if err := h.cache.Wait(waitCtx, key, fp.UseFMP4, waitBudget); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "segment wait timeout")
 		slog.WarnContext(r.Context(), "hls-vod: segment timeout",
