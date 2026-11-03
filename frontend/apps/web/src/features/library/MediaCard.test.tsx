@@ -2,6 +2,7 @@ import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { feedItemToCard, type FeedItemLike } from "@evey/client";
 import { MediaCard } from "./MediaCard";
 
 vi.mock("@/hooks/useWatchedMap", () => ({
@@ -124,6 +125,15 @@ describe("MediaCard", () => {
   it("hides year when showYear=false", () => {
     render(<MediaCard item={baseItem} showYear={false} />, { wrapper: Wrapper });
     expect(screen.queryByText("2010")).not.toBeInTheDocument();
+  });
+
+  // The popular rail goes through the shared projection with the enum type
+  // the feed rails send: a series card is labelled and opens its own page.
+  it("labels a popular series card and links it to the series page", () => {
+    const card = feedItemToCard({ mediaItemId: "s-7", title: "Show", type: "MEDIA_ITEM_TYPE_SERIES", playCount: 3 } as FeedItemLike);
+    render(<MediaCard item={card} showType />, { wrapper: Wrapper });
+    expect(screen.getByText("Serie")).toBeInTheDocument();
+    expect(screen.getByTestId("media-card")).toHaveAttribute("href", "/media/s-7");
   });
 
   it("shows type label when showType=true", () => {

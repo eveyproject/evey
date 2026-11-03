@@ -412,8 +412,9 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 		item := &eveyv1.PopularMediaItem{
 			MediaItemId: string(p.MediaItemID),
 			Title:       p.Title,
-			Type:        string(mi.Type),
-			PlayCount:   int32(p.PlayCount),
+			// The enum name, as the feed rails send it: one card helper reads both.
+			Type:      feedItemTypeName(string(mi.Type)),
+			PlayCount: int32(p.PlayCount),
 		}
 		if mi.Catalog != nil && mi.Catalog.Year != nil {
 			item.Year = int32(*mi.Catalog.Year)

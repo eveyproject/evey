@@ -97,3 +97,20 @@ func TestActivityHandler_GetPopularMedia_CarriesBlurhashAndRating(t *testing.T) 
 	assert.Empty(t, resp.Items[0].PrimaryBlurhash)
 	assert.InDelta(t, 8.1, resp.Items[0].CommunityRating, 1e-9)
 }
+
+// The popular rail draws the card the feed rails draw, so it names the type
+// the same way: the proto enum name, never the domain word.
+func TestActivityHandler_GetPopularMedia_TypeMatchesFeed(t *testing.T) {
+	h, _, stats, _, _ := newActivityHandler()
+	stats.MostPopular = []activity.MediaPlayCount{{MediaItemID: "mi-show", Title: "Show", PlayCount: 3}}
+	mediaRepo := libfakes.NewFakeMediaItemQueryRepo()
+	mediaRepo.Seed(&library.MediaItem{ID: "mi-show", LibraryID: "lib-1", Type: library.Series, Title: "Show"})
+	h.libQuery = applibrary.NewQueryService(libfakes.NewFakeLibraryQueryRepo(), mediaRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+
+	resp, err := h.GetPopularMedia(ctxWithClaims("user-1", "profile-1", true), &eveyv1.GetPopularMediaRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1)
+	assert.Equal(t, "MEDIA_ITEM_TYPE_SERIES", resp.Items[0].Type)
+	assert.Equal(t, feedItemToProto(&feed.FeedItem{Type: "series"}).Type, resp.Items[0].Type)
+}
