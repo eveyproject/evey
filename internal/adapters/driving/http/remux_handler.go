@@ -108,10 +108,20 @@ type remuxServe struct {
 	cacheDir      string // <transcoding cache>/remux
 	baseURL       string
 	group         singleflight.Group
+	// sem holds the production slots (remuxMaxConcurrentProductions): the
+	// singleflight only collapses repeats of the SAME item, and one viewer
+	// asking for N distinct titles - a season walked, a bulk download - meant
+	// N remuxes reading and rewriting whole films side by side on the disk
+	// that serves everyone else. Waiters queue inside ensureRemuxed.
+	sem chan struct{}
 	// displays remembers each source version's display tag: a player reads
 	// one remux in many ranges, the orientation is read from the head once.
 	displays sync.Map // itemID + "\x00" + fingerprint -> string
 }
+
+// remuxMaxConcurrentProductions bounds the remuxes in flight across all
+// items, the figure the compat download already holds its productions to.
+const remuxMaxConcurrentProductions = 2
 
 func remuxHandler(libSvc MediaItemGetter, libraryAccess LibraryAccessChecker, parental ParentalChecker, libLister LibraryLister, remuxer Remuxer, cacheRoot, baseURL string, leases *apptranscoding.FileLeases) http.HandlerFunc {
 	h := &remuxServe{
@@ -123,6 +133,7 @@ func remuxHandler(libSvc MediaItemGetter, libraryAccess LibraryAccessChecker, pa
 		remuxer:       remuxer,
 		cacheDir:      filepath.Join(cacheRoot, "remux"),
 		baseURL:       baseURL,
+		sem:           make(chan struct{}, remuxMaxConcurrentProductions),
 	}
 	return h.handle
 }
@@ -269,6 +280,12 @@ func (h *remuxServe) ensureRemuxed(ctx context.Context, srcPath, outPath string)
 		// while we queued.
 		if fi, statErr := os.Stat(outPath); statErr == nil && fi.Size() > 0 {
 			return nil, nil
+		}
+		// A production slot, taken once the cache has had its say: N distinct
+		// titles asked at once queue here instead of running N remuxes.
+		if h.sem != nil {
+			h.sem <- struct{}{}
+			defer func() { <-h.sem }()
 		}
 		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 			return nil, err

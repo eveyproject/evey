@@ -77,6 +77,7 @@ func newTestRemuxServe(t *testing.T, rmx Remuxer, libAccess LibraryAccessChecker
 		remuxer:       rmx,
 		cacheDir:      filepath.Join(t.TempDir(), "remux"),
 		baseURL:       "http://localhost",
+		sem:           make(chan struct{}, remuxMaxConcurrentProductions),
 	}
 }
 
@@ -317,4 +318,83 @@ func TestRemuxServe_MirroredSourceRemuxedUnderItsOwnName(t *testing.T) {
 	files, err := os.ReadDir(h.cacheDir)
 	require.NoError(t, err)
 	assert.Len(t, files, 2, "the mirrored remux has a name of its own")
+}
+
+// blockingRemuxer holds every production open until released and records
+// how many ran at once: the proof that distinct titles queue on the
+// production slots instead of each spawning its own remux.
+type blockingRemuxer struct {
+	release chan struct{}
+	mu      sync.Mutex
+	inFlight,
+	peak int
+}
+
+func (b *blockingRemuxer) CanRemux(string) bool { return true }
+
+func (b *blockingRemuxer) DisplayMatrix(context.Context, string) (int, bool, error) {
+	return 0, false, nil
+}
+
+func (b *blockingRemuxer) RemuxToMP4(_ context.Context, _, dst string) error {
+	b.mu.Lock()
+	b.inFlight++
+	if b.inFlight > b.peak {
+		b.peak = b.inFlight
+	}
+	b.mu.Unlock()
+	<-b.release
+	b.mu.Lock()
+	b.inFlight--
+	b.mu.Unlock()
+	return os.WriteFile(dst, []byte("DATA"), 0o644)
+}
+
+func (b *blockingRemuxer) peakInFlight() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.peak
+}
+
+// Ten distinct titles asked at the same instant, each with its own cache
+// key, must never run more remuxes at once than the production slots allow:
+// the single-flight only collapses repeats of ONE title, and a viewer
+// walking a library could otherwise start one ffmpeg per title.
+func TestRemux_ConcurrentDistinctItemsBoundedByProductionSlots(t *testing.T) {
+	rmx := &blockingRemuxer{release: make(chan struct{})}
+	h := newTestRemuxServe(t, rmx, allowAll())
+
+	const titles = 10
+	var wg sync.WaitGroup
+	errs := make(chan error, titles)
+	for i := range titles {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			out := filepath.Join(h.cacheDir, "item-"+string(rune('a'+i))+".mp4")
+			errs <- h.ensureRemuxed(context.Background(), "/tmp/fake.mkv", out)
+		}()
+	}
+
+	// Give every goroutine the chance to reach a production slot, then let
+	// them all through; the peak is sampled by the remuxer itself.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		rmx.mu.Lock()
+		running := rmx.inFlight
+		rmx.mu.Unlock()
+		if running >= remuxMaxConcurrentProductions {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(rmx.release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, remuxMaxConcurrentProductions, rmx.peakInFlight(),
+		"distinct titles must queue on the production slots, not each run their own remux")
 }

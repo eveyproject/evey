@@ -525,8 +525,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// Progressive fast-start MP4 remux of a browser-incompatible EBML source
 	// (copy, no re-encode), cached once and served with Range support. Same auth
 	// + parental + stream metering as /stream.
+	// Under the global limiter like /download: a whole-file production a
+	// viewer can ask for by the dozen is bounded by request rate here and by
+	// production slots inside (remuxMaxConcurrentProductions).
 	if s.Remuxer != nil {
-		mux.HandleFunc("GET /api/v1/media/{id}/remux.mp4", streamAuth(s.StreamMeter.Middleware(remuxHandler(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.Remuxer, s.Cfg.Transcoding.CacheDir, s.BaseURL(), s.RemuxLeases))))
+		mux.HandleFunc("GET /api/v1/media/{id}/remux.mp4", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(remuxHandler(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.Remuxer, s.Cfg.Transcoding.CacheDir, s.BaseURL(), s.RemuxLeases)))))
 	}
 	// Artwork is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
