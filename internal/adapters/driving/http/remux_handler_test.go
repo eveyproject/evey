@@ -376,12 +376,10 @@ func TestRemux_ConcurrentDistinctItemsBoundedByProductionSlots(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make(chan error, titles)
 	for i := range titles {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			out := filepath.Join(h.cacheDir, "item-"+string(rune('a'+i))+".mp4")
 			errs <- h.ensureRemuxed(context.Background(), "/tmp/fake.mkv", out)
-		}()
+		})
 	}
 
 	// Give every goroutine the chance to reach a production slot, then let
@@ -421,12 +419,11 @@ func TestRemux_CancelledWaiterProducesNothing(t *testing.T) {
 		release()
 		wg.Wait()
 	})
+	slotErrs := make(chan error, 2)
 	for _, name := range []string{"slot-one", "slot-two"} {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			require.NoError(t, h.ensureRemuxed(context.Background(), "/tmp/fake.mkv", filepath.Join(h.cacheDir, name+".mp4")))
-		}()
+		wg.Go(func() {
+			slotErrs <- h.ensureRemuxed(context.Background(), "/tmp/fake.mkv", filepath.Join(h.cacheDir, name+".mp4"))
+		})
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
@@ -465,5 +462,10 @@ func TestRemux_CancelledWaiterProducesNothing(t *testing.T) {
 	}
 	_, err := os.Stat(queued)
 	require.NoError(t, err, "the follower's file is on disk")
+	wg.Wait()
+	close(slotErrs)
+	for err := range slotErrs {
+		require.NoError(t, err)
+	}
 	assert.Equal(t, 3, rmx.remuxCalls(), "two slots and the follower's own remux, none for the viewer gone")
 }

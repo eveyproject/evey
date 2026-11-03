@@ -575,7 +575,7 @@ func isNumberedFile(seg string) bool {
 	if dot <= 0 || dot == len(seg)-1 {
 		return false
 	}
-	for i := 0; i < dot; i++ {
+	for i := range dot {
 		if seg[i] >= '0' && seg[i] <= '9' {
 			return true
 		}
@@ -720,8 +720,8 @@ func routeLabel(pattern, urlPath string, status int) string {
 	switch {
 	case pattern != "" && pattern != "/":
 		// "GET /api/v1/media/{id}/stream": the method is its own label.
-		if i := strings.IndexByte(pattern, ' '); i >= 0 {
-			return pattern[i+1:]
+		if _, path, ok := strings.Cut(pattern, " "); ok {
+			return path
 		}
 		return pattern
 	case pattern == "/" && status >= 200 && status < 300:
