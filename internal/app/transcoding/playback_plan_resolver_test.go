@@ -268,3 +268,22 @@ func TestReported_PackagerCopyWithoutFFmpegCopyProducer(t *testing.T) {
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Contains(t, d.TranscodeReasons, "copy_rung_unavailable")
 }
+
+// A multi-rung ladder re-encodes its audio whatever the verdict says (one
+// AAC per rung): a 5.1 track judged "copy" must then target its own layout,
+// not the builder's stereo default - the verdict named no channel count
+// because it expected the track to pass through.
+func TestFingerprint_MultiRungReencodeOfACopyVerdictKeepsSurround(t *testing.T) {
+	pr := &PlanResolver{UseFMP4: true}
+	req := ladderRequest(1080)
+	req.Streams = append(req.Streams, &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: "ac3", Channels: new(6), IsDefault: true})
+	req.Client = transcoding.ClientProfile{VideoCodecs: []string{"h264"}, AudioCodecs: []string{"aac", "ac3"}, Containers: []string{"mp4"}}
+	plan, err := pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	require.Greater(t, len(plan.Ladder), 1, "a transcode ladder with several rungs")
+	require.Equal(t, "copy", plan.Decision.AudioDecision, "the verdict on the codecs alone")
+	require.False(t, plan.Fingerprint.AudioCopy, "the multi-rung builder re-encodes")
+
+	assert.Equal(t, 6, plan.Fingerprint.MaxAudioChannels, "the re-encode keeps the 5.1 layout")
+	assert.Empty(t, plan.Fingerprint.AudioCodec, "the builder's AAC default, the bytes every other re-encode gets")
+}

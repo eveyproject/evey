@@ -82,6 +82,14 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 	srcAudio := snap.AudioCodec
 	audioCopy := AudioCopyEligible(decision, normalize, len(fpProfiles), srcAudio, req.Client) &&
 		AACCopyDeclarable(srcAudio, snap.AudioProfile)
+	// A copy verdict the builder cannot honour (a multi-rung ladder, loudnorm)
+	// is re-encoded, and the verdict named no channel target because it
+	// expected the track to pass through: a 5.1 track then fell to the
+	// builder's stereo default. Target the layout the verdict would have.
+	audioChannels := decision.MaxAudioChannels
+	if !audioCopy && decision.AudioDecision == "copy" && audioChannelsFor(snap, videoAudioTrack, audioTrack) > 2 {
+		audioChannels = reencodedAudioChannels(audioChannelsFor(snap, videoAudioTrack, audioTrack), req.Client, req.Prefs)
+	}
 	fp := DecisionFingerprint{
 		MediaID:           req.MediaID,
 		SourcePath:        req.SourcePath,
@@ -118,7 +126,7 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 		HDRTransfer:      strings.ToLower(snap.HDRRange),
 		AudioNormalize:   normalize,
 		AudioEncoder:     pr.audioEncoderID(),
-		MaxAudioChannels: decision.MaxAudioChannels,
+		MaxAudioChannels: audioChannels,
 		// Gates the fold guard on a real fold; wasm (-1) reads as unknown, guard on.
 		SourceAudioChannels: audioChannelsFor(snap, videoAudioTrack, audioTrack),
 		// Audio passthrough eligibility - see AudioCopyEligible (shared with
@@ -231,4 +239,22 @@ func copyWorkingSetBytes(sourceBytes int64, streams []*library.MediaStream, wind
 	const peakFactor = 2
 	need := float64(sourceBytes) * float64(longest) / float64(total) * peakFactor
 	return min(sourceBytes, int64(need))
+}
+
+// reencodedAudioChannels is the channel target of a multichannel track the
+// builder re-encodes: the source layout under the client's ceiling, the
+// profile's cap and the AAC ceiling, the rule applyAudioChannelTarget applies
+// to a transcode verdict.
+func reencodedAudioChannels(sourceChannels int, client transcoding.ClientProfile, prefs TranscodingPreferences) int {
+	target := min(sourceChannels, aacMaxTargetChannels)
+	if client.MaxAudioChannels > 0 {
+		target = min(target, client.MaxAudioChannels)
+	}
+	if prefs.MaxAudioChannels > 0 {
+		target = min(target, prefs.MaxAudioChannels)
+	}
+	if target <= 2 {
+		return 0 // the builder's stereo default, the pre-feature bytes and hash
+	}
+	return target
 }
