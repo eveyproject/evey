@@ -270,7 +270,11 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// fingerprint keeps copy and transcode segments from aliasing.
 	//
 	// DEFAULT ON (opt-out: server_config transcoding.remux_copy=off or
-	// EVEY_REMUX_COPY=off, applied on restart). The road here, for the record:
+	// EVEY_REMUX_COPY=off). The producer is always built - it costs nothing
+	// until a copy session spawns - and the switch is read by each new master
+	// (remuxCopyFlag, transcode_serving_gates.go): a toggle reaches the next
+	// playback without a restart, and a playback already running keeps the
+	// rung it started on. The road here, for the record:
 	// (1) a seek session's -copyts elst poisoned the shared init (fixed:
 	// make_zero, one canonical init); (2) the libx264-on-seek init downgrade
 	// (fixed: CopyOnSeek); (3) ffmpeg's hls muxer splits on a session-relative
@@ -285,41 +289,43 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// segment within ~60 ms) + a clean user listen test (start, deep seeks,
 	// seek-back). A request still only routes here when it is copy-eligible
 	// AND keyframe-backfilled (isCopyRequest → sourceCopyVideoCodec).
-	if serverFlagEnabled(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY", true) {
-		softwareCopy := apptranscoding.NewSoftwareProducer(
-			cache,
-			s.HLSTranscoder,
-			&MediaSourceResolver{LibSvc: libSvc},
-			apptranscoding.SoftwareProducerOptions{},
-			slog.Default(),
-		)
-		softwareCopy.SetCopyMode(apptranscoding.NewCopyPlanner(
-			copyStreamReaderAdapter{libSvc}, copyItemReaderAdapter{libSvc},
-		), s.CopySeekProber)
-		h.copyProducer = softwareCopy
-		slog.Default().Info("hls vod: copy/remux rung enabled (default; disable with server_config transcoding.remux_copy=off or EVEY_REMUX_COPY=off)")
-	}
+	softwareCopy := apptranscoding.NewSoftwareProducer(
+		cache,
+		s.HLSTranscoder,
+		&MediaSourceResolver{LibSvc: libSvc},
+		apptranscoding.SoftwareProducerOptions{},
+		slog.Default(),
+	)
+	softwareCopy.SetCopyMode(apptranscoding.NewCopyPlanner(
+		copyStreamReaderAdapter{libSvc}, copyItemReaderAdapter{libSvc},
+	), s.CopySeekProber)
+	h.copyProducer = softwareCopy
+	h.remuxCopyFlag = newLiveServerFlag(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY", true)
+	slog.Default().Info("hls vod: copy/remux rung wired (server_config transcoding.remux_copy or EVEY_REMUX_COPY, read by each new playback)",
+		slog.Bool("enabled_now", h.remuxCopyFlag.enabled()))
 
 	// On-demand copy rung (mp4.PlanHLS): supersedes the ffmpeg copy producer for
 	// video+audio copy-eligible sources that package verbatim - no ffmpeg, no
 	// fMP4 rebase, no session state, DASH included. DEFAULT ON, same opt-out
 	// model as the copy rung above (server_config transcoding.hls_ondemand=off
-	// or EVEY_HLS_ONDEMAND=off, applied on restart). When off, or on a source it
-	// can't package, requests fall through to the copy producer / transcode
-	// ladder exactly as before.
-	if s.OnDemandPackager != nil &&
-		serverFlagEnabled(s.ServerCfgRepo, "transcoding.hls_ondemand", "EVEY_HLS_ONDEMAND", true) {
+	// or EVEY_HLS_ONDEMAND=off), read by each new master the same way
+	// (packagerFlag). When off, or on a source it can't package, new playbacks
+	// fall through to the copy producer / transcode ladder; one the packager
+	// already started keeps being served its resources.
+	if s.OnDemandPackager != nil {
 		h.onDemand = s.OnDemandPackager
-		// Paired with the packager on purpose: the tracker only has meaning
-		// while this rung can serve, and leaving it wired with the rung off
-		// would report playbacks that no longer take this path.
+		h.packagerFlag = newLiveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand", "EVEY_HLS_ONDEMAND", true)
+		// Paired with the packager on purpose: the tracker is only touched by
+		// the resources this rung serves, so with the switch off it reports
+		// the sessions still on the rung and nothing else.
 		h.playbackActivity = s.PlaybackActivity
-		slog.Default().Info("hls vod: on-demand copy rung enabled (mp4.PlanHLS, default; disable with server_config transcoding.hls_ondemand=off or EVEY_HLS_ONDEMAND=off)")
+		slog.Default().Info("hls vod: on-demand copy rung wired (mp4.PlanHLS; server_config transcoding.hls_ondemand or EVEY_HLS_ONDEMAND, read by each new playback)",
+			slog.Bool("enabled_now", h.packagerFlag.enabled()))
 
 		// AES-128 encryption of the on-demand segments (HLS-only, no DASH, and no
 		// gapless concat: serveConcatMaster declines while it is on).
 		// Off by default; needs the derivation secret. Only meaningful with the
-		// rung enabled, hence nested.
+		// rung wired, hence nested; read at startup.
 		if len(s.HLSAESSecret) > 0 &&
 			serverFlagEnabled(s.ServerCfgRepo, "transcoding.hls_ondemand_encrypt", "EVEY_HLS_ONDEMAND_ENCRYPT", false) {
 			h.onDemandEncrypt = true
@@ -379,12 +385,9 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// from the server ctx by design - a request must never inherit a dying
 	// ctx). The hardware orchestrator is excluded: main already defers its
 	// CleanupAll (alias of Close, not idempotent).
-	copyProd := h.copyProducer // may be nil (flag off)
 	s.transcodeCloser = func() {
 		software.Close()
-		if copyProd != nil {
-			copyProd.Close()
-		}
+		softwareCopy.Close()
 	}
 
 	return h

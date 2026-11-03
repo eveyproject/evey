@@ -147,7 +147,12 @@ const (
 // planned (the extraction route still serves the tracks). rp is the caller's
 // resolved plan: a master resolves once and hands it down.
 func (h *hlsVODServe) planSubtitleRenditions(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) []apptranscoding.SubtitleRendition {
-	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
+	if item == nil || item.File == nil || item.File.Path == "" {
+		return nil
+	}
+	// The playback's gate, not the wiring alone: a playback started with the
+	// packager switched off gets no od_ subtitle rendition.
+	if _, packagerOpen := h.servingGates(r); !packagerOpen {
 		return nil
 	}
 	plan, err := h.buildPlan(r, mediaID, item, streams, rp)
@@ -588,6 +593,17 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 	}
 	name := strings.TrimPrefix(file, onDemandPrefix) // "od_seg1.m4s" → "seg1.m4s"; "manifest.mpd" unchanged
 	if isIFramePlaylist(name) {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	// The packager's own entry points start a playback: a client fetches
+	// them bare (the subtitle hook reads this master for its renditions), so
+	// they answer to the switch as it is now, and a 404 sends the client to
+	// its fallback. The resources under them belong to a playback the
+	// packager already started and stay served.
+	if (name == "master.m3u8" || name == "manifest.mpd") &&
+		(!h.packagerFlag.enabled() || gateClosed(r, packagerGateParam)) {
+		span.SetStatus(codes.Error, "on-demand packaging switched off")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}

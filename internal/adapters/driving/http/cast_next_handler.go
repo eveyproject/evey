@@ -147,6 +147,7 @@ func (h *hlsVODServe) serveCastNext(w http.ResponseWriter, r *http.Request) {
 		q.Del(k)
 	}
 	warm.URL.RawQuery = q.Encode()
+	warm = h.stampServingGates(warm)
 	if streams, wErr := h.libSvc.GetMediaStreams(r.Context(), string(next.ID)); wErr == nil {
 		if fp, fErr := h.buildFingerprint(warm, string(next.ID), next, streams); fErr == nil {
 			if producer := h.producerForRequest(r.Context(), warm, streams, next); producer != nil {
