@@ -2,6 +2,8 @@ package fakes
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -182,6 +184,51 @@ func (r *FakeMediaItemCommandRepo) ListContainerInfo(_ context.Context, libraryI
 		}
 	}
 	return result, nil
+}
+
+// FindReplacedFile applies the port's rule over the stored items: an episode
+// of the same season and number, a movie of the same folder, parsed title and
+// year, never the row whose path is f.Path; the earliest-created wins.
+func (r *FakeMediaItemCommandRepo) FindReplacedFile(_ context.Context, libraryID shared.LibraryID, parentID string, f library.ScannedFile) (*library.MediaItem, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var best *library.MediaItem
+	for _, item := range r.items {
+		if item.LibraryID != libraryID || item.File == nil || item.File.Path == "" || item.File.Path == f.Path {
+			continue
+		}
+		switch {
+		case f.Type == library.Episode && parentID != "" && f.Episode != nil:
+			if item.Type != library.Episode || item.ParentID != parentID || item.IndexNumber == nil || *item.IndexNumber != *f.Episode {
+				continue
+			}
+		case f.Type == library.MovieItem && f.Title != "":
+			title := item.ScanTitle
+			if title == "" {
+				title = item.Title
+			}
+			if item.Type != library.MovieItem || filepath.Dir(item.File.Path) != filepath.Dir(f.Path) || !strings.EqualFold(title, f.Title) {
+				continue
+			}
+			var year *int
+			if item.Catalog != nil {
+				year = item.Catalog.Year
+			}
+			if (year == nil) != (f.Year == nil) || (year != nil && *year != *f.Year) {
+				continue
+			}
+		default:
+			return nil, ErrNotFound
+		}
+		if best == nil || item.AddedAt.Before(best.AddedAt) || (item.AddedAt.Equal(best.AddedAt) && string(item.ID) < string(best.ID)) {
+			best = item
+		}
+	}
+	if best == nil {
+		return nil, ErrNotFound
+	}
+	cloned := *best
+	return &cloned, nil
 }
 
 // All returns all items for test assertions.

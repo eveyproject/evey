@@ -44,6 +44,16 @@ type MediaItemCommandRepo interface {
 	// made the preload blind to the rows past the cut, so their files were
 	// created again until the unique fingerprint refused the scan.
 	ListByLibraryID(ctx context.Context, libraryID shared.LibraryID) ([]*MediaItem, error)
+	// FindReplacedFile is the item a file found under a NEW name stands in
+	// for: an episode of the same season with the same number, or a movie of
+	// the same folder with the same parsed title and year, whose own path is
+	// not f.Path. A quality upgrade by a download manager lands as a new
+	// name and a new size at once, so neither the path nor the fingerprint
+	// finds the row - and creating a second one let the prune delete the
+	// first with every viewer's progress, favourites and playlists cascading
+	// after it. ErrNotFound when no such item exists; the caller still checks
+	// the candidate's own file is gone before repointing it.
+	FindReplacedFile(ctx context.Context, libraryID shared.LibraryID, parentID string, f ScannedFile) (*MediaItem, error)
 	// ListScanSummaries seeds the scan-pass diff index (scanindex.Index) that
 	// drives every Create/Update decision for the rest of the scan.
 	ListScanSummaries(ctx context.Context, libraryID shared.LibraryID) ([]MediaItemScanRow, error)

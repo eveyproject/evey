@@ -426,7 +426,7 @@ func (s *ScanService) ScanLibraryReport(ctx context.Context, libraryID string) (
 	updated += tvUpdated
 
 	metrics.ScanQueueDepth.WithLabelValues(libraryID).Set(float64(len(toProcess)))
-	a, u := s.processNewItems(ctx, libraryID, toProcess)
+	a, u := s.processNewItems(withScanSeen(ctx, seenPaths), libraryID, toProcess)
 	metrics.ScanQueueDepth.WithLabelValues(libraryID).Set(0)
 	added += a
 	updated += u
@@ -558,6 +558,9 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 	ctx, span := tracing.StartSpan(ctx, "app.scan.scanDirectories")
 	defer span.End()
 	seenPaths = make(map[string]struct{})
+	// The television scan runs root by root below, after that root's files
+	// are marked seen: a replacement lookup reads the set as it stands.
+	ctx = withScanSeen(ctx, seenPaths)
 	unsettled := 0
 	defer func() {
 		if unsettled > 0 && err == nil {
@@ -797,7 +800,7 @@ func (s *ScanService) upsertMediaFileWithIndex(ctx context.Context, libraryID, p
 	if len(seriesTitle) > 0 {
 		showTitle = seriesTitle[0]
 	}
-	existing, err := s.findExistingMediaFile(ctx, libraryID, f, byPath)
+	existing, err := s.findExistingMediaFile(ctx, libraryID, parentID, f, byPath)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -828,7 +831,7 @@ func (s *ScanService) upsertMediaFileWithIndex(ctx context.Context, libraryID, p
 // NOTE: a same-library size+mtime collision (e.g. `cp -p` of a distinct file)
 // can still mis-resolve via the fingerprint fallback; a content-derived
 // fingerprint is the full fix (deferred - changing the format forces a rescan).
-func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID string, f library.ScannedFile, byPath map[string]*library.MediaItem) (*library.MediaItem, error) {
+func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, byPath map[string]*library.MediaItem) (*library.MediaItem, error) {
 	// byPath is the caller's already-loaded snapshot of this library. The TV
 	// path preloads the whole library anyway (to resolve show/season
 	// containers), so hitting the DB again per episode was one SELECT per
@@ -852,11 +855,11 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID strin
 	}
 	// New path: try the fingerprint to catch a move/rename.
 	if f.Fingerprint == "" {
-		return nil, nil
+		return s.replacedFile(ctx, libraryID, parentID, f)
 	}
 	existing, getErr = s.mediaItems.GetByFileFingerprint(ctx, f.Fingerprint)
 	if errors.Is(getErr, shared.ErrNotFound) {
-		return nil, nil
+		return s.replacedFile(ctx, libraryID, parentID, f)
 	}
 	if getErr != nil {
 		return nil, fmt.Errorf("check media item %s: %w", f.Path, getErr)
@@ -864,16 +867,59 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID strin
 	if existing != nil && string(existing.LibraryID) != libraryID {
 		// Cross-library fingerprint collision: treat as a new file rather than
 		// repoint another library's item to this path.
-		return nil, nil
+		return s.replacedFile(ctx, libraryID, parentID, f)
 	}
 	// Same-library fingerprint match is only a MOVE if the old file is gone. If
 	// it's still on disk, two distinct files share a size+mtime fingerprint (a
 	// collision, e.g. `cp -p`) - don't repoint the existing item onto this path,
 	// create a fresh one instead.
 	if existing != nil && existing.File != nil && s.scanner.FileExists(existing.File.Path) {
-		return nil, nil
+		return s.replacedFile(ctx, libraryID, parentID, f)
 	}
 	return existing, nil
+}
+
+// replacedFile is the last resort before a file under a new path becomes a
+// new item: the row it REPLACES. A quality upgrade by a download manager
+// lands as a new name and a new size at once, so neither the path nor the
+// size+mtime fingerprint finds the row; created anew, the title was then
+// pruned with every viewer's progress, favourites, playlists and metadata
+// overrides cascading after it. The candidate (same season and episode
+// number, or same folder, title and year) is only taken over when its own
+// file is gone - two files side by side are two items.
+func (s *ScanService) replacedFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile) (*library.MediaItem, error) {
+	candidate, err := s.mediaItems.FindReplacedFile(ctx, shared.LibraryID(libraryID), parentID, f)
+	if errors.Is(err, shared.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("check replaced media item %s: %w", f.Path, err)
+	}
+	if candidate == nil || candidate.File == nil || candidate.File.Path == "" || s.scanner.FileExists(candidate.File.Path) {
+		return nil, nil
+	}
+	// A file this very pass listed is on disk whatever a stat says of it (a
+	// mount answering late, a fake scanner): two files of one pass are two
+	// items.
+	if _, inPass := scanSeen(ctx)[candidate.File.Path]; inPass {
+		return nil, nil
+	}
+	slog.InfoContext(ctx, "scan: file replaced under a new name, keeping its item",
+		slog.String("media_id", string(candidate.ID)), slog.String("previous_path", candidate.File.Path), slog.String("path", f.Path))
+	return candidate, nil
+}
+
+// scanSeenKey carries the paths a scan pass listed, for the replacement
+// lookup to tell a file gone from one the pass still holds.
+type scanSeenKey struct{}
+
+func withScanSeen(ctx context.Context, seen map[string]struct{}) context.Context {
+	return context.WithValue(ctx, scanSeenKey{}, seen)
+}
+
+func scanSeen(ctx context.Context) map[string]struct{} {
+	seen, _ := ctx.Value(scanSeenKey{}).(map[string]struct{})
+	return seen
 }
 
 // maxStreamProbeAttempts bounds how many times the scanner re-probes a file
