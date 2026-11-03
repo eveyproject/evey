@@ -669,11 +669,11 @@ func TestParsePath_SeasonFolderNamesTheEpisode(t *testing.T) {
 		season, episode int
 		year            *int
 	}{
-		{"/tv/Show Name (2019)/Season 2/03 - Pilot.mkv", "Show Name", 2, 3, intp(2019)},
+		{"/tv/Show Name (2019)/Season 2/03 - Pilot.mkv", "Show Name", 2, 3, new(2019)},
 		{"/tv/Show Name/Saison 02/E03 Pilot.mkv", "Show Name", 2, 3, nil},
 		{"/tv/Show Name/S3/Episode 4.mkv", "Show Name", 3, 4, nil},
 		{"/tv/Show Name/Specials/01.mkv", "Show Name", 0, 1, nil},
-		{"/tv/Show.Name.2019/Season 1/101.mkv", "Show Name", 1, 101, intp(2019)},
+		{"/tv/Show.Name.2019/Season 1/101.mkv", "Show Name", 1, 101, new(2019)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.path, func(t *testing.T) {
@@ -710,4 +710,3 @@ func TestParsePath_StaysAMovieOutsideASeasonFolder(t *testing.T) {
 	}
 }
 
-func intp(v int) *int { return &v }

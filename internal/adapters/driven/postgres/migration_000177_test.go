@@ -126,7 +126,7 @@ func TestMigration000177_ExistingRowsAreStampedNotRegenerated(t *testing.T) {
 
 	// A real replacement still invalidates. The repository writes the columns
 	// of the current schema, so the schema is brought back to it first.
-	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		t.Fatal(err)
 	}
 	replaceFile(t, itemRepo, ep, 100, mod.Add(time.Hour))

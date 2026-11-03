@@ -518,7 +518,7 @@ func TestWatchProgressRepo_DescendantIDs_DeleteMany(t *testing.T) {
 
 	require.NoError(t, wpRepo.DeleteMany(ctx, string(p.ID), []string{"dsc-s1e1", "dsc-s1e2"}))
 	_, err = wpRepo.GetByProfileAndMedia(ctx, string(p.ID), "dsc-s1e1")
-	assert.ErrorIs(t, err, shared.ErrNotFound)
+	require.ErrorIs(t, err, shared.ErrNotFound)
 	_, err = wpRepo.GetByProfileAndMedia(ctx, string(p.ID), "dsc-film")
 	require.NoError(t, err, "an item outside the list keeps its row")
 	_, err = wpRepo.GetByProfileAndMedia(ctx, string(other.ID), "dsc-s1e1")

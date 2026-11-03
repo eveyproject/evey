@@ -513,7 +513,7 @@ func TestScanTVShow_RefilesItemParsedByOlderParser(t *testing.T) {
 	staleSeries := &library.MediaItem{ID: "stale-series", LibraryID: "lib-tv", Type: library.Series, Title: "03 Pilot", ScanTitle: "03 Pilot",
 		File: &library.MediaFile{Fingerprint: "series:lib-tv:03 pilot"}}
 	staleSeason := &library.MediaItem{ID: "stale-season", LibraryID: "lib-tv", Type: library.Season, Title: "Season 0", ScanTitle: "Season 0", ParentID: "stale-series",
-		IndexNumber: intPtr(0), File: &library.MediaFile{Fingerprint: "season:lib-tv:03 pilot:0"}}
+		IndexNumber: new(0), File: &library.MediaFile{Fingerprint: "season:lib-tv:03 pilot:0"}}
 	stale := &library.MediaItem{ID: "ep-1", LibraryID: "lib-tv", Type: library.MovieItem, Title: "03 Pilot", ScanTitle: "03 Pilot", ParentID: "stale-season",
 		File: &library.MediaFile{Path: path, Size: 500, Fingerprint: "fp-1", ParserVersion: 0}}
 	for _, it := range []*library.MediaItem{staleSeries, staleSeason, stale} {
@@ -521,7 +521,7 @@ func TestScanTVShow_RefilesItemParsedByOlderParser(t *testing.T) {
 	}
 
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: path, Size: 500, Fingerprint: "fp-1", Title: "Show", Season: intPtr(2), Episode: intPtr(3), Type: library.Episode},
+		{Path: path, Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(2), Episode: new(3), Type: library.Episode},
 	}
 	_, _, err := svc.ScanLibrary(ctx, "lib-tv")
 	require.NoError(t, err)
@@ -553,7 +553,7 @@ func TestScanTVShow_LeavesCorrectlyFiledEpisodeAlone(t *testing.T) {
 	})
 	ctx := context.Background()
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/tv/Show/Season 2/03 - Pilot.mkv", Size: 500, Fingerprint: "fp-1", Title: "Show", Season: intPtr(2), Episode: intPtr(3), Type: library.Episode},
+		{Path: "/tv/Show/Season 2/03 - Pilot.mkv", Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(2), Episode: new(3), Type: library.Episode},
 	}
 	_, _, err := svc.ScanLibrary(ctx, "lib-tv")
 	require.NoError(t, err)

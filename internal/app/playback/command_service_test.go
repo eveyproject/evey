@@ -1133,7 +1133,7 @@ func TestEndStaleSessions_PublishesStoppedPerSession(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ended.EndedAt)
 	require.NotNil(t, ended.Duration)
-	assert.Greater(t, ended.Duration.Milliseconds(), int64(0))
+	assert.Positive(t, ended.Duration.Milliseconds())
 	fresh, err := sr.GetByID(ctx, "s-fresh")
 	require.NoError(t, err)
 	assert.Nil(t, fresh.EndedAt)
