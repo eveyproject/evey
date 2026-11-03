@@ -21,6 +21,21 @@
 
 set -e
 
+# A push made only of deletions sends no commit: nothing reaches GitHub that
+# a gate could test, so it goes through as it is. git hands one line per ref
+# on stdin, the local sha all zeros when the remote ref is being deleted.
+zero_sha=0000000000000000000000000000000000000000
+refs=$(cat)
+delete_only=1
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    [ -z "$local_sha" ] && continue
+    [ "$local_sha" = "$zero_sha" ] || delete_only=0
+done <<< "$refs"
+if [ "$delete_only" = 1 ]; then
+    echo "pre-push: deletions only, no commit leaves - no gate to run"
+    exit 0
+fi
+
 # The gate runs on the working tree, the push sends commits. With a tracked file
 # modified or staged, what was tested is not what leaves: a commit red on its own
 # passed here once because the fix sat uncommitted beside it. Untracked files are
@@ -64,7 +79,7 @@ while read -r _local_ref local_sha remote_ref _remote_sha; do
     case "$remote_ref" in
         refs/heads/master|refs/tags/*) target=pre-push ;;
     esac
-done
+done <<< "$refs"
 [ "${GATE:-}" = "full" ] && target=pre-push
 if [ "$pushed_is_head" = 1 ]; then
     for label in pre-push "$target"; do
