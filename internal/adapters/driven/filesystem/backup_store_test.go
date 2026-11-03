@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -289,4 +290,42 @@ func TestBackupStore_Create_LeavesNoTemporaryFile(t *testing.T) {
 		names = append(names, e.Name())
 	}
 	assert.ElementsMatch(t, []string{"bk-whole.tar.gz", "bk-whole.json"}, names)
+}
+
+// The sidecar is what List reads, so it names the archive: it must never be
+// published without the archive (a listed backup nothing can restore), and
+// an archive whose sidecar cannot be published must not stay behind as a
+// complete, invisible file nothing lists or purges.
+func TestBackupStore_Create_PublishesArchiveAndSidecarTogether(t *testing.T) {
+	t.Run("sidecar cannot be published", func(t *testing.T) {
+		dir := t.TempDir()
+		store := NewBackupStore(dir)
+		// A folder squatting the sidecar's name makes its rename fail.
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "bk-side.json"), 0o700))
+		m := &backup.BackupManifest{ID: "bk-side", CreatedAt: time.Now(), Version: "1.0", Tables: []string{"t"}}
+
+		require.Error(t, store.Create(context.Background(), m, bytes.NewReader([]byte("dump"))))
+
+		_, err := os.Stat(filepath.Join(dir, "bk-side.tar.gz"))
+		assert.True(t, os.IsNotExist(err), "an archive without a sidecar must not stay behind")
+		entries, readErr := os.ReadDir(dir)
+		require.NoError(t, readErr)
+		for _, e := range entries {
+			assert.False(t, strings.HasSuffix(e.Name(), ".tmp"), "temporary file left: %s", e.Name())
+		}
+	})
+	t.Run("archive cannot be published", func(t *testing.T) {
+		dir := t.TempDir()
+		store := NewBackupStore(dir)
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "bk-arch.tar.gz"), 0o700))
+		m := &backup.BackupManifest{ID: "bk-arch", CreatedAt: time.Now(), Version: "1.0", Tables: []string{"t"}}
+
+		require.Error(t, store.Create(context.Background(), m, bytes.NewReader([]byte("dump"))))
+
+		_, err := os.Stat(filepath.Join(dir, "bk-arch.json"))
+		assert.True(t, os.IsNotExist(err), "a sidecar must never exist without its archive")
+		list, listErr := store.List(context.Background())
+		require.NoError(t, listErr)
+		assert.Empty(t, list)
+	})
 }

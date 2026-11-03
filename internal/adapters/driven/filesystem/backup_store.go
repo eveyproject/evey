@@ -86,18 +86,32 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 	if closeErr := f.Close(); closeErr != nil {
 		return closeErr
 	}
+
+	// The sidecar is what List reads, so it names the archive: it is staged
+	// under a temporary name before the archive takes its final one, then
+	// published after it. A stop between the two leaves a whole archive that
+	// is invisible, never a listed backup nothing can restore; an archive
+	// whose sidecar cannot be published is taken back rather than left as a
+	// complete file nothing lists or purges.
+	sidecarPath := filepath.Join(s.dir, m.ID+".json")
+	sidecarTmp := sidecarPath + ".tmp"
+	if writeErr := os.WriteFile(sidecarTmp, manifestBytes, 0600); writeErr != nil {
+		return fmt.Errorf("stage sidecar: %w", writeErr)
+	}
+	defer os.Remove(sidecarTmp) //nolint:errcheck // gone already once renamed
 	if renameErr := os.Rename(tmpPath, archivePath); renameErr != nil {
 		return fmt.Errorf("publish archive: %w", renameErr)
+	}
+	if renameErr := os.Rename(sidecarTmp, sidecarPath); renameErr != nil {
+		os.Remove(archivePath) //nolint:errcheck // best-effort take-back of an unlisted archive
+		return fmt.Errorf("publish sidecar: %w", renameErr)
 	}
 
 	fi, err := os.Stat(archivePath)
 	if err == nil {
 		m.Size = fi.Size()
 	}
-
-	// sidecar for fast listing
-	sidecarPath := filepath.Join(s.dir, m.ID+".json")
-	return os.WriteFile(sidecarPath, manifestBytes, 0600)
+	return nil
 }
 
 func streamTarEntry(tw *tar.Writer, name string, r io.Reader) error {
