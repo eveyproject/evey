@@ -496,8 +496,10 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
       } catch (err) {
         if (superseded()) return; // a superseded attempt must not fail the live one
         (dev.warn ?? console.warn)("[player] startStream failed:", err);
-        // The shared fetcher tags an unrecoverable auth failure with
-        // httpStatus 401 (it has already tried the refresh by then).
+        // The shared fetcher answers httpStatus 401 for a refused session
+        // alone (it has already tried the refresh by then); a refresh the
+        // server could not be asked carries the link's status instead and
+        // is a failure to retry, not a session to leave.
         if ((err as { httpStatus?: number })?.httpStatus === 401) {
           (dev.warn ?? console.warn)("[player] session expired screen: startStream answered 401 after the refresh");
           setIsAuthError(true);

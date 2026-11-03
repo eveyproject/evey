@@ -264,9 +264,24 @@ describe("forceRefresh - contract with the fetcher's refresh handler", () => {
   it("returns null only when the server REFUSES the credential", async () => {
     authState.accessToken = past();
     await setRefreshToken("rt-dead");
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}) })));
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) })));
 
     expect(await forceRefresh()).toBeNull();
     expect(authState.logout).toHaveBeenCalled();
+  });
+
+  // A 403 is the gate in front of the server (remote access switched off, a
+  // bouncer, the CSRF guard), not the server refusing the credential: it
+  // used to be read as a refusal and burned every device's refresh token.
+  it("THROWS on a 403, the gate's answer, and keeps the session", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-gated");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 403, headers: new Headers({ "X-Evey-Remote-Access": "disabled" }), json: async () => ({}) })),
+    );
+
+    await expect(forceRefresh()).rejects.toThrow(/unavailable/);
+    expect(authState.logout).not.toHaveBeenCalled();
   });
 });

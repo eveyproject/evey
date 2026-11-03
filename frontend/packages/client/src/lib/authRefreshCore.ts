@@ -131,11 +131,21 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
       });
       // Only a REFUSAL ends the session; any other non-ok answer is the
       // infrastructure, not the credential, and must leave the session intact.
-      if (res.status === 401 || res.status === 403) {
-        log.warn(`session ended: refresh answered ${res.status}`);
+      // The server refuses a credential with 401 alone: a 403 on this call is
+      // the gate in front of it (remote access switched off while the phone is
+      // away from home, the CSRF guard, a bouncer banning the household's
+      // address) - read as a refusal it burned the refresh token of every
+      // device for a ban that lifted an hour later.
+      if (res.status === 401) {
+        log.warn("session ended: refresh answered 401");
         await storage.clearRefreshToken();
         auth.logout();
         return "refused";
+      }
+      if (res.status === 403) {
+        const gate = res.headers.get("X-Evey-Remote-Access");
+        log.warn(`refresh unavailable: answered 403${gate ? ` (remote access ${gate})` : ""}`);
+        return "unavailable";
       }
       if (!res.ok) {
         log.warn(`refresh unavailable: answered ${res.status}`);

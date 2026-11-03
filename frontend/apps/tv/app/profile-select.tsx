@@ -16,10 +16,11 @@ function leaveToApp(): void {
 }
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceRefreshToken } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore, toast, saveProfileCache } from "@evey/store";
 import { walksThroughProfilePicker } from "@evey/client";
+import { switchProfileToken } from "../src/lib/profile-switch";
 import { ScreenState } from "../src/components/ScreenState";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
@@ -97,9 +98,12 @@ export default function ProfileSelect() {
   const switchProfile = useCallback(async (target: V1Profile, pinToken?: string): Promise<SwitchOutcome> => {
     if (!target.id) return "fail";
     try {
-      const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
-      if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
-      await qc.invalidateQueries();
+      await switchProfileToken(target.id, pinToken);
+      // Drop the WHOLE cache, not just invalidate: invalidateQueries leaves
+      // the screens under this picker showing the PREVIOUS profile's content
+      // until each refetch lands - kids-filtered titles briefly visible after
+      // switching into a kids profile. The phone's switcher does the same.
+      qc.clear();
       return "ok";
     } catch (err) {
       return classifySwitchFailure(err, !!pinToken);

@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	"strings"
 	"testing"
@@ -670,6 +671,18 @@ func TestRefreshToken_InvalidToken(t *testing.T) {
 		RefreshToken: "invalid-token",
 	})
 	assertCode(t, err, codes.Unauthenticated)
+}
+
+// A store that cannot answer is not a refusal: Unauthenticated is what makes
+// every client drop its refresh token and ask for the password, so a database
+// away for a minute must surface as a server fault the clients retry.
+func TestRefreshToken_StoreUnavailable_IsNotARefusal(t *testing.T) {
+	env := setupUserHandler()
+	env.refreshRepo.Err = errors.New("dial tcp: connection refused")
+	_, err := env.handler.RefreshToken(context.Background(), &eveyv1.RefreshTokenRequest{
+		RefreshToken: "whatever-the-client-holds",
+	})
+	assertCode(t, err, codes.Internal)
 }
 
 // --- Logout tests ---
