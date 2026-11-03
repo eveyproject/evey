@@ -233,8 +233,10 @@ async function fetchSlice(
   job: ReducedJob,
   onProgress: () => void,
 ): Promise<void> {
+  // purpose=native: a slice resumed after a cut longer than the default
+  // token window answered 401, and the partial file was erased.
   const { token } = await eveyFetch<{ token: string }>({
-    url: `/api/v1/media/${mediaItemId}/stream-token`,
+    url: `/api/v1/media/${mediaItemId}/stream-token?purpose=native`,
     method: "POST",
   });
   const url = `${serverUrl}/api/v1/media/${mediaItemId}/reduced-download/slice/${index}?token=${token}`;
