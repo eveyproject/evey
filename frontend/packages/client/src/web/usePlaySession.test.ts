@@ -311,6 +311,30 @@ describe("usePlaySession", () => {
     expect(stopCalls()).toHaveLength(1);
   });
 
+  // Back to the first title before its start answered: comparing the title
+  // let the late answer of the first start pass for the current one, and
+  // that session was never stopped. Every start has its own generation.
+  it("stops every superseded start on a quick A -> B -> A, keeping only the last", async () => {
+    const usePlaySession = await loadHook("");
+    const resolvers: Array<(v: { id: string }) => void> = [];
+    startStreamFn.mockImplementation(() => new Promise<{ id: string }>((r) => { resolvers.push(r); }));
+    let hook!: ReturnType<typeof renderHook<ReturnType<typeof usePlaySession>, { id: string }>>;
+    await act(async () => { hook = renderHook(({ id }) => usePlaySession(id), { initialProps: { id: "media-A" } }); });
+    // What the route does on every title change: stop, then the new title.
+    await act(async () => { hook.result.current.stopSession(); hook.rerender({ id: "media-B" }); });
+    await act(async () => { hook.result.current.stopSession(); hook.rerender({ id: "media-A" }); });
+    expect(resolvers).toHaveLength(3);
+
+    const ids = ["session-A1", "session-B1", "session-A2"];
+    for (let i = 0; i < ids.length; i++) await act(async () => { resolvers[i]({ id: ids[i] }); });
+    const stopped = () => stopCalls().map((c: unknown[]) => JSON.parse((c[1] as { body: string }).body).sessionId);
+    expect(stopped()).toEqual(["session-A1", "session-B1"]);
+    expect(hook.result.current.sessionId).toBe("session-A2");
+
+    await act(async () => { hook.unmount(); });
+    expect(stopped()).toEqual(["session-A1", "session-B1", "session-A2"]);
+  });
+
   it("stops a session whose start lands after the player was left", async () => {
     const usePlaySession = await loadHook("");
     let resolve!: (v: { id: string }) => void;

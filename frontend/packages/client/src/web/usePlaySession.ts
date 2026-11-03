@@ -123,11 +123,16 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
   const sessionIdRef = useRef<string | null>(null);
   const stopped = useRef(false);
   const startedRef = useRef(false);
+  // Bumped by every start and title change. A start whose answer
+  // lands under another generation was superseded and is stopped: comparing
+  // the title instead let a late answer pass on a quick A -> B -> A.
+  const startGenRef = useRef(0);
   const streamTokenRef = useRef<string | null>(null);
   const prevMediaIdRef = useRef(mediaId);
   if (prevMediaIdRef.current !== mediaId) {
     prevMediaIdRef.current = mediaId;
     startedRef.current = false;
+    startGenRef.current += 1;
     initialAudioRef.current = initial?.audioStreamIndex;
     // sessionIdRef is deliberately kept: the route stops the previous
     // session through stopSession right after this render.
@@ -248,6 +253,8 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
     startedRef.current = true;
     setStarting(true);
     const forMediaId = mediaId;
+    startGenRef.current += 1;
+    const gen = startGenRef.current;
 
     const playMethod = rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY"
       ? "PLAY_METHOD_DIRECT_PLAY"
@@ -264,7 +271,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
           forMediaId,
           prefersNativeHLS() ? { native: true } : undefined,
         );
-        if (prevMediaIdRef.current === forMediaId) streamTokenRef.current = token;
+        if (gen === startGenRef.current) streamTokenRef.current = token;
         const session = await playbackServiceStartStream({
           mediaItemId: forMediaId,
           playMethod,
@@ -287,7 +294,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
           // The player was left, or moved to another title, while the start
           // was in flight: nobody will ever stop this session, so stop it
           // here rather than leave it in Now Playing until its TTL.
-          if (stopped.current || prevMediaIdRef.current !== forMediaId) {
+          if (stopped.current || gen !== startGenRef.current) {
             postStopStream(session.id);
             return;
           }
