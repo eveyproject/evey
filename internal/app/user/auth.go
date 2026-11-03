@@ -118,6 +118,13 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	defer span.End()
 	username = strings.TrimSpace(username)
 	password = normalizePassword(password)
+	// A name no account can carry is refused before anything is read or
+	// written: the failure counters and the audit log are keyed on the name
+	// as typed, and an unbounded one was a free write of any size into them.
+	if user.ValidateUsername(username) != nil {
+		s.publishLoginFailed(ctx, "", "invalid_username")
+		return "", "", ErrInvalidCredentials
+	}
 	// Hard lock per (client IP, user): a stranger's failures must not lock the
 	// owner out. The user-wide cap, far higher, still stops distributed guessing.
 	pairKey, userKey := loginAttemptKeys(ctx, username)
