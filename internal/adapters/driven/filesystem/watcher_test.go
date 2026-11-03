@@ -159,3 +159,32 @@ func TestFSWatcher_QueueOverflowIsReportedAsOverflow(t *testing.T) {
 	plain := wrapWatchError(errors.New("boom"))
 	assert.False(t, errors.As(plain, &o) && o.Overflow())
 }
+
+// A library root that is a symbolic link is watched through the link, as the
+// scanner walks it: the walk does not follow links, so a linked root used to
+// register no watch at all and realtime monitoring was blind on it. The events
+// carry the configured root as their prefix, not the link's target: the
+// catalog, the pruner and the root checks are all keyed on it.
+func TestFSWatcher_SymlinkedRootIsWatchedUnderTheConfiguredRoot(t *testing.T) {
+	fw, err := NewFSWatcher()
+	if err != nil {
+		t.Skipf("fsnotify not available: %v", err)
+	}
+	defer fw.Close()
+
+	target := t.TempDir()
+	root := filepath.Join(t.TempDir(), "movies")
+	require.NoError(t, os.Symlink(target, root))
+	require.NoError(t, fw.WatchContext(context.Background(), root))
+	require.NoError(t, os.WriteFile(filepath.Join(target, "movie.mkv"), []byte("x"), 0o644))
+
+	select {
+	case ev := <-fw.Events():
+		assert.Equal(t, filepath.Join(root, "movie.mkv"), ev.Path, "the event names the file under the configured root")
+	case <-time.After(3 * time.Second):
+		t.Fatal("no event for a file created under a linked root")
+	}
+
+	require.NoError(t, fw.Unwatch(root))
+	assert.Empty(t, fw.watcher.WatchList(), "unwatching a linked root drops the watches set through the link")
+}
