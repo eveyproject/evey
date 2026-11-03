@@ -60,6 +60,33 @@ describe("useDirectPlayback", () => {
     expect(setTranscodeMode).not.toHaveBeenCalled();
   });
 
+  // The route rebuilds onEnded when the title's metadata arrives after the
+  // player mounted; an effect keyed on it reassigned the source and jumped
+  // the resume position.
+  it("does not reload the file when only the onEnded callback changes", () => {
+    const video = makeVideo();
+    const onEnded = vi.fn();
+    const args = {
+      videoRef: { current: video },
+      positionRef: { current: 0 },
+      streamInfo: { directPlayUrl: "/api/v1/media/m1/stream?token=old" } as V1StreamInfo,
+      startPositionMs: 90_000,
+      transcodeMode: false,
+      setTranscodeMode: vi.fn(),
+      setIsBuffering: vi.fn(),
+    };
+    const hook = renderHook(({ cb }) => useDirectPlayback({ ...args, onEnded: cb }), { initialProps: { cb: onEnded } });
+    expect(video.play).toHaveBeenCalledTimes(1);
+    video.currentTime = 500;
+    const later = vi.fn();
+    hook.rerender({ cb: later });
+    expect(video.play).toHaveBeenCalledTimes(1);
+    expect(video.currentTime).toBe(500);
+    video.dispatchEvent(new Event("ended"));
+    expect(later).toHaveBeenCalledTimes(1);
+    expect(onEnded).not.toHaveBeenCalled();
+  });
+
   it("falls back to transcode when the server said direct play but gave no URL", () => {
     const video = makeVideo();
     const { setTranscodeMode } = mount(video, { streamInfo: {} as V1StreamInfo });

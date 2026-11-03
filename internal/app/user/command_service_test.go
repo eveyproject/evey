@@ -2057,13 +2057,12 @@ func TestGenerateTokensForUser_WithLongTTL(t *testing.T) {
 // --- Security fixes ---
 
 // Concurrent refreshes with the SAME token are the multi-tab race (N tabs,
-// one shared HttpOnly cookie): under the rotation grace EVERY racer succeeds
-// - one wins the claim, the others are recognised as grace-window losers and
-// issued their own DISTINCT sibling session. What the old TOCTOU contract
-// protected against (a replayed token minting sessions unboundedly over time)
-// is now bounded by the grace window instead:
-// TestRefreshToken_ReplayAfterGrace_Rejected pins that side.
-func TestRefreshToken_ConcurrentMultiTabRefresh_AllGetDistinctSessions(t *testing.T) {
+// one shared HttpOnly cookie): one racer wins the claim and the grace issues
+// the losers their own DISTINCT sibling session - up to maxGraceSiblings.
+// The old expectation (every one of ten racers gets a session) was the
+// amplification itself: a token stolen inside the window minted as many
+// persistent sessions as it was replayed. Past the ceiling a racer is refused.
+func TestRefreshToken_ConcurrentMultiTabRefresh_SiblingsBounded(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()
 	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
@@ -2077,24 +2076,28 @@ func TestRefreshToken_ConcurrentMultiTabRefresh_AllGetDistinctSessions(t *testin
 	results := make([]error, goroutines)
 	tokens := make([]string, goroutines)
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 	for i := range goroutines {
-		go func(i int) {
-			defer wg.Done()
+		wg.Go(func() {
 			_, tokens[i], results[i] = d.svc.RefreshToken(ctx, refresh, "", "")
-		}(i)
+		})
 	}
 	wg.Wait()
 
 	seen := make(map[string]bool, goroutines)
 	for i, err := range results {
 		if err != nil {
-			t.Fatalf("racer %d must get a session within the rotation grace, got: %v", i, err)
+			if !errors.Is(err, ErrInvalidCredentials) {
+				t.Fatalf("racer %d: a refusal must be a credential refusal, got: %v", i, err)
+			}
+			continue
 		}
 		if tokens[i] == "" || seen[tokens[i]] {
 			t.Fatalf("racer %d must get its own DISTINCT refresh token", i)
 		}
 		seen[tokens[i]] = true
+	}
+	if want := 1 + maxGraceSiblings; len(seen) != want {
+		t.Fatalf("got %d sessions from one token, want the winner plus %d siblings (%d)", len(seen), maxGraceSiblings, want)
 	}
 }
 

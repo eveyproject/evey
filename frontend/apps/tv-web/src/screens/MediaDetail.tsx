@@ -33,6 +33,7 @@ import {
   RESUME_PROGRESS_QUERY,
   buildWatchProgressMaps,
   invalidateWatchedState,
+  feedItemsToCards,
   personTypeLabelKey,
   resolvePlayTarget,
   useSeriesPlayTarget,
@@ -135,10 +136,7 @@ function PosterShelf({ title, items }: { title: string; items: { id: string; tit
 function SimilarShelf({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const { data: similar } = useFeedServiceSimilarItems(item.id ?? "");
-  const cards = useMemo(
-    () => (similar?.items ?? []).filter((s) => !!s.mediaItemId).map((s) => ({ id: s.mediaItemId as string, title: s.title })),
-    [similar],
-  );
+  const cards = useMemo(() => feedItemsToCards(similar?.items), [similar]);
   return <PosterShelf title={t("media.detail.similarTitles")} items={cards} />;
 }
 

@@ -30,7 +30,7 @@ interface ProgressReporterProps {
   transcodeOffsetRef?: React.RefObject<number>;
   /** Current media item id - drives the predictive next-episode warm-up. */
   mediaId?: string;
-  /** Media type (episode / movie / ...) - gates the warm-up to episodes. */
+  /** The proto MediaItemType value of the item - gates the warm-up to episodes. */
   mediaType?: string;
   onRemoteStop?: () => void;
   /**
@@ -135,7 +135,7 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
         if (
           !casting &&
           mediaId &&
-          mediaType === "episode" &&
+          mediaType === "MEDIA_ITEM_TYPE_EPISODE" &&
           prewarmedForRef.current !== mediaId &&
           video.duration > 0 &&
           video.currentTime / video.duration >= PREWARM_PROGRESS_THRESHOLD

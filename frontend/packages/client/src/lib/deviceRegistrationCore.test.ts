@@ -12,7 +12,8 @@ class FakeSocket {
   constructor(public url: string) {
     FakeSocket.instances.push(this);
   }
-  send() {}
+  sent: string[] = [];
+  send(frame: string) { this.sent.push(frame); }
   close() {}
 }
 
@@ -39,6 +40,67 @@ describe("useDeviceRegistrationCore", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function mountTv() {
+    return renderHook(() =>
+      useDeviceRegistrationCore({
+        deviceType: "tv",
+        deviceName: () => "d",
+        serverUrl: "http://srv",
+        pauseInBackground: false,
+        onLoadAndPlay: vi.fn(),
+        getDeviceId: async () => "id",
+      }),
+    );
+  }
+
+  // The server drops a socket silent for two minutes; without a client
+  // keepalive every device reconnected on that cadence, and a server restart
+  // had them all come back in step.
+  it("pings an open socket on a jittered cadence so the server never times it out", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const { unmount } = mountTv();
+    await flush();
+    const sock = FakeSocket.instances[0];
+    act(() => sock.onopen?.());
+    expect(sock.sent).toHaveLength(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(44_000); });
+    expect(sock.sent).toHaveLength(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(sock.sent).toHaveLength(2);
+    expect(JSON.parse(sock.sent[1])).toEqual({ type: "ping" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(45_000); });
+    expect(sock.sent).toHaveLength(3);
+    unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+    expect(sock.sent).toHaveLength(3);
+  });
+
+  it("spreads the ping cadence by a fifth either way", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { unmount } = mountTv();
+    await flush();
+    const sock = FakeSocket.instances[0];
+    act(() => sock.onopen?.());
+    await act(async () => { await vi.advanceTimersByTimeAsync(35_000); });
+    expect(sock.sent).toHaveLength(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(sock.sent).toHaveLength(2);
+    unmount();
+  });
+
+  it("jitters the reconnect delay so restarted devices do not come back in step", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(1);
+    const { unmount } = mountTv();
+    await flush();
+    act(() => FakeSocket.instances[0].onclose?.());
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(FakeSocket.instances).toHaveLength(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    expect(FakeSocket.instances).toHaveLength(2);
+    unmount();
   });
 
   it("reconnects at once on return to foreground even after the socket looked unreachable", async () => {

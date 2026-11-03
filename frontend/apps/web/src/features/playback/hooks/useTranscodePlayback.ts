@@ -129,6 +129,10 @@ export function useTranscodePlayback({
   // so flipping it does not itself re-render; handoffGen drives the rebuild.
   const forceTranscodeRef = useRef(false);
   const [handoffGen, setHandoffGen] = useState(0);
+  // Read through a ref: the route rebuilds the callback when the title's
+  // metadata lands, and an effect keyed on it destroyed and recreated hls.
+  const onEndedRef = useRef(onEnded);
+  onEndedRef.current = onEnded;
   // Dev DASH (devDash.ts): set once the server offers no DASH for this title
   // or the player failed - the next rebuild plays the HLS master. Per media.
   const dashFailedRef = useRef(false);
@@ -257,7 +261,7 @@ export function useTranscodePlayback({
         if (!wasPausedRef.current) void startPlayback(video, wasmAudio);
       }, (err: unknown) => { if (!cancelled) fallBack(String(err)); });
       const onTime = () => { positionRef.current = video.currentTime; };
-      const onEnd = () => { onEnded?.(); };
+      const onEnd = () => { onEndedRef.current?.(); };
       const onWaiting = () => { if (!video.paused) setIsBuffering(true); };
       const onPlaying = () => { setIsBuffering(false); };
       video.addEventListener("timeupdate", onTime);
@@ -306,7 +310,7 @@ export function useTranscodePlayback({
       function onResize() {
         if (video!.videoHeight > 0) setPlayingVariant({ width: video!.videoWidth, height: video!.videoHeight });
       }
-      function handleEnded() { onEnded?.(); }
+      function handleEnded() { onEndedRef.current?.(); }
       // Native HLS has no hls.js to observe: the element-level MediaError is
       // the ONLY error signal this path will ever get. Same beacon.
       function onNativeError() {
@@ -643,7 +647,7 @@ export function useTranscodePlayback({
     });
 
     function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
-    function handleEnded() { onEnded?.(); }
+    function handleEnded() { onEndedRef.current?.(); }
     // A PAUSED player is not buffering. The browser fires `waiting` on pause too
     // (and on a seek while paused), and no `playing` follows to clear it - so the
     // "Buffering…" overlay sat in the middle of the screen for as long as you were
@@ -688,8 +692,8 @@ export function useTranscodePlayback({
       // surviving the transition.
       setIsBuffering(false);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
-  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless, wasmAudio, handoffGen]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef/onEndedRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
+  }, [transcodeMode, mediaId, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless, wasmAudio, handoffGen]);
 
   return { transcodeStartTime, setTranscodeStartTime, hlsLevels, hlsLevelSizes, autoLevelHeight, autoLevelWidth, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode };
 }

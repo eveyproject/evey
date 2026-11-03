@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import { useFeedServiceSimilarItems } from "@evey/api";
+import { feedItemsToCards } from "@evey/client";
 import { MediaCardWithModals as MediaCard } from "./MediaCardWithModals";
 
 export function SimilarSection({ item }: { item: V1MediaItem }) {
@@ -8,10 +9,7 @@ export function SimilarSection({ item }: { item: V1MediaItem }) {
   const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
   // The server's list or nothing: a same-genre fallback filled the row with
   // titles sharing one catch-all genre, which is not "similar" (2026-10-01).
-  const cards: Array<{ id: string; title?: string }> =
-    (similarData?.items ?? [])
-      .filter((fi) => !!fi.mediaItemId)
-      .map((fi) => ({ id: fi.mediaItemId!, title: fi.title }));
+  const cards = feedItemsToCards(similarData?.items);
 
   if (!cards.length) return null;
 

@@ -64,6 +64,7 @@ export * from "./lib/network-scan";
 export * from "./lib/pluginBridge";
 export * from "./lib/serverIdentity";
 export * from "./lib/artwork";
+export * from "./lib/feedItemToCard";
 export * from "./lib/pluginTheme";
 export * from "./lib/trickplayCues";
 export * from "./lib/homeLibraryRows";

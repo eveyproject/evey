@@ -350,6 +350,11 @@ type HTTPServer struct {
 	// login attempt, so it never rides LoginRL's per-minute login budget.
 	// nil = pass-through.
 	QuickConnectPollRL *ratelimit.Limiter
+	// RefreshRL caps the silent session renewal. A renewal is not a sign-in
+	// attempt: on LoginRL, a household whose devices renewed after a restart
+	// was refused because a few mistyped passwords had spent the login budget
+	// of the same address. nil = falls back to LoginRL.
+	RefreshRL *ratelimit.Limiter
 	// SnapshotRL caps the frame-extraction route - each request spawns an
 	// ffmpeg, so it must not ride the generous global limiter.
 	SnapshotRL *ratelimit.Limiter
@@ -754,10 +759,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// opens were a cheap resource-pinning + passive brute-force vector.
 			mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}/events", ratelimit.MiddlewareFunc(s.QuickConnectPollRL, quickConnectSSEHandler(s.QuickConnectHub, &qcCheckerAdapter{query: s.UserQuerySvc, auth: s.UserAuthSvc, cfg: s.Cfg})))
 		}
-		mux.HandleFunc("POST /api/v1/auth/refresh", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
-			r = injectRefreshTokenFromCookie(r)
-			authCookieMiddleware(gwMux, s.https()).ServeHTTP(w, r)
-		}))
+		refreshRL := s.RefreshRL
+		if refreshRL == nil {
+			refreshRL = s.LoginRL
+		}
+		mux.HandleFunc("POST /api/v1/auth/refresh", refreshRouteHandler(gwMux, s.https, refreshRL))
 		mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, r *http.Request) {
 			// The cookie names THIS device's session, so only it is ended.
 			r = injectRefreshTokenFromCookie(r)
@@ -1005,4 +1011,13 @@ func (s *HTTPServer) serverLanguage() string {
 		return "en"
 	}
 	return s.Cfg.Metadata.Language
+}
+
+// refreshRouteHandler serves the silent session renewal on its own limiter,
+// reading the refresh token from the cookie when the body carries none.
+func refreshRouteHandler(gwMux http.Handler, httpsOnly func() bool, limiter *ratelimit.Limiter) http.HandlerFunc {
+	return ratelimit.MiddlewareFunc(limiter, func(w http.ResponseWriter, r *http.Request) {
+		r = injectRefreshTokenFromCookie(r)
+		authCookieMiddleware(gwMux, httpsOnly()).ServeHTTP(w, r)
+	})
 }

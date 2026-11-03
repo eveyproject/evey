@@ -20,6 +20,9 @@ const clearAll = vi.fn();
 
 vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+// Rows a test appends to the fixed fixture below.
+const extraItems = vi.hoisted(() => ({ list: [] as Record<string, unknown>[] }));
+
 // importOriginal, not a bare factory: watchHistoryLabel is a PURE formatter,
 // not a network hook, so the component must exercise the real one. Stubbing it
 // out would let a label regression pass this suite.
@@ -39,6 +42,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
           lastPlayedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
+        ...extraItems.list,
       ],
     },
     isLoading: false,
@@ -82,6 +86,23 @@ describe("WatchHistory", () => {
   it("does not show Clear history button by default", () => {
     render(<WatchHistory />, { wrapper: createWrapper() });
     expect(screen.queryByTestId("clear-history-btn")).not.toBeInTheDocument();
+  });
+});
+
+describe("WatchHistory zero duration", () => {
+  // The gateway serializes an int64 zero as the string "0", which is truthy:
+  // the row printed "1h / " with nothing after the slash.
+  it("prints no position / duration line when the duration is the proto zero", () => {
+    extraItems.list = [{
+      id: "wp2", mediaItemId: "m2", positionMs: "3600000", durationMs: "0", percentComplete: 0,
+      played: false, playCount: 1, lastPlayedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    }];
+    render(<WatchHistory />, { wrapper: createWrapper() });
+    const rows = screen.getAllByTestId("history-item");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain("1h / 2h");
+    expect(rows[1].textContent).not.toContain(" / ");
+    extraItems.list = [];
   });
 });
 

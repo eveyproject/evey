@@ -87,6 +87,16 @@ beforeEach(() => {
 });
 
 describe("history screen (mobile)", () => {
+  it("prints the position / duration line only for a real duration (the proto zero is the string \"0\")", () => {
+    api.pages = { 1: [
+      { ...row("a"), positionMs: "60000", durationMs: "120000" },
+      { ...row("b"), positionMs: "60000", durationMs: "0" },
+    ] };
+    render(<HistoryScreen />);
+    expect(screen.getByText("1min / 2min")).toBeTruthy();
+    expect(screen.queryByText(/1min \/\s*$/)).toBeNull();
+  });
+
   it("pages 30 at a time as the list scrolls, appends, and stops after a short page", () => {
     api.pages = { 1: rows("a", 30), 2: rows("b", 2) };
     render(<HistoryScreen />);

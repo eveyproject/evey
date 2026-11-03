@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatBytes, formatTime, formatTimeMs, formatDurationMs, formatDurationSec, formatWatchTotalMs, formatWatchTotalSec } from "./format";
+import { formatBytes, formatTime, formatTimeMs, formatDurationMs, formatDurationSec, formatWatchTotalMs, formatWatchTotalSec, isPositive } from "./format";
 
 describe("formatBytes", () => {
   it("renders 0 B for empty or invalid input", () => {
@@ -115,5 +115,17 @@ describe("formatWatchTotal", () => {
     expect(formatWatchTotalSec(42)).toBe("< 1min");
     expect(formatWatchTotalSec("3600")).toBe("1h");
     expect(formatWatchTotalSec(0)).toBe("0min");
+  });
+});
+
+describe("isPositive", () => {
+  it("treats the gateway's int64 zero string, NaN and null as absent", () => {
+    expect(isPositive("0")).toBe(false);
+    expect(isPositive(0)).toBe(false);
+    expect(isPositive("abc")).toBe(false);
+    expect(isPositive(null)).toBe(false);
+    expect(isPositive(undefined)).toBe(false);
+    expect(isPositive("7200000")).toBe(true);
+    expect(isPositive(1)).toBe(true);
   });
 });

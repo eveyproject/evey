@@ -87,6 +87,8 @@ export interface AuthRefresh {
  */
 export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
   let inFlight: Promise<RefreshOutcome> | null = null;
+  // Set when the last refresh was refused by the server's limiter (429).
+  let limited: { httpStatus: number; retryAfterSeconds?: number } | null = null;
 
   async function doRefresh(lateAnswerRetried = false): Promise<RefreshOutcome> {
     const auth = useAuthStore.getState();
@@ -148,6 +150,10 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
         return "unavailable";
       }
       if (!res.ok) {
+        if (res.status === 429) {
+          const retryAfter = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
+          limited = { httpStatus: 429, ...(Number.isFinite(retryAfter) ? { retryAfterSeconds: retryAfter } : {}) };
+        }
         log.warn(`refresh unavailable: answered ${res.status}`);
         return "unavailable";
       }
@@ -214,8 +220,12 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
   // session - the fetcher latches and fires unauthorized), a THROW means
   // transient unavailability (the fetcher stays free to retry later).
   async function forceRefresh(): Promise<{ accessToken: string } | null> {
+    limited = null;
     const outcome = await runRefresh();
     if (outcome === "refused") return null;
+    // The limiter's answer keeps its status and delay, so the fetcher relays a
+    // 429 the caller can back off by instead of an authorization failure.
+    if (outcome !== "ok" && limited) throw Object.assign(new Error("refresh limited"), limited);
     if (outcome !== "ok") throw new Error("refresh unavailable: no answer from the server");
     const tok = useAuthStore.getState().accessToken;
     return tok ? { accessToken: tok } : null;

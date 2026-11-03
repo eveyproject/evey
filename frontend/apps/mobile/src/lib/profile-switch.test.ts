@@ -23,6 +23,11 @@ vi.mock("@evey/api", () => ({
   userServiceRefreshToken: (req: unknown) => refreshCall(req),
 }));
 
+const clearUnlockedMock = vi.fn();
+vi.mock("../hooks/useParentalGate", () => ({
+  clearUnlocked: () => clearUnlockedMock(),
+}));
+
 import { switchProfileToken } from "./profile-switch";
 import { setRefreshToken, getRefreshToken } from "./refresh-token";
 
@@ -30,6 +35,7 @@ beforeEach(() => {
   Object.keys(secure).forEach((k) => delete secure[k]);
   authState.setTokens = vi.fn();
   refreshCall.mockReset();
+  clearUnlockedMock.mockReset();
 });
 
 describe("switchProfileToken", () => {
@@ -62,6 +68,25 @@ describe("switchProfileToken", () => {
 
     expect(refreshCall).toHaveBeenCalledWith({ profileId: "p-2" });
     expect(authState.setTokens).not.toHaveBeenCalled();
+  });
+
+  // A parental unlock belongs to the viewer who typed the PIN: carried over
+  // the switch, a kids profile picked next would open the gated titles.
+  it("forgets every parental unlock once the server confirmed the switch", async () => {
+    await setRefreshToken("old-rt");
+    refreshCall.mockResolvedValue({ accessToken: "new-access", refreshToken: "new-rt" });
+
+    await switchProfileToken("p-2");
+
+    expect(clearUnlockedMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the unlocks when the server refuses the switch", async () => {
+    await setRefreshToken("old-rt");
+    refreshCall.mockRejectedValue(Object.assign(new Error("pin"), { httpStatus: 403 }));
+
+    await expect(switchProfileToken("p-2")).rejects.toMatchObject({ httpStatus: 403 });
+    expect(clearUnlockedMock).not.toHaveBeenCalled();
   });
 
   it("propagates a refusal without touching the stored token", async () => {

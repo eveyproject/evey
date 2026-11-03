@@ -40,15 +40,25 @@ Mechanics:
 - A racer that loses the atomic claim *mid-flight* (validated the row before
   the winner committed) falls through to the same sibling issue: it lost by
   milliseconds, squarely within any grace.
+- One rotated token yields at most **3 sibling sessions** (`maxGraceSiblings`).
+  A slot is taken only when the sibling is actually issued, after the profile
+  and PIN checks, so a refused attempt does not spend it. Past the ceiling the
+  presenter is refused, logged at WARN and counted under
+  `evey_auth_failures_total{reason="refresh_grace_exhausted"}`. The counter
+  lives in memory: it only has to outlast the window.
 
 ## Consequences
 
-- N tabs refreshing concurrently all succeed with N distinct sessions
-  (`TestRefreshToken_ConcurrentMultiTabRefresh_AllGetDistinctSessions` pins
-  this; the old TOCTOU test asserted exactly-one-winner and was re-anchored).
+- Concurrent refreshes of one token yield the winner plus at most three
+  siblings, each distinct; further racers are refused
+  (`TestRefreshToken_ConcurrentMultiTabRefresh_SiblingsBounded`,
+  `TestRefresh_GraceIssuesAtMostThreeSiblings`). Three covers the real race:
+  web tabs are serialized by a cross-tab Web Lock before they refresh, so a
+  loser is the rare tab that slipped past it, and the native apps hold one
+  token per device and coalesce their refreshes onto a single request.
 - **Accepted trade-off**: a refresh token stolen AND replayed within 30 s of a
-  legitimate rotation yields a session. Outside that window nothing changes.
-  This is the industry-standard reuse-leeway compromise, and it is strictly
-  bounded - unlike the tab-killing 401, which was unbounded user pain.
+  legitimate rotation yields at most three sessions. Outside that window
+  nothing changes. Without the ceiling every replay inside the window minted
+  one more persistent session.
 - Session rows grow by one per race loser; bounded by the sweep and by token
   expiry.

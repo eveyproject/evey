@@ -122,3 +122,33 @@ describe("createAuthRefresh - a 403 is the gate, not the credential", () => {
     expect(logout).toHaveBeenCalledTimes(1);
   });
 });
+
+// The refresh route has its own limiter: a 429 there is the server asking
+// for a pause, not a dead session. The natives' forceRefresh is what the
+// fetcher's 401 retry calls; it used to throw a bare Error, so the original
+// request failed as an authorization error with no delay to honour.
+describe("createAuthRefresh - a limited refresh", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("rejects forceRefresh with the limiter's status and delay, and keeps the session", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 429, headers: { "Retry-After": "7" } })));
+    useAuthStore.setState({ accessToken: jwt(-60) });
+    const clearRefreshToken = vi.fn(async () => {});
+    const flow = createAuthRefresh(storage({ clearRefreshToken }));
+    await expect(flow.forceRefresh()).rejects.toMatchObject({ httpStatus: 429, retryAfterSeconds: 7 });
+    expect(clearRefreshToken).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().accessToken).not.toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("still rejects any other unavailable answer without a status", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 502 })));
+    const flow = createAuthRefresh(storage({}));
+    const err = await flow.forceRefresh().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { httpStatus?: number }).httpStatus).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+});

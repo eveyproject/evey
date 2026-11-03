@@ -64,6 +64,11 @@ export function useDirectPlayback({
   const directPlayUrl = streamInfo.directPlayUrl;
   // The source (URL minus its token) whose expired-token retry was spent.
   const refreshedForRef = useRef<string | null>(null);
+  // Read through a ref: the route rebuilds the callback when the title's
+  // metadata lands, and an effect keyed on it reassigned the source and
+  // jumped the resume position.
+  const onEndedRef = useRef(onEnded);
+  onEndedRef.current = onEnded;
   useEffect(() => {
     const video = videoRef.current;
     if (!video || transcodeMode) return;
@@ -88,7 +93,7 @@ export function useDirectPlayback({
         if (tracks && tracks.length === 0) setTranscodeMode(true);
       }, 3000);
     }
-    function handleEnded() { onEnded?.(); }
+    function handleEnded() { onEndedRef.current?.(); }
     function handleError() {
       const v = video;
       if (!v) return;
@@ -163,5 +168,5 @@ export function useDirectPlayback({
     };
   // The refs and setters are stable at the call site (useRef / useState /
   // useCallback with no deps), so listing them never re-runs the effect.
-  }, [directPlayUrl, startPositionMs, onEnded, transcodeMode, videoRef, positionRef, setTranscodeMode, setIsBuffering, streamTokenRef, onStreamTokenRefreshRef, atPlayheadRef]);
+  }, [directPlayUrl, startPositionMs, transcodeMode, videoRef, positionRef, setTranscodeMode, setIsBuffering, streamTokenRef, onStreamTokenRefreshRef, atPlayheadRef]);
 }
