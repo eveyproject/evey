@@ -264,7 +264,7 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 		if err != nil {
 			return fmt.Errorf("MediaItemRepo.DeleteByIDs begin tx: %w", err)
 		}
-		defer tx.Rollback() //nolint:errcheck // no-op after Commit
+		defer func() { _ = tx.Rollback() }() // a no-op once committed
 		exec = tx
 	}
 	if err := deleteByIDsIn(ctx, exec, ids); err != nil {
@@ -284,26 +284,35 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 // are going are read before the delete, which takes the rows that lead to
 // them, and recomputed after it so the sort key falls back to the newest
 // episode left, as the unit delete does.
-func deleteByIDsIn(ctx context.Context, exec dbExecutor, ids []string) error {
-	var touched []string
+// seriesOfEpisodes is the series the episodes among ids lead to, read and
+// released before the delete runs on the same connection.
+func seriesOfEpisodes(ctx context.Context, exec dbExecutor, ids []string) ([]string, error) {
 	rows, err := exec.QueryContext(ctx, `
 		SELECT DISTINCT se.parent_id FROM media_items ep
 		JOIN media_items se ON se.id = ep.parent_id AND se.type = 'season'
 		WHERE ep.id = ANY($1) AND ep.type = 'episode' AND se.parent_id IS NOT NULL`, pq.Array(ids))
 	if err != nil {
-		return fmt.Errorf("MediaItemRepo.DeleteByIDs: read series: %w", err)
+		return nil, fmt.Errorf("MediaItemRepo.DeleteByIDs: read series: %w", err)
 	}
+	defer rows.Close()
+	var touched []string
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return fmt.Errorf("MediaItemRepo.DeleteByIDs: scan series: %w", err)
+			return nil, fmt.Errorf("MediaItemRepo.DeleteByIDs: scan series: %w", err)
 		}
 		touched = append(touched, id)
 	}
-	rows.Close()
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("MediaItemRepo.DeleteByIDs: series rows: %w", err)
+		return nil, fmt.Errorf("MediaItemRepo.DeleteByIDs: series rows: %w", err)
+	}
+	return touched, nil
+}
+
+func deleteByIDsIn(ctx context.Context, exec dbExecutor, ids []string) error {
+	touched, err := seriesOfEpisodes(ctx, exec, ids)
+	if err != nil {
+		return err
 	}
 	if _, err := exec.ExecContext(ctx, `DELETE FROM media_items WHERE id = ANY($1)`, pq.Array(ids)); err != nil {
 		return fmt.Errorf("MediaItemRepo.DeleteByIDs: %w", err)

@@ -65,7 +65,7 @@ func cleanLibraryPaths(paths []string) []string {
 }
 
 func hasDotSegment(p string) bool {
-	for _, seg := range strings.Split(p, string(filepath.Separator)) {
+	for seg := range strings.SplitSeq(p, string(filepath.Separator)) {
 		if seg == "." || seg == ".." {
 			return true
 		}
