@@ -25,6 +25,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceGetCurrentUser: () => api.user,
   useUserServiceListProfiles: () => api.profiles,
   useUserServiceUpdateProfile: () => ({ mutate: api.update }),
+  getUserServiceListProfilesQueryKey: (userId: string) => ["/api/v1/users", userId, "profiles"],
 }));
 const store = vi.hoisted(() => ({ theme: "default", setTheme: vi.fn(), applyFromPreferences: vi.fn(), profileId: "p2" }));
 vi.mock("@evey/store", () => ({ useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }), isDemoMode: () => false,
@@ -39,6 +40,7 @@ import { ThemeSelector } from "./ThemeSelector";
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(React.createElement(QueryClientProvider, { client: qc }, React.createElement(ThemeSelector)));
+  return qc;
 }
 
 beforeEach(() => {
@@ -67,10 +69,24 @@ describe("ThemeSelector", () => {
     await screen.findByLabelText("Neon");
     fireEvent.click(screen.getByLabelText("AMOLED"));
     expect(store.setTheme).toHaveBeenCalledWith("amoled", undefined);
-    expect(api.update).toHaveBeenCalledWith({ id: "p2", data: { preferences: { theme: "amoled", audio: "fr" } } });
+    expect(api.update).toHaveBeenCalledWith({ id: "p2", data: { preferences: { theme: "amoled", audio: "fr" } } }, expect.anything());
     fireEvent.click(screen.getByLabelText("Neon"));
     expect(store.setTheme).toHaveBeenCalledWith("plugin:Neon", "plg-1");
-    expect(api.update).toHaveBeenLastCalledWith({ id: "p2", data: { preferences: { theme: "plugin:Neon", audio: "fr", theme_plugin: "plg-1" } } });
+    expect(api.update).toHaveBeenLastCalledWith({ id: "p2", data: { preferences: { theme: "plugin:Neon", audio: "fr", theme_plugin: "plg-1" } } }, expect.anything());
+  });
+
+  // The profile list is cached for minutes: left as it was, the playback
+  // screen merged its next choice into the map that still held the old theme
+  // and wrote it back. Once the theme is saved, the cached list must go.
+  it("drops the cached profile list once the theme is saved", async () => {
+    const qc = mount();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    await screen.findByLabelText("Neon");
+    fireEvent.click(screen.getByLabelText("AMOLED"));
+    const opts = api.update.mock.calls.at(-1)?.[1] as { onSuccess?: () => void } | undefined;
+    expect(invalidate).not.toHaveBeenCalled();
+    opts?.onSuccess?.();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["/api/v1/users", "u1", "profiles"] });
   });
 
   it("falls back to the default profile when the active id is unknown, and applies locally only without a profile", async () => {
@@ -78,7 +94,7 @@ describe("ThemeSelector", () => {
     mount();
     await screen.findByLabelText("Neon");
     fireEvent.click(screen.getByLabelText("AMOLED"));
-    expect(api.update).toHaveBeenCalledWith({ id: "p1", data: { preferences: { theme: "amoled" } } });
+    expect(api.update).toHaveBeenCalledWith({ id: "p1", data: { preferences: { theme: "amoled" } } }, expect.anything());
 
     vi.clearAllMocks();
     api.profiles = { data: { profiles: [] } };
