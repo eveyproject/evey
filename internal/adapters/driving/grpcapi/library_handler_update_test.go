@@ -5,11 +5,13 @@ import (
 	"testing"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
 	"github.com/eveyproject/evey/internal/domain/library"
 	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
 	mkvfakes "github.com/eveyproject/evey/internal/domain/mkv/fakes"
 	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -93,8 +95,10 @@ func TestGrpcLibraryUpdate_Success(t *testing.T) {
 	libQuery.Seed(lib)
 	libCmd.Seed(lib)
 
+	// The admin the route admits: the roots come back to an admin alone.
+	ctx := interceptors.ContextWithClaims(context.Background(), &user.Claims{UserID: "usr-admin", IsAdmin: true})
 	newName := "Renamed"
-	resp, err := h.UpdateLibrary(context.Background(), &eveyv1.UpdateLibraryRequest{
+	resp, err := h.UpdateLibrary(ctx, &eveyv1.UpdateLibraryRequest{
 		Id:    "lib-2",
 		Name:  &newName,
 		Paths: []string{"/media/new"},
