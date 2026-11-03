@@ -1650,3 +1650,19 @@ func TestApplyBasicFields_SanitizesProviderText(t *testing.T) {
 	assert.Equal(t, []string{"Drama"}, item.Catalog.Genres)
 	assert.Equal(t, "Name", result.People[0].Name)
 }
+
+// The same images in another order are a change: sort_order is what makes a
+// poster the first one, so a provider that re-ranked its images must be
+// written, not read as "nothing new".
+func TestArtworkSetUnchanged_OrderCounts(t *testing.T) {
+	a, b := "https://img/a.jpg", "https://img/b.jpg"
+	existing := []*domain.ArtworkRecord{
+		{Type: domain.ArtworkTypePoster, SourceURL: &b, SortOrder: 1},
+		{Type: domain.ArtworkTypePoster, SourceURL: &a, SortOrder: 0},
+	}
+	same := []domain.ArtworkResult{{Type: domain.ArtworkTypePoster, URL: a}, {Type: domain.ArtworkTypePoster, URL: b}}
+	swapped := []domain.ArtworkResult{{Type: domain.ArtworkTypePoster, URL: b}, {Type: domain.ArtworkTypePoster, URL: a}}
+	assert.True(t, artworkSetUnchanged(existing, same), "same images in the stored order")
+	assert.False(t, artworkSetUnchanged(existing, swapped), "same images, another first poster")
+	assert.False(t, artworkSetUnchanged(existing, same[:1]))
+}

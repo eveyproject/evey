@@ -884,3 +884,49 @@ func TestMapDetailCertifications(t *testing.T) {
 	assert.Nil(t, cross.CertificationsByCountry)
 	assert.Empty(t, cross.OfficialRating)
 }
+
+// TMDB lists images by vote, English first on most titles: the server's
+// language comes first here, then the title's own, then untagged, then English.
+func TestRankImages_ServerLanguageFirst(t *testing.T) {
+	imgs := []tmdbImage{
+		{FilePath: "/en1.jpg", ISO639_1: "en"},
+		{FilePath: "/null.jpg", ISO639_1: ""},
+		{FilePath: "/fr1.jpg", ISO639_1: "fr"},
+		{FilePath: "/ja.jpg", ISO639_1: "ja"},
+		{FilePath: "/fr2.jpg", ISO639_1: "fr"},
+		{FilePath: "/de.jpg", ISO639_1: "de"},
+	}
+	got := rankImages(imgs, "fr-FR", "ja")
+	paths := make([]string, len(got))
+	for i, img := range got {
+		paths[i] = img.FilePath
+	}
+	assert.Equal(t, []string{"/fr1.jpg", "/fr2.jpg", "/ja.jpg", "/null.jpg", "/en1.jpg", "/de.jpg"}, paths)
+	assert.Equal(t, "/en1.jpg", imgs[0].FilePath, "the input is not reordered in place")
+	art := mapDetailArtwork(&tmdbImages{Posters: imgs}, "fr", "ja")
+	require.NotEmpty(t, art)
+	assert.Equal(t, imageBaseURL+"/fr1.jpg", art[0].URL)
+}
+
+func TestImageLanguages_ReducesARegionTag(t *testing.T) {
+	assert.Equal(t, "fr,en,null", imageLanguages("fr-FR"))
+	assert.Equal(t, "pt,en,null", imageLanguages("pt-BR"))
+	assert.Equal(t, "en,en,null", imageLanguages("en"))
+}
+
+// A season and an episode append their images like a title does: without the
+// language filter their images were those of the request language alone.
+func TestSeasonAndEpisodeDetails_AskForImagesInTheServerLanguage(t *testing.T) {
+	var seen []string
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.URL.Query().Get("include_image_language"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id": 1, "name": "x"}`))
+	})
+	defer srv.Close()
+	_, err := p.GetSeasonDetails(context.Background(), "10", 1)
+	require.NoError(t, err)
+	_, err = p.GetEpisodeDetails(context.Background(), "10", 1, 2)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"en,en,null", "en,en,null"}, seen)
+}

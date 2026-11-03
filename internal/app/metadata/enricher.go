@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -373,27 +374,25 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	return records, nil
 }
 
-// artworkSetUnchanged reports whether the persisted records cover exactly the
-// same (type, source URL) multiset as the incoming provider results - i.e. the
-// provider returned nothing new and there is nothing to do.
+// artworkSetUnchanged reports whether the persisted records are exactly the
+// incoming provider results, (type, source URL) in the same order - i.e. the
+// provider returned nothing new and there is nothing to do. The order counts:
+// sort_order is what makes a poster the first one, so a provider that only
+// reordered its images (its language ranking changed) must still be written.
 func artworkSetUnchanged(existing []*domainmetadata.ArtworkRecord, incoming []domainmetadata.ArtworkResult) bool {
 	if len(existing) != len(incoming) {
 		return false
 	}
-	have := make(map[string]int, len(existing))
-	for _, r := range existing {
+	ordered := slices.Clone(existing)
+	slices.SortStableFunc(ordered, func(a, b *domainmetadata.ArtworkRecord) int { return a.SortOrder - b.SortOrder })
+	for i, r := range ordered {
 		url := ""
 		if r.SourceURL != nil {
 			url = *r.SourceURL
 		}
-		have[r.Type+"\x00"+url]++
-	}
-	for _, a := range incoming {
-		k := a.Type + "\x00" + a.URL
-		if have[k] == 0 {
+		if r.Type != incoming[i].Type || url != incoming[i].URL {
 			return false
 		}
-		have[k]--
 	}
 	return true
 }
