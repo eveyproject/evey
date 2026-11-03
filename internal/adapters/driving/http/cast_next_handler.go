@@ -131,11 +131,20 @@ func (h *hlsVODServe) serveCastNext(w http.ResponseWriter, r *http.Request) {
 
 	// Best-effort first-segment warm-up so the switch lands on a hot cache
 	// (same rafale prewarm-next fires for the local players). The receiver
-	// passes its master's query params, so the fingerprint matches the
-	// master request it will make. Failure only costs switch latency.
+	// asks its next master bare: it drops abr and maxKbps itself, and the
+	// audio and subtitle indexes baked for the current file name a position
+	// in that file, not a language, so the next file's tracks come from the
+	// profile's preferences. The warm-up asks the same, or it heats a
+	// session the receiver never requests. Failure only costs switch latency.
+	warm := r.Clone(r.Context())
+	q := warm.URL.Query()
+	for _, k := range []string{"audioTrack", "subtitleTrack", "abr", "maxKbps"} {
+		q.Del(k)
+	}
+	warm.URL.RawQuery = q.Encode()
 	if streams, wErr := h.libSvc.GetMediaStreams(r.Context(), string(next.ID)); wErr == nil {
-		if fp, fErr := h.buildFingerprint(r, string(next.ID), next, streams); fErr == nil {
-			if producer := h.producerForRequest(r.Context(), r, streams, next); producer != nil {
+		if fp, fErr := h.buildFingerprint(warm, string(next.ID), next, streams); fErr == nil {
+			if producer := h.producerForRequest(r.Context(), warm, streams, next); producer != nil {
 				if eErr := producer.EnsureSegmentRange(r.Context(), fp, 0, 0); eErr != nil {
 					slog.InfoContext(r.Context(), "cast-next: prewarm skipped", slog.String("next_id", string(next.ID)), slog.Any("err", eErr))
 				}
