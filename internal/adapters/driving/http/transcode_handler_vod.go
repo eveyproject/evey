@@ -1609,6 +1609,14 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 		span.SetStatus(codes.Error, "file needs remux")
 		return
 	}
+	// Serving binds this token to the plan's hash and reclaims the one it
+	// left, and says what it served, exactly as the HLS master does: the
+	// manifest is declared from the plan AS SERVED, so every segment URI it
+	// emits names the fingerprint the segment request resolves. Declared
+	// from the plan before the pin, a title whose copy rung is closed sealed
+	// the copy's fingerprint and every segment was refused as stale.
+	r, rp = h.planAsServed(r, mediaID, item, streams, rp)
+	h.reclaimSupersededHash(r, mediaID, rp)
 	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
 	if err != nil {
 		h.writeManifestErr(r.Context(), w, span, err, mediaID)
@@ -1642,10 +1650,6 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
-	// Serving binds this token to the plan's hash and reclaims the one it
-	// left, and says what it served, exactly as the HLS master does.
-	r, rp = h.planAsServed(r, mediaID, item, streams, rp)
-	h.reclaimSupersededHash(r, mediaID, rp)
 	{
 		p := domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rp.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"}
 		if rp.IsCopy {
