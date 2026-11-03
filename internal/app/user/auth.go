@@ -472,6 +472,13 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 	// grace has long passed.
 	var newRefresh string
 	rotate := func(ctx context.Context) error {
+		// The sibling slot is taken here, once every profile and PIN check
+		// above has passed: a refused attempt must not spend it. A recovered
+		// interrupted rotation is graced too but lies past the window, and is
+		// not a sibling.
+		if graced && withinRotationGrace(rt) && !s.admitGraceSibling(ctx, rt) {
+			return ErrInvalidCredentials
+		}
 		if !graced {
 			if markErr := s.markRefreshTokenUsed(ctx, rt); markErr != nil {
 				if !errors.Is(markErr, ErrInvalidCredentials) {
@@ -576,6 +583,12 @@ func (c *graceSiblingCounter) admit(tokenID string, now time.Time) bool {
 	return true
 }
 
+// withinRotationGrace reports a token rotated inside the grace window. A nil
+// UsedAt (legacy row claimed before the column existed) fails closed.
+func withinRotationGrace(rt *user.RefreshToken) bool {
+	return rt.Used && rt.UsedAt != nil && time.Since(*rt.UsedAt) <= refreshRotationGrace
+}
+
 // admitGraceSibling gates every sibling session of a rotated token. A refusal
 // is a security signal (a replay beyond any plausible tab race), so it is
 // logged at WARN and counted.
@@ -632,10 +645,7 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 	if rt.Used {
 		// nil UsedAt (legacy row claimed before the column existed) fails
 		// closed: no timestamp, no grace.
-		if rt.UsedAt != nil && time.Since(*rt.UsedAt) <= refreshRotationGrace {
-			if !s.admitGraceSibling(ctx, rt) {
-				return nil, false, ErrInvalidCredentials
-			}
+		if withinRotationGrace(rt) {
 			slog.InfoContext(ctx, "refresh: rotated token within grace, issuing sibling session (multi-tab race loser)",
 				slog.String("userID", string(rt.UserID)),
 				slog.String("tokenID", rt.ID))

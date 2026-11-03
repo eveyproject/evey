@@ -135,3 +135,34 @@ func TestRefresh_GraceIssuesAtMostThreeSiblings(t *testing.T) {
 		t.Fatalf("a replay past %d siblings must be refused, got: %v", maxGraceSiblings, err)
 	}
 }
+
+// A sibling slot is spent only when a sibling is actually issued: attempts
+// refused afterwards (a profile the token cannot reach, a missing PIN proof)
+// used to burn the slots, and the tab that legitimately lost the race was
+// then refused.
+func TestRefresh_GraceSlotsSurviveRefusedAttempts(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "M", IsDefault: true})
+
+	raw := "rotated-then-misused-refresh-tok"
+	h := sha256.Sum256([]byte(raw))
+	justNow := time.Now()
+	if err := d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt-misused", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		Used: true, UsedAt: &justNow,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range maxGraceSiblings {
+		if _, _, err := d.svc.RefreshToken(ctx, raw, "not-a-profile-of-this-user", ""); err == nil {
+			t.Fatalf("attempt %d on a foreign profile must be refused", i)
+		}
+	}
+	if _, _, err := d.svc.RefreshToken(ctx, raw, "", ""); err != nil {
+		t.Fatalf("refused attempts must not spend the sibling slots: %v", err)
+	}
+}
