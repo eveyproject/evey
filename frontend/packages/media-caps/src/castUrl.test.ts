@@ -61,10 +61,22 @@ describe("castStreamInfoParams", () => {
       supportsHdr: true,
       maxHeight: 2160,
       maxH264Height: 1080,
+      maxH264Level: 42,
     });
     expect(castStreamInfoParams(pickCastProfile("Chromecast"))).toMatchObject({
-      supportedCodecs: ["h264"], supportsHdr: false, maxHeight: 1080, maxH264Height: 1080,
+      supportedCodecs: ["h264"], supportsHdr: false, maxHeight: 1080, maxH264Height: 1080, maxH264Level: 42,
     });
+  });
+
+  // The verdict is judged on the level, not the height alone: a 1080p file
+  // flagged L5.1 fits a 1080p ceiling and still exceeds an L4.2 decoder, and
+  // direct play sends it raw to the receiver.
+  it("declares the H.264 level the model decodes, so a file flagged above it is not direct-played", () => {
+    expect(castStreamInfoParams(pickCastProfile("Nest Hub")).maxH264Level).toBe(41);
+    expect(castStreamInfoParams(pickCastProfile("Chromecast Ultra")).maxH264Level).toBe(42);
+    expect(castStreamInfoParams(pickCastProfile("Google TV Streamer")).maxH264Level).toBe(52);
+    expect(castStreamInfoParams(pickCastProfile("Chromecast with Google TV")).maxH264Level).toBe(51);
+    expect(castStreamInfoParams(pickCastProfile("Some TV Nobody Knows")).maxH264Level).toBe(42);
   });
 
   // A receiver that answered its output ceiling has it on the master URL
@@ -109,6 +121,7 @@ describe("buildCastStreamUrl", () => {
     expect(url).toContain("hdr=1");
     expect(url).toContain("maxHeight=2160");
     expect(url).toContain("maxH264Height=1080");
+    expect(url).toContain("maxH264Level=42");
   });
 
   it("omits hdr for an SDR profile", () => {
@@ -165,8 +178,13 @@ describe("profileFromReceiverCaps", () => {
     expect(profileFromReceiverCaps(observed)).toEqual({
       videoCodecs: ["h264", "hevc", "vp9"],
       audioCodecs: ["aac", "mp3", "opus", "flac"],
-      hdr: true, maxHeight: 2160, h264MaxHeight: 1080, maxAudioChannels: 2,
+      hdr: true, maxHeight: 2160, h264MaxHeight: 1080, maxH264Level: 42, maxAudioChannels: 2,
     });
+  });
+
+  it("carries the level the receiver observed about itself, and none when it reported none", () => {
+    expect(castStreamInfoParams(profileFromReceiverCaps(observed)).maxH264Level).toBe(42);
+    expect(castStreamInfoParams(profileFromReceiverCaps({ ...observed, maxH264Level: 0 }))).not.toHaveProperty("maxH264Level");
   });
 
   it("the direct h264MaxHeight probe wins over the level, even when they disagree", () => {
