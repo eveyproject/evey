@@ -1,5 +1,5 @@
 ---
-source_sha: d3516f7424f33931631da9e552219eb09b706908443cd9b654577b22f6864c37
+source_sha: 1dc44f90f440f0e01525a6cb083acd57f77c55b0e0b61641670b2d12d9bd36a5
 reviewed: true
 ---
 # Evey 如何选择播放方式 { #how-playback-is-decided }
@@ -44,6 +44,8 @@ reviewed: true
 | 某项设置，或者已经做出的决定 | 首选视频编码（个人资料设置） · 本次会话已固定该选择 |
 
 只看正在播放的那条音轨。如果文件里有一条没被选中的解说音轨是 DTS 格式，文件不会因此被转码。
+
+如果没有任何方式能在这台设备上播放某个文件，它会在播放开始前就被拒绝，并显示**此服务器性能不足以播放此文件**：见[转码与服务器容量](transcoding.md#sharing-the-capacity)。
 
 流信息是在播放开始时计算的。只有一种情况它无法预见：视频流开始的那一刻，显卡正好已满负荷。这时视频流会改由处理器处理，**管理 → 正在播放**会显示实际使用的后端。
 
@@ -102,7 +104,7 @@ reviewed: true
 <!-- sources
 decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels)
 
-session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked)
+session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked) ; internal/adapters/driving/http/transcode_vod_admission.go - ErrCodeSourceTooHeavy
 remote cap: internal/adapters/driving/grpcapi/playback_handler.go - resolvePlaybackPrefs ; internal/config/config.go - RemoteBitrateCapKbps
 client caps: internal/domain/transcoding/playback_decision.go - ClientProfile ; frontend/packages/client/src/web/codec.ts ; frontend/packages/media-caps/src/castUrl.ts
 example: internal/app/transcoding/testdata/route_golden.txt - "nvenc-pass | 2160p-hevc-hdr10-70m | hdr-tv{,-20m} | {plain,gpu-full,title-blocked}"

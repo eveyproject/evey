@@ -1,5 +1,5 @@
 ---
-source_sha: d4f0a9db7cd2a975f63f1fae6ffe21b95537fc4e0139ac81da8e8a75c7ed3625
+source_sha: 19a58f257c7925a42694296f89739751d4aa369febbecbabc2f268b6d406383f
 reviewed: true
 ---
 # Apps verbinden { #connect-the-apps }
@@ -238,6 +238,11 @@ für ein Handy, auf dem Sie Ihr Passwort lieber nicht eintippen.
       [Auslieferung und Downloads](../environment/playback-delivery.md)).
     - **Streamen** auf einen Chromecast.
 - **Android TV.** Ein Bildschirm, der für die Fernbedienung gemacht ist.
+  Während ein Video läuft, schaltet die App den Fernseher auf eine
+  Bildwiederholrate, die ein ganzzahliges Vielfaches der Bildrate des Videos
+  ist, sofern er eine anbietet (50 Hz für eine Folge mit 25 Bildern pro
+  Sekunde statt 59,94), damit jedes Bild gleich lang auf dem Schirm bleibt
+  wie die anderen.
 - **Browser des Fernsehers (`/tv`).** Dieselbe Art Bildschirm für die
   Fernbedienung, im Browser des Fernsehers, ohne Schaltfläche zum Streamen
   auf einen Chromecast.

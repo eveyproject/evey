@@ -1,5 +1,5 @@
 ---
-source_sha: 183de3f3debe04fa20962ddd47cf680476ffb11f924669acd3a1f78d1a1ad221
+source_sha: 8409828551fb37b2c675f36eab993aed4c224ba6a45f3073a76b096d458bbf74
 reviewed: true
 ---
 # 转码与服务器容量 { #transcoding-and-server-capacity }
@@ -51,6 +51,8 @@ services:
 2. **改用处理器。** 加速器已满时，如果处理器还有空位，新的视频流就改到处理器上。
 3. **拒绝。** 两边都没有空位时，播放器显示**服务器正忙于转码其他流**，并且可以重试。
 
+有一种拒绝是最终的，与空位无关。如果一个文件为这台设备编码所需的开销超过了测得的全部能力，即使服务器上没有其他内容在播放也是如此，它会被拒绝并显示**此服务器性能不足以播放此文件**，播放器不会重试。这只会在该文件在这台设备上既不能原样播放也不能复制时发生；出路是换一台能直接解码该文件的设备。
+
 如果显卡在某部影片上编码失败，这部影片会有一段时间改用处理器，对所有观众都是如此。只有当一次与媒体无关的测试编码在这块显卡上也失败时，显卡本身才会被停用，之后还会再次尝试：见[硬件加速](../administration/hardware-acceleration.md)。
 
 有人观看时，服务器自己的后台任务（缩略图、片头检测、媒体分析）会暂停，以便播放优先使用机器资源：见[后台任务与服务器负载](../operations/background-work.md)。
@@ -99,7 +101,7 @@ services:
 **从外部看。** 有了这两个数值，报告会给出可以服务的外部观众人数：取服务器撑住的人数，与按单个测试观众的码率、并留出五分之一上行带宽后上行带宽能承载的人数，两者中较小的一个。报告会说明两者中哪一个是瓶颈。如果测速服务没有应答，报告会说明上行带宽无法测量，并且不给出外部观众的人数。
 
 <!-- sources
-disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After) ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full
+disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After, ErrCodeSourceTooHeavy, tooHeavyForIdleHost) ; i18n player.sourceTooHeavy ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full
 clear all empties extracted subtitles: internal/app/transcoding/service.go - WithDerivedCachePurge ; internal/adapters/driving/http/subtitle_cache.go - SubtitleCachePurger (/data/subtitles)
 calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - swBenchLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
 capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability

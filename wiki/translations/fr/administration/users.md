@@ -1,5 +1,5 @@
 ---
-source_sha: 6e76969ff95c1e39240ccc551c83d1cf46ca20ebd5bc3c3544267ad5ed7b37a4
+source_sha: 2f1406a949bfb11d75aba2f70e749541bc2360e2f26a52d02212ed714008cc6d
 reviewed: true
 ---
 # Utilisateurs, profils et contrôle parental { #users-profiles-and-parental-control }
@@ -209,8 +209,7 @@ est cachée.
 
 | Rangée | Ce qu'elle montre |
 | --- | --- |
-| **Reprendre la lecture** | Ce que le profil a commencé sans le finir, le plus récent d'abord. Un titre compte comme vu à 90 %. |
-| **À suivre** | Pour chaque série que le profil a commencée, le prochain épisode pas encore vu. |
+| **Reprendre la lecture** | Ce que le profil a commencé sans le finir, et pour chaque série en cours l'épisode à regarder ensuite : une seule carte par série, l'activité la plus récente d'abord. Un titre entre dans la rangée après 3 minutes de lecture, donc pas un tirage aléatoire ni un zapping. Un titre compte comme vu à 90 %. |
 | **Collections** | Les collections, avec un lien vers la liste complète. |
 | **Recommandé pour vous** | Des films et séries dans les genres que le profil regarde le plus, ceux qui correspondent le mieux d'abord, puis par note. Un genre compte quand il apparaît dans au moins 3 des 200 dernières lectures du profil. |
 | **Les plus populaires** | Les films et séries les plus lus sur le serveur ces 90 derniers jours. |

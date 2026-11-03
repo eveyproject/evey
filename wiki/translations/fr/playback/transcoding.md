@@ -1,5 +1,5 @@
 ---
-source_sha: 183de3f3debe04fa20962ddd47cf680476ffb11f924669acd3a1f78d1a1ad221
+source_sha: 8409828551fb37b2c675f36eab993aed4c224ba6a45f3073a76b096d458bbf74
 reviewed: true
 ---
 # Transcodage et capacité du serveur { #transcoding-and-server-capacity }
@@ -95,6 +95,13 @@ Quand la place vient à manquer, le serveur répond dans cet ordre :
    passe sur le processeur s'il a de la place.
 3. **Un refus.** Quand aucun n'en a, le lecteur affiche **Le serveur est
    occupé par d'autres transcodages** et peut réessayer.
+
+Un refus est définitif et ne tient pas à la place disponible. Un fichier dont
+l'encodage pour cet appareil coûterait plus que toute la capacité mesurée, sur
+un serveur où rien d'autre n'est en cours, est refusé avec **Ce serveur n'est
+pas assez puissant pour ce fichier**, et le lecteur ne réessaie pas. Cela
+n'arrive que lorsque le fichier ne peut être ni lu ni copié tel quel sur cet
+appareil ; la solution est un appareil qui décode le fichier directement.
 
 Un encodage sur carte graphique qui échoue sur un titre envoie ce titre sur
 le processeur pendant un moment, pour tous les spectateurs. La carte

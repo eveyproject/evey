@@ -216,7 +216,11 @@ you would rather not type your password.
       (`downloads.quality_choice`, see
       [Playback delivery and downloads](../environment/playback-delivery.md)).
     - **Casting** to a Chromecast.
-- **Android TV.** A screen made for the remote.
+- **Android TV.** A screen made for the remote. While a video plays, the app
+  switches the television to a refresh rate that is a whole multiple of the
+  video's frame rate when the television offers one (50 Hz for a 25 fps
+  episode, rather than 59.94), so that each frame stays on screen the same
+  time as the others.
 - **Television browser (`/tv`).** The same kind of screen for the remote, in
   the TV's browser, with no Cast button.
 
@@ -259,7 +263,8 @@ port: docs/installation.md compose ports line ; cmd/evey/main.go - httpPort
 quick connect: frontend/apps/tv/app/quick-connect.tsx (displayCode last 6 chars, qrValue /quickconnect?code=, polling) ; frontend/apps/tv/app/login.tsx (recommendedForTV) ; frontend/apps/web/src/routes/_auth/quickconnect.lazy.tsx ; frontend/apps/web/src/routes/_auth/profile/settings.lazy.tsx (quick-connect tab) ; frontend/apps/mobile/app/(auth)/(tabs)/settings.tsx (scanQr, authorize) ; frontend/apps/mobile/app/(auth)/qr-scan.tsx ; frontend/apps/mobile/app/quick-connect.tsx ; i18n auth.settings.quickConnect.*
 offline window and profile check: frontend/apps/mobile/src/lib/offlineAccess.ts - OFFLINE_DOWNLOAD_TTL_MS
 reduced copy (off by default): cmd/evey/http.go (downloads.quality_choice) ; i18n downloads.reduced.*
-connect hint and help link, shown with no saved server: frontend/apps/mobile/app/server-connect.tsx - serverHelpUrl, WIKI_LOCALES ; frontend/apps/tv/app/server-connect.tsx - serverHelpUrl ; i18n mobile.serverConnect.hint, mobile.serverConnect.whereToFind, mobile.servers.yourServers
+display mode: frontend/packages/media-caps/src/displayMode.ts - pickDisplayMode ; frontend/apps/tv/src/lib/displayFrameRate.ts - playedFrameRate
+connect hint and help link, shown with no saved server: frontend/apps/mobile/app/server-connect.tsx - serverHelpUrl ; frontend/packages/client/src/lib/wikiUrl.ts - WIKI_LOCALES ; frontend/apps/tv/app/server-connect.tsx - serverHelpUrl ; i18n mobile.serverConnect.hint, mobile.serverConnect.whereToFind, mobile.servers.yourServers
 delete from the connect screen (Android): frontend/apps/mobile/app/server-connect.tsx - handleDeleteServer ; i18n mobile.servers.deleteConfirmTitle, mobile.servers.cantDeleteOnlyServer
 update notice: internal/adapters/driving/http/health_handler.go (clients) ; scripts/client-release-ldflags.sh ; frontend/packages/client/src/native/appUpdate.ts - newerClientRelease ; frontend/apps/mobile/src/components/UpdateBanner.tsx (not on /player) ; frontend/apps/tv/src/components/TopHeader.tsx ; i18n mobile.appUpdate.available
 play on: i18n player.playOn.* (used by frontend/apps/web and frontend/apps/mobile, not frontend/apps/tv)

@@ -1,5 +1,5 @@
 ---
-source_sha: d3516f7424f33931631da9e552219eb09b706908443cd9b654577b22f6864c37
+source_sha: 1dc44f90f440f0e01525a6cb083acd57f77c55b0e0b61641670b2d12d9bd36a5
 reviewed: true
 ---
 # Wie Evey die Wiedergabeart wählt { #how-playback-is-decided }
@@ -61,6 +61,10 @@ Die Gründe fallen in vier Gruppen:
 
 Beurteilt wird nur die Tonspur, die gerade läuft. Hat eine Datei eine nicht
 gewählte Kommentarspur in DTS, wird sie deswegen nicht transkodiert.
+
+Eine Datei, die keine der Methoden auf diesem Gerät liefern kann, wird vor dem
+Start der Wiedergabe abgelehnt, mit **Dieser Server ist für diese Datei nicht
+leistungsstark genug**: siehe [Transkodierung und Serverkapazität](transcoding.md#sharing-the-capacity).
 
 Stream-Info wird beim Start der Wiedergabe berechnet. Nur einen Fall kann sie
 nicht vorhersehen: eine Grafikkarte, die genau beim Start des Streams voll
@@ -175,7 +179,7 @@ hebt die Begrenzung der Bildhöhe auf, die der Player sonst anfordern würde.
 <!-- sources
 decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels)
 
-session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked)
+session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked) ; internal/adapters/driving/http/transcode_vod_admission.go - ErrCodeSourceTooHeavy
 remote cap: internal/adapters/driving/grpcapi/playback_handler.go - resolvePlaybackPrefs ; internal/config/config.go - RemoteBitrateCapKbps
 client caps: internal/domain/transcoding/playback_decision.go - ClientProfile ; frontend/packages/client/src/web/codec.ts ; frontend/packages/media-caps/src/castUrl.ts
 example: internal/app/transcoding/testdata/route_golden.txt - "nvenc-pass | 2160p-hevc-hdr10-70m | hdr-tv{,-20m} | {plain,gpu-full,title-blocked}"

@@ -1,5 +1,5 @@
 ---
-source_sha: d4f0a9db7cd2a975f63f1fae6ffe21b95537fc4e0139ac81da8e8a75c7ed3625
+source_sha: 19a58f257c7925a42694296f89739751d4aa369febbecbabc2f268b6d406383f
 reviewed: true
 ---
 # Conectar las aplicaciones { #connect-the-apps }
@@ -231,7 +231,11 @@ contraseña.
       cabe en el teléfono (`downloads.quality_choice`, consulta
       [Entrega de la reproducción y descargas](../environment/playback-delivery.md)).
     - **Enviar a un Chromecast.**
-- **Android TV.** Una pantalla pensada para el mando.
+- **Android TV.** Una pantalla pensada para el mando. Mientras se reproduce
+  un vídeo, la aplicación pasa el televisor a una frecuencia de refresco que
+  es un múltiplo entero de la cadencia del vídeo, si el televisor la ofrece
+  (50 Hz para un episodio a 25 imágenes por segundo, en vez de 59,94), para
+  que cada imagen se quede en pantalla el mismo tiempo que las demás.
 - **Navegador del televisor (`/tv`).** El mismo tipo de pantalla pensada
   para el mando, en el navegador del televisor, sin botón para enviar a un
   Chromecast.
