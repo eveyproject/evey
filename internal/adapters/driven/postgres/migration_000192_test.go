@@ -43,6 +43,10 @@ func TestMigration000192_ProviderIDIdentityOnExistingRows(t *testing.T) {
 	insertPerson192(t, db, "dirty-free", "Cl\u202eare", `{}`)
 	// Its cleaned name is taken by an id-less row: cleaning it would collide.
 	insertPerson192(t, db, "dirty-taken", "Pat\x07 Lee", `{}`)
+	// Two distinct names under the old unique that the clean-up makes one:
+	// up itself creates these homonyms, so down must cope with them.
+	insertPerson192(t, db, "kim-a", "Kim\u200b Lee", `{"tmdb":"401"}`)
+	insertPerson192(t, db, "kim-b", "Kim Lee\u200b", `{"tmdb":"402"}`)
 	// Same name as the id-bearing row above: impossible under the old unique,
 	// a homonym with another id.
 	_, err := db.Exec(`INSERT INTO people (id, name, provider_ids) VALUES ('homonym', 'Sam Taylor', '{"tmdb":"202"}')`)
@@ -67,9 +71,34 @@ func TestMigration000192_ProviderIDIdentityOnExistingRows(t *testing.T) {
 	require.NoError(t, db.QueryRow(`SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_people_tmdb_id'`).Scan(&indexdef))
 	assert.NotContains(t, indexdef, "UNIQUE", "rows sharing one id may already exist")
 
-	// Down refuses while homonyms exist: the previous code needs a unique
-	// name, and picking which homonym to drop is not a migration's call.
-	require.Error(t, m.Steps(-1))
+	assert.Equal(t, "Kim Lee", personName192(t, db, "kim-a"))
+	assert.Equal(t, "Kim Lee", personName192(t, db, "kim-b"))
+	insertPerson192(t, db, "same-id-a", "Jo Park", `{"tmdb":"501"}`)
+	insertPerson192(t, db, "same-id-b", "Jo Park", `{"tmdb":"501"}`)
+	var before int
+	require.NoError(t, db.QueryRow(`SELECT count(*) FROM people`).Scan(&before))
+
+	// Down keeps every row: the previous code needs a unique name, so the
+	// homonyms after the first are renamed with their provider id (their row
+	// id when the provider id is shared too), never dropped, and the revert
+	// ends clean instead of leaving the schema dirty.
+	require.NoError(t, m.Steps(-1))
+	version, dirty, err := m.Version()
+	require.NoError(t, err)
+	assert.Equal(t, uint(191), version)
+	assert.False(t, dirty)
+	var after int
+	require.NoError(t, db.QueryRow(`SELECT count(*) FROM people`).Scan(&after))
+	assert.Equal(t, before, after, "no row lost")
+	// The row kept as is: the id-less one, else the lowest row id.
+	assert.Equal(t, "Sam Taylor", personName192(t, db, "homonym"))
+	assert.Equal(t, "Sam Taylor (tmdb 101)", personName192(t, db, "with-id"))
+	assert.Equal(t, "Kim Lee", personName192(t, db, "kim-a"))
+	assert.Equal(t, "Kim Lee (tmdb 402)", personName192(t, db, "kim-b"))
+	assert.Equal(t, "Jo Park", personName192(t, db, "same-id-a"))
+	assert.Equal(t, "Jo Park (same-id-b)", personName192(t, db, "same-id-b"))
+	_, err = db.Exec(`INSERT INTO people (id, name, provider_ids) VALUES ('again', 'Sam Taylor', '{"tmdb":"909"}')`)
+	require.Error(t, err, "the full unique name is back")
 }
 
 // With no homonym the revert restores the full unique name.
