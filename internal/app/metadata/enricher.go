@@ -649,14 +649,10 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 // persist when anything changed. Bio fetching is the caller's post-commit
 // duty.
 func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.PersonResult, person *domainlib.Person) *domainlib.Person {
-	updated := false
 	if p.ProviderID != "" && person.ProviderIDs["tmdb"] == "" {
-		if person.ProviderIDs == nil {
-			person.ProviderIDs = map[string]string{}
-		}
-		person.ProviderIDs["tmdb"] = p.ProviderID
-		updated = true
+		person = e.claimProviderID(ctx, p.ProviderID, person)
 	}
+	updated := false
 	if p.ThumbURL != "" && person.ThumbPath == nil {
 		person.ThumbPath = &p.ThumbURL
 		updated = true
@@ -666,6 +662,31 @@ func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.Pers
 			slog.WarnContext(ctx, "update person failed", slog.String("personID", person.ID), slog.Any("err", err))
 		}
 	}
+	return person
+}
+
+// claimProviderID gives an id-less person the credit's TMDB id through the
+// repository's claim, serialised with the creates of that id: when another
+// enrichment wrote a row holding it in the meantime, that row is the person
+// and the id-less one is left as it was. A failed claim keeps the row as
+// read; the next enrichment claims again.
+func (e *Enricher) claimProviderID(ctx context.Context, tmdbID string, person *domainlib.Person) *domainlib.Person {
+	owner, err := e.persons.ClaimProviderID(ctx, person.ID, "tmdb", tmdbID)
+	if err != nil {
+		slog.WarnContext(ctx, "claim person provider id failed", slog.String("personID", person.ID), slog.Any("err", err))
+		return person
+	}
+	if owner != person.ID {
+		if holder, getErr := e.persons.GetByID(ctx, owner); getErr == nil {
+			return holder
+		}
+		slog.WarnContext(ctx, "load the person holding a provider id failed", slog.String("personID", owner))
+		return person
+	}
+	if person.ProviderIDs == nil {
+		person.ProviderIDs = map[string]string{}
+	}
+	person.ProviderIDs["tmdb"] = tmdbID
 	return person
 }
 

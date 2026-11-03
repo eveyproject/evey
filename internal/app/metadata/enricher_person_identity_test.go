@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	domainlib "github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
 	domain "github.com/eveyproject/evey/internal/domain/metadata"
+	metafakes "github.com/eveyproject/evey/internal/domain/metadata/fakes"
 	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
@@ -103,4 +105,44 @@ func TestEnrichItem_NameFallbackOnlyForPersonWithoutID(t *testing.T) {
 	list, err = persons.List(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"Sam Taylor/101", "Sam Taylor/202"}, personNamesAndIDs(t, list))
+}
+
+// raceLostPersons misses the id lookup, as when another enrichment creates
+// the person between that lookup and the claim: the claim then answers the
+// owner the other enrichment wrote.
+type raceLostPersons struct {
+	*libfakes.FakePersonRepository
+	missIDLookup bool
+}
+
+func (r *raceLostPersons) GetByProviderID(ctx context.Context, provider, id string) (*domainlib.Person, error) {
+	if r.missIDLookup {
+		return nil, shared.ErrNotFound
+	}
+	return r.FakePersonRepository.GetByProviderID(ctx, provider, id)
+}
+
+// A claim that lost the race links the credit to the row that holds the id
+// and leaves the id-less homonym without it: writing the id on it too made
+// two rows for one person.
+func TestEnrichItem_LostClaimLinksTheOwner(t *testing.T) {
+	ctx := context.Background()
+	persons := &raceLostPersons{FakePersonRepository: libfakes.NewFakePersonRepository(), missIDLookup: true}
+	require.NoError(t, persons.Create(ctx, &domainlib.Person{ID: "p-idless", Name: "Sam Taylor"}))
+	require.NoError(t, persons.Create(ctx, &domainlib.Person{ID: "p-owner", Name: "Sam M. Taylor", ProviderIDs: map[string]string{"tmdb": "101"}}))
+	mp := libfakes.NewFakeMediaPersonRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
+	e := NewEnricher(metafakes.NewFakeArtworkRepository(), persons, mp, miRepo, miRepo, libfakes.NewFakeSearchIndex(),
+		&fakeProvider{name: "tmdb"}, nil, nil, nil)
+	require.NoError(t, miRepo.Create(ctx, &domainlib.MediaItem{ID: "item-a", Type: "movie"}))
+
+	enrichCast(t, e, "item-a", domain.PersonResult{Name: "Sam Taylor", Role: "Actor", ProviderID: "101"})
+
+	links, err := mp.GetByMediaItemID(ctx, "item-a")
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, "p-owner", links[0].PersonID)
+	idless, err := persons.GetByID(ctx, "p-idless")
+	require.NoError(t, err)
+	assert.Empty(t, idless.ProviderIDs["tmdb"], "the id stays on one row")
 }

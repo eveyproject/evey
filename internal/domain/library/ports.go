@@ -248,6 +248,12 @@ type PersonRepository interface {
 	PersonQueryRepo
 	Create(ctx context.Context, person *Person) error
 	Update(ctx context.Context, person *Person) error
+	// ClaimProviderID sets a provider id on a person stored without one,
+	// unless another row already holds it, and returns the id of the row
+	// that holds it afterwards. It is serialised with Create on the same
+	// provider id, so a claim and a create racing for one person leave one
+	// row holding the id.
+	ClaimProviderID(ctx context.Context, personID, provider, id string) (string, error)
 }
 
 type MediaPersonRepository interface {

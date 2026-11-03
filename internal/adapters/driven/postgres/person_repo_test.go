@@ -2,6 +2,8 @@ package postgres_test
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -284,4 +286,54 @@ func TestPersonRepo_GetByNamesBatch(t *testing.T) {
 	none, err := repo.GetByNamesBatch(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, none)
+}
+
+// Setting an id on a row stored without one (the enricher claiming it by
+// name) races a create of the same id from another enrichment: both checked
+// "no row has this id" and both wrote one. The claim takes the same lock on
+// the id as the create, so one row ends up holding it, and a claim that
+// lost hands back the owner.
+func TestPersonRepo_ClaimProviderID_RacesCreateToOneRow(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewPersonRepository(db)
+	ctx := context.Background()
+
+	for round := range 20 {
+		tmdb := fmt.Sprintf("claim-%d", round)
+		idless := &library.Person{ID: tmdb + "-idless", Name: "Credited " + tmdb}
+		require.NoError(t, repo.Create(ctx, idless))
+		var wg sync.WaitGroup
+		gate := make(chan struct{})
+		var owner string
+		var claimErr, createErr error
+		created := &library.Person{ID: tmdb + "-new", Name: "Other Spelling " + tmdb, ProviderIDs: map[string]string{"tmdb": tmdb}}
+		wg.Go(func() {
+			<-gate
+			owner, claimErr = repo.ClaimProviderID(ctx, idless.ID, "tmdb", tmdb)
+		})
+		wg.Go(func() {
+			<-gate
+			createErr = repo.Create(ctx, created)
+		})
+		close(gate)
+		wg.Wait()
+		require.NoError(t, claimErr)
+		require.NoError(t, createErr)
+
+		var n int
+		require.NoError(t, db.QueryRow(`SELECT count(*) FROM people WHERE provider_ids->>'tmdb' = $1`, tmdb).Scan(&n))
+		assert.Equal(t, 1, n, "one row holds %s", tmdb)
+		assert.Equal(t, created.ID, owner, "claim and create name the same owner")
+	}
+
+	// Uncontended, the claim sets the id on the row and keeps its others.
+	p := &library.Person{ID: "claim-plain", Name: "Plain Claim", ProviderIDs: map[string]string{"imdb": "nm1"}}
+	require.NoError(t, repo.Create(ctx, p))
+	owner, err := repo.ClaimProviderID(ctx, p.ID, "tmdb", "claim-plain-id")
+	require.NoError(t, err)
+	assert.Equal(t, p.ID, owner)
+	got, err := repo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"imdb": "nm1", "tmdb": "claim-plain-id"}, got.ProviderIDs)
 }

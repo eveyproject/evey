@@ -79,18 +79,13 @@ func (r *PersonRepository) createByName(ctx context.Context, person *library.Per
 func (r *PersonRepository) createByProviderID(ctx context.Context, person *library.Person, tmdb string, providerJSON []byte) error {
 	return NewTxUnit(r.db).Do(ctx, func(ctx context.Context) error {
 		ex := txFromCtx(ctx, r.db)
-		if _, err := ex.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "people.tmdb:"+tmdb); err != nil {
+		existing, err := lockProviderID(ctx, ex, "tmdb", tmdb)
+		if err != nil {
 			return err
 		}
-		var existing string
-		err := ex.QueryRowContext(ctx,
-			`SELECT id FROM people WHERE provider_ids->>'tmdb' = $1 ORDER BY id LIMIT 1`, tmdb).Scan(&existing)
-		if err == nil {
+		if existing != "" {
 			person.ID = existing
 			return nil
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return err
 		}
 		_, err = ex.ExecContext(ctx,
 			`INSERT INTO people (id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for, bio_checked_at)
@@ -99,6 +94,59 @@ func (r *PersonRepository) createByProviderID(ctx context.Context, person *libra
 		)
 		return err
 	})
+}
+
+// lockProviderID takes the transaction lock that serialises every write
+// giving a person this provider id, then returns the row already holding it
+// ("" when none). Create and ClaimProviderID both go through it.
+func lockProviderID(ctx context.Context, ex dbExecutor, provider, id string) (string, error) {
+	if _, err := ex.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "people."+provider+":"+id); err != nil {
+		return "", err
+	}
+	query := `SELECT id FROM people WHERE provider_ids->>'tmdb' = $1 ORDER BY id LIMIT 1`
+	args := []any{id}
+	if provider != "tmdb" {
+		query = `SELECT id FROM people WHERE provider_ids->>$2 = $1 ORDER BY id LIMIT 1`
+		args = append(args, provider)
+	}
+	var existing string
+	err := ex.QueryRowContext(ctx, query, args...).Scan(&existing)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return existing, err
+}
+
+func (r *PersonRepository) ClaimProviderID(ctx context.Context, personID, provider, id string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.person.ClaimProviderID")
+	defer span.End()
+	span.SetAttributes(attribute.String("person.id", personID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	owner := personID
+	err := NewTxUnit(r.db).Do(ctx, func(ctx context.Context) error {
+		ex := txFromCtx(ctx, r.db)
+		existing, err := lockProviderID(ctx, ex, provider, id)
+		if err != nil {
+			return err
+		}
+		if existing != "" {
+			owner = existing
+			return nil
+		}
+		_, err = ex.ExecContext(ctx,
+			// A person created without ids stores JSON null, and null || {...}
+			// is an array that no ->> lookup finds: start from an object.
+			`UPDATE people SET provider_ids = COALESCE(NULLIF(provider_ids, 'null'::jsonb), '{}'::jsonb) || jsonb_build_object($2::text, $3::text) WHERE id = $1`,
+			personID, provider, id)
+		return err
+	})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return "", err
+	}
+	return owner, nil
 }
 
 func (r *PersonRepository) GetByID(ctx context.Context, id string) (*library.Person, error) {

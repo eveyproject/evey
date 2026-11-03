@@ -188,6 +188,9 @@ func (r *updateFailPersonRepo) Create(ctx context.Context, p *library.Person) er
 func (r *updateFailPersonRepo) Update(_ context.Context, _ *library.Person) error {
 	return r.updateErr
 }
+func (r *updateFailPersonRepo) ClaimProviderID(ctx context.Context, personID, provider, id string) (string, error) {
+	return r.inner.ClaimProviderID(ctx, personID, provider, id)
+}
 func (r *updateFailPersonRepo) GetByID(ctx context.Context, id string) (*library.Person, error) {
 	return r.inner.GetByID(ctx, id)
 }

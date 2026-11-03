@@ -41,6 +41,32 @@ func (r *FakePersonRepository) Create(_ context.Context, person *library.Person)
 	return nil
 }
 
+func (r *FakePersonRepository) ClaimProviderID(_ context.Context, personID, provider, id string) (string, error) {
+	if r.Err != nil {
+		return "", r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	owner := ""
+	for _, p := range r.items {
+		if p.ProviderIDs[provider] == id && (owner == "" || p.ID < owner) {
+			owner = p.ID
+		}
+	}
+	if owner != "" {
+		return owner, nil
+	}
+	p, ok := r.items[personID]
+	if !ok {
+		return "", ErrNotFound
+	}
+	if p.ProviderIDs == nil {
+		p.ProviderIDs = map[string]string{}
+	}
+	p.ProviderIDs[provider] = id
+	return personID, nil
+}
+
 func (r *FakePersonRepository) identityMatchLocked(person *library.Person) *library.Person {
 	tmdb := person.ProviderIDs["tmdb"]
 	var best *library.Person
