@@ -2,11 +2,15 @@ package mkvgo
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
+	"maps"
 	"os"
 	"strings"
 	"time"
 
+	extmatroska "github.com/gravity-zero/mkvgo/matroska"
 	"github.com/gravity-zero/mkvgo/mp4"
 
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
@@ -30,17 +34,31 @@ const (
 	concatPathSep = "__"
 )
 
+// ErrConcatAudioShiftMismatch refuses a chain whose sources do not all call
+// for the same audio resync: mp4.PlanConcat applies one option set to every
+// source, so one shift would be right for some episodes and wrong for the
+// others. The caller falls back to per-episode playback, where each file is
+// resynced on its own.
+var ErrConcatAudioShiftMismatch = errors.New("mkvgo concat: audio start delays differ across the sources")
+
 // ConcatPackager builds and caches mp4.PlanConcat plans. Safe for concurrent use.
 type ConcatPackager struct {
 	plans   *pkgcache.TTLCache[apptranscoding.ConcatPlan]
 	stopper func()
+	// audioDelays measures each Matroska audio track's start delay, as the
+	// single-episode packager does (ondemand.go), so the chain is served with
+	// the same resync as each episode on its own. Injectable for tests;
+	// production passes matroska.AudioStartDelays.
+	audioDelays delaysFunc
 }
 
 // NewConcatPackager returns a packager with an internal plan cache. Call
 // Close to stop the cache's background janitor.
 func NewConcatPackager() *ConcatPackager {
 	c, stop := pkgcache.NewWithMaxSize[apptranscoding.ConcatPlan](concatCleanup, concatPlanMaxSize)
-	return &ConcatPackager{plans: c, stopper: stop}
+	return &ConcatPackager{plans: c, stopper: stop, audioDelays: func(ctx context.Context, path string) (map[uint64]int64, error) {
+		return extmatroska.AudioStartDelays(ctx, path)
+	}}
 }
 
 // Close stops the plan cache janitor.
@@ -71,6 +89,16 @@ func (p *ConcatPackager) Plan(ctx context.Context, sources []string, opts apptra
 	// TrueHD/LPCM/Vorbis track must not fail the whole chain's plan.
 	// NoIFrames: same reason as the on-demand packager (ondemand.go).
 	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true, SkipUnsupported: true, NoIFrames: true}
+	// The same audio start-delay resync the single-episode packager applies
+	// (ondemand.go): an episode played in a chain must not drift where it
+	// played in sync on its own. One option set serves every source, so the
+	// chain is planned only when every source calls for the same shift.
+	shift, err := concatAudioShift(ctx, sources, p.audioDelays)
+	if err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	o.AudioPresentationShift = shift
 	if opts.URLPrefix != "" {
 		prefix := opts.URLPrefix
 		o.RewriteURL = func(name string) string {
@@ -87,6 +115,38 @@ func (p *ConcatPackager) Plan(ctx context.Context, sources []string, opts apptra
 	pl := &concatPlan{plan: cp}
 	p.plans.Set(key, apptranscoding.ConcatPlan(pl), concatPlanTTL)
 	return pl, nil
+}
+
+// concatAudioShift probes every Matroska source's audio start delays and
+// returns the one presentation shift the chain is served with, nil when no
+// source needs one. A probe failure leaves that source without a resync, as
+// the single-episode packager does; sources that do not agree refuse the
+// chain with ErrConcatAudioShiftMismatch.
+func concatAudioShift(ctx context.Context, sources []string, probe delaysFunc) (map[uint64]int64, error) {
+	if probe == nil {
+		return nil, nil
+	}
+	var shift map[uint64]int64
+	for k, src := range sources {
+		var cur map[uint64]int64
+		if IsEBMLContainer(src) {
+			delays, err := probe(ctx, src)
+			if err != nil {
+				slog.WarnContext(ctx, "mkvgo concat: audio-delay probe failed, part planned without resync",
+					slog.Int("part", k+1), slog.String("path", src), slog.Any("err", err))
+			} else {
+				cur = audioPresentationShift(delays)
+			}
+		}
+		if k == 0 {
+			shift = cur
+			continue
+		}
+		if !maps.Equal(shift, cur) {
+			return nil, fmt.Errorf("%w: part %d wants %v, part 1 wants %v", ErrConcatAudioShiftMismatch, k+1, cur, shift)
+		}
+	}
+	return shift, nil
 }
 
 // concatCacheKey keys a plan by every source's identity (path+size+mtime, the
