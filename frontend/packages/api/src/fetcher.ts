@@ -235,7 +235,14 @@ async function fetchWithRefresh(
       // The browser's inline refresh carries the limiter's status and delay;
       // the natives' forceRefresh answers without one and lands below.
       if (status === 429) throw refreshErr;
-      throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
+      if (status === 401) throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
+      // The link is down, not the session: the caller sees the gate's or the
+      // network's answer, never a 401 it would read as a dead session (the
+      // player showed its "session expired" screen for a NAS that was asleep).
+      throw Object.assign(new Error("Session refresh unavailable"), {
+        httpStatus: typeof status === "number" ? status : 503,
+        refreshUnavailable: true,
+      });
     }
   }
 

@@ -357,7 +357,8 @@ describe("refresh failure latch", () => {
     // call 1: request 401 → refresh POST dies on the network
     fetchMock.mockResolvedValueOnce(mockResponse(401));
     fetchMock.mockRejectedValueOnce(new TypeError("network request failed"));
-    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 401 });
+    // The caller sees the link down, never a 401 it would read as a dead session.
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 503, refreshUnavailable: true });
 
     // a transient failure is not a dead session - nobody gets logged out for it
     expect(onUnauthorized).not.toHaveBeenCalled();
@@ -372,7 +373,7 @@ describe("refresh failure latch", () => {
   it("a 5xx from the refresh endpoint is transient too - no latch, no logout", async () => {
     fetchMock.mockResolvedValueOnce(mockResponse(401));
     fetchMock.mockResolvedValueOnce(mockResponse(502, { message: "bad gateway" }));
-    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 401 });
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 502, refreshUnavailable: true });
     expect(onUnauthorized).not.toHaveBeenCalled();
 
     fetchMock.mockResolvedValueOnce(mockResponse(401));
@@ -387,7 +388,7 @@ describe("refresh failure latch", () => {
     // its refresh token on it and stay signed out once the ban lifted.
     fetchMock.mockResolvedValueOnce(mockResponse(401));
     fetchMock.mockResolvedValueOnce(mockResponse(403, { message: "forbidden" }, { "X-Evey-Remote-Access": "disabled" }));
-    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 401 });
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 403, refreshUnavailable: true });
     expect(onUnauthorized).not.toHaveBeenCalled();
 
     fetchMock.mockResolvedValueOnce(mockResponse(401));
