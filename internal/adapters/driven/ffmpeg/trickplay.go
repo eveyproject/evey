@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/eveyproject/evey/internal/pkg/procfork"
 
@@ -41,7 +42,16 @@ type TrickplayGenerator struct {
 	// keyframes cuts the keyframe-only stream the cheap path decodes; nil keeps
 	// every generation on the full scan.
 	keyframes KeyframeStreamer
+	// colours remembers the probed colour of a source by path and
+	// modification time: a scrubbing preview asks for many frames of one
+	// file in a row, and a probe per frame costs more than the frame itself
+	// on the cheap path. Bounded by clearing when full.
+	colours    sync.Map
+	colourslen atomic.Int64
 }
+
+// snapshotColourCacheCap bounds the remembered colours per generator.
+const snapshotColourCacheCap = 4096
 
 // keyframeStreamExts are the containers the keyframe stream reads: Matroska
 // through its Cues, MP4 through its sync samples.
@@ -456,7 +466,26 @@ func (g *TrickplayGenerator) ExtractFrame(ctx context.Context, filePath string, 
 // packet carries no container tags, and the DoVi record lives in the
 // container only. SDR sources keep the bare scale, byte for byte.
 func (g *TrickplayGenerator) snapshotFilter(ctx context.Context, filePath string, width int) string {
-	return trickplayFilter(fmt.Sprintf("scale=%d:-1", width), g.probeColour(ctx, filePath))
+	return trickplayFilter(fmt.Sprintf("scale=%d:-1", width), g.snapshotColour(ctx, filePath))
+}
+
+// snapshotColour is probeColour remembered per (path, modification time): a
+// rewritten file is read again, an unchanged one is read once.
+func (g *TrickplayGenerator) snapshotColour(ctx context.Context, filePath string) trickplayColour {
+	key := filePath
+	if st, err := os.Stat(filePath); err == nil {
+		key = fmt.Sprintf("%s|%d", filePath, st.ModTime().UnixNano())
+	}
+	if v, ok := g.colours.Load(key); ok {
+		return v.(trickplayColour)
+	}
+	col := g.probeColour(ctx, filePath)
+	if g.colourslen.Add(1) > snapshotColourCacheCap {
+		g.colours.Clear()
+		g.colourslen.Store(1)
+	}
+	g.colours.Store(key, col)
+	return col
 }
 
 // DecodePacketToJPEG decodes a single encoded keyframe packet (from mkvgo's

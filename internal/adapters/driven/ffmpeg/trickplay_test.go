@@ -224,3 +224,45 @@ func TestSnapshot_TonemapsAnHDRSource(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "scale=640:-1", recordedVF(t, sdrArgs), "an SDR source keeps the bare scale")
 }
+
+// The colour of a source is read once per file, not once per snapshot: the
+// scrubbing preview asks for many frames of the same file in a row, and a
+// probe per frame would cost more than the frame on the cheap path.
+func TestSnapshot_ProbesTheColourOncePerFile(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	countFile := filepath.Join(dir, "probes")
+	bin := writeFakeBinary(t, filepath.Join(dir, "ffmpeg"), "#!/bin/sh\ncat > /dev/null\nprintf '%s\\n' \"$@\" > "+argsFile+"\nprintf 'jpeg'\n")
+	probe := writeFakeBinary(t, filepath.Join(dir, "ffprobe"),
+		"#!/bin/sh\necho probe >> "+countFile+"\nprintf '{\"streams\":[{\"color_transfer\":\"smpte2084\"}],\"format\":{\"start_time\":\"0.000\"}}'\n")
+	probes := func() int {
+		raw, _ := os.ReadFile(countFile)
+		return strings.Count(string(raw), "probe")
+	}
+	src := filepath.Join(dir, "hdr.mkv")
+	require.NoError(t, os.WriteFile(src, []byte("x"), 0o644))
+	other := filepath.Join(dir, "other.mkv")
+	require.NoError(t, os.WriteFile(other, []byte("y"), 0o644))
+	g := NewTrickplayGenerator(bin, probe)
+	ctx := context.Background()
+
+	_, err := g.ExtractFrame(ctx, src, 1, 640)
+	require.NoError(t, err)
+	_, err = g.DecodePacketToJPEG(ctx, src, []byte{0, 0, 0, 1}, ".hevc", 640)
+	require.NoError(t, err)
+	_, err = g.ExtractFrame(ctx, src, 2, 640)
+	require.NoError(t, err)
+	assert.Equal(t, 1, probes(), "one probe for three snapshots of the same file")
+	assert.Contains(t, recordedVF(t, argsFile), "tonemap", "the remembered colour still tone-maps")
+
+	_, err = g.ExtractFrame(ctx, other, 1, 640)
+	require.NoError(t, err)
+	assert.Equal(t, 2, probes(), "another file is probed once")
+
+	// A rewritten file (new modification time) is read again.
+	later := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(src, later, later))
+	_, err = g.ExtractFrame(ctx, src, 3, 640)
+	require.NoError(t, err)
+	assert.Equal(t, 3, probes(), "a changed file is probed again")
+}
