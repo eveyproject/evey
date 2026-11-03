@@ -70,10 +70,10 @@ vi.mock("@tanstack/react-query", () => ({
 
 // The switch sends the stored refresh token and writes the rotated one back
 // (SecureStore in the app): the keystore is faked here.
-const setRefreshTokenMock = vi.fn(async () => {});
+const setRefreshTokenMock = vi.fn(async (_token: string) => {});
 vi.mock("../src/lib/refresh-token", () => ({
   getRefreshToken: async () => "stored-rt",
-  setRefreshToken: (...args: unknown[]) => setRefreshTokenMock(...args),
+  setRefreshToken: (token: string) => setRefreshTokenMock(token),
   clearRefreshToken: async () => {},
 }));
 
