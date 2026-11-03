@@ -562,3 +562,34 @@ func TestMediaItemRepository_AddedAtCursor_SeriesRanksByNewestEpisodeOnEveryPage
 	}
 	assert.Equal(t, []string{"ad-4", "ad-show", "ad-3", "ad-2", "ad-1"}, order)
 }
+
+// The batch delete the prune uses must leave the series' sort key where the
+// unit delete leaves it: deleting the newest episode of a series moves its
+// latest_child_added_at back to the newest episode left.
+func TestMediaItemRepo_DeleteByIDs_RecomputesSeriesLatest(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mlib-delbatch")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	old := time.Now().UTC().Add(-72 * time.Hour)
+	series := &library.MediaItem{ID: "s-batch", LibraryID: lib.ID, Type: library.Series, Title: "S", AddedAt: old, UpdatedAt: old}
+	season := &library.MediaItem{ID: "se-batch", LibraryID: lib.ID, ParentID: "s-batch", Type: library.Season, Title: "S01", AddedAt: old, UpdatedAt: old}
+	epOld := &library.MediaItem{ID: "ep-batch-old", LibraryID: lib.ID, ParentID: "se-batch", Type: library.Episode, Title: "E01", AddedAt: old.Add(24 * time.Hour), UpdatedAt: old}
+	epNew := &library.MediaItem{ID: "ep-batch-new", LibraryID: lib.ID, ParentID: "se-batch", Type: library.Episode, Title: "E02", AddedAt: old.Add(71 * time.Hour), UpdatedAt: old}
+	for _, it := range []*library.MediaItem{series, season, epOld, epNew} {
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+
+	require.NoError(t, itemRepo.DeleteByIDs(ctx, []string{string(epNew.ID)}))
+
+	var latest time.Time
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT latest_child_added_at FROM media_items WHERE id=$1`, series.ID).Scan(&latest))
+	assert.WithinDuration(t, epOld.AddedAt, latest, time.Second,
+		"the series' latest_child_added_at must fall back to the episode left")
+}

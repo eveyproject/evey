@@ -428,3 +428,41 @@ func TestOrphanPruner_UnseenButStillOnDisk_NotPruned(t *testing.T) {
 		t.Fatalf("item behind an unreadable folder was pruned: %v", err)
 	}
 }
+
+// A container the prune empties out leaves the catalog like any other item:
+// the subscribers that clean up after a removed item (notifications, caches,
+// clients) hear about it, with the library it belonged to.
+func TestOrphanPruner_EmptyContainersPublishRemoved(t *testing.T) {
+	t.Parallel()
+	pruner, items, _, bus := newPrunerHarness()
+
+	items.Create(context.Background(), &library.MediaItem{
+		ID: "show-1", LibraryID: "lib-1", Type: library.Series,
+		File: &library.MediaFile{Path: "/tv/show"},
+	})
+	items.Create(context.Background(), &library.MediaItem{
+		ID: "season-1", LibraryID: "lib-1", ParentID: "show-1", Type: library.Season,
+		File: &library.MediaFile{Path: "/tv/show/s01"},
+	})
+	seen := map[string]struct{}{"/tv/show": {}, "/tv/show/s01": {}}
+
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, seen, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 2 {
+		t.Fatalf("want 2 pruned, got %d", removed)
+	}
+	gone := map[string]bool{}
+	for _, ev := range bus.PublishedEvents() {
+		if e, ok := ev.(library.MediaItemRemoved); ok {
+			if e.LibraryID != "lib-1" {
+				t.Errorf("removed %s published without its library: %+v", e.MediaItemID, e)
+			}
+			gone[string(e.MediaItemID)] = true
+		}
+	}
+	if !gone["season-1"] || !gone["show-1"] {
+		t.Fatalf("want MediaItemRemoved for the season and the series, got %v", gone)
+	}
+}
