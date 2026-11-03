@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { formatAudioTrackLabel, type TrackPick, type V1MediaStream, trackDisplayName } from "@evey/api";
+import { formatAudioTrackLabel, tagAudioTrackLabel, type TrackPick, type V1MediaStream, trackDisplayName } from "@evey/api";
 import type { ReactNode } from "react";
 import { Captions, Volume2 } from "lucide-react";
 import { Select } from "@/components/ui/Select";
@@ -40,7 +40,7 @@ export function MediaDetailTracks({ streams, pick, onChange }: MediaDetailTracks
 
   const audioOptions = [
     { value: AUTO, label: t("media.streams.auto") },
-    ...audio.map((s) => ({ value: String(s.index), label: formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language) })),
+    ...audio.map((s) => ({ value: String(s.index), label: tagAudioTrackLabel(formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language), s, (k) => t(k)) })),
   ];
   const subtitleOptions = [
     { value: AUTO, label: t("media.streams.auto") },

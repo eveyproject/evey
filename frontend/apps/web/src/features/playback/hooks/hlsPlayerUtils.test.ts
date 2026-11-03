@@ -302,6 +302,22 @@ describe("resolveDefaultAudio", () => {
     expect(resolveDefaultAudio(streams, undefined, () => null, () => "de")).toEqual(streams[0]);
     expect(resolveDefaultAudio(streams, undefined, () => null, () => "ka")).toEqual(streams[1]);
   });
+
+  // Same rule as the server's default selection: a commentary track is never
+  // the automatic pick, at any step, while a main track exists.
+  it("skips a commentary track at every step while a main track exists", () => {
+    const streams = [
+      { index: 0, trackIndex: 0, language: "eng", isDefault: true, isCommentary: true },
+      { index: 1, trackIndex: 1, language: "eng" },
+      { index: 2, trackIndex: 2, language: "fre" },
+    ];
+    expect(resolveDefaultAudio(streams, "s1", () => ({ audioLang: "eng" }), () => null)).toEqual(streams[1]);
+    expect(resolveDefaultAudio(streams, undefined, () => null, () => null, ["en"])).toEqual(streams[1]);
+    expect(resolveDefaultAudio(streams, undefined, () => null, () => "eng")).toEqual(streams[1]);
+    expect(resolveDefaultAudio(streams, undefined, () => null, () => null)).toEqual(streams[1]);
+    const allCommentary = streams.map((s) => ({ ...s, isCommentary: true }));
+    expect(resolveDefaultAudio(allCommentary, undefined, () => null, () => null)).toEqual(allCommentary[0]);
+  });
 });
 
 describe("resolveDefaultSubtitle", () => {

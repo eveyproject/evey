@@ -212,6 +212,11 @@ func mediaStreamToProto(s *library.MediaStream, includePaths bool) *eveyv1.Media
 		IsForced:      s.IsForced,
 		IsExternal:    s.IsExternal,
 		Profile:       s.Profile,
+
+		IsCommentary:      s.Commentary,
+		IsHearingImpaired: s.HearingImpaired,
+		IsVisualImpaired:  s.VisualImpaired,
+		IsOriginal:        s.Original,
 	}
 	if s.Width != nil {
 		pb.Width = int32(*s.Width)

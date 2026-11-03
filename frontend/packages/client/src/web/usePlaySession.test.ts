@@ -10,7 +10,9 @@ const getStreamInfoFn = vi.fn((_mediaId: string, _params: unknown) => ({
 // The verdict asked again for another track (the query above is the first one).
 const askStreamInfoFn = vi.fn((_mediaId: string, _params: unknown): Promise<unknown> => Promise.resolve({}));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  // The real track rule: the verdict is read against the track it names.
+  defaultAudioCandidates: (await importOriginal<typeof import("@evey/api")>()).defaultAudioCandidates,
   // The web app: same origin, so the stop beacon goes to a relative path.
   getBaseURL: () => "",
   getCredentialsMode: () => "include",
