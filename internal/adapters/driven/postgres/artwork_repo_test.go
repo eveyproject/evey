@@ -253,7 +253,7 @@ func TestArtworkRepo_BacklogsStatsAndBatchRead(t *testing.T) {
 	require.Error(t, artRepo.UpdateLocalPath(ctx, "ghost", "/x"), "a vanished record is not a silent success")
 	require.Error(t, artRepo.UpdateBlurhash(ctx, "ghost", "x"))
 
-	missingLocal, err := artRepo.ListMissingLocalPath(ctx)
+	missingLocal, err := artRepo.ListMissingLocalPath(ctx, false)
 	require.NoError(t, err)
 	require.Len(t, missingLocal, 1)
 	assert.Equal(t, "art9-pending", missingLocal[0].ID)
@@ -273,7 +273,7 @@ func TestArtworkRepo_BacklogsStatsAndBatchRead(t *testing.T) {
 	// A missed fetch takes the record out of the list until its backoff has
 	// run; a gone source takes it out for good and counts as dead.
 	require.NoError(t, artRepo.RecordFetchFailure(ctx, "art9-pending", false))
-	missingLocal, err = artRepo.ListMissingLocalPath(ctx)
+	missingLocal, err = artRepo.ListMissingLocalPath(ctx, false)
 	require.NoError(t, err)
 	assert.Empty(t, missingLocal, "a record that just failed waits out its backoff")
 	var attempts int
@@ -283,15 +283,18 @@ func TestArtworkRepo_BacklogsStatsAndBatchRead(t *testing.T) {
 	assert.True(t, due, "the first wait is the base backoff")
 	_, err = db.Exec(`UPDATE artwork SET next_fetch_at = NOW() - INTERVAL '1 second' WHERE id = 'art9-pending'`)
 	require.NoError(t, err)
-	missingLocal, err = artRepo.ListMissingLocalPath(ctx)
+	missingLocal, err = artRepo.ListMissingLocalPath(ctx, false)
 	require.NoError(t, err)
 	require.Len(t, missingLocal, 1, "due again once the wait has run")
 	require.NoError(t, artRepo.RecordFetchFailure(ctx, "art9-pending", true))
 	_, err = db.Exec(`UPDATE artwork SET next_fetch_at = NOW() - INTERVAL '1 second' WHERE id = 'art9-pending'`)
 	require.NoError(t, err)
-	missingLocal, err = artRepo.ListMissingLocalPath(ctx)
+	missingLocal, err = artRepo.ListMissingLocalPath(ctx, false)
 	require.NoError(t, err)
 	assert.Empty(t, missingLocal, "a gone source is never listed again")
+	missingLocal, err = artRepo.ListMissingLocalPath(ctx, true)
+	require.NoError(t, err)
+	require.Len(t, missingLocal, 1, "an admin download still lists a given-up source")
 	stats, err = artRepo.LocalPathStats(ctx)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, stats.Dead)

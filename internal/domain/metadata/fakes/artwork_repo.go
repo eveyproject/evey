@@ -113,7 +113,7 @@ func (r *FakeArtworkRepository) GetByPerson(_ context.Context, personID string) 
 	return result, nil
 }
 
-func (r *FakeArtworkRepository) ListMissingLocalPath(_ context.Context) ([]*metadata.ArtworkRecord, error) {
+func (r *FakeArtworkRepository) ListMissingLocalPath(_ context.Context, includeWaiting bool) ([]*metadata.ArtworkRecord, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -125,7 +125,7 @@ func (r *FakeArtworkRepository) ListMissingLocalPath(_ context.Context) ([]*meta
 		if a.SourceURL == nil || (a.LocalPath != nil && *a.LocalPath != "") {
 			continue
 		}
-		if f := r.fetch[a.ID]; f.attempts >= metadata.ArtworkMaxFetchAttempts || f.nextAt.After(now) {
+		if f := r.fetch[a.ID]; !includeWaiting && (f.attempts >= metadata.ArtworkMaxFetchAttempts || f.nextAt.After(now)) {
 			continue
 		}
 		result = append(result, a)

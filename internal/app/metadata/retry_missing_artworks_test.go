@@ -154,6 +154,20 @@ func TestRetryMissingArtworks_GivesUpAGoneSourceAndBacksOffAFailedOne(t *testing
 	stats, err := artRepo.LocalPathStats(ctx)
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, stats.Dead)
+
+	// An admin who asks for the missing artwork gets all of it, the given-up
+	// and the waiting sources included: the backoff is the hourly pass's.
+	waitJob := func(id string) {
+		require.Eventually(t, func() bool { return cmd.GetDownloadJob(id).Done.Load() }, 5*time.Second, 10*time.Millisecond)
+	}
+	id, total, err := cmd.StartRetryMissing(ctx, ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	waitJob(id)
+	id, total, err = cmd.StartBulkDownload(ctx, ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	waitJob(id)
 }
 
 // An outage is not a dead source: the record is tried again, later, and the

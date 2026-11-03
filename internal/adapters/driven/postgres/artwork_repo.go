@@ -208,7 +208,7 @@ func (r *ArtworkRepository) ListMissingBlurhash(ctx context.Context) ([]*metadat
 	return result, nil
 }
 
-func (r *ArtworkRepository) ListMissingLocalPath(ctx context.Context) ([]*metadata.ArtworkRecord, error) {
+func (r *ArtworkRepository) ListMissingLocalPath(ctx context.Context, includeWaiting bool) ([]*metadata.ArtworkRecord, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.ListMissingLocalPath")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, 2*defaultQueryTimeout)
@@ -217,8 +217,8 @@ func (r *ArtworkRepository) ListMissingLocalPath(ctx context.Context) ([]*metada
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork
 		 WHERE source_url IS NOT NULL AND (local_path IS NULL OR local_path = '')
-		   AND fetch_attempts < $1 AND (next_fetch_at IS NULL OR next_fetch_at <= NOW())
-		 ORDER BY id`, metadata.ArtworkMaxFetchAttempts)
+		   AND ($2 OR (fetch_attempts < $1 AND (next_fetch_at IS NULL OR next_fetch_at <= NOW())))
+		 ORDER BY id`, metadata.ArtworkMaxFetchAttempts, includeWaiting)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

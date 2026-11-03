@@ -198,7 +198,7 @@ func (s *CommandService) StartBulkDownload(ctx context.Context, serverCtx contex
 	if s.getDataDir() == "" {
 		return "", 0, errors.New("dataDir not configured")
 	}
-	records, err := s.artworkQuery.ListMissingLocalPath(ctx)
+	records, err := s.artworkQuery.ListMissingLocalPath(ctx, true)
 	if err != nil {
 		return "", 0, fmt.Errorf("list missing artwork: %w", err)
 	}
@@ -296,7 +296,7 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 	if s.getDataDir() == "" {
 		return 0, 0
 	}
-	records, err := s.artworkQuery.ListMissingLocalPath(ctx)
+	records, err := s.artworkQuery.ListMissingLocalPath(ctx, false)
 	if err != nil {
 		slog.WarnContext(ctx, "retry missing artworks: list", slog.Any("err", err))
 		return 0, 0
@@ -314,7 +314,7 @@ func (s *CommandService) StartRetryMissing(ctx, serverCtx context.Context) (stri
 	if s.getDataDir() == "" {
 		return "", 0, errors.New("dataDir not configured")
 	}
-	records, err := s.artworkQuery.ListMissingLocalPath(ctx)
+	records, err := s.artworkQuery.ListMissingLocalPath(ctx, true)
 	if err != nil {
 		return "", 0, fmt.Errorf("list missing artwork: %w", err)
 	}

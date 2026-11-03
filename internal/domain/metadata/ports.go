@@ -136,10 +136,12 @@ type ArtworkQueryRepo interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*ArtworkRecord, error)
 	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*ArtworkRecord, error)
 	GetByPerson(ctx context.Context, personID string) ([]*ArtworkRecord, error)
-	// ListMissingLocalPath returns records that have a SourceURL but no LocalPath
-	// and are due for a fetch (not given up on, not waiting out a backoff),
-	// ordered by id. Used by the bulk-download admin job.
-	ListMissingLocalPath(ctx context.Context) ([]*ArtworkRecord, error)
+	// ListMissingLocalPath returns records that have a SourceURL but no LocalPath,
+	// ordered by id. Without includeWaiting only the records due for a fetch
+	// (not given up on, not waiting out a backoff) come back: that is the
+	// hourly retry's list. An admin who asks for a download asks for all of
+	// them, the given-up ones included.
+	ListMissingLocalPath(ctx context.Context, includeWaiting bool) ([]*ArtworkRecord, error)
 	// ListMissingBlurhash returns records that have a LocalPath on disk but no
 	// blurhash. Used by the backfill admin job to retro-fit hashes onto
 	// artworks that pre-date the blurhash column (migration 000095).
