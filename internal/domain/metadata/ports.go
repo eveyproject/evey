@@ -1,6 +1,10 @@
 package metadata
 
-import "context"
+import (
+	"context"
+	"errors"
+	"time"
+)
 
 type MetadataProvider interface {
 	Name() string
@@ -37,6 +41,71 @@ type ArtworkStats struct {
 	WithLocalPath    int64
 	MissingLocalPath int64
 	TotalSizeBytes   int64
+	// Dead counts the records whose source is given up on: the provider said
+	// gone, or the fetch failed ArtworkMaxFetchAttempts times.
+	Dead int64
+}
+
+// How a missing artwork is retried. A fetch that fails is tried again after
+// ArtworkFetchBackoff(attempts), until ArtworkMaxFetchAttempts; a source the
+// provider says is gone (FetchStatusError 404 or 410) is not tried again at
+// all. Before this every missing record was fetched every hour for good.
+const (
+	ArtworkMaxFetchAttempts = 8
+	ArtworkFetchBackoffBase = time.Hour
+	ArtworkFetchBackoffMax  = 7 * 24 * time.Hour
+)
+
+// ArtworkFetchBackoff is how long to wait after the given number of failed
+// attempts: doubled each time from the base, capped.
+func ArtworkFetchBackoff(attempts int) time.Duration {
+	d := ArtworkFetchBackoffBase
+	for i := 1; i < attempts && d < ArtworkFetchBackoffMax; i++ {
+		d *= 2
+	}
+	return min(d, ArtworkFetchBackoffMax)
+}
+
+// FetchStatusError is an artwork fetch the server answered with a status
+// other than OK, kept typed so a caller can tell a gone source from an outage.
+type FetchStatusError struct {
+	Code int
+}
+
+func (e *FetchStatusError) Error() string {
+	return "download failed with status " + itoa(e.Code)
+}
+
+// IsPermanentFetchError says whether err is a source the provider will not
+// serve again (404, 410): retrying it only burns the hourly pass.
+func IsPermanentFetchError(err error) bool {
+	var se *FetchStatusError
+	if !errors.As(err, &se) {
+		return false
+	}
+	return se.Code == 404 || se.Code == 410
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	var b [20]byte
+	i := len(b)
+	for n > 0 {
+		i--
+		b[i] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		i--
+		b[i] = '-'
+	}
+	return string(b[i:])
 }
 
 // ArtworkCommandRepo is the write half of the artwork repository (ADR-0009).
@@ -50,6 +119,10 @@ type ArtworkCommandRepo interface {
 	// download. Best-effort: the caller logs and swallows errors so a hash
 	// failure never blocks the artwork pipeline.
 	UpdateBlurhash(ctx context.Context, id string, blurhash string) error
+	// RecordFetchFailure counts a failed fetch of the record's source and
+	// schedules the next try (ArtworkFetchBackoff), or gives the source up
+	// when permanent. ListMissingLocalPath leaves out what is not due.
+	RecordFetchFailure(ctx context.Context, id string, permanent bool) error
 	Delete(ctx context.Context, id string) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
 	// DeleteByMediaItemIDs is the batch form of DeleteByMediaItemID: one
@@ -63,7 +136,8 @@ type ArtworkQueryRepo interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*ArtworkRecord, error)
 	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*ArtworkRecord, error)
 	GetByPerson(ctx context.Context, personID string) ([]*ArtworkRecord, error)
-	// ListMissingLocalPath returns records that have a SourceURL but no LocalPath,
+	// ListMissingLocalPath returns records that have a SourceURL but no LocalPath
+	// and are due for a fetch (not given up on, not waiting out a backoff),
 	// ordered by id. Used by the bulk-download admin job.
 	ListMissingLocalPath(ctx context.Context) ([]*ArtworkRecord, error)
 	// ListMissingBlurhash returns records that have a LocalPath on disk but no

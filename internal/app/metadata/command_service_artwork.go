@@ -395,6 +395,7 @@ func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJ
 			if err := s.DownloadArtwork(ctx, rec, destPath); err != nil {
 				slog.DebugContext(ctx, "retry missing artworks: download still failing",
 					slog.String("id", rec.ID), slog.Any("err", err))
+				s.recordFetchFailure(ctx, rec.ID, err)
 				failAtomic.Add(1)
 				return
 			}
@@ -588,10 +589,23 @@ func (s *CommandService) maybeAutoDownload(ctx context.Context, rec *metadata.Ar
 	}
 	if err := s.DownloadArtwork(ctx, rec, destPath); err != nil {
 		slog.WarnContext(ctx, "auto-download artwork", slog.String("id", rec.ID), slog.Any("err", err))
+		s.recordFetchFailure(ctx, rec.ID, err)
 		return
 	}
 	if err := s.artworkCmd.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
 		slog.WarnContext(ctx, "auto-download artwork: save local path", slog.String("id", rec.ID), slog.Any("err", err))
+	}
+}
+
+// recordFetchFailure books a missed fetch so the hourly pass backs off, and
+// gives up a source the provider says is gone. A context that was cancelled
+// is not a miss of the source: nothing is recorded.
+func (s *CommandService) recordFetchFailure(ctx context.Context, id string, fetchErr error) {
+	if ctx.Err() != nil {
+		return
+	}
+	if err := s.artworkCmd.RecordFetchFailure(ctx, id, metadata.IsPermanentFetchError(fetchErr)); err != nil {
+		slog.WarnContext(ctx, "record artwork fetch failure", slog.String("id", id), slog.Any("err", err))
 	}
 }
 
