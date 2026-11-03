@@ -30,7 +30,7 @@ func TestLogin_OversizedUsername_RejectedBeforeRecording(t *testing.T) {
 	attempts := &countingAttempts{LoginAttemptRepository: newLoginAttemptLimiter(5, 15*time.Minute)}
 	d.svc.loginAttempts = attempts
 
-	for _, name := range []string{strings.Repeat("a", domainuser.UsernameMaxRunes+1), "ali‮ce", "al\x00ice"} {
+	for _, name := range []string{strings.Repeat("a", domainuser.UsernameMaxRunes+1), "ali\u202ece", "al\x00ice"} {
 		_, _, err := d.svc.Login(context.Background(), name, "whatever")
 		if !errors.Is(err, ErrInvalidCredentials) {
 			t.Fatalf("%q: want ErrInvalidCredentials, got %v", name, err)

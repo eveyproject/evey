@@ -1598,8 +1598,7 @@ func TestStartCleanup_TickerCleansAgain(t *testing.T) {
 // A sweep that panics is skipped, not the loop: the next tick still purges.
 func TestStartCleanup_SurvivesAPanicInOneSweep(t *testing.T) {
 	d := newAuthTestDeps()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	d.refreshTkns.PanicOnceOnDeleteExpired = true
 	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{

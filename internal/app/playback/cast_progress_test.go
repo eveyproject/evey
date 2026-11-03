@@ -54,9 +54,7 @@ func TestCastProgress_FlushLoopSurvivesAPanickingReport(t *testing.T) {
 	rec := &reportRecorder{panicOnce: true}
 	tr := testTracker(rec)
 	tr.flushEvery = 5 * time.Millisecond
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tr.Start(ctx)
+	tr.Start(t.Context())
 	defer tr.Stop()
 
 	tr.ObserveFetch("p1", "m1", 120_000)

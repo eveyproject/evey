@@ -23,8 +23,8 @@ func TestValidateUsername(t *testing.T) {
 		{"empty", "   ", false},
 		{"control", "ali\x00ce", false},
 		{"newline", "alice\n", false},
-		{"bidi override", "alice‮ecila", false},
-		{"zero width joiner", "ali‍ce", false},
+		{"bidi override", "alice\u202eecila", false},
+		{"zero width joiner", "ali\u200dce", false},
 		{"malformed utf8", "ali\xffce", false},
 	}
 	for _, c := range cases {
@@ -49,7 +49,7 @@ func TestNewUser_RefusesAnOversizedName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u.Username = "ali‮ce"
+	u.Username = "ali\u202ece"
 	if err := u.Validate(); err == nil {
 		t.Fatal("a format character must be refused on update")
 	}
