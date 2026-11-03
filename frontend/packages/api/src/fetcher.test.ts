@@ -381,6 +381,33 @@ describe("refresh failure latch", () => {
     await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).resolves.toEqual({ ok: true });
   });
 
+  it("a 403 from the refresh endpoint is the gate in front of the server, not a refusal: no latch, no logout", async () => {
+    // Remote access switched off while the phone is away, a bouncer banning
+    // the address, the CSRF guard: every device of the household used to burn
+    // its refresh token on it and stay signed out once the ban lifted.
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(403, { message: "forbidden" }, { "X-Evey-Remote-Access": "disabled" }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 401 });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { accessToken: "fresh" }));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { ok: true }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).resolves.toEqual({ ok: true });
+  });
+
+  it("a 429 from the refresh endpoint surfaces as a 429 with its Retry-After, and does not latch", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(429, { message: "slow down" }, { "Retry-After": "7" }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 429, retryAfterSeconds: 7 });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { accessToken: "fresh" }));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { ok: true }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).resolves.toEqual({ ok: true });
+  });
+
   it("a REFUSAL (401 from the refresh endpoint) latches and fires unauthorized", async () => {
     fetchMock.mockResolvedValueOnce(mockResponse(401));
     fetchMock.mockResolvedValueOnce(mockResponse(401, { message: "refresh token revoked" }));

@@ -87,3 +87,37 @@ describe("createAuthRefresh - an answer read long after it was sent", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+// Only the server's own refusal of the credential (401) ends a session. A 403
+// on this call comes from what stands in front of the server - remote access
+// switched off while the phone is away, a bouncer banning the household's
+// address, the CSRF guard - and reading it as a refusal burned the refresh
+// token of every device of the house for a ban that lifted an hour later.
+describe("createAuthRefresh - a 403 is the gate, not the credential", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    useAuthStore.setState({ accessToken: jwt(-60, "expired") });
+  });
+
+  it("keeps the session and the stored token on a 403", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 403, headers: { "X-Evey-Remote-Access": "disabled" } })));
+    const logout = vi.spyOn(useAuthStore.getState(), "logout");
+    const clear = vi.fn(async () => {});
+    const flow = createAuthRefresh(storage({ clearRefreshToken: clear }));
+    await expect(flow.forceRefresh()).rejects.toThrow(/unavailable/);
+    vi.unstubAllGlobals();
+    expect(clear).not.toHaveBeenCalled();
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  it("still ends the session on a 401", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 401 })));
+    const logout = vi.spyOn(useAuthStore.getState(), "logout");
+    const clear = vi.fn(async () => {});
+    const flow = createAuthRefresh(storage({ clearRefreshToken: clear }));
+    await expect(flow.forceRefresh()).rejects.toThrow();
+    vi.unstubAllGlobals();
+    expect(clear).toHaveBeenCalledTimes(1);
+    expect(logout).toHaveBeenCalledTimes(1);
+  });
+});

@@ -138,7 +138,11 @@ export default function ProfileSelect() {
       try {
         await SecureStore.setItemAsync(LAST_PROFILE_KEY, target.id);
       } catch { /* ignore */ }
-      await qc.invalidateQueries();
+      // Drop the WHOLE cache, not just invalidate: invalidateQueries leaves
+      // the screens under this picker showing the PREVIOUS profile's content
+      // until each refetch lands - kids-filtered titles briefly visible after
+      // switching into a kids profile (the in-app switcher already does this).
+      qc.clear();
       return "ok";
     } catch (err) {
       // 403 = the server wants a parental PIN proof (gated source or

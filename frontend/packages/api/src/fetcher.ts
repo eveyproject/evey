@@ -215,11 +215,16 @@ async function fetchWithRefresh(
       // be free to refresh again, and nobody gets logged out for it. Latching
       // on transients left long-lived clients (a TV stays on for days)
       // permanently unable to refresh after a single hiccup.
+      // The server refuses a refresh credential with 401 alone; a 403 is the
+      // gate in front of it (remote access off, a bouncer, the CSRF guard) and
+      // a 429 its limiter: transient too, and surfaced as what they are so a
+      // caller never mistakes a banned address for a dead session.
       const status = (refreshErr as { httpStatus?: number }).httpStatus;
-      if (status === 401 || status === 403) {
+      if (status === 401) {
         refreshFailed = true;
         fireUnauthorized();
       }
+      if (status === 429) throw refreshErr; // its Retry-After rides along
       throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
     }
   }

@@ -80,6 +80,11 @@ func scanRefreshToken(row *sql.Row, span trace.Span) (*user.RefreshToken, error)
 	var profileID, successorID sql.NullString
 	var usedAt sql.NullTime
 	err := row.Scan(&t.ID, &t.UserID, &t.TokenHash, &t.DeviceName, &t.ClientIP, &t.Used, &usedAt, &t.ExpiresAt, &t.CreatedAt, &profileID, &successorID)
+	if errors.Is(err, sql.ErrNoRows) {
+		// A token the store does not know is a refusal; a store that cannot
+		// answer is not, and the two must stay distinguishable upstream.
+		return nil, shared.ErrNotFound
+	}
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

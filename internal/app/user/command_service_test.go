@@ -1077,11 +1077,14 @@ func TestRefreshToken_RefreshTokenGenError(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	d.refreshTkns.Err = errors.New("store fail")
+	storeErr := errors.New("store fail")
+	d.refreshTkns.Err = storeErr
 
+	// A failing store is a server fault, never a refusal: a refusal is what
+	// makes the client drop its refresh token for good.
 	_, _, err := d.svc.RefreshToken(ctx, rawToken, "", "")
-	if !errors.Is(err, ErrInvalidCredentials) {
-		t.Fatalf("expected ErrInvalidCredentials when repo fails, got %v", err)
+	if err == nil || errors.Is(err, ErrInvalidCredentials) || !errors.Is(err, storeErr) {
+		t.Fatalf("expected the store's own error, not a refusal, when the repo fails, got %v", err)
 	}
 }
 

@@ -126,7 +126,7 @@ func TestRefreshTokenRepo_GetByTokenHash_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := repo.GetByTokenHash(ctx, "nonexistent_hash")
-	assert.ErrorIs(t, err, sql.ErrNoRows)
+	assert.ErrorIs(t, err, shared.ErrNotFound, "an unknown token is a domain not-found, distinguishable from a store that cannot answer")
 }
 
 func TestRefreshTokenRepo_DeleteByID(t *testing.T) {

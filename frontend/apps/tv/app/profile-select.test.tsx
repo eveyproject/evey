@@ -63,8 +63,18 @@ vi.mock("../src/components/ParentalPINModal", () => ({
 }));
 
 const invalidateQueriesMock = vi.fn();
+const clearQueriesMock = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock }),
+  useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock, clear: clearQueriesMock }),
+}));
+
+// The switch sends the stored refresh token and writes the rotated one back
+// (SecureStore in the app): the keystore is faked here.
+const setRefreshTokenMock = vi.fn(async () => {});
+vi.mock("../src/lib/refresh-token", () => ({
+  getRefreshToken: async () => "stored-rt",
+  setRefreshToken: (...args: unknown[]) => setRefreshTokenMock(...args),
+  clearRefreshToken: async () => {},
 }));
 
 const currentUserMock = vi.fn();
@@ -132,13 +142,19 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
       ] },
       isLoading: false,
     });
-    refreshTokenMock.mockResolvedValueOnce({ accessToken: "new-access-token" });
+    refreshTokenMock.mockResolvedValueOnce({ accessToken: "new-access-token", refreshToken: "rotated-rt" });
 
     render(<ProfileSelect />);
     fireEvent.click(screen.getByText("Adult"));
 
-    await waitFor(() => expect(refreshTokenMock).toHaveBeenCalledWith({ profileId: "prof-adult", pinToken: undefined }));
+    // The stored refresh token travels in the body (the silent refresh of this
+    // app sends no cookie, so the jar held a consumed token), and the rotated
+    // one is written back so the next silent refresh does not replay it.
+    await waitFor(() => expect(refreshTokenMock).toHaveBeenCalledWith({ refreshToken: "stored-rt", profileId: "prof-adult" }));
     expect(setTokensMock).toHaveBeenCalledWith("new-access-token");
+    await waitFor(() => expect(setRefreshTokenMock).toHaveBeenCalledWith("rotated-rt"));
+    // Every screen under the picker refetches as the new profile, kids filter included.
+    expect(clearQueriesMock).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
   });
 
@@ -180,7 +196,7 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
     fireEvent.click(screen.getByLabelText("confirm-pin"));
 
     await waitFor(() =>
-      expect(refreshTokenMock).toHaveBeenNthCalledWith(2, { profileId: "prof-adult", pinToken: "proof-token" }),
+      expect(refreshTokenMock).toHaveBeenNthCalledWith(2, { refreshToken: "stored-rt", profileId: "prof-adult", pinToken: "proof-token" }),
     );
     expect(setTokensMock).toHaveBeenCalledWith("new-access-token");
     await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));

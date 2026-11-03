@@ -94,6 +94,13 @@ func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshToken
 			span.SetStatus(otelcodes.Error, "pin required")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.pin_required")
 		}
+		if !errors.Is(err, appuser.ErrInvalidCredentials) && !errors.Is(err, appuser.ErrUserDisabled) {
+			// Not a refusal: the store could not be asked (a database away or
+			// slow) or the rotation could not be written. Unauthenticated here
+			// made every client of the household drop its refresh token during
+			// the incident; an Internal they read as "try again later".
+			return nil, internalError(ctx, "user.RefreshToken", err)
+		}
 		// A refused refresh is what sends a viewer back to a login screen, and
 		// the refusal itself can never name them: a refresh token carries no
 		// subject, and a token the store does not know has no row to read one

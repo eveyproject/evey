@@ -547,11 +547,20 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 	hash := hex.EncodeToString(h[:])
 
 	rt, err := s.refreshTkns.GetByTokenHash(ctx, hash)
-	if err != nil {
+	if errors.Is(err, shared.ErrNotFound) {
 		slog.InfoContext(ctx, "refresh rejected: token not found",
 			slog.String("tokenPrefix", safeTokenPrefix(token)),
 			slog.String("token_info", s.tokens.DescribeRefreshToken(token)))
 		return nil, false, ErrInvalidCredentials
+	}
+	if err != nil {
+		// A token that cannot be CHECKED is not a token that is wrong: a store
+		// that times out or is away must not read as a refusal, or every
+		// device of the household burns its refresh token during a database
+		// incident and asks for the password once the database is back.
+		slog.WarnContext(ctx, "refresh: token lookup failed",
+			slog.String("tokenPrefix", safeTokenPrefix(token)), slog.Any("err", err))
+		return nil, false, fmt.Errorf("refresh token lookup: %w", err)
 	}
 
 	if rt.IsExpired() {
