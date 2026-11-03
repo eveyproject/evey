@@ -33,4 +33,8 @@ func bakeClientInputs(r *http.Request, in *apptranscoding.ManifestInput) {
 	in.MaxH264Height = parseIntQuery(r, "maxH264Height", 0)
 	in.NetworkType = networkTypeQuery(r)
 	in.MaxBitrateKbps = parseIntQuery(r, "maxBitrate", 0)
+	// Not a client capability but the same contract: the engines the
+	// playback was started with ride every child URI (transcode_serving_gates.go).
+	in.RemuxCopyClosed = gateClosed(r, remuxCopyGateParam)
+	in.PackagerClosed = gateClosed(r, packagerGateParam)
 }

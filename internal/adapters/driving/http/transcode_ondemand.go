@@ -147,7 +147,12 @@ const (
 // planned (the extraction route still serves the tracks). rp is the caller's
 // resolved plan: a master resolves once and hands it down.
 func (h *hlsVODServe) planSubtitleRenditions(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) []apptranscoding.SubtitleRendition {
-	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
+	if item == nil || item.File == nil || item.File.Path == "" {
+		return nil
+	}
+	// The playback's gate, not the wiring alone: a playback started with the
+	// packager switched off gets no od_ subtitle rendition.
+	if _, packagerOpen := h.servingGates(r); !packagerOpen {
 		return nil
 	}
 	plan, err := h.buildPlan(r, mediaID, item, streams, rp)

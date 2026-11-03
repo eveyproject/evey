@@ -97,6 +97,11 @@ func (h *hlsVODServe) serveConcatMaster(w http.ResponseWriter, r *http.Request, 
 	if h.onDemandConcat == nil || h.onDemandEncrypt || !r.URL.Query().Has("gapless") {
 		return false
 	}
+	// Gapless rides the packager: a playback started with it switched off
+	// takes the normal per-episode master.
+	if gateClosed(r, packagerGateParam) {
+		return false
+	}
 	if !h.episodeConcatEligible(r, item, rp) {
 		return false
 	}

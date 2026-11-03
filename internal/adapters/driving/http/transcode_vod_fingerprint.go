@@ -371,5 +371,5 @@ func (h *hlsVODServe) decideWith(ctx context.Context, streams []*domainlibrary.M
 		MaxBitrateKbps:    h.requestBitrateCapKbps(r),
 		SourceBitrateKbps: sourceKbps,
 	}
-	return h.planResolver().Decide(ctx, req)
+	return h.planResolverFor(r).Decide(ctx, req)
 }
