@@ -252,3 +252,27 @@ func TestLiveServerFlag_RereadsAfterTheRefreshDelay(t *testing.T) {
 	var unwired *liveServerFlag
 	assert.True(t, unwired.enabled(), "no flag: the wiring alone decides")
 }
+
+// The packager's own entry points (od_master.m3u8, od_manifest.mpd) are
+// fetched bare by clients (the subtitle hook reads the packager's master for
+// its renditions): with the switch off they must answer 404 so the client
+// falls back, as before the switch was live. The resources a session already
+// started on the packager keep being served.
+func TestOnDemandFlag_OffRefusesThePackagerEntryPointsNotARunningSession(t *testing.T) {
+	t.Setenv("EVEY_HLS_ONDEMAND", "")
+	cfg := sharedfakes.NewFakeServerConfigRepository()
+	h, _, _ := newPackagerFlagHandler(t, cfg)
+
+	w := doVODRequestQ(h, "m1", "master.m3u8", servingFlagsCopyQuery)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, isPackagerMaster(w.Body.String()), "test rig: the packager must serve the master while on")
+
+	setServingFlag(t, cfg, "transcoding.hls_ondemand", "off")
+
+	for _, entry := range []string{"od_master.m3u8", "od_manifest.mpd"} {
+		w = doVODRequestQ(h, "m1", entry, "")
+		assert.Equal(t, http.StatusNotFound, w.Code, "%s must be refused while the packager is off", entry)
+	}
+	w = doVODRequestQ(h, "m1", "od_playlist.m3u8", servingFlagsCopyQuery)
+	assert.Equal(t, http.StatusOK, w.Code, "a running packager session keeps its resources")
+}

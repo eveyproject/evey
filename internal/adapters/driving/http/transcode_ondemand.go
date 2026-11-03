@@ -596,6 +596,17 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
+	// The packager's own entry points start a playback: a client fetches
+	// them bare (the subtitle hook reads this master for its renditions), so
+	// they answer to the switch as it is now, and a 404 sends the client to
+	// its fallback. The resources under them belong to a playback the
+	// packager already started and stay served.
+	if (name == "master.m3u8" || name == "manifest.mpd") &&
+		(!h.packagerFlag.enabled() || gateClosed(r, packagerGateParam)) {
+		span.SetStatus(codes.Error, "on-demand packaging switched off")
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
 	// The sub-resource packages the tracks its master did: the stamp names
 	// them, so the plan is rebuilt as is, never decided again (a decision
 	// that drifted from the master's built another plan, whose SourceID then
