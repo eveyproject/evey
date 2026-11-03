@@ -1333,6 +1333,14 @@ func (h *hlsVODServe) planAsServed(r *http.Request, mediaID string, item *domain
 	if err != nil {
 		return r, rp
 	}
+	// The pin resolves the transcode ladder unjudged (a child URL resolves
+	// ONE plan), so the fit the first resolution found for the receiver's
+	// line or floor rides along: same ladder, same rung index. Without it the
+	// rescue reload on a title whose copy rung is closed was served the whole
+	// ladder again - the symptom the fit exists to end.
+	if fit := rp.Plan.Fit; fit.Single && !plan.Fit.Single && fit.Rung >= 0 && fit.Rung < len(plan.Ladder) {
+		plan.Fit = fit
+	}
 	return pinned, &requestPlan{
 		Plan:       plan,
 		Decision:   plan.Decision,
