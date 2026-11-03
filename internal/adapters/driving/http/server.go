@@ -94,6 +94,9 @@ type HTTPServer struct {
 	// CastProgress derives watch progress from a cast receiver's fetches (the
 	// only playback signal once the sender's browser closes). nil = off.
 	CastProgress CastFetchObserver
+	// CastResume reads a profile's saved position for cast-next. nil = every
+	// next episode starts at zero.
+	CastResume CastResumeReader
 
 	// Library
 	LibCmdSvc   *applibrary.CommandService

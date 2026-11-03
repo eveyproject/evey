@@ -6,6 +6,7 @@ import (
 
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 	domainmeta "github.com/eveyproject/evey/internal/domain/metadata"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
@@ -177,4 +178,11 @@ type IntroDetectionTrigger interface {
 	SetManualSegment(ctx context.Context, mediaItemID, segType string, startMs, endMs int64) error
 	DeleteSegment(ctx context.Context, mediaItemID, segType string) error
 	PropagateSegment(ctx context.Context, refMediaItemID, segType string) ([]string, error)
+}
+
+// CastResumeReader is the saved position of one title for one profile; the
+// cast-next door hands it to the receiver so the next episode starts where
+// that profile left it, as the apps do.
+type CastResumeReader interface {
+	GetWatchProgress(ctx context.Context, profileID, mediaItemID string) (*domainplayback.WatchProgress, error)
 }

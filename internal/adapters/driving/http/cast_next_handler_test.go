@@ -9,6 +9,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,6 +19,7 @@ import (
 
 	appmedia "github.com/eveyproject/evey/internal/app/media"
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
@@ -168,4 +170,54 @@ func TestCastNext_HappyPath_MintsCastTokenForNext(t *testing.T) {
 	assert.True(t, minted.Cast, "the minted token must stay a cast token (progress tracking keys on it)")
 	assert.Equal(t, shared.UserID("u1"), minted.UserID)
 	assert.Equal(t, shared.ProfileID("p1"), minted.ProfileID)
+}
+
+// resumeReader answers a saved position per media id, or an error.
+type resumeReader struct {
+	byMedia map[string]*domainplayback.WatchProgress
+	err     error
+	asked   []string
+}
+
+func (r *resumeReader) GetWatchProgress(_ context.Context, profileID, mediaItemID string) (*domainplayback.WatchProgress, error) {
+	r.asked = append(r.asked, profileID+"/"+mediaItemID)
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.byMedia[mediaItemID], nil
+}
+
+// The next episode starts where the token's profile left it, as the apps
+// resume an unfinished episode; a finished one, or a lookup that failed,
+// starts from the top instead of blocking the switch.
+func TestCastNext_ResumePosition(t *testing.T) {
+	pos, _ := shared.NewDurationMs(754_000)
+	cases := []struct {
+		name   string
+		reader *resumeReader
+		want   int64
+	}{
+		{"unfinished episode resumes", &resumeReader{byMedia: map[string]*domainplayback.WatchProgress{"ep-b": {Position: pos}}}, 754_000},
+		{"finished episode restarts", &resumeReader{byMedia: map[string]*domainplayback.WatchProgress{"ep-b": {Position: pos, Completed: true}}}, 0},
+		{"never started", &resumeReader{byMedia: map[string]*domainplayback.WatchProgress{}}, 0},
+		{"lookup failed", &resumeReader{err: errors.New("db down")}, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cur := newEpisode("ep-a", "lib-a")
+			next := newEpisode("ep-b", "lib-a")
+			libSvc := &prewarmStreamsGetter{items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next}, next: next}
+			h, _ := newCastNextHandler(t, libSvc, &libIDAccessChecker{allowed: map[string]bool{"lib-a": true}}, testFakeParentalChecker{})
+			h.castResume = tc.reader
+
+			w := doCastNextRequest(h, "ep-a", castToken("ep-a"))
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			var resp struct {
+				ResumePositionMs int64 `json:"resume_position_ms"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			assert.Equal(t, tc.want, resp.ResumePositionMs)
+			assert.Equal(t, []string{"p1/ep-b"}, tc.reader.asked, "asked for the token's profile and the NEXT episode")
+		})
+	}
 }

@@ -31,6 +31,10 @@ type castNextResponse struct {
 	SeasonNumber    int    `json:"season_number"`
 	EpisodeNumber   int    `json:"episode_number"`
 	SeriesTitle     string `json:"series_title"`
+	// ResumePositionMs is where this profile left the next episode, 0 when it
+	// never started it or finished it: the receiver starts there, as the
+	// apps resume an unfinished episode and restart a watched one.
+	ResumePositionMs int64 `json:"resume_position_ms"`
 }
 
 // serveCastNext handles POST /api/v1/media/{id}/cast-next (streamAuth).
@@ -116,6 +120,7 @@ func (h *hlsVODServe) serveCastNext(w http.ResponseWriter, r *http.Request) {
 	if next.IndexNumber != nil {
 		resp.EpisodeNumber = *next.IndexNumber
 	}
+	resp.ResumePositionMs = h.castResumePosition(r.Context(), string(st.ProfileID), string(next.ID))
 	if next.ParentID != "" {
 		if season, sErr := h.libSvc.GetMediaItem(r.Context(), next.ParentID); sErr == nil && season != nil {
 			if season.IndexNumber != nil {
@@ -147,4 +152,18 @@ func (h *hlsVODServe) serveCastNext(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.WarnContext(r.Context(), "cast-next: encode failed", slog.Any("err", err))
 	}
+}
+
+// castResumePosition is the saved position of the next episode for the
+// token's profile, or 0 when there is none, it was completed, or it cannot be
+// read: a failed lookup starts the episode from the top, it never blocks it.
+func (h *hlsVODServe) castResumePosition(ctx context.Context, profileID, mediaItemID string) int64 {
+	if h.castResume == nil || profileID == "" {
+		return 0
+	}
+	wp, err := h.castResume.GetWatchProgress(ctx, profileID, mediaItemID)
+	if err != nil || wp == nil || wp.Completed {
+		return 0
+	}
+	return wp.Position.Milliseconds()
 }
