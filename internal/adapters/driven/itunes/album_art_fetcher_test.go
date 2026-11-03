@@ -144,3 +144,21 @@ func TestFetchRejectsTheRightTitleFromTheWrongArtist(t *testing.T) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// Le nom d'artiste se compare strictement : « Prince Royce » n'est pas
+// « Prince », même pour un album du même titre.
+func TestFetchRejectsAnArtistWhoseNameMerelyExtendsTheRequestedOne(t *testing.T) {
+	fake := &fakeITunes{results: []map[string]any{
+		album("Prince Royce", "Purple Rain", "https://x/100x100bb.jpg"),
+	}}
+	srv := fake.serve()
+	defer srv.Close()
+
+	_, _, err := newFetcherAgainst(t, srv).Fetch(context.Background(), "Prince", "Purple Rain")
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("attendu os.ErrNotExist pour un artiste au nom plus long, obtenu %v", err)
+	}
+	if fake.artHits != 0 {
+		t.Errorf("l'image ne doit pas être téléchargée (%d appels)", fake.artHits)
+	}
+}
