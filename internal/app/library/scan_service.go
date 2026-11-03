@@ -417,7 +417,7 @@ func (s *ScanService) ScanLibraryReport(ctx context.Context, libraryID string) (
 		return report, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
 
-	seenPaths, emptyRoots, failedPaths, toProcess, tvAdded, tvUpdated, err := s.scanDirectories(ctx, lib, idx)
+	seenPaths, emptyRoots, failedPaths, toProcess, tvAdded, tvUpdated, unsettled, err := s.scanDirectories(ctx, lib, idx)
 	if err != nil {
 		return report, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
@@ -431,9 +431,20 @@ func (s *ScanService) ScanLibraryReport(ctx context.Context, libraryID string) (
 	added += a
 	updated += u
 
-	removed, pruneErr := s.pruner.Prune(ctx, libraryID, lib.Paths, seenPaths, emptyRoots)
-	if pruneErr != nil {
-		slog.WarnContext(ctx, "orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", pruneErr))
+	// A pass that skipped files still being written leaves the orphans to
+	// the rescan booked for when they settle: an upgrade landing under a new
+	// name is matched against the row it replaces on that pass, and pruning
+	// the row now would hand the file a fresh identity instead.
+	removed := 0
+	if unsettled > 0 {
+		slog.InfoContext(ctx, "scan: orphan cleanup deferred until the files settle",
+			slog.String("library_id", libraryID), slog.Int("files", unsettled))
+	} else {
+		var pruneErr error
+		removed, pruneErr = s.pruner.Prune(ctx, libraryID, lib.Paths, seenPaths, emptyRoots)
+		if pruneErr != nil {
+			slog.WarnContext(ctx, "orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", pruneErr))
+		}
 	}
 
 	// Heal parser-pollution on existing orphans before finalising. The
@@ -554,14 +565,14 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 	return scanindex.New(entries), nil
 }
 
-func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, emptyRoots, failedPaths []string, toProcess []scanWork, added, updated int, err error) {
+func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, emptyRoots, failedPaths []string, toProcess []scanWork, added, updated, unsettled int, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.scan.scanDirectories")
 	defer span.End()
 	seenPaths = make(map[string]struct{})
-	// The television scan runs root by root below, after that root's files
-	// are marked seen: a replacement lookup reads the set as it stands.
+	// Every root is listed before any is processed: a replacement lookup
+	// reads the set of paths seen this pass, and a candidate under a later
+	// root must already be in it.
 	ctx = withScanSeen(ctx, seenPaths)
-	unsettled := 0
 	defer func() {
 		if unsettled > 0 && err == nil {
 			slog.InfoContext(ctx, "scan: files still being written, analysed once they settle",
@@ -570,6 +581,7 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		}
 	}()
 
+	listed := make([][]library.ScannedFile, 0, len(lib.Paths))
 	for _, path := range lib.Paths {
 		all, scanErr := s.scanner.Scan(ctx, path)
 		if scanErr != nil {
@@ -590,8 +602,6 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		for _, f := range all {
 			seenPaths[f.Path] = struct{}{}
 		}
-		files, n := s.splitSettled(all, time.Now())
-		unsettled += n
 		// A root that returned no files (and no error) is suspect: it may be a
 		// dropped/empty NFS-SMB mount rather than a genuinely empty folder. Record
 		// it so the pruner won't delete the items that live under it (see the
@@ -599,11 +609,16 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		if len(all) == 0 {
 			emptyRoots = append(emptyRoots, path)
 		}
+		files, n := s.splitSettled(all, time.Now())
+		unsettled += n
+		listed = append(listed, files)
+	}
 
+	for _, files := range listed {
 		if lib.Type == "tvshow" {
 			a, u, e := s.scanTVShowFiles(ctx, string(lib.ID), files)
 			if e != nil {
-				return nil, nil, nil, nil, 0, 0, e
+				return nil, nil, nil, nil, 0, 0, 0, e
 			}
 			added += a
 			updated += u
@@ -614,7 +629,7 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		toProcess = append(toProcess, work...)
 		updated += u
 	}
-	return seenPaths, emptyRoots, failedPaths, toProcess, added, updated, nil
+	return seenPaths, emptyRoots, failedPaths, toProcess, added, updated, unsettled, nil
 }
 
 func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanindex.Index) (toProcess []scanWork, moved int) {

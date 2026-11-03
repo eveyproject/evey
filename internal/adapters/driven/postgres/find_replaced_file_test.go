@@ -48,6 +48,13 @@ func TestMediaItemRepo_FindReplacedFile(t *testing.T) {
 	_, err = itemRepo.FindReplacedFile(ctx, movies.ID, "", remake)
 	assert.ErrorIs(t, err, shared.ErrNotFound, "another year is another film")
 
+	noYear := upgrade
+	noYear.Path = "/m/Film (2020)/Film.mkv"
+	noYear.Year = nil
+	got, err = itemRepo.FindReplacedFile(ctx, movies.ID, "", noYear)
+	require.NoError(t, err)
+	assert.Equal(t, shared.MediaItemID("rf-film"), got.ID, "a name without a year matches on folder and title alone")
+
 	same := upgrade
 	same.Path = film.File.Path
 	_, err = itemRepo.FindReplacedFile(ctx, movies.ID, "", same)

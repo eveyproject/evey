@@ -455,7 +455,8 @@ func (r *MediaItemRepository) listByLibraryIDAfter(ctx context.Context, libraryI
 // under a new name stands in for. An episode is matched on its season and
 // number, a movie on its folder, parsed title and year; the row's own path is
 // never f.Path (that is the path lookup's hit), and the oldest row wins when
-// several qualify, so a repeated upgrade keeps following the same item.
+// several qualify, so a repeated upgrade keeps following the same item. A
+// file whose name carries no year matches on folder and title alone.
 func (r *MediaItemRepository) FindReplacedFile(ctx context.Context, libraryID shared.LibraryID, parentID string, f library.ScannedFile) (*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.FindReplacedFile")
 	defer span.End()
@@ -478,7 +479,7 @@ func (r *MediaItemRepository) FindReplacedFile(ctx context.Context, libraryID sh
 		where = `mi.library_id = $1 AND mi.type = 'movie'
 		         AND regexp_replace(mf.file_path, '/[^/]*$', '') = $2
 		         AND lower(COALESCE(NULLIF(mi.scan_title, ''), mi.title)) = lower($3)
-		         AND mc.year IS NOT DISTINCT FROM $4::int
+		         AND ($4::int IS NULL OR mc.year IS NOT DISTINCT FROM $4::int)
 		         AND mf.file_path <> $5`
 		args = []any{libraryID, filepath.Dir(f.Path), f.Title, year, f.Path}
 	default:

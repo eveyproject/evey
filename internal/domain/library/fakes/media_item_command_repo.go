@@ -188,7 +188,8 @@ func (r *FakeMediaItemCommandRepo) ListContainerInfo(_ context.Context, libraryI
 
 // FindReplacedFile applies the port's rule over the stored items: an episode
 // of the same season and number, a movie of the same folder, parsed title and
-// year, never the row whose path is f.Path; the earliest-created wins.
+// year (a file without a year matches on folder and title alone), never the
+// row whose path is f.Path; the earliest-created wins.
 func (r *FakeMediaItemCommandRepo) FindReplacedFile(_ context.Context, libraryID shared.LibraryID, parentID string, f library.ScannedFile) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -214,7 +215,7 @@ func (r *FakeMediaItemCommandRepo) FindReplacedFile(_ context.Context, libraryID
 			if item.Catalog != nil {
 				year = item.Catalog.Year
 			}
-			if (year == nil) != (f.Year == nil) || (year != nil && *year != *f.Year) {
+			if f.Year != nil && (year == nil || *year != *f.Year) {
 				continue
 			}
 		default:
