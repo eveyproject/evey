@@ -288,7 +288,7 @@ func checkMeili(cfg *config.Config, db *sql.DB) []checkResult {
 
 // checkLibraryPaths reports each library root's existence and whether the
 // SERVER can write it - the kernel's owner/group/other semantics against PID
-// 1's identity, not a naive owner-uid comparison: a gravity:users library
+// 1's identity, not a naive owner-uid comparison: a media:users library
 // with g+rw is perfectly repairable by a server running as 1000:100.
 func checkLibraryPaths(db *sql.DB) []checkResult {
 	uid, gid, groups := serverIdentity()
