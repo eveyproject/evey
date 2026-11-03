@@ -1,0 +1,15 @@
+-- Provider text used to reach the catalogue as delivered: control characters
+-- (C0 but line and tab breaks, C1), bidi overrides and isolates, zero-width
+-- characters. They are now stopped at the provider boundary; the rows written
+-- before are cleaned here, once. Idempotent: a clean row matches nothing.
+-- people.name is left alone: it is unique, and two names that differ only by
+-- such a character would collide.
+UPDATE media_items
+   SET title = regexp_replace(title, '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F\u0080-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]', '', 'g'),
+       original_title = regexp_replace(original_title, '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F\u0080-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]', '', 'g'),
+       overview = regexp_replace(overview, '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F\u0080-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]', '', 'g'),
+       tagline = regexp_replace(tagline, '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F\u0080-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]', '', 'g')
+ WHERE title ~ '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F\u0080-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]'
+    OR original_title ~ '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F\u0080-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]'
+    OR overview ~ '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F\u0080-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]'
+    OR tagline ~ '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F\u0080-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]';

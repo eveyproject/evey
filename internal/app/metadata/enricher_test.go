@@ -1634,3 +1634,19 @@ func TestAutoEnrichItem_DiskCountReadErrorDoesNotDisableTheMatchGuard(t *testing
 		"a series whose disk structure cannot be read must not be matched against a provider "+
 			"with the validation silently disabled")
 }
+
+// Season and episode details bypass the cached provider, so the text is
+// cleaned again where it is written onto the item.
+func TestApplyBasicFields_SanitizesProviderText(t *testing.T) {
+	item := &domainlib.MediaItem{ID: "ep-1", Type: domainlib.Episode, Title: "S01E01"}
+	result := &domain.MetadataResult{
+		Title: "Pi\x00lot", Overview: "\u202EOver\x07view", Tagline: " Tag\x1f ",
+		Genres: []string{"Dra\x00ma"}, People: []domain.PersonResult{{Name: "Na\x00me"}},
+	}
+	applyBasicFields(item, result)
+	assert.Equal(t, "Pilot", item.Title)
+	assert.Equal(t, "Overview", item.Overview)
+	assert.Equal(t, "Tag", item.Tagline)
+	assert.Equal(t, []string{"Drama"}, item.Catalog.Genres)
+	assert.Equal(t, "Name", result.People[0].Name)
+}

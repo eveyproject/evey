@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
@@ -36,6 +37,7 @@ func (r *PersonRepository) Create(ctx context.Context, person *library.Person) e
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
+	person.Name = sanitizePersonName(person.Name)
 	// RETURNING id so person.ID reflects the PERSISTED row. A concurrent
 	// enrichment can create the same person (unique name) between the caller's
 	// GetByName miss and this insert; a plain DO NOTHING would silently keep the
@@ -213,3 +215,10 @@ func (r *PersonRepository) scanPerson(row *sql.Row) (*library.Person, error) {
 }
 
 var _ library.PersonRepository = (*PersonRepository)(nil)
+
+// sanitizePersonName drops what Postgres refuses in a TEXT value (invalid
+// UTF-8, U+0000): a provider name carrying either failed the insert and the
+// whole cast with it, on every enrichment.
+func sanitizePersonName(name string) string {
+	return strings.ReplaceAll(strings.ToValidUTF8(name, ""), "\x00", "")
+}

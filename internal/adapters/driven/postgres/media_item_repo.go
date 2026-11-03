@@ -73,8 +73,10 @@ func NewMediaItemRepository(db *sql.DB) *MediaItemRepository {
 // is returned unchanged, and a mangled scan title is overwritten by the
 // provider title at enrichment. A mis-encoded file path will be stored
 // stripped (so the row inserts); such a file needs renaming to play.
+// U+0000 is valid UTF-8 that Postgres refuses all the same, with the same
+// every-pass failure; it goes too.
 func sanitizeMediaItemText(item *library.MediaItem) {
-	v := func(s string) string { return strings.ToValidUTF8(s, "") }
+	v := func(s string) string { return strings.ReplaceAll(strings.ToValidUTF8(s, ""), "\x00", "") }
 	item.Title = v(item.Title)
 	item.ScanTitle = v(item.ScanTitle)
 	item.SortTitle = v(item.SortTitle)

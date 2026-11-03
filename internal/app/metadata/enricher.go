@@ -259,6 +259,10 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 }
 
 func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.MetadataResult) {
+	// Season and episode details reach here without passing the cached
+	// provider (the enricher unwraps to the capability), so the text is
+	// cleaned again at the point it is written onto the item.
+	result.Sanitize()
 	// A season has no name of its own: its label is derived from its index
 	// number (scan writes "Season N", clients render "Saison N" from
 	// index_number). Providers hand one back anyway - TMDB returns "Gigantor"
@@ -732,9 +736,9 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 		batch = append(batch, &domainlib.MediaItemTranslation{
 			MediaItemID: item.ID,
 			Locale:      locale,
-			Title:       result.Title,
-			Overview:    result.Overview,
-			Tagline:     result.Tagline,
+			Title:       domainmetadata.SanitizeText(result.Title),
+			Overview:    domainmetadata.SanitizeText(result.Overview),
+			Tagline:     domainmetadata.SanitizeText(result.Tagline),
 		})
 	}
 	if err := e.mediaTranslations.UpsertBatch(ctx, batch); err != nil {
