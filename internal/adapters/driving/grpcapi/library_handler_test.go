@@ -1147,3 +1147,28 @@ func TestLibraryHandler_CreateLibrary_RejectsUnsafePaths(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 }
+
+// A path with "." or ".." in it is refused as typed, on create and on update:
+// normalising it first would turn "/media/../etc" into "/etc" and accept a
+// root the admin never named.
+func TestLibraryHandler_DotSegmentsAreRefusedNotNormalised(t *testing.T) {
+	h, libQuery, _, _, _, _, _, _ := newTestLibraryHandlerWithScanner()
+	h.translator = eveyi18n.NewEmpty()
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
+
+	for _, p := range []string{"/media/../etc", "/media/./x", "/media/x/../y"} {
+		_, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+			Name: "Movies", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{p},
+		})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "create %q: %v", p, err)
+
+		_, err = h.UpdateLibrary(adminCtx(), &eveyv1.UpdateLibraryRequest{Id: "lib-1", Paths: []string{p}})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "update %q: %v", p, err)
+	}
+	// A trailing slash is still tidied, not refused.
+	resp, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+		Name: "Movies", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{"/media/movies/"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/media/movies"}, resp.Paths)
+}
