@@ -25,7 +25,8 @@ func normShowKey(s string) string {
 
 // refileStaleParse moves an item read by an older parser to where the current
 // parser files its path: same row, same id, same watch history, new type,
-// parent and episode number. Only a parse that names an episode refiles, and
+// parent and episode number. Only a parse that places the file refiles (it
+// names an episode, or a "Season N" folder holds it without a number), and
 // only rows below library.ParserVersion are touched, so an item the parser
 // has already placed is left alone. The display title is reset only when the
 // row changes type: it was derived from a name the old parser misread.
@@ -36,13 +37,14 @@ func normShowKey(s string) string {
 // as added, so the enricher matches it again as an episode. The id, and with
 // it the progress, favourites and playlists, stays.
 func (s *ScanService) refileStaleParse(ctx context.Context, existing *library.MediaItem, seasonID string, f library.ScannedFile, showTitle string) {
-	if existing == nil || existing.File == nil || existing.File.ParserVersion >= library.ParserVersion || f.Episode == nil {
+	if existing == nil || existing.File == nil || existing.File.ParserVersion >= library.ParserVersion || (f.Episode == nil && !f.FolderSeason) {
 		return
 	}
 	// A row already typed episode with the right number only needs a new
 	// parent, which updateMediaFile writes (and reports) for any moved file:
 	// refiling it here too wrote the row twice and hid that update's errors.
-	sameIndex := existing.IndexNumber != nil && *existing.IndexNumber == *f.Episode
+	sameIndex := (existing.IndexNumber == nil && f.Episode == nil) ||
+		(existing.IndexNumber != nil && f.Episode != nil && *existing.IndexNumber == *f.Episode)
 	if existing.Type == library.Episode && sameIndex {
 		return
 	}
@@ -68,8 +70,10 @@ func (s *ScanService) refileStaleParse(ctx context.Context, existing *library.Me
 	}
 	existing.ScanTitle = f.Title
 	existing.ParentID = seasonID
-	existing.IndexNumber = new(int)
-	*existing.IndexNumber = *f.Episode
+	existing.IndexNumber = nil
+	if f.Episode != nil {
+		existing.IndexNumber = new(*f.Episode)
+	}
 	existing.File.ParserVersion = library.ParserVersion
 	existing.UpdatedAt = time.Now()
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
@@ -279,12 +283,17 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		}
 
 		episodeFile := f
-		if f.Episode != nil {
+		switch {
+		case f.Episode != nil:
 			se := 0
 			if f.Season != nil {
 				se = *f.Season
 			}
 			episodeFile.Title = fmt.Sprintf("S%02dE%02d", se, *f.Episode)
+		case f.FolderSeason && f.NameTitle != "":
+			// No number to label it with: f.Title is the show's, and the
+			// file's own name is the only thing telling it from its siblings.
+			episodeFile.Title = f.NameTitle
 		}
 		s.refileStaleParse(ctx, byPath[f.Path], seasonID, episodeFile, showTitle)
 		a, u, episodeErr := s.upsertMediaFileWithIndex(ctx, libraryID, seasonID, episodeFile, byPath, showTitle)

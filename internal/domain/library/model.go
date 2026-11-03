@@ -314,7 +314,10 @@ type MediaFile struct {
 //	   the show two folders up when it sits in a "Season N" folder and its
 //	   name states an episode number.
 //	2: a multi-episode name ("S01E01E02", "1x01x02") is the episode of its
-//	   first number instead of a movie titled with the whole marker.
+//	   first number instead of a movie titled with the whole marker; a file
+//	   without a number in a "Season N" folder is an episode of that season
+//	   without an episode number instead of a movie (a one-file series in a
+//	   TV library).
 const ParserVersion = 2
 
 // StreamProbeVersion is the current prober revision. Bump when the prober

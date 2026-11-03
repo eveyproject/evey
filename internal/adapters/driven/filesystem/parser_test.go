@@ -698,11 +698,16 @@ func TestParsePath_KeepsTheFileNameWhenItStatesTheEpisode(t *testing.T) {
 	assert.Equal(t, "S01E05", info.SE)
 }
 
+// The unnumbered files of a "Season N" folder used to be pinned here as
+// movies: in a TV library that made each one a one-file series named after
+// the file. They are now episodes without a number (see
+// TestParsePath_UnnumberedFileInSeasonFolderIsAnEpisodeWithoutNumber), and a
+// movie library reads them back as the movies their names say.
 func TestParsePath_StaysAMovieOutsideASeasonFolder(t *testing.T) {
 	for _, path := range []string{
-		"/movies/01 - Thing.mkv",                          // no season folder above
-		"/tv/Show Name/Season 2/Pilot.mkv",                // no episode number in the name
-		"/tv/Show Name/Season 2/2001 A Space Odyssey.mkv", // a year is not an episode number
+		"/movies/01 - Thing.mkv",            // no season folder above
+		"/movies/Thing/Pilot.mkv",           // a folder that names no season
+		"/movies/Season Pass (2019)/01.mkv", // "Season Pass" is a title, not a season
 	} {
 		info := ParsePath(path)
 		assert.Equal(t, "movie", info.Type, path)
@@ -729,5 +734,29 @@ func TestParseFilename_MultiEpisodeTakesTheFirstNumber(t *testing.T) {
 		require.NotNil(t, info.Episode, name)
 		assert.Equal(t, 1, *info.Episode, name)
 		assert.Equal(t, "S01E01", info.SE, name)
+	}
+}
+
+// A file without a number in a "Season N" folder is an episode of that
+// season with no episode number, not a movie named after the file: the TV
+// scan files it under the show, after the numbered episodes. Its own name is
+// kept as NameTitle, which a movie library reads it back as.
+func TestParsePath_UnnumberedFileInSeasonFolderIsAnEpisodeWithoutNumber(t *testing.T) {
+	for _, tc := range []struct {
+		path, nameTitle string
+		season          int
+	}{
+		{"/tv/Show Name/Season 1/Pilot.mkv", "Pilot", 1},
+		{"/tv/Show Name/Specials/Making Of.mkv", "Making Of", 0},
+		{"/tv/Show Name/Season 2/2001 A Space Odyssey.mkv", "2001 A Space Odyssey", 2},
+	} {
+		info := ParsePath(tc.path)
+		assert.Equal(t, "series", info.Type, tc.path)
+		assert.Equal(t, "Show Name", info.Title, tc.path)
+		require.NotNil(t, info.Season, tc.path)
+		assert.Equal(t, tc.season, *info.Season, tc.path)
+		assert.Nil(t, info.Episode, tc.path)
+		assert.True(t, info.FolderSeason, tc.path)
+		assert.Equal(t, tc.nameTitle, info.NameTitle, tc.path)
 	}
 }

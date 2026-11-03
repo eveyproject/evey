@@ -222,9 +222,12 @@ func (p *FilenameParser) Parse(filename string) ParsedInfo {
 
 // ParsePath parses a file by its name, then by the folders above it: a file
 // whose name carries no season/episode marker but sits in a "Season N" (or
-// "Specials") folder is an episode of the show named by the folder above,
-// provided its name states an episode number. The show folder also lends its
-// year when the file has none.
+// "Specials") folder is an episode of that season of the show named by the
+// folder above. Its episode number is the one its name states; a name that
+// states none ("Pilot.mkv") gives an episode without a number, filed after
+// the numbered ones, rather than a movie that a TV library turned into a
+// one-file series. The show folder also lends its year when the file has
+// none. A movie library reads such a file back as the movie its name says.
 func ParsePath(path string) ParsedInfo {
 	info := ParseFilename(path)
 	if info.Type == "series" {
@@ -236,10 +239,7 @@ func ParsePath(path string) ParsedInfo {
 		return info
 	}
 	base := filepath.Base(path)
-	episode, ok := episodeNumberFromName(strings.TrimSuffix(base, filepath.Ext(base)))
-	if !ok {
-		return info
-	}
+	episode, numbered := episodeNumberFromName(strings.TrimSuffix(base, filepath.Ext(base)))
 	show := ParseFilename(filepath.Base(filepath.Dir(dir)) + ".mkv")
 	if show.Title == "" {
 		return info
@@ -248,8 +248,12 @@ func ParsePath(path string) ParsedInfo {
 	info.NameTitle = info.Title
 	info.Type = "series"
 	info.Season = &season
-	info.Episode = &episode
-	info.SE = fmt.Sprintf("S%02dE%02d", season, episode)
+	info.Episode = nil
+	info.SE = ""
+	if numbered {
+		info.Episode = &episode
+		info.SE = fmt.Sprintf("S%02dE%02d", season, episode)
+	}
 	info.Title = show.Title
 	info.CleanTitle = show.CleanTitle
 	if info.Year == nil {
