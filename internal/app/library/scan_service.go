@@ -498,6 +498,11 @@ func (s *ScanService) healOrphanTitles(ctx context.Context, libraryID string) in
 		if it.Catalog != nil && len(it.Catalog.ProviderIDs) > 0 {
 			continue
 		}
+		// An episode's stored title is its "SxxEyy" label, never a name the
+		// file states: rewriting it from the path named it after its series.
+		if it.Type == library.Episode {
+			continue
+		}
 		fresh := s.scanner.ParseTitle(it.File.Path)
 		if fresh == "" {
 			continue

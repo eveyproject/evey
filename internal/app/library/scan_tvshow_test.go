@@ -627,3 +627,19 @@ func TestScanTVShow_RefileDropsTheEnrichmentOfTheOldType(t *testing.T) {
 	}
 	assert.True(t, announced, "the refiled item is announced so it is matched again")
 }
+
+// The orphan heal never renames an episode: its stored title is the SxxEyy
+// label, and the path's title is its series'.
+func TestScanTVShow_HealLeavesAnEpisodeTitleAlone(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}})
+	const path = "/tv/Show/Season 2/03 - Pilot.mkv"
+	scanner.Results["/tv"] = []library.ScannedFile{{Path: path, Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(2), Episode: new(3), Type: library.Episode}}
+	scanner.ParsedTitles[path] = "Show"
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 1)
+	assert.Equal(t, "S02E03", episodes[0].Title)
+}
