@@ -12,15 +12,34 @@ export const RESUME_END_EPSILON_MS = 15_000;
 // until 2026-09-24: the browser television opened a played title at its end.
 export function resolveStartPositionMs(
   restart: boolean,
-  progress?: { positionMs?: string | number; durationMs?: string | number; played?: boolean } | null,
+  progress?: ResumeProgress | null,
 ): number {
   if (restart) return 0;
+  return resumableMs(progress);
+}
+
+type ResumeProgress = { positionMs?: string | number; durationMs?: string | number; played?: boolean };
+
+// The server's own completion point (command_service.go: 9/10 of the runtime).
+const COMPLETED_NUM = 9;
+const COMPLETED_DEN = 10;
+
+// resumableMs is the position a Resume would start at, 0 when there is
+// nothing to resume. The media pages label their button with it, the players
+// start there: both read the same rule.
+//
+// The played flag alone does not mean "at the end". Completion is sticky on
+// the server: a title finished once keeps its flag while the position follows
+// the next viewing. Reading the flag as "the end" sent every viewer who left a
+// second viewing back to the start of the film. A played title is at its end
+// only past the completion point, or when its length is unknown.
+export function resumableMs(progress?: ResumeProgress | null): number {
   const positionMs = progress?.positionMs ? Number(progress.positionMs) : 0;
   if (!positionMs || positionMs <= 0) return 0;
   const durationMs = progress?.durationMs ? Number(progress.durationMs) : 0;
-  const finished =
-    progress?.played === true || (durationMs > 0 && positionMs >= durationMs - RESUME_END_EPSILON_MS);
-  return finished ? 0 : positionMs;
+  if (durationMs > 0 && positionMs >= durationMs - RESUME_END_EPSILON_MS) return 0;
+  if (progress?.played === true && (durationMs <= 0 || positionMs * COMPLETED_DEN >= durationMs * COMPLETED_NUM)) return 0;
+  return positionMs;
 }
 
 // firstStartMs: the position the first stream of a session starts at (the
