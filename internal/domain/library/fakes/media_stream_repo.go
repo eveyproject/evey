@@ -132,6 +132,7 @@ func (r *FakeMediaStreamRepository) RefreshProbedFields(_ context.Context, media
 		refreshField(&s.Bitrate, p.Bitrate)
 		refreshField(&s.Channels, p.Channels)
 		refreshField(&s.ChannelLayout, p.ChannelLayout)
+		refreshField(&s.SourceTrackID, p.SourceTrackID)
 		codec, keptCodec := library.RefreshCodec(s.Codec, p.Codec)
 		if keptCodec {
 			res.Kept = append(res.Kept, fmt.Sprintf("stream %d codec: stored %q, probe %q", p.StreamIndex, s.Codec, p.Codec))
@@ -159,7 +160,7 @@ func sameProbedFields(a, b *library.MediaStream) bool {
 	return eqPtr(a.Framerate, b.Framerate) && eqPtr(a.BitDepth, b.BitDepth) && eqPtr(a.PixelFormat, b.PixelFormat) &&
 		eqPtr(a.ColorSpace, b.ColorSpace) && eqPtr(a.ColorTransfer, b.ColorTransfer) && eqPtr(a.HDRType, b.HDRType) &&
 		eqPtr(a.Bitrate, b.Bitrate) && eqPtr(a.Channels, b.Channels) && eqPtr(a.ChannelLayout, b.ChannelLayout) &&
-		a.Codec == b.Codec && a.Title == b.Title
+		eqPtr(a.SourceTrackID, b.SourceTrackID) && a.Codec == b.Codec && a.Title == b.Title
 }
 
 func eqPtr[T comparable](a, b *T) bool {

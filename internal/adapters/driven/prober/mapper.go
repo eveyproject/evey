@@ -85,6 +85,7 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			ms.Title = t.Name
 		}
 		ms.HandlerName = t.HandlerName
+		// SourceTrackID comes from mkv.Track.FileTrackID once the mkvgo in go.mod exposes it.
 		if cln := t.CodecLongName(); cln != "" {
 			ms.CodecLongName = cln
 		}

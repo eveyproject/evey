@@ -2,10 +2,8 @@ package postgres_test
 
 import (
 	"database/sql"
-	"errors"
 	"testing"
 
-	"github.com/golang-migrate/migrate/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,9 +50,9 @@ func TestMigration000192_ProviderIDIdentityOnExistingRows(t *testing.T) {
 	_, err := db.Exec(`INSERT INTO people (id, name, provider_ids) VALUES ('homonym', 'Sam Taylor', '{"tmdb":"202"}')`)
 	require.Error(t, err, "the old unique name refuses a homonym")
 
-	if upErr := m.Up(); upErr != nil && !errors.Is(upErr, migrate.ErrNoChange) {
-		t.Fatal(upErr)
-	}
+	// Pinned to 192, not Up: the down below must revert this migration, not
+	// whichever one comes after it.
+	require.NoError(t, m.Migrate(192))
 
 	insertPerson192(t, db, "homonym", "Sam Taylor", `{"tmdb":"202"}`)
 	_, err = db.Exec(`INSERT INTO people (id, name, provider_ids) VALUES ('dup-no-id', 'Pat Lee', '{}')`)
@@ -82,7 +80,7 @@ func TestMigration000192_ProviderIDIdentityOnExistingRows(t *testing.T) {
 	// homonyms after the first are renamed with their provider id (their row
 	// id when the provider id is shared too), never dropped, and the revert
 	// ends clean instead of leaving the schema dirty.
-	require.NoError(t, m.Steps(-1))
+	require.NoError(t, m.Migrate(191))
 	version, dirty, err := m.Version()
 	require.NoError(t, err)
 	assert.Equal(t, uint(191), version)

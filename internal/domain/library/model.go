@@ -437,9 +437,15 @@ func (m *MediaItem) IsPlayable() bool {
 }
 
 type MediaStream struct {
-	ID            string
-	MediaItemID   shared.MediaItemID
-	StreamIndex   int
+	ID          string
+	MediaItemID shared.MediaItemID
+	StreamIndex int
+	// SourceTrackID is the number the FILE gives the track (Matroska
+	// TrackNumber, MP4 tkhd track_ID), nil when the probe did not report it.
+	// StreamIndex is only a position among the surfaced tracks: a packager
+	// that drops one track shifts every position after it, while this number
+	// names the same track on both sides.
+	SourceTrackID *int
 	StreamType    StreamType
 	Codec         string
 	CodecLongName string
