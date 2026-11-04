@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"regexp"
+	"strconv"
 	"strings"
 
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
@@ -125,12 +126,29 @@ func renditionIsTrack(r planAudioRendition, s *domainlibrary.MediaStream) bool {
 		return true
 	}
 	if r.name != "" && s.Title != "" {
-		return strings.EqualFold(normTrackName(r.name), normTrackName(s.Title))
+		return sameTrackName(normTrackName(r.name), normTrackName(s.Title))
 	}
 	if r.lang != "" && s.Language != "" {
 		return strings.EqualFold(r.lang, s.Language)
 	}
 	return true
+}
+
+// sameTrackName reports whether a published NAME is this title: the title
+// itself, or the title numbered by the packager. Two tracks of one group may
+// not share a NAME, so the packager keeps the first and calls the next ones
+// "<title> 2", "<title> 3"; read as a mismatch, the second track passed for a
+// dropped one and every track after it lost its rendition.
+func sameTrackName(name, title string) bool {
+	if strings.EqualFold(name, title) {
+		return true
+	}
+	if len(name) <= len(title)+1 || !strings.EqualFold(name[:len(title)], title) || name[len(title)] != ' ' {
+		return false
+	}
+	suffix := name[len(title)+1:]
+	n, err := strconv.Atoi(suffix)
+	return err == nil && n >= 2 && strconv.Itoa(n) == suffix
 }
 
 // normTrackName reads a track name the way a viewer does: the packager writes
