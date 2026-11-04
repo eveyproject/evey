@@ -27,6 +27,9 @@ func NewService(
 ) *Service {
 	cmd := NewCommandService(progressCmd, sessionCmd, sessionQuery, users, profiles, events, opts...)
 	q := NewQueryService(progressQuery, sessionQuery)
+	if cmd.progressBuffer != nil {
+		q.WithPendingProgress(cmd.progressBuffer)
+	}
 	return &Service{cmd: cmd, query: q}
 }
 

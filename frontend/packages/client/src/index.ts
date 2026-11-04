@@ -98,6 +98,7 @@ export * from "./lib/playlistType";
 export * from "./lib/playerTitle";
 export * from "./lib/playerExit";
 export * from "./lib/resumePosition";
+export * from "./lib/progressRefresh";
 export * from "./lib/clientUserAgent";
 export * from "./lib/subtitleParse";
 export * from "./lib/reorder";
