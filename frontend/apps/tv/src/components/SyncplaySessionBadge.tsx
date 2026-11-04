@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { Pressable, Text, StyleSheet } from "react-native";
+import { forwardRef, useCallback, useState } from "react";
+import { Pressable, Text, StyleSheet, type View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FONT_SIZE } from "@evey/theme";
@@ -23,7 +23,8 @@ interface SyncplaySessionBadgeProps {
 // does not expose focus state to its caller) - this is its own minimal
 // Pressable so the player screen can guard the D-pad "select" double-fire
 // above.
-export function SyncplaySessionBadge({ connected, onPress, onFocusChange }: SyncplaySessionBadgeProps) {
+// Forwards its ref so the player can send the focus here on UP.
+export const SyncplaySessionBadge = forwardRef<View, SyncplaySessionBadgeProps>(function SyncplaySessionBadge({ connected, onPress, onFocusChange }, ref) {
   const { t } = useTranslation();
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
@@ -43,6 +44,7 @@ export function SyncplaySessionBadge({ connected, onPress, onFocusChange }: Sync
 
   return (
     <Pressable
+      ref={ref}
       onPress={onPress}
       onFocus={handleFocus}
       onBlur={handleBlur}
@@ -62,7 +64,7 @@ export function SyncplaySessionBadge({ connected, onPress, onFocusChange }: Sync
       </Text>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   badge: {
