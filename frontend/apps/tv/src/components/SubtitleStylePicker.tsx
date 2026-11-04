@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { View, Text, Modal, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
@@ -32,21 +33,40 @@ export function SubtitleStylePicker({ visible, style, onChange, onClose }: Subti
   const { t } = useTranslation();
   if (!visible) return null;
 
-  const row = (key: string, label: string, value: string, selected: boolean, onPress: () => void, isFirst: boolean) => (
+  // One choice in a row of choices: the D-pad walks a row with left/right and
+  // moves between rows with up/down. A swatch, when given, shows the colour
+  // itself next to its name.
+  const chip = (key: string, label: string, selected: boolean, onPress: () => void, isFirst: boolean, swatch?: string) => (
     <FocusableCard
       key={key}
       hasTVPreferredFocus={isFirst}
       onPress={onPress}
       accessibilityLabel={label}
       accessibilityState={{ selected }}
-      style={[styles.row, { borderBottomColor: theme.colors.border }]}
-      focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
+      style={[
+        styles.chip,
+        {
+          borderColor: selected ? theme.colors.accent : theme.colors.border,
+          backgroundColor: selected ? theme.colors.accent + "22" : "transparent",
+          borderRadius: theme.radii.md,
+        },
+      ]}
+      focusedStyle={{ backgroundColor: theme.colors.accent + "44" }}
     >
-      <Text style={[styles.rowLabel, { color: theme.colors.text }]}>{label}</Text>
-      <Text style={{ color: selected ? theme.colors.accent : theme.colors.textMuted, fontSize: 18 }}>
-        {selected ? `✓ ${value}` : value}
+      {swatch !== undefined && (
+        <View style={[styles.swatch, { backgroundColor: swatch, borderColor: theme.colors.border }]} />
+      )}
+      <Text style={[styles.chipLabel, { color: selected ? theme.colors.accent : theme.colors.text }]} numberOfLines={1}>
+        {label}
       </Text>
     </FocusableCard>
+  );
+
+  const section = (title: string, chips: ReactNode) => (
+    <View style={styles.sectionBlock}>
+      <Text style={[styles.section, { color: theme.colors.textMuted }]}>{title}</Text>
+      <View style={styles.chipRow}>{chips}</View>
+    </View>
   );
 
   return (
@@ -75,38 +95,43 @@ export function SubtitleStylePicker({ visible, style, onChange, onClose }: Subti
             </Text>
           </View>
 
+          {/* One row per setting, every choice of a row in sight: a long
+              column hid everything below the first colours, and nothing on
+              screen said there was more further down. */}
           <ScrollView style={styles.list}>
-            <Text style={[styles.section, { color: theme.colors.textMuted }]}>{t("player.subtitleStyle.textColor")}</Text>
-            {SUBTITLE_TEXT_COLORS.map((c, i) =>
-              row(`c-${c.value}`, t(c.labelKey, c.value), "", style.color === c.value, () => onChange({ ...style, color: c.value }), i === 0),
-            )}
-
-            <Text style={[styles.section, { color: theme.colors.textMuted }]}>{t("player.subtitleStyle.size")}</Text>
-            {SIZES.map((s) =>
-              row(`s-${s}`, `${s} %`, "", style.fontSize === s, () => onChange({ ...style, fontSize: s }), false),
-            )}
-
-            <Text style={[styles.section, { color: theme.colors.textMuted }]}>{t("player.subtitleStyle.background")}</Text>
-            {SUBTITLE_BG_COLORS.map((c) =>
-              row(
-                `b-${c.labelKey}`,
-                t(c.labelKey, c.value),
-                "",
-                c.opacity === 0 ? style.bgOpacity === 0 : style.bgColor === c.value && style.bgOpacity > 0,
-                () => onChange({ ...style, bgColor: c.value, bgOpacity: c.opacity === 0 ? 0 : style.bgOpacity || 75 }),
-                false,
+            {section(
+              t("player.subtitleStyle.textColor"),
+              SUBTITLE_TEXT_COLORS.map((c, i) =>
+                chip(`c-${c.value}`, t(c.labelKey, c.value), style.color === c.value, () => onChange({ ...style, color: c.value }), i === 0, c.value),
               ),
             )}
-
-            <Text style={[styles.section, { color: theme.colors.textMuted }]}>{t("player.subtitleStyle.position")}</Text>
-            {(["bottom", "top"] as const).map((pos) =>
-              row(
-                `p-${pos}`,
-                t(pos === "bottom" ? "player.subtitleStyle.bottom" : "player.subtitleStyle.top"),
-                "",
-                style.position === pos,
-                () => onChange({ ...style, position: pos }),
-                false,
+            {section(
+              t("player.subtitleStyle.background"),
+              SUBTITLE_BG_COLORS.map((c) =>
+                chip(
+                  `b-${c.labelKey}`,
+                  t(c.labelKey, c.value),
+                  c.opacity === 0 ? style.bgOpacity === 0 : style.bgColor === c.value && style.bgOpacity > 0,
+                  () => onChange({ ...style, bgColor: c.value, bgOpacity: c.opacity === 0 ? 0 : style.bgOpacity || 75 }),
+                  false,
+                  c.opacity === 0 ? "transparent" : c.value,
+                ),
+              ),
+            )}
+            {section(
+              t("player.subtitleStyle.size"),
+              SIZES.map((sz) => chip(`s-${sz}`, `${sz} %`, style.fontSize === sz, () => onChange({ ...style, fontSize: sz }), false)),
+            )}
+            {section(
+              t("player.subtitleStyle.position"),
+              (["bottom", "top"] as const).map((pos) =>
+                chip(
+                  `p-${pos}`,
+                  t(pos === "bottom" ? "player.subtitleStyle.bottom" : "player.subtitleStyle.top"),
+                  style.position === pos,
+                  () => onChange({ ...style, position: pos }),
+                  false,
+                ),
               ),
             )}
           </ScrollView>
@@ -122,12 +147,15 @@ export function SubtitleStylePicker({ visible, style, onChange, onClose }: Subti
 
 const styles = StyleSheet.create({
   scrim: { flex: 1, justifyContent: "center", alignItems: "center" },
-  panel: { width: 760, maxHeight: "86%", paddingVertical: 16, paddingHorizontal: 28 },
+  panel: { width: 960, maxHeight: "90%", paddingVertical: 16, paddingHorizontal: 28 },
   title: { fontSize: 26, fontWeight: "700", textAlign: "center", marginBottom: 16 },
-  previewBox: { alignItems: "center", marginBottom: 16 },
-  list: { maxHeight: 560 },
-  section: { fontSize: 15, fontWeight: "700", letterSpacing: 1, marginTop: 16, marginBottom: 4 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  rowLabel: { fontSize: 18 },
+  previewBox: { alignItems: "center", marginBottom: 8 },
+  list: { maxHeight: 600 },
+  sectionBlock: { marginTop: 12 },
+  section: { fontSize: 15, fontWeight: "700", letterSpacing: 1, marginBottom: 8 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 2 },
+  swatch: { width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
+  chipLabel: { fontSize: 18 },
   close: { alignSelf: "center", paddingVertical: 10, paddingHorizontal: 32 },
 });
