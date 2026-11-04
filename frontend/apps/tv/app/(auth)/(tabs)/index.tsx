@@ -4,7 +4,7 @@ import { View, Text, ScrollView, FlatList, StyleSheet, Animated, DeviceEventEmit
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   usePlaybackServiceGetResumeItems,
@@ -12,6 +12,8 @@ import {
   useLibraryServiceListLibraries,
   useFeedServiceGetFeedConfig,
   useFeedServiceRecommended,
+  useNotificationServiceGetUnreadCount,
+  getNotificationServiceGetUnreadCountQueryKey,
   getLibraryServiceListMediaItemsQueryOptions,
   getMusicServiceGetAlbumsQueryOptions,
   getPhotoServiceListPhotoAlbumsQueryOptions,
@@ -42,6 +44,7 @@ import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 import { libraryFirstPageQueries } from "../../../src/lib/libraryGrid";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
+import { HOME_LISTS_MAX_AGE_MS, refreshHomeLists } from "../../../src/lib/homeFreshness";
 
 // How long the home waits for its slower rows before showing what it has.
 const HOME_REVEAL_CAP_MS = 2500;
@@ -635,6 +638,26 @@ export default function HomeScreen() {
   // from the player, a library or anywhere else, the resume row must be re-read
   // or a title started elsewhere (a library, a search) is missing from it.
   useRefetchOnReturn(resume.refetch);
+  // New titles reach the rows two ways (see homeFreshness): back on the home,
+  // rows older than a minute are read again along with the notification
+  // count; and a count that rises - the "new film" notification - re-reads
+  // every row at once, the viewer may well still be sitting on the home.
+  const qc = useQueryClient();
+  const refreshOnReturn = useCallback(() => {
+    void refreshHomeLists(qc, HOME_LISTS_MAX_AGE_MS);
+    void qc.invalidateQueries({ queryKey: getNotificationServiceGetUnreadCountQueryKey() });
+  }, [qc]);
+  useRefetchOnReturn(refreshOnReturn);
+  // Read once a minute while the home is on screen: the television can sit
+  // here all evening, and nothing else would ask.
+  const { data: unread } = useNotificationServiceGetUnreadCount(undefined, { query: { refetchInterval: 60_000 } });
+  const unreadCount = Number(unread?.count ?? 0);
+  const lastUnreadRef = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = lastUnreadRef.current;
+    lastUnreadRef.current = unreadCount;
+    if (prev !== null && unreadCount > prev) void refreshHomeLists(qc);
+  }, [unreadCount, qc]);
   const recommended = useFeedServiceRecommended({ limit: fetchSize("recommended") }, keepRow);
   const popular = useMostPopular(fetchSize("most_popular"));
   const [resumeSize, recommendedSize, popularSize] = [

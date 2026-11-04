@@ -125,7 +125,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
     { key: "settings", label: t("common.nav.settings", "Settings"), icon: "settings-outline", action: () => go("/(auth)/(tabs)/settings") },
     { key: "stats", label: t("common.nav.myStats", "My Stats"), icon: "stats-chart-outline", action: () => go("/(auth)/settings/stats") },
     { key: "history", label: t("common.nav.watchHistory", "Watch History"), icon: "time-outline", action: () => go("/history") },
-    { key: "quickconnect", label: t("common.nav.quickConnect", "Quick Connect"), icon: "qr-code-outline", action: () => go("/quick-connect") },
+    { key: "quickconnect", label: t("common.nav.quickConnect", "Quick Connect"), icon: "qr-code-outline", action: () => go("/quick-connect-authorize") },
   ];
   if (isAdmin) items.push({ key: "admin", label: t("common.nav.admin", "Admin"), icon: "grid-outline", action: () => go("/admin") });
 

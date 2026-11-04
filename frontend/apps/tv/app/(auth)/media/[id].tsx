@@ -24,7 +24,7 @@ import { useAuthStore, useDemoStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
-import { RESUME_PROGRESS_QUERY, buildWatchProgressMaps, feedItemsToCards, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, buildWatchProgressMaps, feedItemsToCards, resumableMs, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
@@ -882,7 +882,8 @@ export default function MediaDetailScreen() {
 
 
   const resumeMs = watchProgress?.positionMs;
-  const hasProgress = resumeMs && Number(resumeMs) > 0 && !watchProgress?.played;
+  // A film seen before and watched again resumes too: see resumableMs.
+  const hasProgress = resumableMs(watchProgress) > 0;
 
 
   return (
