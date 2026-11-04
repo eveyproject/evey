@@ -36,6 +36,13 @@ type Options struct {
 	NoNice bool
 	// NoMemCap skips RLIMIT_AS: GPU drivers map address space far beyond RSS.
 	NoMemCap bool
+	// MinMemBytes is a measured working set the class cap would strangle: the
+	// cap and the admission reservation rise to it, so the process is either
+	// refused for memory pressure before it starts or runs with the room it
+	// needs. The class cap is sized for a decoder; a 4K 10-bit x265 encode
+	// holds over 2 GiB resident and failed its frame malloc under the
+	// production cap on a small host.
+	MinMemBytes int64
 	// UnboundedThreads leaves ffmpeg's thread auto-detection: calibration must
 	// measure the whole host.
 	UnboundedThreads bool
@@ -110,9 +117,10 @@ func command(ctx context.Context, budget *cpubudget.Budget, o Options, bin strin
 	if o.Class == 0 {
 		o.Class = Probe
 	}
+	need := max(RSSCap(o.Class, memBudget()), o.MinMemBytes)
 	rssCap := int64(0)
 	if !o.NoMemCap {
-		rssCap = RSSCap(o.Class, memBudget())
+		rssCap = need
 	}
 
 	threads := 0
@@ -142,7 +150,7 @@ func command(ctx context.Context, budget *cpubudget.Budget, o Options, bin strin
 	if o.Class == Scan {
 		args = boundFilterThreads(bin, args)
 	}
-	release, err := defaultAdmission.admit(ctx, o.Class, o.Site, RSSCap(o.Class, memBudget()))
+	release, err := defaultAdmission.admit(ctx, o.Class, o.Site, need)
 	if err != nil {
 		releaseCPU()
 		return nil, nil, err
