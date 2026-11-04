@@ -43,6 +43,7 @@ import {
   useMediaItemCollections,
   useParentalGate,
   useToggleFavorite,
+  resumableMs,
 } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Pressable } from "../components/ui";
@@ -354,7 +355,8 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
 
   const meta = [media.year, formatDurationMs(media.durationMs), media.officialRating].filter(Boolean).join("  •  ");
   const resumeMs = Number(watchProgress?.positionMs ?? 0);
-  const hasProgress = resumeMs > 0 && !watchProgress?.played;
+  // A film seen before and watched again resumes too: see resumableMs.
+  const hasProgress = resumableMs(watchProgress) > 0;
   const people = media.people ?? [];
   const actors = people.filter((p) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR");
   const crew = people.filter((p) => p.type === "PERSON_TYPE_DIRECTOR" || p.type === "PERSON_TYPE_WRITER" || p.type === "PERSON_TYPE_PRODUCER");

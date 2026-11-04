@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { formatTimeMs, itemLabel, type TrackPick } from "@evey/api";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
-import { RESUME_PROGRESS_QUERY } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, resumableMs } from "@evey/client";
 import { Play, RotateCcw, EyeOff, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { useTranslation } from "react-i18next";
@@ -104,7 +104,8 @@ export function MediaDetailActions({
   });
   const watched = watchedOverride ?? (progress?.played === true);
   const resumeMs = progress?.positionMs;
-  const hasProgress = !!resumeMs && Number(resumeMs) > 0 && progress?.played !== true;
+  // A film seen before and watched again resumes too: see resumableMs.
+  const hasProgress = resumableMs(progress) > 0;
 
   const invalidateWatched = () => {
     invalidateWatchedState(qc, item.id);
