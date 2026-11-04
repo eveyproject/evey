@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 import { playbackServiceReportProgress, eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { clientLogger } from "../log";
+import { refreshProgressViews } from "../lib/progressRefresh";
 
 const log = clientLogger("progress");
 
@@ -74,6 +76,11 @@ export function useProgressReporter(
   // used to land on the parked phone instead of the television).
   getCastDeviceName?: () => string,
 ) {
+  // Read from the context, not useQueryClient: a reporter mounted without a
+  // provider (a test) simply skips the refresh instead of throwing.
+  const queryClient = useContext(QueryClientContext);
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingRef = useRef(false);
   const errorCountRef = useRef(0);
@@ -174,7 +181,9 @@ export function useProgressReporter(
         isMuted: getIsMutedRef.current?.() ?? false,
         volumeLevel: Math.round((getVolumeRef.current?.() ?? 1) * 100),
         castDeviceName: getCastDeviceNameRef.current?.() ?? "",
-      }).catch((err) => log.warn("progress report failed on unmount:", err));
+      })
+        .catch((err) => log.warn("progress report failed on unmount:", err))
+        .finally(() => refreshProgressViews(queryClientRef.current));
     };
   }, [sessionId]);
 }
