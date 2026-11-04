@@ -43,6 +43,9 @@ type planAudioRendition struct {
 	name string
 	lang string
 	uri  string
+	// track is the number the file gives the track (X-MKVGO-TRACK), 0 when
+	// the packager did not publish one: file track numbers start at 1.
+	track int
 }
 
 // parsePlanAudioRenditions reads the audio renditions a plan publishes, in the
@@ -51,12 +54,23 @@ func parsePlanAudioRenditions(master string) []planAudioRendition {
 	var out []planAudioRendition
 	for _, m := range extXMediaAudio.FindAllStringSubmatch(master, -1) {
 		out = append(out, planAudioRendition{
-			name: attrOf(m[1], "NAME"),
-			lang: attrOf(m[1], "LANGUAGE"),
-			uri:  attrOf(m[1], "URI"),
+			name:  attrOf(m[1], "NAME"),
+			lang:  attrOf(m[1], "LANGUAGE"),
+			uri:   attrOf(m[1], "URI"),
+			track: fileTrackOf(m[1]),
 		})
 	}
 	return out
+}
+
+// fileTrackOf reads the packager's X-MKVGO-TRACK, the file's own number for
+// the track. 0 when absent or unreadable, which pairs by name as before.
+func fileTrackOf(attrs string) int {
+	n, err := strconv.Atoi(attrOf(attrs, "X-MKVGO-TRACK"))
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }
 
 // attrOf pulls one quoted attribute out of an EXT-X-MEDIA attribute list.
@@ -117,11 +131,16 @@ func planRenditionURIFor(rends []planAudioRendition, streams []*domainlibrary.Me
 }
 
 // renditionIsTrack reports whether a published rendition describes this source
-// track. The plan copies the track's title into NAME and its language into
-// LANGUAGE, so those two are the evidence. A rendition with neither (an
-// untitled, language-less track) is accepted on position alone - refusing it
-// would strand the very files that need this most.
+// track. The file's own track number, when both the rendition and the stream
+// carry one, is the whole answer: names collide and get renumbered by the
+// packager, the number does not. Otherwise the plan copies the track's title
+// into NAME and its language into LANGUAGE, so those two are the evidence. A
+// rendition with neither (an untitled, language-less track) is accepted on
+// position alone - refusing it would strand the very files that need this most.
 func renditionIsTrack(r planAudioRendition, s *domainlibrary.MediaStream) bool {
+	if r.track > 0 && s.SourceTrackID != nil {
+		return r.track == *s.SourceTrackID
+	}
 	if r.name == "" && r.lang == "" {
 		return true
 	}
