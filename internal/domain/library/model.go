@@ -361,7 +361,10 @@ const ParserVersion = 2
 //	   track with frame_mbs_only_flag 0 alone is unknown instead of
 //	   interlaced, and the first samples prove an H.264, HEVC or MPEG-2 track
 //	   interlaced with its field order.
-const StreamProbeVersion = 5
+//	6: mkvgo 0.64 - the identifier the file gives each track (the Matroska
+//	   TrackNumber, the MP4 track_ID), stored so a packager rendition pairs
+//	   with its track by number instead of by name.
+const StreamProbeVersion = 6
 
 // LevelProbeVersion is the current revision of the video level backfill's
 // probe. media_streams.level_probe_version records the revision at which a
