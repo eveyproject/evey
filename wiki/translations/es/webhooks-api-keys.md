@@ -1,8 +1,8 @@
 ---
-source_sha: 44e8e90d77d0eb2abdd259fe7a12d693a5f6af4856125bd2b2da2194a7c6ef42
+source_sha: 745f1579c3d2e068044e2a60897a0af69afbbca8c999f13888b8822a7d7b2d90
 reviewed: true
 ---
-# Webhooks y claves de API
+# Webhooks y claves de API { #webhooks-and-api-keys }
 
 Dos maneras de conectar Evey con otras herramientas sin escribir un plugin:
 un webhook envía los eventos del servidor a una URL tuya, y una clave de API
@@ -10,7 +10,7 @@ permite que un script llame al servidor en tu nombre. Los dos los crea un
 administrador en el panel de administración; esta página es para quien los
 configura y para quien escribe el receptor o el script.
 
-## Enviar eventos a una URL
+## Enviar eventos a una URL { #send-events-to-a-url }
 
 **Administración → Webhooks → Crear webhook**: un **Nombre**, una **URL**,
 los **Eventos** que se envían y un **Secreto** opcional para firmar.
@@ -35,6 +35,10 @@ entre ellos:
 
 Un plugin que llama a `EmitEvent` publica `plugin.event.<type>`, que también
 recibe un webhook suscrito a **Todos los eventos**.
+
+`playback.stopped` se emite por cada sesión que termina, con un `Reason`:
+`client` cuando el reproductor pidió parar, `stale` cuando el servidor cerró una
+sesión cuyo latido se apagó (una pestaña cerrada, un televisor apagado).
 
 **Envío.** Cada evento es un `POST` en JSON, con estas cabeceras:
 
@@ -72,7 +76,7 @@ la [API de plugins](api/plugins/README.md)), no en el panel.
     red interna; un receptor en tu red local necesita una dirección pública
     o un relé.
 
-## Llamar al servidor desde un script
+## Llamar al servidor desde un script { #call-the-server-from-a-script }
 
 Una clave de API permite que un script llame a la API del servidor sin
 contraseña. Las claves las crea un administrador en

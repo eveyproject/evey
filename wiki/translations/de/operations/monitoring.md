@@ -1,5 +1,5 @@
 ---
-source_sha: 8225f3cc5ff5a9bf19187b30ea0a5cd214bea962f504708f3de910c38a198b9a
+source_sha: d85aa75ac4fda7ad79d0aa19567a4419404091f702a6f8fe6f95be244ef924d7
 reviewed: true
 ---
 # Überwachung und Protokolle { #monitoring-and-logs }
@@ -112,9 +112,12 @@ Die Gruppen, die sich für ein erstes Diagramm lohnen:
 | `evey_transcodes_active`, `evey_transcode_queue_depth` | Transkodierungsaufträge im Hintergrund (außerhalb der laufenden Wiedergabe), die laufen und die auf einen freien Platz warten. |
 | `evey_hlsvod_sessions_active`, `evey_hlsvod_sessions_rejected_total` | FFmpeg-Prozesse, die Segmente für die Wiedergabe erzeugen, und Starts, die abgelehnt wurden, weil der Server an seiner Grenze war. |
 | `evey_hlsvod_cache_size_bytes`, `evey_hlsvod_cache_evicted_bytes_total` | Größe des Segment-Caches auf der Festplatte und was die Bereinigung freigegeben hat. |
+| `evey_hls_first_segment_seconds` | Wie lange eine Wiedergabe von ihrer Playlist bis zu ihrem ersten Segment gewartet hat, nach Auslieferungsweg (`transcode`, `ffmpeg-copy`). Die Wartezeit, die Zuschauer beim Start spüren. |
 | `evey_mkvgo_walks_in_flight`, `evey_mkvgo_plan_stats` | Der eingebaute Packager: Abschnitte, die gerade gelesen werden, Lesevorgänge in der Warteschlange (`stat="slot_waits"`), siehe [MKVGo in Evey](../playback/mkvgo.md#load-replaced-files-and-updates). |
 | `evey_http_requests_total`, `evey_http_request_duration_seconds` | Anfragen und Antwortzeit nach Methode und Pfad. |
 | `evey_watcher_alive`, `evey_scan_queue_depth` | Ob die Ordnerüberwachung jeder Bibliothek auf ihre letzte Prüfung geantwortet hat (1 oder 0), und Dateien, die auf den Scan warten. |
+
+[`alerts.example.yml`](https://github.com/eveyproject/evey/blob/master/docs/operations/alerts.example.yml) enthält Beispiel-Alarmregeln auf Basis dieser Metriken, zum Kopieren in Ihre eigenen Prometheus-Regeldateien.
 
 ## Kommandozeile { #command-line }
 
@@ -126,5 +129,5 @@ who's online: frontend/apps/web/src/features/admin/DashboardOnline.tsx (presence
 logs: internal/pkg/logger/logger.go - New (file only outside DevMode), rotatingWriter ; config EVEY_LOG_RETENTION_DAYS ; docker-compose.yml ./evey-data:/data
 labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.where.*, admin.logs.live, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
 automatic limits: i18n admin.qoe.overrides.*
-metrics: internal/pkg/metrics/metrics.go (names) ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
+metrics: internal/pkg/metrics/metrics.go (names), HLSFirstSegmentSeconds fed by internal/adapters/driving/http/transcode_first_segment.go ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
 -->

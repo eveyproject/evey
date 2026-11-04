@@ -1,5 +1,5 @@
 ---
-source_sha: ebb072bbebfc9bd7bf678229831e531e8fb4937c38720f305ee4e13f6535e311
+source_sha: b9edaa14b28ad46c4709ea321f479e45e254f3dc0abd9f7dfacfde3959487cd0
 reviewed: true
 ---
 # Diffusion de la lecture et téléchargements { #playback-delivery-and-downloads }

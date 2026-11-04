@@ -1,5 +1,5 @@
 ---
-source_sha: f625c3059af6349cfcff4f14c85f17c7a0a8c26cfeb5772eca562bc3b66c1047
+source_sha: a4895e025890778a9d0a64f0760fdd0793e0bf99d8c1cb1c158001fb30f2cd84
 reviewed: true
 ---
 # Serveur et réseau { #server-and-network }
@@ -47,7 +47,7 @@ façon dont le contrôle décide :
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Tentatives de connexion par adresse et par minute. | Configuration du serveur → Comptes et sécurité → **Limite connexion**, immédiat |
+| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Tentatives de connexion par adresse et par minute. La reconduction silencieuse de session a son propre budget fixe et ne puise jamais dans celui-ci. | Configuration du serveur → Comptes et sécurité → **Limite connexion**, immédiat |
 | `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Requêtes par adresse et par minute sur l'API. | Configuration du serveur → Comptes et sécurité → **Limite globale**, immédiat |
 
 ## Utilisateur du conteneur { #container-user }

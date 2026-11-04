@@ -1,5 +1,5 @@
 ---
-source_sha: f625c3059af6349cfcff4f14c85f17c7a0a8c26cfeb5772eca562bc3b66c1047
+source_sha: a4895e025890778a9d0a64f0760fdd0793e0bf99d8c1cb1c158001fb30f2cd84
 reviewed: true
 ---
 # 服务器与网络 { #server-and-network }
@@ -43,7 +43,7 @@ reviewed: true
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | 每个地址每分钟可以尝试登录的次数。 | 服务器配置 → 账户与安全 → **登录速率限制**，实时生效 |
+| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | 每个地址每分钟可以尝试登录的次数。 静默的会话续期有自己固定的额度，从不消耗这里的额度。 | 服务器配置 → 账户与安全 → **登录速率限制**，实时生效 |
 | `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | 每个地址每分钟可以向 API 发出的请求数。 | 服务器配置 → 账户与安全 → **全局速率限制**，实时生效 |
 
 ## 容器用户 { #container-user }

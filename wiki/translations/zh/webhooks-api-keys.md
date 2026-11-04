@@ -1,14 +1,14 @@
 ---
-source_sha: 44e8e90d77d0eb2abdd259fe7a12d693a5f6af4856125bd2b2da2194a7c6ef42
+source_sha: 745f1579c3d2e068044e2a60897a0af69afbbca8c999f13888b8822a7d7b2d90
 reviewed: true
 ---
-# Webhook 与 API 密钥
+# Webhook 与 API 密钥 { #webhooks-and-api-keys }
 
 无需编写插件，也有两种方式把 Evey 与其他工具连接起来：Webhook 把服务器的事件发送到您指定的网址，
 API 密钥让脚本以您的身份调用服务器。两者都由管理员在管理面板里创建；
 本页写给负责设置它们的人，也写给编写接收端或脚本的人。
 
-## 把事件发送到一个网址
+## 把事件发送到一个网址 { #send-events-to-a-url }
 
 **管理 → Webhooks → 创建 Webhook**：填写**名称**、**URL**、要发送的**事件**，以及一个可选的**密钥**，用于签名。
 **测试**会发送一个 ping，并显示对方的回应。
@@ -29,6 +29,8 @@ API 密钥让脚本以您的身份调用服务器。两者都由管理员在管�
 | 服务器 | `backup.created`、`backup.failed`、`plugin.installed`、`plugin.error`、`server.config.changed`、`transcoding.derived_cache_full`（字幕存储的剩余空间低于预留余量） |
 
 调用 `EmitEvent` 的插件会发布 `plugin.event.<type>`，订阅了**所有事件**的 Webhook 也会收到它。
+
+每个结束的会话都会触发 `playback.stopped`，并带有 `Reason`：播放器请求停止时为 `client`，服务器结束一个心跳已沉默的会话时为 `stale`（例如关闭的标签页、关掉的电视）。
 
 **投递。** 每个事件都是一个 JSON 格式的 `POST` 请求，带有以下请求头：
 
@@ -51,7 +53,7 @@ API 密钥让脚本以您的身份调用服务器。两者都由管理员在管�
     以及解析到这类地址的域名，都会被拒绝：保存 Webhook 时检查一次，服务器发起连接时再检查一次。
     这样可以防止服务器被用来访问您的内部网络；如果接收端在您的本地网络里，它需要一个公网地址或一个中继。
 
-## 从脚本调用服务器
+## 从脚本调用服务器 { #call-the-server-from-a-script }
 
 API 密钥让脚本不用密码就能调用服务器 API。密钥由管理员在**管理 → API 密钥 → 新建 API 密钥**里创建，归这位管理员所有。
 

@@ -1,5 +1,5 @@
 ---
-source_sha: f625c3059af6349cfcff4f14c85f17c7a0a8c26cfeb5772eca562bc3b66c1047
+source_sha: a4895e025890778a9d0a64f0760fdd0793e0bf99d8c1cb1c158001fb30f2cd84
 reviewed: true
 ---
 # Server und Netzwerk { #server-and-network }
@@ -46,7 +46,7 @@ die Sperre entscheidet: [Fernzugriff und HTTPS](../administration/remote-access.
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Anmeldeversuche pro Adresse und Minute. | Serverkonfiguration → Konten & Sicherheit → **Anmelde-Ratenlimit**, sofort |
+| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Anmeldeversuche pro Adresse und Minute. Die stille Sitzungsverlängerung hat ein eigenes festes Budget und verbraucht nie dieses. | Serverkonfiguration → Konten & Sicherheit → **Anmelde-Ratenlimit**, sofort |
 | `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Anfragen pro Adresse und Minute an die API. | Serverkonfiguration → Konten & Sicherheit → **Globales Ratenlimit**, sofort |
 
 ## Benutzer des Containers { #container-user }

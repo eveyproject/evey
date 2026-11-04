@@ -1,5 +1,5 @@
 ---
-source_sha: f625c3059af6349cfcff4f14c85f17c7a0a8c26cfeb5772eca562bc3b66c1047
+source_sha: a4895e025890778a9d0a64f0760fdd0793e0bf99d8c1cb1c158001fb30f2cd84
 reviewed: true
 ---
 # Servidor y red { #server-and-network }
@@ -48,7 +48,7 @@ sin reiniciar. Cómo decide el control de acceso:
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Intentos de inicio de sesión por dirección y por minuto. | Configuración del servidor → Cuentas y seguridad → **Límite de inicio de sesión (sol./min)**, inmediato |
+| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Intentos de inicio de sesión por dirección y por minuto. La renovación silenciosa de la sesión tiene su propio presupuesto fijo y nunca gasta este. | Configuración del servidor → Cuentas y seguridad → **Límite de inicio de sesión (sol./min)**, inmediato |
 | `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Peticiones a la API por dirección y por minuto. | Configuración del servidor → Cuentas y seguridad → **Límite global (sol./min)**, inmediato |
 
 ## Usuario del contenedor { #container-user }
