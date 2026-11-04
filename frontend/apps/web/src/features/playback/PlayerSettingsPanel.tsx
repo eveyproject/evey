@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Settings, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatAudioTrackLabel, type AudioStream } from "./AudioTrackSelector";
+import { tagAudioTrackLabel } from "@evey/api";
 import type { SubtitleStream } from "./SubtitleSelector";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { SleepTimerState } from "@/hooks/useSleepTimer";
@@ -454,7 +455,7 @@ export function SettingsPanel({
                 </>
               )}
               {audioStreams.map((s) => {
-                const label = formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language);
+                const label = tagAudioTrackLabel(formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language), s, (k) => t(k));
                 return (
                   <button
                     key={s.index}

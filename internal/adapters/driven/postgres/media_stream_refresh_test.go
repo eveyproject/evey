@@ -152,3 +152,54 @@ func TestMediaStreamRepo_RefreshProbedFields_FieldByField(t *testing.T) {
 	assert.Zero(t, again.Changed)
 	assert.ElementsMatch(t, res.Kept, again.Kept)
 }
+
+// The field order is written as the probe's verdict, NULL included: a prober
+// revision that reads the order the other way round, or no longer claims an
+// interlaced track it cannot prove, has to reach every row through the
+// version re-probe, which refreshes in place and never replaces.
+func TestMediaStreamRepo_RefreshProbedFields_RewritesFieldOrder(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	repo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("fieldorderlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("fieldordermi", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, repo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", FieldOrder: new("bt")},
+		{ID: "a", MediaItemID: item.ID, StreamIndex: 1, StreamType: "audio", Codec: "aac"},
+	}))
+
+	swapped := []*library.MediaStream{
+		{StreamIndex: 0, StreamType: "video", Codec: "h264", FieldOrder: new("tb")},
+		{StreamIndex: 1, StreamType: "audio", Codec: "aac"},
+	}
+	res, err := repo.RefreshProbedFields(ctx, item.ID, swapped)
+	require.NoError(t, err)
+	assert.Equal(t, 1, res.Changed, "the video row alone carries a new field order")
+	got, err := repo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.NotNil(t, got[0].FieldOrder)
+	assert.Equal(t, "tb", *got[0].FieldOrder)
+	assert.Nil(t, got[1].FieldOrder)
+
+	unknown := []*library.MediaStream{
+		{StreamIndex: 0, StreamType: "video", Codec: "h264"},
+		{StreamIndex: 1, StreamType: "audio", Codec: "aac"},
+	}
+	res, err = repo.RefreshProbedFields(ctx, item.ID, unknown)
+	require.NoError(t, err)
+	assert.Equal(t, 1, res.Changed, "an order the probe no longer claims is cleared, not kept")
+	got, err = repo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got[0].FieldOrder)
+
+	again, err := repo.RefreshProbedFields(ctx, item.ID, unknown)
+	require.NoError(t, err)
+	assert.Zero(t, again.Changed)
+}

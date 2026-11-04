@@ -60,6 +60,10 @@ type playbackHandler struct {
 	// clamped to the cap, and a change in Admin -> Remote Access applies to the
 	// next playback without a restart. nil or a zero cap = feature off.
 	remoteAccess func() (maxKbps int, lanNetworks []string)
+	// serverLang is the server's metadata language, the last language the
+	// default audio track is picked by (the HLS master reads the same one).
+	// Optional: nil reads as none.
+	serverLang func() string
 	// decider answers GetStreamInfo with the plan's decision (Decide with the
 	// request-time pins) - bound by the composition root once the HTTP
 	// pipeline that owns the resolver exists, before this server starts.
@@ -145,19 +149,22 @@ func clientProfileFromRequest(req *eveyv1.GetStreamInfoRequest, userAgent string
 	if len(req.Fmp4AudioPassthrough) > 0 {
 		client.FMP4AudioPassthrough = req.Fmp4AudioPassthrough
 	}
-	if req.MaxWidth > 0 {
-		client.MaxWidth = int(req.MaxWidth)
+	// Same ranges the HLS master reads ?maxWidth / ?maxHeight within: a
+	// figure the master ignores must not become a ceiling here, or the
+	// verdict would describe a ladder the manifest never builds.
+	if n := int(req.MaxWidth); transcoding.DeclaredWidthInRange(n) {
+		client.MaxWidth = n
 	}
-	if req.MaxHeight > 0 {
-		client.MaxHeight = int(req.MaxHeight)
+	if n := int(req.MaxHeight); transcoding.DeclaredHeightInRange(n) {
+		client.MaxHeight = n
 	}
 	if req.SupportsHdr {
 		client.SupportsHDR = true
 	}
 	// Same level ceiling the HLS master reads from ?maxH264Level=: the
 	// stream-info verdict and the manifest must judge the same decoder.
-	if req.MaxH264Height > 0 {
-		client.MaxH264Height = int(req.MaxH264Height)
+	if n := int(req.MaxH264Height); transcoding.DeclaredHeightInRange(n) {
+		client.MaxH264Height = n
 	}
 	if req.MaxH264Level > 0 {
 		client.MaxH264Level = int(req.MaxH264Level)
@@ -196,6 +203,10 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 				parsed := apptranscoding.ParseTranscodingPreferences(prof.Preferences)
 				// Keep network type from request; everything else from profile.
 				parsed.NetworkType = prefs.NetworkType
+				// The language columns, the way the HLS handlers load them:
+				// they pick the default audio track below.
+				parsed.AudioLanguages = prof.AudioLanguages
+				parsed.Locale = prof.Locale
 				prefs = parsed
 				if prof.MaxBitrateKbps != nil && *prof.MaxBitrateKbps > 0 {
 					if maxBitrateKbps == 0 || *prof.MaxBitrateKbps < maxBitrateKbps {
@@ -218,10 +229,24 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 
 	prefs.WasmAudio = req.WasmAudio
 
+	// The track the HLS master will serve: the selected one, else the one
+	// the profile's languages pick (then the source default). Judged on the
+	// container default instead, the verdict called a copy what the master
+	// re-encodes.
+	selected := false
 	if idx := int(req.AudioStreamIndex); idx > 0 {
 		if rel, ok := typeRelativeIndex(streams, library.StreamTypeAudio, idx); ok {
 			prefs.AudioTrack = rel
+			selected = true
 		}
+	}
+	if !selected {
+		serverLang := ""
+		if h.serverLang != nil {
+			serverLang = h.serverLang()
+		}
+		prefs.AudioTrack = apptranscoding.DefaultAudioTrack(streams,
+			apptranscoding.PreferredAudioLanguages(prefs.AudioLanguages, prefs.Locale, serverLang))
 	}
 	if idx := int(req.SubtitleStreamIndex); idx > 0 {
 		if rel, ok := typeRelativeIndex(streams, library.StreamTypeSubtitle, idx); ok {
@@ -318,7 +343,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		}
 	}
 	for _, s := range streams {
-		resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s))
+		resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s, ctxIsAdmin(ctx)))
 	}
 
 	client := clientProfileFromRequest(req, interceptors.UserAgentFromCtx(ctx))

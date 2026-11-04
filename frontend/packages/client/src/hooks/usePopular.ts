@@ -5,6 +5,8 @@ export interface PopularItem {
   title: string;
   type?: string;
   year?: number;
+  primaryBlurhash?: string;
+  communityRating?: number;
   playCount: number;
 }
 
@@ -20,6 +22,8 @@ export function useMostPopular(limit = 20, enabled = true) {
             title: it.title ?? "",
             type: it.type,
             year: it.year || undefined,
+            primaryBlurhash: it.primaryBlurhash || undefined,
+            communityRating: it.communityRating || undefined,
             playCount: it.playCount ?? 0,
           })),
         staleTime: 5 * 60_000,

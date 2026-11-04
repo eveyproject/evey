@@ -62,6 +62,13 @@ beforeEach(() => {
 });
 
 describe("tv history screen", () => {
+  it("prints the position / duration line only for a real duration (the proto zero is the string \"0\")", async () => {
+    api.history.mockResolvedValueOnce({ items: [row("a", { positionMs: "60000", durationMs: "0" })], pagination: {} });
+    mount();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Title a" })).toBeTruthy());
+    expect(screen.queryByText(/1min \//)).toBeNull();
+  });
+
   it("pages by cursor as the list scrolls, focuses the first row, opens a title and removes one", async () => {
     api.history
       .mockResolvedValueOnce({ items: [row("a", { playCount: 3, positionMs: "60000", durationMs: "120000", percentComplete: 50 }), row("b")], pagination: { nextCursor: "c1" } })

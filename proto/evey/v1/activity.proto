@@ -277,6 +277,11 @@ message PopularMediaItem {
   int32 play_count = 4;
   // Release year of the media item (0 when unknown).
   int32 year = 5;
+  // Primary artwork blurhash placeholder, empty when none: the popular rail
+  // renders the same card as every other home rail.
+  string primary_blurhash = 6;
+  // Audience score, same scale as MediaItem.community_rating, 0 when unknown.
+  double community_rating = 7;
 }
 
 message GetPopularMediaRequest {

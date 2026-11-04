@@ -15,17 +15,23 @@
 const QUALITY_TIERS = [360, 480, 720, 1080, 1440, 2160];
 
 // The standard tier a frame belongs to (2160, 1440, 1080, 720), or 0 below
-// 720p. The width counts as much as the height: a scope film cropped to
+// 720p. The long side counts as much as the short one: a scope film cropped to
 // 1920x818 is a 1080p file, and a label read off its height said "818p" on
-// one screen and "720p" on another. Slack on the width absorbs encodes that
-// shave a few columns (1916x798). The title page and the player's quality menu
-// both name a frame through this, so they cannot disagree.
+// one screen and "720p" on another. The sides are taken by length, not by
+// axis, so a portrait 1080x1920 is the 1080p frame it is and not a 1440p one
+// read off its height. Slack on the long side absorbs encodes that shave a few
+// columns (1916x798). Same rule as library.ResolutionTier on the server, so
+// the title page, the player's quality menu and the session label agree. With
+// one side unknown, the known one keeps its axis: a lone height is a short
+// side, a lone width a long one.
 export function resolutionTier(width?: number, height?: number): number {
   const w = width ?? 0;
   const h = height ?? 0;
-  const byHeight = h >= 2160 ? 2160 : h >= 1440 ? 1440 : h >= 1080 ? 1080 : h >= 720 ? 720 : 0;
-  const byWidth = w >= 3800 ? 2160 : w >= 2500 ? 1440 : w >= 1880 ? 1080 : w >= 1240 ? 720 : 0;
-  return Math.max(byHeight, byWidth);
+  const long = Math.max(w, h);
+  const short = w > 0 ? Math.min(w, h) : h;
+  const byShort = short >= 2160 ? 2160 : short >= 1440 ? 1440 : short >= 1080 ? 1080 : short >= 720 ? 720 : 0;
+  const byLong = long >= 3800 ? 2160 : long >= 2500 ? 1440 : long >= 1880 ? 1080 : long >= 1240 ? 720 : 0;
+  return Math.max(byShort, byLong);
 }
 
 // nominalQualityTier maps an ENCODED rung to the tier a viewer recognises.

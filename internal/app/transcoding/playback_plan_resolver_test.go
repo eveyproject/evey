@@ -246,3 +246,72 @@ func TestPlanResolver_Reported_NamesTheClosedCopyGate(t *testing.T) {
 	assert.Equal(t, "copy", direct.VideoDecision)
 	assert.Empty(t, direct.TranscodeReasons)
 }
+
+// The ffmpeg copy rung may be switched off while the packager still carries
+// a copy-eligible source verbatim: the master dispatches on the delivery
+// (packager first), so the report must read the same delivery instead of
+// calling the served copy a transcode behind a closed ffmpeg gate.
+func TestReported_PackagerCopyWithoutFFmpegCopyProducer(t *testing.T) {
+	pr := &PlanResolver{UseFMP4: true, OnDemandPackager: true}
+	req := resolverTestRequest()
+	req.Streams = deliveryStreams("aac")
+	req.Client = transcoding.ClientProfile{VideoCodecs: []string{"h264"}, AudioCodecs: []string{"aac"}, Containers: []string{"mp4", "webm"}}
+	d := pr.Reported(context.Background(), req)
+	assert.Equal(t, "copy", d.VideoDecision, "the packager serves the copy")
+	assert.NotContains(t, d.TranscodeReasons, "copy_rung_unavailable")
+	assert.Equal(t, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo},
+		pr.resolveDelivery(context.Background(), req, d, ResolvedRoute{}), "what the master dispatches on")
+
+	// Without the packager the closed ffmpeg gate is the served truth.
+	noPackager := &PlanResolver{UseFMP4: true}
+	d = noPackager.Reported(context.Background(), req)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "copy_rung_unavailable")
+}
+
+// A multi-rung ladder re-encodes its audio whatever the verdict says (one
+// AAC per rung): a 5.1 track judged "copy" must then target its own layout,
+// not the builder's stereo default - the verdict named no channel count
+// because it expected the track to pass through.
+func TestFingerprint_MultiRungReencodeOfACopyVerdictKeepsSurround(t *testing.T) {
+	pr := &PlanResolver{UseFMP4: true}
+	req := ladderRequest(1080)
+	req.Streams = append(req.Streams, &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: "ac3", Channels: new(6), IsDefault: true})
+	req.Client = transcoding.ClientProfile{VideoCodecs: []string{"h264"}, AudioCodecs: []string{"aac", "ac3"}, Containers: []string{"mp4"}}
+	plan, err := pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	require.Greater(t, len(plan.Ladder), 1, "a transcode ladder with several rungs")
+	require.Equal(t, "copy", plan.Decision.AudioDecision, "the verdict on the codecs alone")
+	require.False(t, plan.Fingerprint.AudioCopy, "the multi-rung builder re-encodes")
+
+	assert.Equal(t, 6, plan.Fingerprint.MaxAudioChannels, "the re-encode keeps the 5.1 layout")
+	assert.Empty(t, plan.Fingerprint.AudioCodec, "the builder's AAC default, the bytes every other re-encode gets")
+}
+
+// The wasm master carries no audio (the client decodes the track itself),
+// and its cache key predates the wasm verdict: it hashed the AAC target the
+// audio verdict named then. The key must stay that one, or the sessions in
+// flight at a deploy lose their cached segments for bytes that did not change.
+func TestFingerprint_WasmMasterKeepsItsCacheKey(t *testing.T) {
+	pr := &PlanResolver{UseFMP4: true}
+	mk := func(wasm bool) DecisionFingerprint {
+		req := PlaybackRequest{
+			MediaID: "m1", SourcePath: "/f.mkv", Streams: deliveryStreams("eac3"), Container: "matroska",
+			Client: transcoding.DefaultWebProfile, Prefs: DefaultTranscodingPreferences(),
+			AudioTrack: 0, SubtitleBurnInTrack: -1, WasmAudio: wasm,
+		}
+		plan, err := pr.Resolve(context.Background(), req)
+		require.NoError(t, err)
+		return plan.Fingerprint
+	}
+	plain, wasm := mk(false), mk(true)
+	require.Equal(t, -1, wasm.AudioTrack, "the wasm master is video-only")
+	require.Equal(t, "aac", plain.AudioCodec, "the plain session re-encodes the track")
+	require.Equal(t, 6, plain.MaxAudioChannels)
+
+	// The historical key: the wasm fingerprint with the AAC target of the
+	// plain re-encode, which is what the audio verdict named before "wasm".
+	want := wasm
+	want.AudioCodec, want.MaxAudioChannels = plain.AudioCodec, plain.MaxAudioChannels
+	assert.Equal(t, want.Hash(), wasm.Hash(), "the wasm master keeps the key it has always had")
+}

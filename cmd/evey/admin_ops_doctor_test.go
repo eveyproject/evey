@@ -8,7 +8,7 @@ import (
 
 // The doctor's media check must judge writability the way the kernel does -
 // owner OR group OR other - against the SERVER's identity (PID 1), not just
-// compare owner uids: a gravity:users library with g+rw is perfectly
+// compare owner uids: a media:users library with g+rw is perfectly
 // repairable by a server running as 1000:100 (the prod scheme), and the old
 // owner-only check told the operator to chown it away.
 func TestWritableByServer(t *testing.T) {

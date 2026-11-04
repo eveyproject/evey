@@ -9,15 +9,18 @@ off. How a stream is chosen in the first place:
 A variable with a panel key can also be set as a row with that key in
 **Admin → Server Config → Config entries**; the row wins over the
 environment. The panel suggests the download keys; the others are typed in
-as they appear here. All of them are read at startup, so a change applies at
-the next restart whichever way it is made.
+as they appear here. They are read at startup, so a change applies at the
+next restart whichever way it is made, except the two marked "next
+playback": a change to those applies within a few seconds to the playbacks
+that start after it, and a playback already running keeps the setting it
+started with.
 
 ## Packaging
 
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
-| `EVEY_HLS_ONDEMAND` | on | Serves a file whose tracks can be copied by repackaging it on the fly, without ffmpeg and without writing to the cache. `off`: such files go through the ffmpeg copy path instead. | Config entries `transcoding.hls_ondemand`, restart |
-| `EVEY_REMUX_COPY` | on | The ffmpeg copy path: the video is copied without re-encoding when the file allows it. `off`: those files are transcoded. | Config entries `transcoding.remux_copy`, restart |
+| `EVEY_HLS_ONDEMAND` | on | Serves a file whose tracks can be copied by repackaging it on the fly, without ffmpeg and without writing to the cache. `off`: such files go through the ffmpeg copy path instead. | Config entries `transcoding.hls_ondemand`, next playback |
+| `EVEY_REMUX_COPY` | on | The ffmpeg copy path: the video is copied without re-encoding when the file allows it. `off`: those files are transcoded. | Config entries `transcoding.remux_copy`, next playback |
 | `EVEY_HLS_AUDIO_RENDITION_ENABLED` | `true` | Offers the audio tracks as separate renditions, so a player changes language without fetching the video again. Also lets a copied video play with an audio track re-encoded on the side. | none |
 | `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Adds one low transcoded quality next to a copied stream, so a player whose connection collapses can step down instead of freezing. Costs nothing until a player uses it. | none |
 | `EVEY_HLS_ONDEMAND_CONCAT` | on | Gapless playback across episodes, when the web player asks for it. An episode that cannot be copied falls back to the normal stream. | Config entries `transcoding.hls_ondemand_concat`, restart |

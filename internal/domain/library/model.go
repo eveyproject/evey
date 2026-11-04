@@ -3,6 +3,8 @@ package library
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -118,6 +120,34 @@ func NewLibrary(id shared.LibraryID, name string, libType LibraryType, opts ...L
 	return l, nil
 }
 
+// ErrInvalidLibraryPath is a root the scanner must not be pointed at: a
+// relative path walks whatever the server's working directory is, an
+// uncleaned one escapes the prefix checks every confinement rule is keyed on,
+// and the filesystem root is the whole host.
+var ErrInvalidLibraryPath = errors.New("library path must be an absolute, clean path other than the filesystem root")
+
+// systemTrees are the kernel and system trees no library may be rooted in:
+// a root there hands the scanner, the probe and the stream endpoints the
+// host's devices, process table or configuration. /run/media is left out of
+// /run: it is where a desktop host mounts removable drives.
+var systemTrees = []string{"/proc", "/sys", "/dev", "/etc", "/boot", "/run"}
+
+// ValidateLibraryPath says whether p may be a library root.
+func ValidateLibraryPath(p string) error {
+	if p == "" || !filepath.IsAbs(p) || filepath.Clean(p) != p || p == string(filepath.Separator) {
+		return fmt.Errorf("%w: %q", ErrInvalidLibraryPath, p)
+	}
+	if p == "/run/media" || strings.HasPrefix(p, "/run/media/") {
+		return nil
+	}
+	for _, tree := range systemTrees {
+		if p == tree || strings.HasPrefix(p, tree+"/") {
+			return fmt.Errorf("%w: %q is a system tree", ErrInvalidLibraryPath, p)
+		}
+	}
+	return nil
+}
+
 func (l *Library) Validate() error {
 	if l.ID == "" {
 		return errors.New("library requires an ID")
@@ -127,6 +157,11 @@ func (l *Library) Validate() error {
 	}
 	if !l.Type.IsValid() {
 		return fmt.Errorf("library: invalid type %q", l.Type)
+	}
+	for _, p := range l.Paths {
+		if err := ValidateLibraryPath(p); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -279,7 +314,26 @@ type MediaFile struct {
 	// StreamProbeVersion is the StreamProbeVersion the file's streams were last
 	// probed at (0 = probed before versioning).
 	StreamProbeVersion int
+	// ParserVersion is the ParserVersion the file's path was last read at
+	// (0 = before versioning). A row below the current version may have been
+	// filed under the wrong series or type and is owed a re-read of its path.
+	ParserVersion int
 }
+
+// ParserVersion is the current revision of the path parser. Bump when the
+// parser learns a layout that changes where an existing file belongs (its
+// type, its series or season, its episode number): the TV scan then refiles
+// rows below the current version in place, keeping their id and history.
+//
+//	1: a file without a season/episode marker in its name is an episode of
+//	   the show two folders up when it sits in a "Season N" folder and its
+//	   name states an episode number.
+//	2: a multi-episode name ("S01E01E02", "1x01x02") is the episode of its
+//	   first number instead of a movie titled with the whole marker; a file
+//	   without a number in a "Season N" folder is an episode of that season
+//	   without an episode number instead of a movie (a one-file series in a
+//	   TV library).
+const ParserVersion = 2
 
 // StreamProbeVersion is the current prober revision. Bump when the prober
 // learns a field the scanner must re-read on existing rows.
@@ -302,7 +356,12 @@ type MediaFile struct {
 //	   a MOV's QuickTime title is read, a long LPCM track and an MP4 cut short
 //	   are described instead of refused, and an empty DisplayWidth or
 //	   DisplayHeight means square pixels.
-const StreamProbeVersion = 4
+//	5: mkvgo 0.63 - a Matroska FieldOrder of 9 or 14 reads tb or bt (the two
+//	   were swapped, so every persisted tb/bt is the other one), an H.264
+//	   track with frame_mbs_only_flag 0 alone is unknown instead of
+//	   interlaced, and the first samples prove an H.264, HEVC or MPEG-2 track
+//	   interlaced with its field order.
+const StreamProbeVersion = 5
 
 // LevelProbeVersion is the current revision of the video level backfill's
 // probe. media_streams.level_probe_version records the revision at which a

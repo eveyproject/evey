@@ -270,6 +270,8 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 		return d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	case errors.Is(err, appmaintenance.ErrJobRunning):
 		return d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.seek_index_job_running")
+	case errors.Is(err, appmaintenance.ErrPlaybackActive):
+		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.seek_index_playback_active")
 	case errors.Is(err, domainmkv.ErrNoBackup):
 		return d.translator.TranslatedError(ctx, codes.NotFound, "errors.admin.seek_index_no_backup")
 	case errors.Is(err, shared.ErrNotFound):

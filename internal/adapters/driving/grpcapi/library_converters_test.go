@@ -53,7 +53,7 @@ func TestLibraryToProto_FullFields(t *testing.T) {
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
-	pb := libraryToProto(lib)
+	pb := libraryToProto(lib, true)
 	assert.Equal(t, "lib-x", pb.Id)
 	assert.Equal(t, eveyv1.LibraryType_LIBRARY_TYPE_PHOTOS, pb.Type)
 	assert.Equal(t, []string{"/a", "/b"}, pb.Paths)
@@ -66,9 +66,47 @@ func TestLibraryToProto_FullFields(t *testing.T) {
 func TestLibraryToProto_NilLastScanned(t *testing.T) {
 	t.Parallel()
 	lib := &library.Library{ID: "l1", Name: "N", Type: "movie"}
-	pb := libraryToProto(lib)
+	pb := libraryToProto(lib, true)
 	assert.Nil(t, pb.LastScannedAt)
 	assert.Equal(t, eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, pb.Type)
+}
+
+// The host's paths are admin-only, as the item's file_path is: a library's
+// roots and a sidecar's absolute path lay the filesystem out to any viewer,
+// who streams through the media endpoints and never needs them.
+func TestConverters_ServerPathsAreAdminOnly(t *testing.T) {
+	t.Parallel()
+	lib := &library.Library{ID: "l1", Name: "N", Type: "movie", Paths: []string{"/srv/media/movies"}}
+	assert.Empty(t, libraryToProto(lib, false).Paths, "a viewer never sees the library's roots")
+	assert.Equal(t, []string{"/srv/media/movies"}, libraryToProto(lib, true).Paths, "the admin screens manage them")
+
+	sidecar := "/srv/media/movies/film.en.srt"
+	s := &library.MediaStream{StreamIndex: 3, StreamType: "subtitle", Codec: "subrip", IsExternal: true, ExternalPath: &sidecar}
+	viewer := mediaStreamToProto(s, false)
+	assert.True(t, viewer.IsExternal, "the sidecar's existence is the viewer's business")
+	assert.Empty(t, viewer.ExternalPath, "its place on the host is not")
+	assert.Equal(t, sidecar, mediaStreamToProto(s, true).ExternalPath)
+}
+
+// The clients pick their default audio track themselves and must skip a
+// commentary track the way the server's default selection does, so the
+// disposition flags have to reach the wire, each on its own field.
+func TestMediaStreamToProto_DispositionFlags(t *testing.T) {
+	t.Parallel()
+
+	commentary := mediaStreamToProto(&library.MediaStream{StreamType: library.StreamTypeAudio, Commentary: true}, false)
+	assert.True(t, commentary.IsCommentary)
+	assert.False(t, commentary.IsHearingImpaired)
+	assert.False(t, commentary.IsVisualImpaired)
+	assert.False(t, commentary.IsOriginal)
+
+	access := mediaStreamToProto(&library.MediaStream{
+		StreamType: library.StreamTypeAudio, HearingImpaired: true, VisualImpaired: true, Original: true,
+	}, false)
+	assert.False(t, access.IsCommentary)
+	assert.True(t, access.IsHearingImpaired)
+	assert.True(t, access.IsVisualImpaired)
+	assert.True(t, access.IsOriginal)
 }
 
 func TestSortFieldAndOrderMapping(t *testing.T) {

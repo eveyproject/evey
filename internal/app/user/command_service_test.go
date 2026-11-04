@@ -351,7 +351,8 @@ func TestLogin_FailureIsAnnounced(t *testing.T) {
 			if tc.seed {
 				seedAuthUser(t, d, "u1", "alice", "mypassword", false, true)
 			}
-			if _, _, err := d.svc.Login(context.Background(), tc.username, tc.password); err == nil {
+			ctx := WithLoginClientIP(context.Background(), "203.0.113.9")
+			if _, _, err := d.svc.Login(ctx, tc.username, tc.password); err == nil {
 				t.Fatal("this login was supposed to fail")
 			}
 			var got *user.LoginFailed
@@ -365,6 +366,10 @@ func TestLogin_FailureIsAnnounced(t *testing.T) {
 			}
 			if got.Username != tc.username || got.Reason != tc.reason {
 				t.Fatalf("event = %+v, want username %q reason %q", *got, tc.username, tc.reason)
+			}
+			// The login history row of a refusal carries where it came from.
+			if got.ClientIP != "203.0.113.9" {
+				t.Fatalf("event ClientIP = %q, want the caller's", got.ClientIP)
 			}
 			if strings.Contains(fmt.Sprintf("%+v", *got), tc.password) {
 				t.Fatal("the password must never ride the event")
@@ -1077,11 +1082,14 @@ func TestRefreshToken_RefreshTokenGenError(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	d.refreshTkns.Err = errors.New("store fail")
+	storeErr := errors.New("store fail")
+	d.refreshTkns.Err = storeErr
 
+	// A failing store is a server fault, never a refusal: a refusal is what
+	// makes the client drop its refresh token for good.
 	_, _, err := d.svc.RefreshToken(ctx, rawToken, "", "")
-	if !errors.Is(err, ErrInvalidCredentials) {
-		t.Fatalf("expected ErrInvalidCredentials when repo fails, got %v", err)
+	if err == nil || errors.Is(err, ErrInvalidCredentials) || !errors.Is(err, storeErr) {
+		t.Fatalf("expected the store's own error, not a refusal, when the repo fails, got %v", err)
 	}
 }
 
@@ -1595,6 +1603,23 @@ func TestStartCleanup_TickerCleansAgain(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond)
 }
 
+// A sweep that panics is skipped, not the loop: the next tick still purges.
+func TestStartCleanup_SurvivesAPanicInOneSweep(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := t.Context()
+
+	d.refreshTkns.PanicOnceOnDeleteExpired = true
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt-exp3", UserID: "u1", TokenHash: "h-exp3",
+		ExpiresAt: time.Now().Add(-1 * time.Hour), CreatedAt: time.Now(),
+	})
+	d.svc.StartCleanupWithInterval(ctx, 20*time.Millisecond)
+
+	require.Eventually(t, func() bool {
+		return d.refreshTkns.Count() == 0
+	}, 2*time.Second, 5*time.Millisecond, "the sweep after the panic must still run")
+}
+
 func TestStartCleanup_StopsOnCancel(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -2049,13 +2074,12 @@ func TestGenerateTokensForUser_WithLongTTL(t *testing.T) {
 // --- Security fixes ---
 
 // Concurrent refreshes with the SAME token are the multi-tab race (N tabs,
-// one shared HttpOnly cookie): under the rotation grace EVERY racer succeeds
-// - one wins the claim, the others are recognised as grace-window losers and
-// issued their own DISTINCT sibling session. What the old TOCTOU contract
-// protected against (a replayed token minting sessions unboundedly over time)
-// is now bounded by the grace window instead:
-// TestRefreshToken_ReplayAfterGrace_Rejected pins that side.
-func TestRefreshToken_ConcurrentMultiTabRefresh_AllGetDistinctSessions(t *testing.T) {
+// one shared HttpOnly cookie): one racer wins the claim and the grace issues
+// the losers their own DISTINCT sibling session - up to maxGraceSiblings.
+// The old expectation (every one of ten racers gets a session) was the
+// amplification itself: a token stolen inside the window minted as many
+// persistent sessions as it was replayed. Past the ceiling a racer is refused.
+func TestRefreshToken_ConcurrentMultiTabRefresh_SiblingsBounded(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()
 	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
@@ -2069,24 +2093,28 @@ func TestRefreshToken_ConcurrentMultiTabRefresh_AllGetDistinctSessions(t *testin
 	results := make([]error, goroutines)
 	tokens := make([]string, goroutines)
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 	for i := range goroutines {
-		go func(i int) {
-			defer wg.Done()
+		wg.Go(func() {
 			_, tokens[i], results[i] = d.svc.RefreshToken(ctx, refresh, "", "")
-		}(i)
+		})
 	}
 	wg.Wait()
 
 	seen := make(map[string]bool, goroutines)
 	for i, err := range results {
 		if err != nil {
-			t.Fatalf("racer %d must get a session within the rotation grace, got: %v", i, err)
+			if !errors.Is(err, ErrInvalidCredentials) {
+				t.Fatalf("racer %d: a refusal must be a credential refusal, got: %v", i, err)
+			}
+			continue
 		}
 		if tokens[i] == "" || seen[tokens[i]] {
 			t.Fatalf("racer %d must get its own DISTINCT refresh token", i)
 		}
 		seen[tokens[i]] = true
+	}
+	if want := 1 + maxGraceSiblings; len(seen) != want {
+		t.Fatalf("got %d sessions from one token, want the winner plus %d siblings (%d)", len(seen), maxGraceSiblings, want)
 	}
 }
 

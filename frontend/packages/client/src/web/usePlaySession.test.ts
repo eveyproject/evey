@@ -10,7 +10,9 @@ const getStreamInfoFn = vi.fn((_mediaId: string, _params: unknown) => ({
 // The verdict asked again for another track (the query above is the first one).
 const askStreamInfoFn = vi.fn((_mediaId: string, _params: unknown): Promise<unknown> => Promise.resolve({}));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  // The real track rule: the verdict is read against the track it names.
+  defaultAudioCandidates: (await importOriginal<typeof import("@evey/api")>()).defaultAudioCandidates,
   // The web app: same origin, so the stop beacon goes to a relative path.
   getBaseURL: () => "",
   getCredentialsMode: () => "include",
@@ -257,6 +259,99 @@ describe("usePlaySession", () => {
     expect(hook.result.current.isLoading).toBe(false);
     expect(hook.result.current.isError).toBe(false);
     expect(startStreamFn).not.toHaveBeenCalled();
+  });
+
+  // The route does not remount on an episode change: the hook kept the
+  // previous session id and token, so the next player mounted with a dead
+  // session and the wrong token, and the start that resolved late was never
+  // stopped (an orphan in the admin's Now Playing until its TTL).
+  it("forgets the previous session and token when the title changes while the start is pending", async () => {
+    const usePlaySession = await loadHook("");
+    const resolvers: Array<(v: { id: string }) => void> = [];
+    startStreamFn.mockImplementation(() => new Promise<{ id: string }>((r) => { resolvers.push(r); }));
+    // The second title's token mint is held back too, so the reset is
+    // observable before anything of B has landed.
+    let resolveTokenB!: (t: string) => void;
+    fetchStreamTokenFn
+      .mockImplementationOnce(() => Promise.resolve("stream-tok-abc"))
+      .mockImplementationOnce(() => new Promise<string>((r) => { resolveTokenB = r; }));
+    let hook!: ReturnType<typeof renderHook<ReturnType<typeof usePlaySession>, { id: string }>>;
+    await act(async () => {
+      hook = renderHook(({ id }) => usePlaySession(id), { initialProps: { id: "media-A" } });
+    });
+    expect(hook.result.current.streamToken).toBe("stream-tok-abc");
+    await act(async () => { resolvers[0]({ id: "session-A" }); });
+    expect(hook.result.current.sessionId).toBe("session-A");
+
+    await act(async () => { hook.rerender({ id: "media-B" }); });
+    expect(hook.result.current.sessionId).toBeNull();
+    expect(hook.result.current.streamToken).toBeNull();
+
+    await act(async () => { resolveTokenB("stream-tok-B"); });
+    expect(hook.result.current.streamToken).toBe("stream-tok-B");
+    expect(startStreamFn).toHaveBeenCalledTimes(2);
+    await act(async () => { resolvers[1]({ id: "session-B" }); });
+    expect(hook.result.current.sessionId).toBe("session-B");
+  });
+
+  it("stops a start that lands after the title changed, and keeps the new one", async () => {
+    const usePlaySession = await loadHook("");
+    const resolvers: Array<(v: { id: string }) => void> = [];
+    startStreamFn.mockImplementation(() => new Promise<{ id: string }>((r) => { resolvers.push(r); }));
+    let hook!: ReturnType<typeof renderHook<ReturnType<typeof usePlaySession>, { id: string }>>;
+    await act(async () => {
+      hook = renderHook(({ id }) => usePlaySession(id), { initialProps: { id: "media-A" } });
+    });
+    await act(async () => { hook.rerender({ id: "media-B" }); });
+    await act(async () => { resolvers[0]({ id: "session-A" }); });
+    const calls = stopCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toMatchObject({ body: JSON.stringify({ sessionId: "session-A" }) });
+    expect(hook.result.current.sessionId).toBeNull();
+    await act(async () => { resolvers[1]({ id: "session-B" }); });
+    expect(hook.result.current.sessionId).toBe("session-B");
+    expect(stopCalls()).toHaveLength(1);
+  });
+
+  // Back to the first title before its start answered: comparing the title
+  // let the late answer of the first start pass for the current one, and
+  // that session was never stopped. Every start has its own generation.
+  it("stops every superseded start on a quick A -> B -> A, keeping only the last", async () => {
+    const usePlaySession = await loadHook("");
+    const resolvers: Array<(v: { id: string }) => void> = [];
+    startStreamFn.mockImplementation(() => new Promise<{ id: string }>((r) => { resolvers.push(r); }));
+    let hook!: ReturnType<typeof renderHook<ReturnType<typeof usePlaySession>, { id: string }>>;
+    await act(async () => { hook = renderHook(({ id }) => usePlaySession(id), { initialProps: { id: "media-A" } }); });
+    // What the route does on every title change: stop, then the new title.
+    await act(async () => { hook.result.current.stopSession(); hook.rerender({ id: "media-B" }); });
+    await act(async () => { hook.result.current.stopSession(); hook.rerender({ id: "media-A" }); });
+    expect(resolvers).toHaveLength(3);
+
+    const ids = ["session-A1", "session-B1", "session-A2"];
+    for (let i = 0; i < ids.length; i++) await act(async () => { resolvers[i]({ id: ids[i] }); });
+    const stopped = () => stopCalls().map((c: unknown[]) => JSON.parse((c[1] as { body: string }).body).sessionId);
+    expect(stopped()).toEqual(["session-A1", "session-B1"]);
+    expect(hook.result.current.sessionId).toBe("session-A2");
+
+    await act(async () => { hook.unmount(); });
+    expect(stopped()).toEqual(["session-A1", "session-B1", "session-A2"]);
+  });
+
+  it("stops a session whose start lands after the player was left", async () => {
+    const usePlaySession = await loadHook("");
+    let resolve!: (v: { id: string }) => void;
+    startStreamFn.mockImplementation(() => new Promise<{ id: string }>((r) => { resolve = r; }));
+    let unmountFn!: () => void;
+    await act(async () => {
+      const { unmount } = renderHook(() => usePlaySession("media-late"));
+      unmountFn = unmount;
+    });
+    act(() => { unmountFn(); });
+    expect(stopCalls()).toHaveLength(0);
+    await act(async () => { resolve({ id: "session-late" }); });
+    const calls = stopCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toMatchObject({ body: JSON.stringify({ sessionId: "session-late" }) });
   });
 
   it("reads any other refused verdict as an error, without spinning", async () => {

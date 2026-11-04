@@ -56,7 +56,7 @@ func TestKeyframeSnapshotIntegration(t *testing.T) {
 	}
 
 	dec := ffmpeg.NewTrickplayGenerator("ffmpeg", "ffprobe")
-	jpeg, err := dec.DecodePacketToJPEG(ctx, packet, ext, 160)
+	jpeg, err := dec.DecodePacketToJPEG(ctx, src, packet, ext, 160)
 	if err != nil {
 		t.Fatalf("DecodePacketToJPEG: %v", err)
 	}

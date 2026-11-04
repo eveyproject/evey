@@ -97,9 +97,13 @@ families worth a first chart:
 | `evey_transcodes_active`, `evey_transcode_queue_depth` | Background transcode jobs (outside live playback) running, and waiting for a slot. |
 | `evey_hlsvod_sessions_active`, `evey_hlsvod_sessions_rejected_total` | FFmpeg processes producing playback segments, and starts refused because the server was at its limit. |
 | `evey_hlsvod_cache_size_bytes`, `evey_hlsvod_cache_evicted_bytes_total` | Size of the segment cache on disk, and what the sweeper freed. |
+| `evey_hls_first_segment_seconds` | How long a playback waited from its playlist to its first segment, by serving path (`transcode`, `ffmpeg-copy`). The wait viewers feel at start-up. |
 | `evey_mkvgo_walks_in_flight`, `evey_mkvgo_plan_stats` | The in-process packager: windows being read, queued reads (`stat="slot_waits"`), see [MKVGo in Evey](../playback/mkvgo.md#load-replaced-files-and-updates). |
 | `evey_http_requests_total`, `evey_http_request_duration_seconds` | Requests and latency by method and path. |
 | `evey_watcher_alive`, `evey_scan_queue_depth` | Whether each library's folder watcher answered its last check (1 or 0), and files waiting to be scanned. |
+
+[`alerts.example.yml`](alerts.example.yml) holds example alerting rules built
+on these metrics, to copy into your own Prometheus rule files.
 
 ## Command line
 
@@ -112,5 +116,5 @@ logs: internal/pkg/logger/logger.go - New (file only outside DevMode), rotatingW
 disks and trends: internal/pkg/sysinfo/diskio.go (DiskIO, DiskSaturated, SaturationAwaitMs) ; internal/app/activity/metrics_sampler.go (recordDisks, WithStorage) ; postgres server_metric_repo.go GetBucketed/IdleDiskAwaitMs ; proto ActivityService.ListServerMetrics, DashboardInfo.disks ; web features/admin/SystemTrends.tsx, DiskIO.tsx ; tests sysinfo diskio_test.go, SystemTrends.test.tsx
 labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.where.*, admin.logs.live, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
 automatic limits: i18n admin.qoe.overrides.*
-metrics: internal/pkg/metrics/metrics.go (names) ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
+metrics: internal/pkg/metrics/metrics.go (names), HLSFirstSegmentSeconds fed by internal/adapters/driving/http/transcode_first_segment.go ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
 -->

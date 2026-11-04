@@ -137,7 +137,7 @@ const PLAN = {
 function serveSlices(readyAfterCalls = 0) {
   let statusCalls = 0;
   eveyFetchMock.mockImplementation(async ({ url, method }: { url: string; method: string }) => {
-    if (url.endsWith("/stream-token")) return { token: "tok" };
+    if (url.includes("/stream-token")) return { token: "tok" };
     if (url.includes("/reduced-download/status")) {
       statusCalls++;
       return { status: "preparing", permille: 500, slicesReady: statusCalls > readyAfterCalls ? 3 : 0, slices: 3 };
@@ -211,6 +211,16 @@ describe("startReducedDownload", () => {
     expect(deleteSlicesMock).toHaveBeenCalledWith("/docs/evey-reduced-m1", 3);
     expect(deleteSlicesMock.mock.invocationCallOrder[0]).toBeGreaterThan(joinMock.mock.invocationCallOrder[0]);
     expect(isReducedDownloadRunning("m1")).toBe(false);
+  });
+
+  // A collection runs for an hour in the background: on the default token a
+  // slice resumed after a longer cut answered 401 and the file was erased.
+  it("mints every slice token on the native long window", async () => {
+    serveSlices();
+    await startReducedDownload("m1", "Big Film", 1_800_000, 3);
+    const mints = eveyFetchMock.mock.calls.map((c) => (c[0] as { url: string }).url).filter((u) => u.includes("/stream-token"));
+    expect(mints).toHaveLength(3);
+    mints.forEach((u) => expect(u).toBe("/api/v1/media/m1/stream-token?purpose=native"));
   });
 
   it("does not re-fetch a slice already on disk", async () => {

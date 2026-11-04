@@ -135,6 +135,25 @@ func TestStreamTokenStore_Expired(t *testing.T) {
 	assert.False(t, ok, "expired token should fail")
 }
 
+// A token refused for being past its TTL leaves with everything minted for
+// it: the purge loop only walks live tokens, so an issue instant kept here
+// would be held for the life of the process.
+func TestStreamTokenStore_ExpiredOnValidate_ForgetsIssueInstant(t *testing.T) {
+	fakeNow := time.Now()
+	store := media.NewStreamTokenStoreForTest(10*time.Millisecond, func() time.Time { return fakeNow })
+	defer store.Stop()
+
+	token := store.Create("user-1", "profile-1", "media-1")
+	require.Equal(t, 1, store.IssuedAtCountForTest())
+
+	fakeNow = fakeNow.Add(20 * time.Millisecond)
+	_, ok := store.Validate(token, "media-1")
+	require.False(t, ok, "expired token should fail")
+	store.PurgeExpiredForTest(fakeNow)
+
+	assert.Zero(t, store.IssuedAtCountForTest(), "the issue instant must leave with the token")
+}
+
 // TestStreamTokenStore_RenewsTTL proves the sliding TTL deterministically: a
 // Validate call before expiry must push ExpiresAt forward by another full TTL,
 // so a subsequent instant past the original expiry is still valid.

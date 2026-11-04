@@ -83,6 +83,8 @@ type ScanService struct {
 	mediaStreams library.MediaStreamRepository
 	persons      library.PersonRepository
 	mediaPersons library.MediaPersonRepository
+	// artworkPurger is optional (nil = refiled items keep their artwork rows).
+	artworkPurger ArtworkPurger
 
 	metadata     *MetadataExtractionService
 	musicScanner TypedDirectoryScanner
@@ -169,10 +171,23 @@ func (s *ScanService) isPlaying(ctx context.Context, id shared.MediaItemID) bool
 	playing, err := s.playingMedia(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "scan: open play sessions unreadable, version re-probe waits",
-			slog.String("mediaItemID", string(id)), slog.Any("err", err))
+			slog.String("media_id", string(id)), slog.Any("err", err))
 		return true
 	}
 	return playing[id]
+}
+
+// ArtworkPurger drops the artwork rows of one item. The artwork store lives
+// in the metadata context; the scan only needs this to forget the artwork of
+// an item it refiles under another type.
+type ArtworkPurger interface {
+	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
+}
+
+// WithArtworkPurger wires the artwork store for refiled items.
+func (s *ScanService) WithArtworkPurger(p ArtworkPurger) *ScanService {
+	s.artworkPurger = p
+	return s
 }
 
 // WithPruneGuard sets the mass-disappearance thresholds of the orphan prune.
@@ -417,7 +432,7 @@ func (s *ScanService) ScanLibraryReport(ctx context.Context, libraryID string) (
 		return report, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
 
-	seenPaths, emptyRoots, failedPaths, toProcess, tvAdded, tvUpdated, err := s.scanDirectories(ctx, lib, idx)
+	seenPaths, emptyRoots, failedPaths, toProcess, tvAdded, tvUpdated, unsettled, err := s.scanDirectories(ctx, lib, idx)
 	if err != nil {
 		return report, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
@@ -426,14 +441,25 @@ func (s *ScanService) ScanLibraryReport(ctx context.Context, libraryID string) (
 	updated += tvUpdated
 
 	metrics.ScanQueueDepth.WithLabelValues(libraryID).Set(float64(len(toProcess)))
-	a, u := s.processNewItems(ctx, libraryID, toProcess)
+	a, u := s.processNewItems(withScanSeen(ctx, seenPaths), libraryID, toProcess)
 	metrics.ScanQueueDepth.WithLabelValues(libraryID).Set(0)
 	added += a
 	updated += u
 
-	removed, pruneErr := s.pruner.Prune(ctx, libraryID, lib.Paths, seenPaths, emptyRoots)
-	if pruneErr != nil {
-		slog.WarnContext(ctx, "orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", pruneErr))
+	// A pass that skipped files still being written leaves the orphans to
+	// the rescan booked for when they settle: an upgrade landing under a new
+	// name is matched against the row it replaces on that pass, and pruning
+	// the row now would hand the file a fresh identity instead.
+	removed := 0
+	if unsettled > 0 {
+		slog.InfoContext(ctx, "scan: orphan cleanup deferred until the files settle",
+			slog.String("library_id", libraryID), slog.Int("files", unsettled))
+	} else {
+		var pruneErr error
+		removed, pruneErr = s.pruner.Prune(ctx, libraryID, lib.Paths, seenPaths, emptyRoots)
+		if pruneErr != nil {
+			slog.WarnContext(ctx, "orphan cleanup failed", slog.String("library_id", libraryID), slog.Any("err", pruneErr))
+		}
 	}
 
 	// Heal parser-pollution on existing orphans before finalising. The
@@ -483,6 +509,11 @@ func (s *ScanService) healOrphanTitles(ctx context.Context, libraryID string) in
 		if it.Catalog != nil && len(it.Catalog.ProviderIDs) > 0 {
 			continue
 		}
+		// An episode's stored title is its "SxxEyy" label, never a name the
+		// file states: rewriting it from the path named it after its series.
+		if it.Type == library.Episode {
+			continue
+		}
 		fresh := s.scanner.ParseTitle(it.File.Path)
 		if fresh == "" {
 			continue
@@ -508,7 +539,7 @@ func (s *ScanService) healOrphanTitles(ctx context.Context, libraryID string) in
 		it.UpdatedAt = time.Now()
 		if err := s.mediaItems.Update(ctx, it); err != nil {
 			slog.WarnContext(ctx, "heal orphan title: update failed",
-				slog.String("media_item.id", string(it.ID)), slog.Any("err", err))
+				slog.String("media_id", string(it.ID)), slog.Any("err", err))
 			continue
 		}
 		healed++
@@ -554,11 +585,14 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 	return scanindex.New(entries), nil
 }
 
-func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, emptyRoots, failedPaths []string, toProcess []scanWork, added, updated int, err error) {
+func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, emptyRoots, failedPaths []string, toProcess []scanWork, added, updated, unsettled int, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.scan.scanDirectories")
 	defer span.End()
 	seenPaths = make(map[string]struct{})
-	unsettled := 0
+	// Every root is listed before any is processed: a replacement lookup
+	// reads the set of paths seen this pass, and a candidate under a later
+	// root must already be in it.
+	ctx = withScanSeen(ctx, seenPaths)
 	defer func() {
 		if unsettled > 0 && err == nil {
 			slog.InfoContext(ctx, "scan: files still being written, analysed once they settle",
@@ -567,6 +601,7 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		}
 	}()
 
+	listed := make([][]library.ScannedFile, 0, len(lib.Paths))
 	for _, path := range lib.Paths {
 		all, scanErr := s.scanner.Scan(ctx, path)
 		if scanErr != nil {
@@ -587,8 +622,6 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		for _, f := range all {
 			seenPaths[f.Path] = struct{}{}
 		}
-		files, n := s.splitSettled(all, time.Now())
-		unsettled += n
 		// A root that returned no files (and no error) is suspect: it may be a
 		// dropped/empty NFS-SMB mount rather than a genuinely empty folder. Record
 		// it so the pruner won't delete the items that live under it (see the
@@ -596,22 +629,64 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		if len(all) == 0 {
 			emptyRoots = append(emptyRoots, path)
 		}
+		files, n := s.splitSettled(all, time.Now())
+		unsettled += n
+		if lib.Type == "tvshow" {
+			files = withoutExtras(ctx, files)
+		}
+		listed = append(listed, files)
+	}
 
+	for _, files := range listed {
 		if lib.Type == "tvshow" {
 			a, u, e := s.scanTVShowFiles(ctx, string(lib.ID), files)
 			if e != nil {
-				return nil, nil, nil, nil, 0, 0, e
+				return nil, nil, nil, nil, 0, 0, 0, e
 			}
 			added += a
 			updated += u
 			continue
 		}
 
-		work, u := s.detectChanges(ctx, files, idx)
+		work, u := s.detectChanges(ctx, filesOutsideTV(files), idx)
 		toProcess = append(toProcess, work...)
 		updated += u
 	}
-	return seenPaths, emptyRoots, failedPaths, toProcess, added, updated, nil
+	return seenPaths, emptyRoots, failedPaths, toProcess, added, updated, unsettled, nil
+}
+
+// withoutExtras leaves out of a TV library the trailers, featurettes and
+// other bonuses the scanner recognised: filed as episodes, autoplay chained
+// into them. They still count as seen, so the pruner reads them as present.
+func withoutExtras(ctx context.Context, files []library.ScannedFile) []library.ScannedFile {
+	out := make([]library.ScannedFile, 0, len(files))
+	for _, f := range files {
+		if f.Extra != "" {
+			slog.DebugContext(ctx, "scan: leaving a show extra out of the TV library", slog.String("path", f.Path))
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// filesOutsideTV reads a file the way a library that is not a TV library
+// must: a "Season N" folder there is just a folder. The scanner had typed such
+// a file an episode of the folder above, and an episode without a series is
+// refused, so the file vanished from a movie library. It is the movie its
+// name says.
+func filesOutsideTV(files []library.ScannedFile) []library.ScannedFile {
+	out := make([]library.ScannedFile, len(files))
+	for i, f := range files {
+		if f.FolderSeason {
+			f.Type = library.MovieItem
+			f.Title = f.NameTitle
+			f.Season, f.Episode = nil, nil
+			f.FolderSeason = false
+		}
+		out[i] = f
+	}
+	return out
 }
 
 func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanindex.Index) (toProcess []scanWork, moved int) {
@@ -640,7 +715,7 @@ func (s *ScanService) detectChanges(ctx context.Context, files []library.Scanned
 				continue
 			}
 			if getErr != nil {
-				slog.WarnContext(ctx, "get moved item", slog.String("id", movedID), slog.Any("err", getErr))
+				slog.WarnContext(ctx, "get moved item", slog.String("media_id", movedID), slog.Any("err", getErr))
 			} else {
 				if fullItem.File == nil {
 					fullItem.File = &library.MediaFile{}
@@ -649,7 +724,7 @@ func (s *ScanService) detectChanges(ctx context.Context, files []library.Scanned
 				fullItem.File.ModTime = f.ModTime
 				fullItem.UpdatedAt = time.Now()
 				if updateErr := s.mediaItems.Update(ctx, fullItem); updateErr != nil {
-					slog.WarnContext(ctx, "update moved item path", slog.String("id", movedID), slog.Any("err", updateErr))
+					slog.WarnContext(ctx, "update moved item path", slog.String("media_id", movedID), slog.Any("err", updateErr))
 				}
 			}
 			moved++
@@ -739,7 +814,7 @@ func (s *ScanService) indexItem(ctx context.Context, item *library.MediaItem) {
 	}
 	if !s.indexBatch.Load() {
 		if err := s.search.IndexMediaItem(ctx, item); err != nil {
-			slog.WarnContext(ctx, "index media item failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "index media item failed", slog.String("media_id", string(item.ID)), slog.Any("err", err))
 		}
 		return
 	}
@@ -771,8 +846,10 @@ func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, li
 
 	now := time.Now()
 	lib.LastScannedAt = &now
-	if err := s.libraries.Update(ctx, lib); err != nil {
-		slog.WarnContext(ctx, "update library last scanned failed", slog.String("libraryID", libraryID), slog.Any("err", err))
+	// Only the timestamp: lib is the record read when the scan started, and an
+	// admin may have saved other paths or a new name since.
+	if err := s.libraries.TouchLastScannedAt(ctx, lib.ID, now); err != nil {
+		slog.WarnContext(ctx, "update library last scanned failed", slog.String("library_id", libraryID), slog.Any("err", err))
 	}
 
 	s.publish(ctx, library.LibraryScanCompleted{
@@ -797,7 +874,7 @@ func (s *ScanService) upsertMediaFileWithIndex(ctx context.Context, libraryID, p
 	if len(seriesTitle) > 0 {
 		showTitle = seriesTitle[0]
 	}
-	existing, err := s.findExistingMediaFile(ctx, libraryID, f, byPath)
+	existing, err := s.findExistingMediaFile(ctx, libraryID, parentID, f, byPath)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -828,7 +905,7 @@ func (s *ScanService) upsertMediaFileWithIndex(ctx context.Context, libraryID, p
 // NOTE: a same-library size+mtime collision (e.g. `cp -p` of a distinct file)
 // can still mis-resolve via the fingerprint fallback; a content-derived
 // fingerprint is the full fix (deferred - changing the format forces a rescan).
-func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID string, f library.ScannedFile, byPath map[string]*library.MediaItem) (*library.MediaItem, error) {
+func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, byPath map[string]*library.MediaItem) (*library.MediaItem, error) {
 	// byPath is the caller's already-loaded snapshot of this library. The TV
 	// path preloads the whole library anyway (to resolve show/season
 	// containers), so hitting the DB again per episode was one SELECT per
@@ -852,11 +929,11 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID strin
 	}
 	// New path: try the fingerprint to catch a move/rename.
 	if f.Fingerprint == "" {
-		return nil, nil
+		return s.replacedFile(ctx, libraryID, parentID, f)
 	}
 	existing, getErr = s.mediaItems.GetByFileFingerprint(ctx, f.Fingerprint)
 	if errors.Is(getErr, shared.ErrNotFound) {
-		return nil, nil
+		return s.replacedFile(ctx, libraryID, parentID, f)
 	}
 	if getErr != nil {
 		return nil, fmt.Errorf("check media item %s: %w", f.Path, getErr)
@@ -864,16 +941,59 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID strin
 	if existing != nil && string(existing.LibraryID) != libraryID {
 		// Cross-library fingerprint collision: treat as a new file rather than
 		// repoint another library's item to this path.
-		return nil, nil
+		return s.replacedFile(ctx, libraryID, parentID, f)
 	}
 	// Same-library fingerprint match is only a MOVE if the old file is gone. If
 	// it's still on disk, two distinct files share a size+mtime fingerprint (a
 	// collision, e.g. `cp -p`) - don't repoint the existing item onto this path,
 	// create a fresh one instead.
 	if existing != nil && existing.File != nil && s.scanner.FileExists(existing.File.Path) {
-		return nil, nil
+		return s.replacedFile(ctx, libraryID, parentID, f)
 	}
 	return existing, nil
+}
+
+// replacedFile is the last resort before a file under a new path becomes a
+// new item: the row it REPLACES. A quality upgrade by a download manager
+// lands as a new name and a new size at once, so neither the path nor the
+// size+mtime fingerprint finds the row; created anew, the title was then
+// pruned with every viewer's progress, favourites, playlists and metadata
+// overrides cascading after it. The candidate (same season and episode
+// number, or same folder, title and year) is only taken over when its own
+// file is gone - two files side by side are two items.
+func (s *ScanService) replacedFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile) (*library.MediaItem, error) {
+	candidate, err := s.mediaItems.FindReplacedFile(ctx, shared.LibraryID(libraryID), parentID, f)
+	if errors.Is(err, shared.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("check replaced media item %s: %w", f.Path, err)
+	}
+	if candidate == nil || candidate.File == nil || candidate.File.Path == "" || s.scanner.FileExists(candidate.File.Path) {
+		return nil, nil
+	}
+	// A file this very pass listed is on disk whatever a stat says of it (a
+	// mount answering late, a fake scanner): two files of one pass are two
+	// items.
+	if _, inPass := scanSeen(ctx)[candidate.File.Path]; inPass {
+		return nil, nil
+	}
+	slog.InfoContext(ctx, "scan: file replaced under a new name, keeping its item",
+		slog.String("media_id", string(candidate.ID)), slog.String("previous_path", candidate.File.Path), slog.String("path", f.Path))
+	return candidate, nil
+}
+
+// scanSeenKey carries the paths a scan pass listed, for the replacement
+// lookup to tell a file gone from one the pass still holds.
+type scanSeenKey struct{}
+
+func withScanSeen(ctx context.Context, seen map[string]struct{}) context.Context {
+	return context.WithValue(ctx, scanSeenKey{}, seen)
+}
+
+func scanSeen(ctx context.Context) map[string]struct{} {
+	seen, _ := ctx.Value(scanSeenKey{}).(map[string]struct{})
+	return seen
 }
 
 // maxStreamProbeAttempts bounds how many times the scanner re-probes a file
@@ -906,10 +1026,11 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		library.WithMediaItemID(shared.MediaItemID(uuid.New().String())),
 		library.WithMediaItemParent(parentID),
 		library.WithMediaItemFile(&library.MediaFile{
-			Path:        f.Path,
-			Size:        f.Size,
-			Fingerprint: f.Fingerprint,
-			ModTime:     f.ModTime,
+			Path:          f.Path,
+			Size:          f.Size,
+			Fingerprint:   f.Fingerprint,
+			ModTime:       f.ModTime,
+			ParserVersion: library.ParserVersion,
 		}),
 	}
 	if f.Episode != nil {
@@ -955,7 +1076,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 	// decision, forcing a remux that the source never needed.
 	if !dur.IsZero() || container != "" || !probedOK || item.File.StreamProbeVersion != 0 {
 		if err := s.mediaItems.Update(ctx, item); err != nil {
-			slog.WarnContext(ctx, "update media item after probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "update media item after probe failed", slog.String("media_id", string(item.ID)), slog.Any("err", err))
 		}
 	}
 	// Ingest-plan precompute runs for brand-new files ONLY (this is
@@ -1003,7 +1124,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 			existing.File.ModTime = f.ModTime
 			existing.UpdatedAt = time.Now()
 			if err := s.mediaItems.Update(ctx, existing); err != nil {
-				slog.WarnContext(ctx, "update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+				slog.WarnContext(ctx, "update media item failed", slog.String("media_id", string(existing.ID)), slog.Any("err", err))
 			}
 		}
 		// A prior probe left this file without streams (StreamProbeAttempts in
@@ -1026,6 +1147,13 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	existing.File.Fingerprint = f.Fingerprint
 	existing.File.ModTime = f.ModTime
 	existing.UpdatedAt = time.Now()
+	// The row goes out with the new fingerprint and a re-probe owed: the
+	// streams it still carries are the OLD content's. Should the probe below
+	// fail and the second Update time out with it, the next scan sees an
+	// unchanged fingerprint and only this budget brings it back to probe the
+	// file - without it the item kept the previous file's streams and
+	// duration for good.
+	existing.File.StreamProbeAttempts = 1
 	// Persist the new fingerprint + mtime BEFORE the heavy probe/chapters
 	// pipeline. Otherwise on a 4K 46GB file the probe + extractChapters can
 	// eat the whole workerCtx budget (30s) and the Update that follows
@@ -1035,7 +1163,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	// timeout only loses the duration_ms refresh (recoverable next scan)
 	// instead of the change-detection cornerstone.
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
-		slog.WarnContext(ctx, "update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "update media item failed", slog.String("media_id", string(existing.ID)), slog.Any("err", err))
 	}
 	dur, container, probedOK := s.ProbeAndStoreStreams(ctx, string(existing.ID), f.Path)
 	// New content → a fresh bounded re-probe budget: 0 on success, 1 on failure.
@@ -1055,7 +1183,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	s.probeInterleave(ctx, existing.File, f.Path)
 	existing.UpdatedAt = time.Now()
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
-		slog.WarnContext(ctx, "update media item after probe failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "update media item after probe failed", slog.String("media_id", string(existing.ID)), slog.Any("err", err))
 	}
 	if s.metadata != nil {
 		s.metadata.extractAndStoreChapters(ctx, string(existing.ID), f.Path)
@@ -1110,16 +1238,16 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 		}
 		s.probeInterleave(ctx, item.File, path)
 		slog.InfoContext(ctx, "scan: streamless file re-probe succeeded",
-			slog.String("mediaItemID", string(item.ID)), slog.String("path", path))
+			slog.String("media_id", string(item.ID)), slog.String("path", path))
 	} else {
 		item.File.StreamProbeAttempts++
 		slog.WarnContext(ctx, "scan: streamless file re-probe still failing",
-			slog.String("mediaItemID", string(item.ID)), slog.String("path", path),
+			slog.String("media_id", string(item.ID)), slog.String("path", path),
 			slog.Int("attempts", item.File.StreamProbeAttempts))
 	}
 	item.UpdatedAt = time.Now()
 	if err := s.mediaItems.Update(ctx, item); err != nil {
-		slog.WarnContext(ctx, "update media item after re-probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "update media item after re-probe failed", slog.String("media_id", string(item.ID)), slog.Any("err", err))
 	}
 }
 
@@ -1134,11 +1262,23 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 // probe keeps the old streams. Either way the version is stamped: retrying an
 // unchanged file every scan only reruns the probe, and a change to the file
 // probes it again in full.
+//
+// A row with no container streams stored is the exception: a refresh has
+// nothing to refresh against, so it would write none and stamp the row as
+// current, streamless for good. That row takes the full probe, stamped only
+// once streams were written, and on failure the bounded retries.
 func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.MediaItem, path string) {
+	if s.prober != nil {
+		stored, err := s.mediaStreams.GetByMediaItemID(ctx, item.ID)
+		if err == nil && !hasContainerStream(stored) {
+			s.reprobeStreamlessFile(ctx, item, path)
+			return
+		}
+	}
 	item.File.StreamProbeVersion = library.StreamProbeVersion
 	defer func() {
 		if err := s.mediaItems.Update(ctx, item); err != nil {
-			slog.WarnContext(ctx, "update media item after version re-probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "update media item after version re-probe failed", slog.String("media_id", string(item.ID)), slog.Any("err", err))
 		}
 	}()
 	if s.prober == nil {
@@ -1147,26 +1287,26 @@ func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.Med
 	result, err := s.prober.ProbeStreams(ctx, path)
 	if err != nil || len(result.Streams) == 0 {
 		slog.WarnContext(ctx, "scan: version re-probe failed, streams kept",
-			slog.String("mediaItemID", string(item.ID)), slog.String("path", path), slog.Any("err", err))
+			slog.String("media_id", string(item.ID)), slog.String("path", path), slog.Any("err", err))
 		return
 	}
 	refreshed, err := s.mediaStreams.RefreshProbedFields(ctx, item.ID, result.Streams)
 	switch {
 	case errors.Is(err, library.ErrStreamSetChanged):
 		slog.WarnContext(ctx, "scan: version re-probe found other streams than the stored ones, none written",
-			slog.String("mediaItemID", string(item.ID)), slog.String("path", path))
+			slog.String("media_id", string(item.ID)), slog.String("path", path))
 	case err != nil:
 		slog.WarnContext(ctx, "scan: version re-probe could not refresh the streams",
-			slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+			slog.String("media_id", string(item.ID)), slog.Any("err", err))
 	case refreshed.Changed > 0:
 		slog.InfoContext(ctx, "scan: version re-probe refreshed stream metadata",
-			slog.String("mediaItemID", string(item.ID)), slog.Int("streams", refreshed.Changed))
+			slog.String("media_id", string(item.ID)), slog.Int("streams", refreshed.Changed))
 	}
 	// What the refresh left against the probe, field by field: the rest of
 	// the file was refreshed all the same.
 	if len(refreshed.Kept) > 0 {
 		slog.InfoContext(ctx, "scan: version re-probe kept stored values the probe disagrees with",
-			slog.String("mediaItemID", string(item.ID)), slog.String("path", path), slog.Any("kept", refreshed.Kept))
+			slog.String("media_id", string(item.ID)), slog.String("path", path), slog.Any("kept", refreshed.Kept))
 	}
 	if !result.Duration.IsZero() {
 		item.File.Duration = result.Duration
@@ -1176,6 +1316,17 @@ func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.Med
 		item.File.ContainerFormat = result.Container
 	}
 	item.UpdatedAt = time.Now()
+}
+
+// hasContainerStream reports whether any stored stream came from the
+// container itself; sidecar subtitles alone do not make a probed file.
+func hasContainerStream(streams []*library.MediaStream) bool {
+	for _, st := range streams {
+		if !st.IsExternal {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) (dur shared.Duration, container string, probedOK bool) {
@@ -1192,8 +1343,8 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "probe failed")
 		slog.WarnContext(ctx, "ProbeAndStoreStreams: probe failed",
-			slog.String("mediaItemID", mediaItemID),
-			slog.String("filePath", filePath),
+			slog.String("media_id", mediaItemID),
+			slog.String("path", filePath),
 			slog.Any("err", err))
 		return shared.Duration{}, "", false
 	}
@@ -1228,7 +1379,7 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 		existing, gerr := s.mediaStreams.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 		if gerr != nil {
 			slog.WarnContext(ctx, "preserve streams on empty probe: reload failed",
-				slog.String("mediaItemID", mediaItemID), slog.Any("err", gerr))
+				slog.String("media_id", mediaItemID), slog.Any("err", gerr))
 			return result.Duration, result.Container, false
 		}
 		preserved := make([]*library.MediaStream, 0, len(existing))
@@ -1242,7 +1393,7 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 	}
 
 	if err := s.mediaStreams.ReplaceBatch(ctx, shared.MediaItemID(mediaItemID), allStreams); err != nil {
-		slog.WarnContext(ctx, "replace media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
+		slog.WarnContext(ctx, "replace media streams failed", slog.String("media_id", mediaItemID), slog.Any("err", err))
 		return result.Duration, result.Container, false
 	}
 	return result.Duration, result.Container, containerStreams > 0

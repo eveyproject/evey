@@ -94,6 +94,9 @@ type HTTPServer struct {
 	// CastProgress derives watch progress from a cast receiver's fetches (the
 	// only playback signal once the sender's browser closes). nil = off.
 	CastProgress CastFetchObserver
+	// CastResume reads a profile's saved position for cast-next. nil = every
+	// next episode starts at zero.
+	CastResume CastResumeReader
 
 	// Library
 	LibCmdSvc   *applibrary.CommandService
@@ -350,6 +353,11 @@ type HTTPServer struct {
 	// login attempt, so it never rides LoginRL's per-minute login budget.
 	// nil = pass-through.
 	QuickConnectPollRL *ratelimit.Limiter
+	// RefreshRL caps the silent session renewal. A renewal is not a sign-in
+	// attempt: on LoginRL, a household whose devices renewed after a restart
+	// was refused because a few mistyped passwords had spent the login budget
+	// of the same address. nil = falls back to LoginRL.
+	RefreshRL *ratelimit.Limiter
 	// SnapshotRL caps the frame-extraction route - each request spawns an
 	// ffmpeg, so it must not ride the generous global limiter.
 	SnapshotRL *ratelimit.Limiter
@@ -525,8 +533,16 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// Progressive fast-start MP4 remux of a browser-incompatible EBML source
 	// (copy, no re-encode), cached once and served with Range support. Same auth
 	// + parental + stream metering as /stream.
+	// Under the global limiter like /download: a whole-file production a
+	// viewer can ask for by the dozen is bounded by request rate here and by
+	// production slots inside (remuxMaxConcurrentProductions).
 	if s.Remuxer != nil {
-		mux.HandleFunc("GET /api/v1/media/{id}/remux.mp4", streamAuth(s.StreamMeter.Middleware(remuxHandler(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.Remuxer, s.Cfg.Transcoding.CacheDir, s.BaseURL(), s.RemuxLeases))))
+		// Rate-limited as the segments are, per profile and generously: a
+		// progressive player ranges through a cached file by the hundred, and
+		// the global bucket it shared with every gateway call was being drawn
+		// down by its reads. The cost worth guarding, the production, is
+		// bounded by the handler's own slots.
+		mux.HandleFunc("GET /api/v1/media/{id}/remux.mp4", streamAuth(streamingRateLimit(s.StreamingRL, s.LoadTestActive, s.StreamMeter.Middleware(remuxHandler(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.Remuxer, s.Cfg.Transcoding.CacheDir, s.BaseURL(), s.RemuxLeases)))))
 	}
 	// Artwork is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
@@ -637,7 +653,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("DELETE /api/v1/admin/media/{id}/segments", deleteSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
-	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.PlaybackDecider(), s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
+	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandlerFor(s.serverLanguage, s.PlaybackDecider(), s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
 
 	// VOD-style HLS pipeline: manifest precomputed in Go from durationMs,
 	// segments produced on demand by SegmentOrchestrator into SegmentCache.
@@ -746,10 +762,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// opens were a cheap resource-pinning + passive brute-force vector.
 			mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}/events", ratelimit.MiddlewareFunc(s.QuickConnectPollRL, quickConnectSSEHandler(s.QuickConnectHub, &qcCheckerAdapter{query: s.UserQuerySvc, auth: s.UserAuthSvc, cfg: s.Cfg})))
 		}
-		mux.HandleFunc("POST /api/v1/auth/refresh", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
-			r = injectRefreshTokenFromCookie(r)
-			authCookieMiddleware(gwMux, s.https()).ServeHTTP(w, r)
-		}))
+		refreshRL := s.RefreshRL
+		if refreshRL == nil {
+			refreshRL = s.LoginRL
+		}
+		mux.HandleFunc("POST /api/v1/auth/refresh", refreshRouteHandler(gwMux, s.https, refreshRL))
 		mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, r *http.Request) {
 			// The cookie names THIS device's session, so only it is ended.
 			r = injectRefreshTokenFromCookie(r)
@@ -966,6 +983,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 // GetStreamInfo) answer with: the HLS pipeline's own resolver, so the answer
 // is the plan's decision with its pins, not the bare core. Read lazily: the
 // pipeline is built by Routes, after the gRPC server that asks for this.
+// Reported answers for a playback that would start now, under the packaging
+// switches as they are now (transcoding.remux_copy, transcoding.hls_ondemand):
+// right after a toggle it describes the next playback, while a playback
+// already running keeps the engines it started with until its master is
+// fetched again.
 func (s *HTTPServer) PlaybackDecider() apptranscoding.PlaybackDecider {
 	return playbackDeciderFunc(func(ctx context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision {
 		if s.vod == nil {
@@ -988,4 +1010,22 @@ func (s *HTTPServer) https() bool {
 		return s.HTTPSMode()
 	}
 	return s.HTTPSOnly
+}
+
+// serverLanguage is the server's metadata language, the last language the
+// default audio track is picked by: the same fallback the HLS master reads.
+func (s *HTTPServer) serverLanguage() string {
+	if s.Cfg == nil {
+		return "en"
+	}
+	return s.Cfg.Metadata.Language
+}
+
+// refreshRouteHandler serves the silent session renewal on its own limiter,
+// reading the refresh token from the cookie when the body carries none.
+func refreshRouteHandler(gwMux http.Handler, httpsOnly func() bool, limiter *ratelimit.Limiter) http.HandlerFunc {
+	return ratelimit.MiddlewareFunc(limiter, func(w http.ResponseWriter, r *http.Request) {
+		r = injectRefreshTokenFromCookie(r)
+		authCookieMiddleware(gwMux, httpsOnly()).ServeHTTP(w, r)
+	})
 }

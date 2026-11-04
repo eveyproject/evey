@@ -1,5 +1,5 @@
 ---
-source_sha: ebb072bbebfc9bd7bf678229831e531e8fb4937c38720f305ee4e13f6535e311
+source_sha: b9edaa14b28ad46c4709ea321f479e45e254f3dc0abd9f7dfacfde3959487cd0
 reviewed: true
 ---
 # Diffusion de la lecture et téléchargements { #playback-delivery-and-downloads }
@@ -15,15 +15,18 @@ Une variable qui a une clé de panneau peut aussi se définir par une ligne
 portant cette clé dans **Administration → Configuration du serveur → Entrées de
 configuration** ; la ligne l'emporte sur l'environnement. Le panneau propose
 les clés des téléchargements ; les autres se saisissent telles qu'elles
-figurent ici. Toutes sont lues au démarrage : un changement s'applique au
-redémarrage suivant, quelle que soit la façon de le faire.
+figurent ici. Elles sont lues au démarrage : un changement s'applique au
+redémarrage suivant, quelle que soit la façon de le faire, sauf pour les deux
+marquées « lecture suivante » : un changement s'applique en quelques secondes
+aux lectures lancées après lui, et une lecture déjà en cours garde le réglage
+avec lequel elle a commencé.
 
 ## Empaquetage { #packaging }
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
-| `EVEY_HLS_ONDEMAND` | activé | Sert un fichier dont les pistes peuvent être copiées en le réempaquetant à la volée, sans ffmpeg et sans rien écrire dans le cache. `off` : ces fichiers passent par la voie de copie ffmpeg. | Entrées de configuration `transcoding.hls_ondemand`, redémarrage |
-| `EVEY_REMUX_COPY` | activé | La voie de copie ffmpeg : la vidéo est copiée sans réencodage quand le fichier le permet. `off` : ces fichiers sont transcodés. | Entrées de configuration `transcoding.remux_copy`, redémarrage |
+| `EVEY_HLS_ONDEMAND` | activé | Sert un fichier dont les pistes peuvent être copiées en le réempaquetant à la volée, sans ffmpeg et sans rien écrire dans le cache. `off` : ces fichiers passent par la voie de copie ffmpeg. | Entrées de configuration `transcoding.hls_ondemand`, lecture suivante |
+| `EVEY_REMUX_COPY` | activé | La voie de copie ffmpeg : la vidéo est copiée sans réencodage quand le fichier le permet. `off` : ces fichiers sont transcodés. | Entrées de configuration `transcoding.remux_copy`, lecture suivante |
 | `EVEY_HLS_AUDIO_RENDITION_ENABLED` | `true` | Propose les pistes audio comme des variantes séparées, pour qu'un lecteur change de langue sans recharger la vidéo. Permet aussi de lire une vidéo copiée avec une piste audio réencodée à part. | aucun |
 | `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Ajoute une qualité basse transcodée à côté d'un flux copié, pour qu'un lecteur dont la connexion chute brutalement puisse passer à cette qualité au lieu de se figer. Ne coûte rien tant qu'aucun lecteur ne l'utilise. | aucun |
 | `EVEY_HLS_ONDEMAND_CONCAT` | activé | La lecture enchaînée sans coupure entre épisodes, quand le lecteur web la demande. Un épisode qui ne peut pas être copié revient au flux normal. | Entrées de configuration `transcoding.hls_ondemand_concat`, redémarrage |

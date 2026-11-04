@@ -1,5 +1,5 @@
 ---
-source_sha: 8225f3cc5ff5a9bf19187b30ea0a5cd214bea962f504708f3de910c38a198b9a
+source_sha: d85aa75ac4fda7ad79d0aa19567a4419404091f702a6f8fe6f95be244ef924d7
 reviewed: true
 ---
 # Supervision et logs { #monitoring-and-logs }
@@ -106,9 +106,12 @@ Les familles qui méritent un premier graphique :
 | `evey_transcodes_active`, `evey_transcode_queue_depth` | Tâches de transcodage en arrière-plan (hors lecture en direct) en cours, et en attente d'une place. |
 | `evey_hlsvod_sessions_active`, `evey_hlsvod_sessions_rejected_total` | Processus FFmpeg qui produisent des segments de lecture, et démarrages refusés parce que le serveur était à sa limite. |
 | `evey_hlsvod_cache_size_bytes`, `evey_hlsvod_cache_evicted_bytes_total` | Taille du cache de segments sur le disque, et ce que le balayage a libéré. |
+| `evey_hls_first_segment_seconds` | Le temps qu'une lecture a attendu entre sa playlist et son premier segment, par chemin de service (`transcode`, `ffmpeg-copy`). L'attente que ressentent les spectateurs au démarrage. |
 | `evey_mkvgo_walks_in_flight`, `evey_mkvgo_plan_stats` | L'empaqueteur intégré : fenêtres en cours de lecture, lectures en attente (`stat="slot_waits"`), voir [MKVGo dans Evey](../playback/mkvgo.md#load-replaced-files-and-updates). |
 | `evey_http_requests_total`, `evey_http_request_duration_seconds` | Requêtes et latence par méthode et par chemin. |
 | `evey_watcher_alive`, `evey_scan_queue_depth` | Si la surveillance des dossiers de chaque bibliothèque a répondu à sa dernière vérification (1 ou 0), et fichiers en attente d'analyse. |
+
+[`alerts.example.yml`](https://github.com/eveyproject/evey/blob/master/docs/operations/alerts.example.yml) contient des exemples de règles d'alerte bâties sur ces métriques, à copier dans vos propres fichiers de règles Prometheus.
 
 ## Ligne de commande { #command-line }
 

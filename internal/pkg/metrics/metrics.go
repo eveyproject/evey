@@ -334,6 +334,14 @@ var (
 		Name: "evey_hlsvod_starvation_resumes_total",
 		Help: "ffmpeg SIGCONTs triggered by CMCD bs=1 starvation signal.",
 	})
+	// HLSFirstSegmentSeconds is the startup a viewer waits on: from the master
+	// playlist to the first media segment served for it, by serving path
+	// (transcode, ffmpeg-copy). Labels stay bounded - no media, no session.
+	HLSFirstSegmentSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "evey_hls_first_segment_seconds",
+		Help:    "Seconds from a playback's master playlist to its first media segment served, by serving path.",
+		Buckets: []float64{0.25, 0.5, 1, 2, 3, 5, 8, 13, 20, 30, 45, 60},
+	}, []string{"served_by"})
 
 	// MkvgoWalksInFlight is how many source windows the on-demand packager is
 	// reading right now, process-wide - the gauge behind the walk cap
@@ -434,6 +442,7 @@ func init() {
 		HLSVODCopyTimelineDrift, HLSVODTranscodeSeekTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
+		HLSFirstSegmentSeconds,
 		QoEIngestEvents, QoEIngestDrops,
 		MkvgoWalksInFlight, MkvgoPlanBuildSeconds, MkvgoPlanStats,
 		RateLimitRejected,
@@ -559,7 +568,38 @@ func sanitizeSegment(seg string) string {
 	if len(seg) >= 16 && isAllHex(seg) {
 		return "{id}"
 	}
+	if isNumberedFile(seg) {
+		return "{file}"
+	}
 	return seg
+}
+
+// isNumberedFile: a file name carrying a number, such as the HLS segments
+// (stream_0_123.m4s, audio_1_45.m4s, sub0_12.vtt) and the trickplay sheets
+// a session serves by the hundred - one series per film with the raw name,
+// and a memory the process never gave back. A plain name (master.m3u8,
+// init.mp4, remux.mp4) is a bounded set and stays.
+func isNumberedFile(seg string) bool {
+	dot := strings.LastIndexByte(seg, '.')
+	if dot <= 0 || dot == len(seg)-1 {
+		return false
+	}
+	for i := range dot {
+		if seg[i] >= '0' && seg[i] <= '9' {
+			return true
+		}
+	}
+	return false
+}
+
+// boundedMethod keeps the method label to the verbs the server routes: a
+// client inventing one must not mint a series per spelling.
+func boundedMethod(m string) string {
+	switch m {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions:
+		return m
+	}
+	return "OTHER"
 }
 
 func isAllDigits(s string) bool {
@@ -636,15 +676,66 @@ func isUUID(s string) bool {
 	return true
 }
 
-// InstrumentHandler wraps h to record request count and duration.
+// unmatchedPath is the one label every request no route of its own answered
+// shares: a path nobody serves is whatever the caller typed, and one series
+// per spelling let any anonymous client grow the process without bound.
+const unmatchedPath = "{unmatched}"
+
+// RoutePatterns resolves the route a request would reach, without serving
+// it: *http.ServeMux.Handler.
+type RoutePatterns interface {
+	Handler(r *http.Request) (http.Handler, string)
+}
+
+// InstrumentHandler wraps h to record request count and duration. The labels
+// stay bounded: the method is one of the verbs the server routes, a path no
+// route matched is one label, and the file names a session serves by the
+// hundred collapse into one (SanitizePath). Prefer InstrumentRoutes where
+// the mux is at hand: a route with a wildcard answering 401 to an anonymous
+// probe keeps the probe's spelling here.
 func InstrumentHandler(h http.Handler) http.Handler {
+	return InstrumentRoutes(h, nil)
+}
+
+// InstrumentRoutes is InstrumentHandler labelled by the route the request
+// reaches: the mux pattern, whatever the request spelt in its wildcards and
+// whatever status the route answered. A request under the catch-all "/"
+// (the gRPC gateway, the single-page app) is labelled by its sanitized path
+// when served, and by one label otherwise: the gateway's wildcards are not
+// the mux's, and a refusal there must not mint a series per spelling. A
+// request no route answers is one label too.
+func InstrumentRoutes(h http.Handler, routes RoutePatterns) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Resolved before serving: the mux redirects an unclean path and
+		// the handlers rewrite the path they serve.
+		pattern := ""
+		if routes != nil {
+			_, pattern = routes.Handler(r)
+		}
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		start := time.Now()
 		h.ServeHTTP(rec, r)
 		elapsed := time.Since(start).Seconds()
-		path := SanitizePath(r.URL.Path)
-		HTTPRequestsTotal.WithLabelValues(r.Method, path, strconv.Itoa(rec.status)).Inc()
-		HTTPRequestDuration.WithLabelValues(r.Method, path).Observe(elapsed)
+		path := routeLabel(pattern, r.URL.Path, rec.status)
+		method := boundedMethod(r.Method)
+		HTTPRequestsTotal.WithLabelValues(method, path, strconv.Itoa(rec.status)).Inc()
+		HTTPRequestDuration.WithLabelValues(method, path).Observe(elapsed)
 	})
+}
+
+// routeLabel is the path label of a request that reached pattern (empty when
+// nothing matched) and was answered with status.
+func routeLabel(pattern, urlPath string, status int) string {
+	switch {
+	case pattern != "" && pattern != "/":
+		// "GET /api/v1/media/{id}/stream": the method is its own label.
+		if _, path, ok := strings.Cut(pattern, " "); ok {
+			return path
+		}
+		return pattern
+	case pattern == "/" && status >= 200 && status < 300:
+		return SanitizePath(urlPath)
+	default:
+		return unmatchedPath
+	}
 }

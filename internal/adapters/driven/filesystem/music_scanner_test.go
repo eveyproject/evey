@@ -126,3 +126,21 @@ func TestWalkAudioFiles_MissingRootIsAnError(t *testing.T) {
 		t.Fatal("a missing library root must fail the walk, not read as an empty library")
 	}
 }
+
+// Same contract as the video scanner: a linked root is walked through the
+// link, and the paths keep the configured root as their prefix.
+func TestMusicScanner_WalkAudioFiles_SymlinkedRoot(t *testing.T) {
+	target := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(target, "song.mp3"), []byte("audio"), 0644))
+	link := filepath.Join(t.TempDir(), "music")
+	require.NoError(t, os.Symlink(target, link))
+
+	var found []music.ScannedAudioFile
+	err := NewMusicScanner().WalkAudioFiles(context.Background(), link, func(f music.ScannedAudioFile) error {
+		found = append(found, f)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, filepath.Join(link, "song.mp3"), found[0].Path)
+}

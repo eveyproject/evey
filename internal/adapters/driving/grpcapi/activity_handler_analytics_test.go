@@ -164,7 +164,9 @@ func TestActivityHandler_GetPopularMedia_LibraryScoped(t *testing.T) {
 	resp, err := h.GetPopularMedia(ctxWithClaims("user-1", "profile-1", false), &eveyv1.GetPopularMediaRequest{Limit: 10})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"mi-mine"}, ids(resp))
-	assert.Equal(t, "movie", resp.Items[0].Type)
+	// The wire type is the enum name every other home rail sends: the shared
+	// card helpers read MEDIA_ITEM_TYPE_*, so a bare "movie" lost its type label.
+	assert.Equal(t, "MEDIA_ITEM_TYPE_MOVIE", resp.Items[0].Type)
 	assert.EqualValues(t, 9, resp.Items[0].PlayCount)
 
 	resp, err = h.GetPopularMedia(ctxWithClaims("adm", "profile-adm", true), &eveyv1.GetPopularMediaRequest{Limit: 10})

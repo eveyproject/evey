@@ -37,7 +37,7 @@ import { HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { buildHomeSections, placedPluginIds, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
-import { serverImageUri } from "@evey/client";
+import { feedItemsToCards, serverImageUri } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 import { libraryFirstPageQueries } from "../../../src/lib/libraryGrid";
@@ -713,24 +713,11 @@ export default function HomeScreen() {
   // shapes; both are projected onto V1MediaItem so one card component serves
   // every row (same projection mobile does).
   const recommendedItems = useMemo(
-    () =>
-      (recommended.data?.items ?? [])
-        .filter((i) => !!i.mediaItemId)
-        .map((i) => ({
-          id: i.mediaItemId,
-          title: i.title,
-          type: i.type,
-          year: i.year || undefined,
-          artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
-        }) as V1MediaItem)
-        .slice(0, recommendedSize),
+    () => feedItemsToCards(recommended.data?.items).slice(0, recommendedSize),
     [recommended.data, recommendedSize],
   );
   const popularItems = useMemo(
-    () =>
-      (popular.data ?? [])
-        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year }) as V1MediaItem)
-        .slice(0, popularSize),
+    () => feedItemsToCards(popular.data).slice(0, popularSize),
     [popular.data, popularSize],
   );
 

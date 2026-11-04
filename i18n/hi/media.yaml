@@ -596,6 +596,8 @@ streams:
   subtitles: उपशीर्षक
   default: डिफ़ॉल्ट
   forced: फ़ोर्स्ड
+  commentary: कमेंट्री
+  audioDescription: ऑडियो विवरण
   external: बाहरी
   auto: स्वचालित
   none: कोई नहीं

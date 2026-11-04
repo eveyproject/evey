@@ -229,7 +229,13 @@ type MediaSegmentRepository interface {
 // services. The full repository embeds this.
 type PersonQueryRepo interface {
 	GetByID(ctx context.Context, id string) (*Person, error)
+	// GetByName prefers the row without a provider id when homonyms exist:
+	// a name identifies only a person the provider gave no id for.
 	GetByName(ctx context.Context, name string) (*Person, error)
+	// GetByProviderID finds the person a metadata provider knows under id
+	// (provider "tmdb"). The provider id, not the name, is a person's
+	// identity: two people may share a name.
+	GetByProviderID(ctx context.Context, provider, id string) (*Person, error)
 	// GetByNamesBatch returns a name→Person map for the given set of
 	// names. Missing names are absent from the returned map (not nil
 	// entries). Drives the enricher preload that kills the N+1 on
@@ -242,6 +248,12 @@ type PersonRepository interface {
 	PersonQueryRepo
 	Create(ctx context.Context, person *Person) error
 	Update(ctx context.Context, person *Person) error
+	// ClaimProviderID sets a provider id on a person stored without one,
+	// unless another row already holds it, and returns the id of the row
+	// that holds it afterwards. It is serialised with Create on the same
+	// provider id, so a claim and a create racing for one person leave one
+	// row holding the id.
+	ClaimProviderID(ctx context.Context, personID, provider, id string) (string, error)
 }
 
 type MediaPersonRepository interface {
@@ -319,6 +331,15 @@ type ScannedFile struct {
 	Year        *int
 	Season      *int
 	Episode     *int
+	// FolderSeason: Season and Episode come from a "Season N" folder, not
+	// from the file name, and Title is the show folder's. NameTitle is the
+	// file name's own title. Only a TV library reads that layout.
+	FolderSeason bool
+	NameTitle    string
+	// Extra is "extra" for a trailer, featurette or other bonus the name or
+	// its folder announces: a TV library leaves it out instead of filing it
+	// as an episode. Samples never reach the scan.
+	Extra string
 }
 
 type FileScanner interface {
@@ -579,7 +600,9 @@ type PersonDetailsResult struct {
 }
 
 type PersonDetailsFetcher interface {
-	GetPersonDetails(ctx context.Context, name string) (*PersonDetailsResult, error)
+	// GetPersonDetails reads the person by tmdbID when it is known, by name
+	// otherwise: a name is shared by homonyms, an id is not.
+	GetPersonDetails(ctx context.Context, name, tmdbID string) (*PersonDetailsResult, error)
 }
 
 type PersonTranslationFetcher interface {

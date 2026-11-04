@@ -19,6 +19,17 @@ describe("the labels every client prints", () => {
     expect(resolutionBand(720, 576)).toBe("SD");
   });
 
+  // A phone recording is as tall as a scope film is wide: its sides, not its
+  // axes, name it.
+  it("names a portrait frame by its short side", async () => {
+    const { resolutionLabel, resolutionBand } = await import("./streamBadges");
+    expect(resolutionLabel({ width: 1080, height: 1920 } as never)).toBe("1080p");
+    expect(resolutionLabel({ width: 2160, height: 3840 } as never)).toBe("4K");
+    expect(resolutionLabel({ width: 576, height: 1024 } as never)).toBe("576p");
+    expect(resolutionBand(1080, 1920)).toBe("1080p");
+    expect(resolutionBand(576, 1024)).toBe("SD");
+  });
+
   it("tells HDR10 from HLG, and reads a legacy BT.2020 10-bit row as HDR10", async () => {
     const { hdrLabel, isHdrStream } = await import("./streamBadges");
     expect(hdrLabel({ colorTransfer: "arib-std-b67" } as never)).toBe("HLG");

@@ -31,3 +31,28 @@ export function resolvePlayTarget(args: {
 export function sortByIndexNumber<T extends { indexNumber?: number }>(items: T[]): T[] {
   return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
 }
+
+// An episode without a number (a file of a season folder whose name states
+// none) is listed after the numbered ones, as the server orders it
+// (index_number NULLS LAST). index_number is a plain int32 and reads 0 both
+// for "no number" and for a real E00; hasIndexNumber tells them apart. Only
+// hasIndexNumber false goes last: a real E00 stays first, and a server that
+// predates the flag (undefined) keeps the plain numeric order. Seasons keep
+// sortByIndexNumber: their 0 is the specials season, a real number.
+type EpisodeIndex = { indexNumber?: number; hasIndexNumber?: boolean };
+
+function episodeIndexKey(item: EpisodeIndex): number {
+  const n = item.indexNumber ?? 0;
+  return item.hasIndexNumber === false && n === 0 ? Number.POSITIVE_INFINITY : n;
+}
+
+export function compareEpisodeIndex(a: EpisodeIndex, b: EpisodeIndex): number {
+  const ka = episodeIndexKey(a);
+  const kb = episodeIndexKey(b);
+  if (ka === kb) return 0;
+  return ka < kb ? -1 : 1;
+}
+
+export function sortEpisodesByIndex<T extends EpisodeIndex>(items: T[]): T[] {
+  return [...items].sort(compareEpisodeIndex);
+}

@@ -62,3 +62,20 @@ export function formatAudioTrackLabel(
   const layout = formatChannelLayout(s.channels);
   return layout ? `${name} - ${layout}` : name;
 }
+
+/**
+ * Appends the commentary / audio-description tags to an audio track label.
+ * Such a track usually shares the main track's language and layout, so the
+ * bare label would list two identical entries. `t` is the caller's i18n
+ * lookup, for the same reason `formatAudioTrackLabel` takes its fallback.
+ */
+export function tagAudioTrackLabel(
+  label: string,
+  s: { isCommentary?: boolean; isVisualImpaired?: boolean },
+  t: (key: string) => string,
+): string {
+  const tags: string[] = [];
+  if (s.isCommentary) tags.push(t("media.streams.commentary"));
+  if (s.isVisualImpaired) tags.push(t("media.streams.audioDescription"));
+  return [label, ...tags].join(" - ");
+}

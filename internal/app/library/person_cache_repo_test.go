@@ -188,11 +188,17 @@ func (r *updateFailPersonRepo) Create(ctx context.Context, p *library.Person) er
 func (r *updateFailPersonRepo) Update(_ context.Context, _ *library.Person) error {
 	return r.updateErr
 }
+func (r *updateFailPersonRepo) ClaimProviderID(ctx context.Context, personID, provider, id string) (string, error) {
+	return r.inner.ClaimProviderID(ctx, personID, provider, id)
+}
 func (r *updateFailPersonRepo) GetByID(ctx context.Context, id string) (*library.Person, error) {
 	return r.inner.GetByID(ctx, id)
 }
 func (r *updateFailPersonRepo) GetByName(ctx context.Context, name string) (*library.Person, error) {
 	return r.inner.GetByName(ctx, name)
+}
+func (r *updateFailPersonRepo) GetByProviderID(ctx context.Context, provider, id string) (*library.Person, error) {
+	return r.inner.GetByProviderID(ctx, provider, id)
 }
 func (r *updateFailPersonRepo) GetByNamesBatch(ctx context.Context, names []string) (map[string]*library.Person, error) {
 	return r.inner.GetByNamesBatch(ctx, names)

@@ -31,6 +31,10 @@ type castNextResponse struct {
 	SeasonNumber    int    `json:"season_number"`
 	EpisodeNumber   int    `json:"episode_number"`
 	SeriesTitle     string `json:"series_title"`
+	// ResumePositionMs is where this profile left the next episode, 0 when it
+	// never started it or finished it: the receiver starts there, as the
+	// apps resume an unfinished episode and restart a watched one.
+	ResumePositionMs int64 `json:"resume_position_ms"`
 }
 
 // serveCastNext handles POST /api/v1/media/{id}/cast-next (streamAuth).
@@ -116,6 +120,7 @@ func (h *hlsVODServe) serveCastNext(w http.ResponseWriter, r *http.Request) {
 	if next.IndexNumber != nil {
 		resp.EpisodeNumber = *next.IndexNumber
 	}
+	resp.ResumePositionMs = h.castResumePosition(r.Context(), string(st.ProfileID), string(next.ID))
 	if next.ParentID != "" {
 		if season, sErr := h.libSvc.GetMediaItem(r.Context(), next.ParentID); sErr == nil && season != nil {
 			if season.IndexNumber != nil {
@@ -131,11 +136,21 @@ func (h *hlsVODServe) serveCastNext(w http.ResponseWriter, r *http.Request) {
 
 	// Best-effort first-segment warm-up so the switch lands on a hot cache
 	// (same rafale prewarm-next fires for the local players). The receiver
-	// passes its master's query params, so the fingerprint matches the
-	// master request it will make. Failure only costs switch latency.
+	// asks its next master bare: it drops abr and maxKbps itself, and the
+	// audio and subtitle indexes baked for the current file name a position
+	// in that file, not a language, so the next file's tracks come from the
+	// profile's preferences. The warm-up asks the same, or it heats a
+	// session the receiver never requests. Failure only costs switch latency.
+	warm := r.Clone(r.Context())
+	q := warm.URL.Query()
+	for _, k := range []string{"audioTrack", "subtitleTrack", "abr", "maxKbps"} {
+		q.Del(k)
+	}
+	warm.URL.RawQuery = q.Encode()
+	warm = h.stampServingGates(warm)
 	if streams, wErr := h.libSvc.GetMediaStreams(r.Context(), string(next.ID)); wErr == nil {
-		if fp, fErr := h.buildFingerprint(r, string(next.ID), next, streams); fErr == nil {
-			if producer := h.producerForRequest(r.Context(), r, streams, next); producer != nil {
+		if fp, fErr := h.buildFingerprint(warm, string(next.ID), next, streams); fErr == nil {
+			if producer := h.producerForRequest(r.Context(), warm, streams, next); producer != nil {
 				if eErr := producer.EnsureSegmentRange(r.Context(), fp, 0, 0); eErr != nil {
 					slog.InfoContext(r.Context(), "cast-next: prewarm skipped", slog.String("next_id", string(next.ID)), slog.Any("err", eErr))
 				}
@@ -147,4 +162,18 @@ func (h *hlsVODServe) serveCastNext(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.WarnContext(r.Context(), "cast-next: encode failed", slog.Any("err", err))
 	}
+}
+
+// castResumePosition is the saved position of the next episode for the
+// token's profile, or 0 when there is none, it was completed, or it cannot be
+// read: a failed lookup starts the episode from the top, it never blocks it.
+func (h *hlsVODServe) castResumePosition(ctx context.Context, profileID, mediaItemID string) int64 {
+	if h.castResume == nil || profileID == "" {
+		return 0
+	}
+	wp, err := h.castResume.GetWatchProgress(ctx, profileID, mediaItemID)
+	if err != nil || wp == nil || wp.Completed {
+		return 0
+	}
+	return wp.Position.Milliseconds()
 }

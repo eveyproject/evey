@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -179,4 +180,85 @@ func TestParseYear_FileThenFolder(t *testing.T) {
 	require.NotNil(t, s.ParseYear("/media/Dune (2021)/movie.mkv"))
 	assert.Equal(t, 2021, *s.ParseYear("/media/Dune (2021)/movie.mkv"))
 	assert.Nil(t, s.ParseYear("/media/untitled/movie.mkv"))
+}
+
+// A library root that is a symbolic link is walked through the link: the walk
+// does not follow links by itself, so a linked root used to be visited as one
+// file and yield nothing, which read as an empty mount. The paths found keep
+// the configured root as their prefix, the one the catalog is keyed on.
+func TestScan_SymlinkedRootIsWalked(t *testing.T) {
+	target := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(target, "movie.mkv"), []byte("x"), 0644))
+	link := filepath.Join(t.TempDir(), "movies")
+	require.NoError(t, os.Symlink(target, link))
+
+	found, err := NewScanner().Scan(context.Background(), link)
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, filepath.Join(link, "movie.mkv"), found[0].Path)
+}
+
+// A root that resolves to a file is not a library: said as an error, so the
+// scan reports the path instead of walking nothing in silence.
+func TestScan_RootThatIsAFileIsAnError(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "movie.mkv")
+	require.NoError(t, os.WriteFile(file, []byte("x"), 0644))
+
+	_, err := NewScanner().Scan(context.Background(), file)
+	require.Error(t, err)
+}
+
+func TestScan_SeasonFolderLayoutYieldsEpisodes(t *testing.T) {
+	dir := t.TempDir()
+	show := filepath.Join(dir, "Show Name (2019)", "Season 2")
+	require.NoError(t, os.MkdirAll(show, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(show, "03 - Pilot.mkv"), []byte("x"), 0644))
+
+	s := NewScanner()
+	found, err := s.Scan(context.Background(), dir)
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, library.Episode, found[0].Type)
+	assert.Equal(t, "Show Name", found[0].Title)
+	require.NotNil(t, found[0].Season)
+	assert.Equal(t, 2, *found[0].Season)
+	require.NotNil(t, found[0].Episode)
+	assert.Equal(t, 3, *found[0].Episode)
+	require.NotNil(t, found[0].Year)
+	assert.Equal(t, 2019, *found[0].Year)
+	assert.True(t, found[0].FolderSeason)
+	assert.Equal(t, "03 Pilot", found[0].NameTitle)
+	// The heal reads the file name's title: a movie is named by its file.
+	assert.Equal(t, "03 Pilot", s.ParseTitle(found[0].Path))
+}
+
+// A sample is never indexed, in any library; another extra is listed with
+// its kind, for the TV scan to leave out and a movie library to keep.
+func TestScan_SkipsSamplesAndMarksExtras(t *testing.T) {
+	dir := t.TempDir()
+	season := filepath.Join(dir, "Show", "Season 1")
+	require.NoError(t, os.MkdirAll(filepath.Join(season, "Sample"), 0o755))
+	for _, f := range []string{
+		filepath.Join(season, "Show.S01E01.mkv"),
+		filepath.Join(season, "show-sample.mkv"),
+		filepath.Join(season, "Sample", "show.mkv"),
+		filepath.Join(season, "Trailer.mkv"),
+		filepath.Join(dir, "Sample.2019.mkv"),
+	} {
+		require.NoError(t, os.WriteFile(f, []byte("x"), 0o644))
+	}
+
+	found, err := NewScanner().Scan(context.Background(), dir)
+	require.NoError(t, err)
+	extra := map[string]string{}
+	for _, f := range found {
+		rel, relErr := filepath.Rel(dir, f.Path)
+		require.NoError(t, relErr)
+		extra[rel] = f.Extra
+	}
+	assert.Equal(t, map[string]string{
+		filepath.Join("Show", "Season 1", "Show.S01E01.mkv"): "",
+		filepath.Join("Show", "Season 1", "Trailer.mkv"):     "extra",
+		"Sample.2019.mkv": "",
+	}, extra)
 }

@@ -222,4 +222,14 @@ func TestAudioDelayCancel_UserOffsetComposition(t *testing.T) {
 	joined = strings.Join(ffmpeg.BuildFFmpegArgs(earlier), " ")
 	assert.Contains(t, joined, "-itsoffset -0.100",
 		"user asks audio EARLIER by 100ms: net = 0 - (-0.1) = +0.1 → -itsoffset -0.100")
+
+	// A source delay under the floor is noise the session leaves alone; a
+	// resync on top of it must not drag that noise in, or the user's first
+	// 100 ms step is worth 40 ms.
+	underFloor := delayOpts("", 3)
+	underFloor.AudioStartDelaySec = 0.06
+	underFloor.AudioUserOffsetSec = 0.1
+	joined = strings.Join(ffmpeg.BuildFFmpegArgs(underFloor), " ")
+	assert.Contains(t, joined, "-itsoffset 0.100 -i /f.mkv",
+		"a resync over an under-floor delay is the resync alone")
 }

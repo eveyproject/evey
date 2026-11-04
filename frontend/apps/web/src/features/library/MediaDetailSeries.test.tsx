@@ -161,6 +161,19 @@ describe("SeasonEpisodesSection", () => {
     expect(screen.getByText("1h 32min")).toBeInTheDocument();
   });
 
+  it("renders no duration slot for the proto zero duration (the string \"0\" is truthy)", () => {
+    mockListMediaItems.mockReturnValue({
+      data: {
+        items: [{ id: "ep1", indexNumber: 1, title: "Pilot", durationMs: "0" }],
+      },
+    });
+    const { container } = render(
+      <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
+      { wrapper: Wrapper },
+    );
+    expect(container.querySelector("span.ml-auto")).toBeNull();
+  });
+
   // The episode row deliberately no longer navigates to a per-episode detail
   // page: the synopsis and the actions now live on the row itself, so that page
   // held nothing an episode needs and sat between the viewer and playback.

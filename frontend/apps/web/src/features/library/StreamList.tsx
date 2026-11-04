@@ -33,6 +33,8 @@ function StreamRow({ stream }: { stream: V1MediaStream }) {
       )}
       {stream.isDefault && <Badge variant="info">{t("media.streams.default")}</Badge>}
       {stream.isForced && <Badge variant="warning">{t("media.streams.forced")}</Badge>}
+      {stream.isCommentary && <Badge variant="info">{t("media.streams.commentary")}</Badge>}
+      {stream.isVisualImpaired && <Badge variant="info">{t("media.streams.audioDescription")}</Badge>}
       {stream.isExternal && <Badge variant="info">{t("media.streams.external")}</Badge>}
     </div>
   );

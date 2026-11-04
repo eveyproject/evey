@@ -76,7 +76,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
-import { noteViewerActivity, resolveStartPositionMs, isTitleGone, servedVariant, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock, type AudioTrackPlayer } from "@evey/client";
+import { compareEpisodeIndex, noteViewerActivity, resolveStartPositionMs, isTitleGone, servedVariant, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -181,12 +181,16 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     if (!isSeriesOrSeason) return;
     const items = childrenData?.items;
     if (!items || items.length === 0) return;
-    const sorted = [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+    // A season's children are episodes (an unnumbered one last), a series'
+    // are seasons (their 0 is the specials season, kept first).
+    const sorted = media?.type === "MEDIA_ITEM_TYPE_SEASON"
+      ? [...items].sort(compareEpisodeIndex)
+      : [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
     const target = sorted[0];
     if (target?.id && target.id !== mediaId) {
       router.replace(`/player/${target.id}` as never);
     }
-  }, [isSeriesOrSeason, childrenData?.items, mediaId]);
+  }, [isSeriesOrSeason, childrenData?.items, mediaId, media?.type]);
 
   const isEpisode = media?.type === "MEDIA_ITEM_TYPE_EPISODE";
   const { data: parentItem } = useLibraryServiceGetMediaItem(
@@ -213,7 +217,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const { prevEpisode, nextEpisode } = useMemo(() => {
     const items = siblingsData?.items;
     if (!isEpisode || !items || items.length === 0) return { prevEpisode: null, nextEpisode: null };
-    const sorted = [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+    const sorted = [...items].sort(compareEpisodeIndex);
     const idx = sorted.findIndex((e) => e.id === mediaId);
     return {
       prevEpisode: idx > 0 ? sorted[idx - 1] : null,
@@ -228,7 +232,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     if (!isEpisode || !items) return [];
     return items
       .filter((ep): ep is typeof ep & { id: string } => !!ep.id)
-      .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+      .sort(compareEpisodeIndex);
   }, [siblingsData?.items, isEpisode]);
 
   // Series' other seasons, for the Episodes panel's season selector (web
@@ -269,7 +273,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     if (!items) return [];
     return items
       .filter((ep): ep is typeof ep & { id: string } => !!ep.id)
-      .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+      .sort(compareEpisodeIndex);
   }, [isEpisode, selectedSeasonId, media?.parentId, currentSeasonEpisodes, otherSeasonEpisodesData?.items]);
   // Don't open a play session for a series/season - the redirect above will
   // remount us on a real episode in a tick. Passing "" makes usePlaySession

@@ -596,6 +596,8 @@ streams:
   subtitles: 字幕
   default: 默认
   forced: 强制
+  commentary: 评论音轨
+  audioDescription: 口述影像
   external: 外挂
   auto: 自动
   none: 无

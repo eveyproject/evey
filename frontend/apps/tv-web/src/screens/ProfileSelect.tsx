@@ -9,7 +9,7 @@ import { ScreenState } from "../components/ScreenState";
 import { replace } from "../app/router";
 import { refreshTokenStore } from "../lib/session";
 import { ParentalPINModal } from "../components/ParentalPINModal";
-import { walksThroughProfilePicker } from "@evey/client";
+import { clearUnlocked, walksThroughProfilePicker } from "@evey/client";
 import { avatarSrc } from "../lib/media";
 
 // A profile is a server-side grant, not a client flag: switching means a
@@ -42,7 +42,11 @@ export function ProfileSelectScreen({ pick }: { pick?: boolean }) {
       if (resp.refreshToken) await refreshTokenStore.setRefreshToken(resp.refreshToken);
       if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       useAuthStore.getState().setProfile(p.id);
-      await qc.invalidateQueries();
+      // The cache and the parental unlocks belong to the previous viewer:
+      // kept, a kids profile saw the adult's rows (invalidate refetches but
+      // still shows them meanwhile) and opened the titles the adult unlocked.
+      qc.clear();
+      clearUnlocked();
       replace({ name: "home" });
     } catch (err) {
       // 403 without a proof: the profile is behind a PIN, ask for it. With

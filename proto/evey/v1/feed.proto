@@ -102,6 +102,9 @@ message FeedItem {
   // Release year of the media item (0 when unknown) so cards can print it
   // under the title like the library grid does.
   int32 year = 11;
+  // Audience score, same scale as MediaItem.community_rating (0 when
+  // unknown), printed on the card like the library grid does.
+  double community_rating = 12;
 }
 
 message MergedFeedConfig {

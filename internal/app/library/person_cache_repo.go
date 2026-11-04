@@ -45,7 +45,7 @@ func (r *CachingPersonRepo) GetByID(ctx context.Context, id string) (*library.Pe
 	if person.Biography != "" || r.fetcher == nil {
 		return person, nil
 	}
-	details, fetchErr := r.fetcher.GetPersonDetails(ctx, person.Name)
+	details, fetchErr := r.fetcher.GetPersonDetails(ctx, person.Name, person.ProviderIDs["tmdb"])
 	if fetchErr != nil || details == nil || details.Biography == "" {
 		return person, nil
 	}

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -181,4 +182,70 @@ func TestOperatorShift_AFailedRestoreIsNotARollback(t *testing.T) {
 	require.Len(t, j.all(), 1)
 	assert.Equal(t, "failed", j.all()[0].Outcome,
 		"the restore failed, so the damaged file is still there")
+}
+
+// A shift applied by hand rewrites a file on the library disk like any batch
+// repair does: it takes the single job slot, so it cannot run beside a batch
+// that may be rewriting the same file.
+func TestOperatorShift_RefusedWhileAJobRuns(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "film.mkv")
+	require.NoError(t, os.WriteFile(path, []byte("bytes"), 0o644))
+	gate := make(chan struct{})
+	reidx := &fakeReindexer{hasIndex: map[string]bool{}, gate: gate}
+	r := &fakeRetimer{}
+	j := &fakeJournal{}
+	svc := appmaintenance.NewSeekIndexService(reidx,
+		fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Title: "Film", Path: path}}}, nil).
+		WithTrackRetimer(r).WithRepairJournal(j)
+	require.NoError(t, svc.StartReindexLibrary(t.Context(), "lib1", appmaintenance.ReindexRunOptions{}))
+	require.Eventually(t, func() bool {
+		return reidx.reindexCount() >= 1 || svc.Status().Phase == appmaintenance.PhaseProcessing
+	}, 5*time.Second, 10*time.Millisecond, "batch never reached the processing phase")
+
+	err := svc.ApplyOperatorShift(context.Background(), "m1", 2, 2.5)
+
+	require.ErrorIs(t, err, appmaintenance.ErrJobRunning)
+	assert.Empty(t, r.calls, "nothing may be written beside a running job")
+	assert.Empty(t, j.all(), "nothing happened, nothing is journalled")
+	close(gate)
+	waitIdle(t, svc)
+}
+
+// A rewrite by hand is refused while someone is watching: a batch would wait
+// for an idle server between files, a request cannot. Once playback stops
+// the same request goes through.
+func TestOperatorShift_RefusedWhilePlaybackIsActive(t *testing.T) {
+	r := &fakeRetimer{}
+	j := &fakeJournal{}
+	_, svc := previewService(t, nil, r, j)
+	streams := &countingStreams{}
+	streams.active.Store(1)
+	svc = svc.WithActiveStreamChecker(streams)
+
+	err := svc.ApplyOperatorShift(context.Background(), "m1", 2, 2.5)
+
+	require.ErrorIs(t, err, appmaintenance.ErrPlaybackActive)
+	assert.Empty(t, r.calls, "nothing may be written over a viewer")
+	assert.Empty(t, j.all(), "nothing happened, nothing is journalled")
+
+	streams.active.Store(0)
+	require.NoError(t, svc.ApplyOperatorShift(context.Background(), "m1", 2, 2.5))
+	require.Len(t, r.calls, 1)
+}
+
+// The shift runs as a job: it is accounted for like a batch, so the status
+// page shows what was last done to the disk, and the slot is free afterwards.
+func TestOperatorShift_RunsInTheJobSlot(t *testing.T) {
+	r := &fakeRetimer{}
+	_, svc := previewService(t, nil, r, &fakeJournal{})
+
+	require.NoError(t, svc.ApplyOperatorShift(context.Background(), "m1", 2, 2.5))
+
+	st := svc.Status()
+	assert.False(t, st.Running, "a synchronous rewrite releases the slot before returning")
+	require.NotNil(t, st.Last)
+	assert.Equal(t, appmaintenance.JobAudioRetime, st.Last.Kind)
+	assert.Equal(t, 1, st.Last.Done)
+	assert.Equal(t, 0, st.Last.Failed)
 }

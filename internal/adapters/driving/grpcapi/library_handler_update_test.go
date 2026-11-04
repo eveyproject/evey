@@ -5,11 +5,13 @@ import (
 	"testing"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
 	"github.com/eveyproject/evey/internal/domain/library"
 	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
 	mkvfakes "github.com/eveyproject/evey/internal/domain/mkv/fakes"
 	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -65,7 +67,10 @@ func TestGrpcLibraryUpdate_NotFound(t *testing.T) {
 	}
 }
 
-// UpdateLibrary: invalid path (not under /media) → InvalidArgument.
+// UpdateLibrary: a root that is not an absolute clean path → InvalidArgument.
+// It used to pin "/etc/passwd" as refused for not being under /media; the
+// rule is now Create's (any absolute clean root), and the path a root names
+// is the admin's call, so the refused input is a relative one.
 func TestGrpcLibraryUpdate_InvalidPath(t *testing.T) {
 	t.Parallel()
 	h, _, libQuery := newUpdateLibHandler()
@@ -73,7 +78,7 @@ func TestGrpcLibraryUpdate_InvalidPath(t *testing.T) {
 
 	_, err := h.UpdateLibrary(context.Background(), &eveyv1.UpdateLibraryRequest{
 		Id:    "lib-1",
-		Paths: []string{"/etc/passwd"},
+		Paths: []string{"etc/passwd"},
 	})
 	if err == nil {
 		t.Fatal("want error")
@@ -93,8 +98,10 @@ func TestGrpcLibraryUpdate_Success(t *testing.T) {
 	libQuery.Seed(lib)
 	libCmd.Seed(lib)
 
+	// The admin the route admits: the roots come back to an admin alone.
+	ctx := interceptors.ContextWithClaims(context.Background(), &user.Claims{UserID: "usr-admin", IsAdmin: true})
 	newName := "Renamed"
-	resp, err := h.UpdateLibrary(context.Background(), &eveyv1.UpdateLibraryRequest{
+	resp, err := h.UpdateLibrary(ctx, &eveyv1.UpdateLibraryRequest{
 		Id:    "lib-2",
 		Name:  &newName,
 		Paths: []string{"/media/new"},

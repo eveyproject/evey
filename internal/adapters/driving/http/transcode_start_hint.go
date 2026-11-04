@@ -26,6 +26,12 @@ const startHintTTL = time.Minute
 // pause - the init of a rung first asked after one must not fall back to 0.
 const livePositionTTL = 6 * time.Hour
 
+// positionHintSweepEvery bounds how often a write walks the map for expired
+// entries: the live position is written on every segment served, and a walk per
+// write grew with the whole viewing history under one lock. peek checks the TTL
+// itself, so an entry the walk has not reached yet is never served.
+const positionHintSweepEvery = 30 * time.Second
+
 type positionHint[T int | float64] struct {
 	v  T
 	at time.Time
@@ -35,8 +41,9 @@ type positionHint[T int | float64] struct {
 // starts at (startHintKey), or the last segment served per decision hash. The
 // zero value is ready to use.
 type positionHints[T int | float64] struct {
-	mu sync.Mutex
-	m  map[string]positionHint[T]
+	mu        sync.Mutex
+	m         map[string]positionHint[T]
+	lastSweep time.Time
 }
 
 // remember records every master's start, 0 included: a variant fetch with no
@@ -54,9 +61,12 @@ func (s *positionHints[T]) rememberWithin(key string, v T, now time.Time, ttl ti
 	if s.m == nil {
 		s.m = make(map[string]positionHint[T])
 	}
-	for k, h := range s.m {
-		if now.Sub(h.at) > ttl {
-			delete(s.m, k)
+	if now.Sub(s.lastSweep) >= positionHintSweepEvery {
+		s.lastSweep = now
+		for k, h := range s.m {
+			if now.Sub(h.at) > ttl {
+				delete(s.m, k)
+			}
 		}
 	}
 	s.m[key] = positionHint[T]{v: v, at: now}
@@ -128,7 +138,10 @@ func copySegmentAt(plan []apptranscoding.CopySegment, sec float64) int {
 	if len(plan) == 0 {
 		return 0
 	}
-	ms := int64(sec * 1000)
+	// Nearest millisecond: a start written in seconds carries no finer
+	// figure, and a truncation of a value a hair under the boundary would
+	// land in the segment before.
+	ms := int64(math.Round(sec * 1000))
 	i := sort.Search(len(plan), func(i int) bool { return plan[i].EndMs > ms })
 	return min(i, len(plan)-1)
 }

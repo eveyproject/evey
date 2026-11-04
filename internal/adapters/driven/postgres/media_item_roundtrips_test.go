@@ -145,7 +145,7 @@ func fullItem(id string, libID shared.LibraryID, fp string) *library.MediaItem {
 		Path: "/media/" + id + ".mkv", Size: 1234, Fingerprint: fp,
 		ModTime: time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC), Duration: dur(90 * time.Minute),
 		Bitrate: 5000, ContainerFormat: "matroska", StreamProbeAttempts: 2,
-		InterleaveBackstepMs: 40, StreamProbeVersion: 9,
+		InterleaveBackstepMs: 40, StreamProbeVersion: 9, ParserVersion: 7,
 	}
 	it.Catalog = &library.MediaCatalog{
 		PremiereDate: &premiere, Year: &year,

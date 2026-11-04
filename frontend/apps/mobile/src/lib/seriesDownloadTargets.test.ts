@@ -22,4 +22,13 @@ describe("seriesDownloadTargets", () => {
       ["e2-1", 2],
     ]);
   });
+
+  it("downloads an unnumbered episode after the numbered ones of its season", async () => {
+    const seasons: V1MediaItem[] = [{ id: "s1", indexNumber: 1 }];
+    const episodes: Record<string, V1MediaItem[]> = {
+      s1: [{ ...ep("extra", 0, "/x"), hasIndexNumber: false }, ep("e1-2", 2, "/a"), ep("e1-0", 0, "/z"), ep("e1-1", 1, "/b")],
+    };
+    const targets = await seriesDownloadTargets(seasons, async (id) => episodes[id] ?? []);
+    expect(targets.map((t) => t.episode.id)).toEqual(["e1-0", "e1-1", "e1-2", "extra"]);
+  });
 });

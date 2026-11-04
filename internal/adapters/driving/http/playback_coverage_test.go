@@ -284,3 +284,54 @@ func TestPlaybackInfo_RetiredAllowTranscodingKey_StillAnswers(t *testing.T) {
 	h.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
 }
+
+// langPrefsGetter is a profile whose audio languages are set and whose
+// transcoding preferences are the defaults.
+type langPrefsGetter struct {
+	langs  []string
+	locale string
+}
+
+func (g *langPrefsGetter) GetProfilePreferences(context.Context, string) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (g *langPrefsGetter) GetProfileAudioPrefs(context.Context, string) ([]string, string, error) {
+	return g.langs, g.locale, nil
+}
+
+// The master serves the track the profile's languages pick (the French DTS
+// here, not the default English AAC): the info must judge that same track,
+// or it announces a copy over a re-encode.
+func TestPlaybackInfo_JudgesTheLanguagePreferredTrack(t *testing.T) {
+	dec := &recordingDecider{decision: domaintranscoding.PlaybackDecision{PlayMethod: "transcode", VideoDecision: "copy", AudioDecision: "transcode"}}
+	w1, h1 := 1920, 1080
+	getter := &fakeMediaStreamsGetter{
+		item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/srv/a.mkv", ContainerFormat: "matroska"}},
+		streams: []*domainlibrary.MediaStream{
+			{StreamIndex: 0, StreamType: "video", Codec: "h264", Width: &w1, Height: &h1},
+			{StreamIndex: 1, StreamType: "audio", Codec: "aac", Language: "eng", IsDefault: true},
+			{StreamIndex: 2, StreamType: "audio", Codec: "dts", Language: "fre"},
+		},
+	}
+	serve := func(prefs ProfilePrefsGetter, query string) apptranscoding.PlaybackRequest {
+		h := playbackInfoHandlerFor(func() string { return "en" }, dec, getter, allowAll(), prefs, nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info"+query, nil)
+		req.SetPathValue("id", "m1")
+		req = withHTTPClaims(req, testClaims(false))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		return dec.got
+	}
+
+	got := serve(&langPrefsGetter{langs: []string{"fr"}}, "")
+	assert.Equal(t, 1, got.AudioTrack, "the profile's language picks the French track")
+	assert.Equal(t, 1, got.Prefs.AudioTrack)
+
+	got = serve(&langPrefsGetter{}, "")
+	assert.Equal(t, 0, got.AudioTrack, "no language preference: the default-flagged track")
+
+	got = serve(&langPrefsGetter{langs: []string{"fr"}}, "?audioTrack=0")
+	assert.Equal(t, 0, got.AudioTrack, "an explicit choice wins over the languages")
+}

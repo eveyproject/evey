@@ -5,6 +5,7 @@ import {
 } from "@evey/api";
 
 import { useUpNextCountdown } from "./useUpNextCountdown";
+import { compareEpisodeIndex } from "../lib/playTarget";
 
 
 interface UseNextEpisodeArgs {
@@ -46,7 +47,7 @@ export function useNextEpisode({
 
   const siblings = siblingResponse?.items
     ?.slice()
-    .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+    .sort(compareEpisodeIndex);
 
   const nextEpisode = (() => {
     if (!siblings || !media?.id) return null;

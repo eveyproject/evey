@@ -44,6 +44,68 @@ func (c *captureStorage) snapshot() []Event {
 	return out
 }
 
+// batchStorage records the size of every write it is handed. entered is
+// closed when the first write starts and release holds that write open, so a
+// test can queue events behind it and see them arrive together.
+type batchStorage struct {
+	mu      sync.Mutex
+	sizes   []int
+	events  []Event
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *batchStorage) InsertEvent(_ context.Context, evt Event) error {
+	return b.InsertEvents(context.Background(), []Event{evt})
+}
+
+func (b *batchStorage) InsertEvents(_ context.Context, evts []Event) error {
+	b.once.Do(func() {
+		close(b.entered)
+		<-b.release
+	})
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.sizes = append(b.sizes, len(evts))
+	b.events = append(b.events, evts...)
+	return nil
+}
+
+func (b *batchStorage) snapshot() ([]int, []Event) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]int(nil), b.sizes...), append([]Event(nil), b.events...)
+}
+
+// A backend that takes batches receives what piled up behind a slow write in
+// one call, every event once and in order.
+func TestBufferedSink_BatchStorage_TakesWaitingEventsTogether(t *testing.T) {
+	st := &batchStorage{entered: make(chan struct{}), release: make(chan struct{})}
+	sink := NewBufferedSink(st, SinkOptions{BufferSize: 64}, nil)
+
+	sink.Record(Event{MediaItemID: "m", SegmentIdx: 0})
+	select {
+	case <-st.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the worker never reached the storage")
+	}
+	for i := 1; i < 10; i++ {
+		sink.Record(Event{MediaItemID: "m", SegmentIdx: i})
+	}
+	close(st.release)
+	require.NoError(t, sink.Close(context.Background()))
+
+	sizes, got := st.snapshot()
+	require.Len(t, got, 10, "every event reaches storage once")
+	for i, evt := range got {
+		assert.Equal(t, i, evt.SegmentIdx, "order is kept")
+	}
+	require.GreaterOrEqual(t, len(sizes), 2)
+	assert.Equal(t, 1, sizes[0], "the first write had only the event in hand")
+	assert.Equal(t, 9, sizes[1], "the events queued behind it travel in one write")
+}
+
 type countingDrops struct{ n atomic.Int64 }
 
 func (c *countingDrops) Inc()      { c.n.Add(1) }

@@ -1022,3 +1022,56 @@ func TestAudioOrchestrator_StoppingSessionCoversNothing(t *testing.T) {
 	_ = o.EnsureAudioInit(ctx, fp)
 	assert.Equal(t, 3, proc.startCount(), "a stopping session publishes no init")
 }
+
+// A session the sweep stopped stays registered under its key until its reap,
+// and a fresh request at the same start segment spawns a successor under the
+// SAME key. The reap of the old one must not take the successor off the
+// books: an unregistered ffmpeg is never touched, never evicted, and a third
+// request at that segment spawns a third process over it.
+func TestAudioOrchestrator_ReapOfAStoppedSessionKeepsItsSuccessor(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	proc := newFakeAudioProcess()
+	var handles []*audioFakeHandle
+	var hmu sync.Mutex
+	proc.onStart = func(transcoding.AudioProcessOpts) *audioFakeHandle {
+		h := newAudioFakeHandle()
+		hmu.Lock()
+		handles = append(handles, h)
+		hmu.Unlock()
+		return h
+	}
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+	ensure := func(seg int) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		_ = o.EnsureAudioSegment(ctx, fp, seg)
+	}
+
+	ensure(100)
+	require.Equal(t, 1, proc.startCount())
+	o.mu.Lock()
+	for _, sess := range o.byHash[fp.Hash()] {
+		sess.stopped = true // as the idle sweep leaves it until the reap
+	}
+	o.mu.Unlock()
+
+	ensure(100)
+	require.Equal(t, 2, proc.startCount(), "a stopping session covers nothing: a successor spawns")
+
+	// The old process exits: its reap runs.
+	hmu.Lock()
+	handles[0].closeHandle()
+	hmu.Unlock()
+	// The reap of a session that produced nothing records a strike.
+	require.Eventually(t, func() bool {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		return o.strikes[audioSessionKey(fp.Hash(), 100)].count == 1
+	}, time.Second, 5*time.Millisecond, "the stopped session is reaped")
+
+	assert.Equal(t, 1, o.ActiveCount(), "the successor is still on the books")
+	ensure(100)
+	assert.Equal(t, 2, proc.startCount(), "the successor covers its own segment: no third spawn")
+}

@@ -251,3 +251,32 @@ func TestLibraryRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
 	require.NotNil(t, got.LastScannedAt)
 	assert.Equal(t, scanned, got.LastScannedAt.UTC())
 }
+
+// The scan's write at the end of a pass touches one column: the paths and
+// the name an admin saved during the pass are not written over.
+func TestLibraryRepo_TouchLastScannedAt_WritesOnlyTheTimestamp(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLibraryRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("lib-touch")
+	require.NoError(t, repo.Create(ctx, lib))
+
+	edited := *lib
+	edited.Name = "Renamed"
+	edited.Paths = []string{"/media/lib-touch", "/media/more"}
+	require.NoError(t, repo.Update(ctx, &edited))
+
+	at := time.Now().UTC().Truncate(time.Millisecond)
+	require.NoError(t, repo.TouchLastScannedAt(ctx, lib.ID, at))
+
+	got, err := repo.GetByID(ctx, lib.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Renamed", got.Name)
+	assert.Equal(t, []string{"/media/lib-touch", "/media/more"}, got.Paths)
+	require.NotNil(t, got.LastScannedAt)
+	assert.WithinDuration(t, at, *got.LastScannedAt, time.Millisecond)
+
+	assert.ErrorIs(t, repo.TouchLastScannedAt(ctx, "lib-absent", at), shared.ErrNotFound)
+}

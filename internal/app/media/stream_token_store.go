@@ -344,7 +344,10 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 		return nil, false
 	}
 	if s.now().After(st.ExpiresAt) {
+		// The same three maps as Revoke: the purge loop only walks tokens, so
+		// an issue instant left behind here would outlive its token for good.
 		s.tokens.Delete(token)
+		s.issuedAt.Delete(token)
 		s.persistedExp.Delete(token)
 		return nil, false
 	}
@@ -508,4 +511,15 @@ func (s *StreamTokenStore) purgeExpired(now time.Time) {
 // waiting on the cleanupLoop ticker.
 func (s *StreamTokenStore) PurgeExpiredForTest(now time.Time) {
 	s.purgeExpired(now)
+}
+
+// IssuedAtCountForTest counts the issue instants still held, so a test can
+// prove a token's bookkeeping leaves with the token.
+func (s *StreamTokenStore) IssuedAtCountForTest() int {
+	n := 0
+	s.issuedAt.Range(func(_, _ any) bool {
+		n++
+		return true
+	})
+	return n
 }

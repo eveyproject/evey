@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"time"
+
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 )
 
 // cleanup.go holds the background sweep loops owned by CommandService: expired
@@ -18,12 +20,9 @@ func (s *CommandService) StartCleanup(ctx context.Context) {
 
 func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval time.Duration) {
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.ErrorContext(ctx, "panic in user cleanup", slog.Any("recover", r))
-			}
-		}()
-		s.runCleanup(ctx)
+		// Recovery is per tick, so a panic on one row skips that sweep
+		// instead of ending the cleanup for the life of the process.
+		bgloop.Tick("user.cleanup", func() { s.runCleanup(ctx) })
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -31,7 +30,7 @@ func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval 
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				s.runCleanup(ctx)
+				bgloop.Tick("user.cleanup", func() { s.runCleanup(ctx) })
 			}
 		}
 	}()

@@ -928,6 +928,8 @@ func (o *SegmentOrchestrator) spawnSession(
 	procOpts := transcoding.HLSProcessOpts{
 		OutputDir:          outDir,
 		FilePath:           srcPath,
+		MediaID:            fp.MediaID,
+		SessionID:          hash,
 		ProgressLogPath:    ffmpegProgressLogPath(progressLogDir, hash, sessionVariantIdx, startSegIdx),
 		Profiles:           sessionProfiles,
 		QualityTargets:     sessionQuality,

@@ -1,5 +1,9 @@
 {
   "name": "evey-frontend",
+  "engines": {
+    "node": ">=22.18",
+    "pnpm": ">=10"
+  },
   "private": true,
   "scripts": {
     "web": "turbo run dev --filter=web",

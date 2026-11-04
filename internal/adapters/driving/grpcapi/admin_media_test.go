@@ -77,6 +77,7 @@ func TestSeekIndexError_Mapping(t *testing.T) {
 		{"erofs wrapped", &os.PathError{Op: "rename", Path: "/media/m.mkv", Err: syscall.EROFS}, codes.FailedPrecondition},
 		{"erofs by message", errors.New("mkvgo reindex: rebuild: read-only file system"), codes.FailedPrecondition},
 		{"job running", fmt.Errorf("seek-index reindex: %w", appmaintenance.ErrJobRunning), codes.ResourceExhausted},
+		{"playback active", fmt.Errorf("apply shift: %w", appmaintenance.ErrPlaybackActive), codes.FailedPrecondition},
 		{"backup overcommit", &appmaintenance.BackupSpaceError{Volumes: []appmaintenance.SeekVolume{
 			{Root: "/media", FreeBytes: 1 << 30, MissingBytes: 40 << 30, MissingFiles: 3},
 		}}, codes.FailedPrecondition},

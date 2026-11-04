@@ -94,6 +94,10 @@ func TestArtworkAdmin_Stats_Admin_200(t *testing.T) {
 	if _, ok := resp["missingLocalPath"]; !ok {
 		t.Error("missing missingLocalPath field")
 	}
+	// The given-up sources: the admin download-all and retry still take them.
+	if _, ok := resp["dead"]; !ok {
+		t.Error("missing dead field")
+	}
 }
 
 // --- POST /api/v1/admin/artworks/download-all ---

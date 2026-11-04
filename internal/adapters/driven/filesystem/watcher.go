@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/fsnotify/fsnotify"
@@ -17,6 +18,13 @@ type FSWatcher struct {
 	events  chan library.FileEvent
 	errors  chan error
 	done    chan struct{}
+
+	// linked maps a watched root's resolved target to the root as it was
+	// configured, for roots that are symbolic links. The kernel names events
+	// by the target; the catalog, the pruner and the root checks know the
+	// configured path, so events are handed out under that one.
+	mu     sync.RWMutex
+	linked map[string]string
 }
 
 func NewFSWatcher() (*FSWatcher, error) {
@@ -29,6 +37,7 @@ func NewFSWatcher() (*FSWatcher, error) {
 		events:  make(chan library.FileEvent, 256),
 		errors:  make(chan error, 16),
 		done:    make(chan struct{}),
+		linked:  map[string]string{},
 	}
 	go fw.loop()
 	return fw, nil
@@ -53,9 +62,9 @@ func (fw *FSWatcher) loop() {
 			if ev.Has(fsnotify.Create) {
 				if info, err := os.Stat(ev.Name); err == nil && info.IsDir() {
 					if err := fw.watchRecursive(ev.Name); err != nil {
-						slog.Warn("watchRecursive", slog.Any("err", err))
+						slog.Warn("watcher: new directory not watched", slog.String("path", ev.Name), slog.Any("err", err))
 					}
-					fw.events <- library.FileEvent{Path: ev.Name, Op: library.FileCreated}
+					fw.events <- library.FileEvent{Path: fw.configuredPath(ev.Name), Op: library.FileCreated}
 					continue
 				}
 			}
@@ -66,7 +75,7 @@ func (fw *FSWatcher) loop() {
 			// healthy watches dead and sending the server into constant full
 			// scans. Forward them before filtering.
 			if library.IsProbeFile(ev.Name) {
-				fw.events <- library.FileEvent{Path: ev.Name, Op: op}
+				fw.events <- library.FileEvent{Path: fw.configuredPath(ev.Name), Op: op}
 				continue
 			}
 			// The watcher watches whole library roots, so it must speak every
@@ -77,7 +86,7 @@ func (fw *FSWatcher) loop() {
 			if !isWatchableMediaFile(ev.Name) {
 				continue
 			}
-			fw.events <- library.FileEvent{Path: ev.Name, Op: op}
+			fw.events <- library.FileEvent{Path: fw.configuredPath(ev.Name), Op: op}
 		case err, ok := <-fw.watcher.Errors:
 			if !ok {
 				return
@@ -148,9 +157,40 @@ func (fw *FSWatcher) watchRecursive(root string) error {
 	return fw.watchRecursiveCtx(context.Background(), root)
 }
 
+// resolveRoot follows a root that is a symbolic link to where the watches
+// must be set, and remembers the pair so events come back under the root.
+// A root that cannot be resolved (missing, dead mount) is kept as it is: the
+// walk reports it the way it always did.
+func (fw *FSWatcher) resolveRoot(root string) string {
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil || resolved == root {
+		return root
+	}
+	fw.mu.Lock()
+	fw.linked[resolved] = root
+	fw.mu.Unlock()
+	return resolved
+}
+
+// configuredPath turns a path the kernel names under a link's target back
+// into the same path under the configured root.
+func (fw *FSWatcher) configuredPath(name string) string {
+	fw.mu.RLock()
+	defer fw.mu.RUnlock()
+	for target, root := range fw.linked {
+		if name == target {
+			return root
+		}
+		if strings.HasPrefix(name, target+string(filepath.Separator)) {
+			return filepath.Join(root, name[len(target):])
+		}
+	}
+	return name
+}
+
 func (fw *FSWatcher) watchRecursiveCtx(ctx context.Context, root string) error {
 	var added []string
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(fw.resolveRoot(root), func(path string, d os.DirEntry, err error) error {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
@@ -180,9 +220,16 @@ func (fw *FSWatcher) watchRecursiveCtx(ctx context.Context, root string) error {
 }
 
 func (fw *FSWatcher) Unwatch(path string) error {
-	// Remove root + all subdirectories (Watch adds them recursively)
+	// Remove root + all subdirectories (Watch adds them recursively), through
+	// the link when the root is one.
+	resolved := fw.resolveRoot(path)
+	defer func() {
+		fw.mu.Lock()
+		delete(fw.linked, resolved)
+		fw.mu.Unlock()
+	}()
 	var firstErr error
-	if walkErr := filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+	if walkErr := filepath.WalkDir(resolved, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}

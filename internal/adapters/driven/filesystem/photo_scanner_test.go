@@ -142,3 +142,21 @@ func TestWalkImageFiles_MissingRootIsAnError(t *testing.T) {
 		t.Fatal("a missing library root must fail the walk, not read as an empty library")
 	}
 }
+
+// Same contract as the video scanner: a linked root is walked through the
+// link, and the paths keep the configured root as their prefix.
+func TestPhotoScanner_WalkImageFiles_SymlinkedRoot(t *testing.T) {
+	target := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(target, "pic.png"), []byte("img"), 0644))
+	link := filepath.Join(t.TempDir(), "photos")
+	require.NoError(t, os.Symlink(target, link))
+
+	var found []photo.ScannedImageFile
+	err := NewPhotoScanner().WalkImageFiles(context.Background(), link, func(f photo.ScannedImageFile) error {
+		found = append(found, f)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, filepath.Join(link, "pic.png"), found[0].Path)
+}

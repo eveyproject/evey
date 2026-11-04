@@ -659,3 +659,158 @@ func TestParse_SeriesWithYear(t *testing.T) {
 	require.NotNil(t, info.Episode)
 	assert.Equal(t, 1, *info.Episode)
 }
+
+// --- Folder fallback ---
+
+func TestParsePath_SeasonFolderNamesTheEpisode(t *testing.T) {
+	cases := []struct {
+		path            string
+		title           string
+		season, episode int
+		year            *int
+	}{
+		{"/tv/Show Name (2019)/Season 2/03 - Pilot.mkv", "Show Name", 2, 3, new(2019)},
+		{"/tv/Show Name/Saison 02/E03 Pilot.mkv", "Show Name", 2, 3, nil},
+		{"/tv/Show Name/S3/Episode 4.mkv", "Show Name", 3, 4, nil},
+		{"/tv/Show Name/Specials/01.mkv", "Show Name", 0, 1, nil},
+		{"/tv/Show.Name.2019/Season 1/101.mkv", "Show Name", 1, 101, new(2019)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			info := ParsePath(tc.path)
+			assert.Equal(t, "series", info.Type)
+			assert.Equal(t, tc.title, info.Title)
+			require.NotNil(t, info.Season)
+			assert.Equal(t, tc.season, *info.Season)
+			require.NotNil(t, info.Episode)
+			assert.Equal(t, tc.episode, *info.Episode)
+			assert.Equal(t, tc.year, info.Year)
+		})
+	}
+}
+
+func TestParsePath_KeepsTheFileNameWhenItStatesTheEpisode(t *testing.T) {
+	// The season folder is a fallback only: a name that carries S01E05 wins,
+	// even when the folder says otherwise.
+	info := ParsePath("/tv/Show Name/Season 2/Show.Name.S01E05.1080p.mkv")
+	assert.Equal(t, "series", info.Type)
+	assert.Equal(t, "Show Name", info.Title)
+	assert.Equal(t, "S01E05", info.SE)
+}
+
+// The unnumbered files of a "Season N" folder used to be pinned here as
+// movies: in a TV library that made each one a one-file series named after
+// the file. They are now episodes without a number (see
+// TestParsePath_UnnumberedFileInSeasonFolderIsAnEpisodeWithoutNumber), and a
+// movie library reads them back as the movies their names say.
+func TestParsePath_StaysAMovieOutsideASeasonFolder(t *testing.T) {
+	for _, path := range []string{
+		"/movies/01 - Thing.mkv",            // no season folder above
+		"/movies/Thing/Pilot.mkv",           // a folder that names no season
+		"/movies/Season Pass (2019)/01.mkv", // "Season Pass" is a title, not a season
+	} {
+		info := ParsePath(path)
+		assert.Equal(t, "movie", info.Type, path)
+		assert.Nil(t, info.Episode, path)
+	}
+}
+
+// --- Multi-episode files and unnumbered season files ---
+
+// A file holding two episodes is filed under its first: the number scheme
+// has one index per item, and the first is where a viewer looks for it.
+func TestParseFilename_MultiEpisodeTakesTheFirstNumber(t *testing.T) {
+	for _, name := range []string{
+		"Show.Name.S01E01E02.1080p.mkv",
+		"Show.Name.S01E01-E02.1080p.mkv",
+		"Show Name - S01E01-02 - Two Parter.mkv",
+		"Show.Name.1x01x02.mkv",
+	} {
+		info := ParseFilename(name)
+		assert.Equal(t, "series", info.Type, name)
+		assert.Equal(t, "Show Name", info.Title, name)
+		require.NotNil(t, info.Season, name)
+		assert.Equal(t, 1, *info.Season, name)
+		require.NotNil(t, info.Episode, name)
+		assert.Equal(t, 1, *info.Episode, name)
+		assert.Equal(t, "S01E01", info.SE, name)
+	}
+}
+
+// A file without a number in a "Season N" folder is an episode of that
+// season with no episode number, not a movie named after the file: the TV
+// scan files it under the show, after the numbered episodes. Its own name is
+// kept as NameTitle, which a movie library reads it back as.
+func TestParsePath_UnnumberedFileInSeasonFolderIsAnEpisodeWithoutNumber(t *testing.T) {
+	for _, tc := range []struct {
+		path, nameTitle string
+		season          int
+	}{
+		{"/tv/Show Name/Season 1/Pilot.mkv", "Pilot", 1},
+		{"/tv/Show Name/Specials/Making Of.mkv", "Making Of", 0},
+		{"/tv/Show Name/Season 2/2001 A Space Odyssey.mkv", "2001 A Space Odyssey", 2},
+	} {
+		info := ParsePath(tc.path)
+		assert.Equal(t, "series", info.Type, tc.path)
+		assert.Equal(t, "Show Name", info.Title, tc.path)
+		require.NotNil(t, info.Season, tc.path)
+		assert.Equal(t, tc.season, *info.Season, tc.path)
+		assert.Nil(t, info.Episode, tc.path)
+		assert.True(t, info.FolderSeason, tc.path)
+		assert.Equal(t, tc.nameTitle, info.NameTitle, tc.path)
+	}
+}
+
+// Samples, trailers and other extras of a show are not episodes: promoted
+// from a "Season N" folder they became unnumbered episodes that autoplay
+// chained into. The name (case-insensitive, any of . _ - space as
+// separator) or the folder holding the file says what it is. A name with an
+// episode marker stays an episode whatever words follow it.
+func TestParsePath_ExtrasAreNotPromotedToEpisodes(t *testing.T) {
+	for _, tc := range []struct{ path, extra string }{
+		{"/tv/Show/Season 1/show-sample.mkv", "sample"},
+		{"/tv/Show/Season 1/Show.SAMPLE.mkv", "sample"},
+		{"/tv/Show/Season 1/sample.mkv", "sample"},
+		{"/tv/Show/Season 1/Sample/show.mkv", "sample"},
+		{"/tv/Show/Season 1/Show_Trailer.mkv", "extra"},
+		{"/tv/Show/Season 1/Teaser.mkv", "extra"},
+		{"/tv/Show/Season 1/Show - Featurette.mkv", "extra"},
+		{"/tv/Show/Season 1/Behind.the.Scenes.mkv", "extra"},
+		{"/tv/Show/Season 1/behind_the_scenes.mkv", "extra"},
+		{"/tv/Show/Season 1/Deleted Scene.mkv", "extra"},
+		{"/tv/Show/Season 1/deleted-scenes.mkv", "extra"},
+		{"/tv/Show/Season 1/Extras.mkv", "extra"},
+		{"/tv/Show/Season 1/Show Extra.mkv", "extra"},
+		{"/tv/Show/Season 1/BONUS.mkv", "extra"},
+		{"/tv/Show/Season 1/Extras/Making Of.mkv", "extra"},
+		{"/tv/Show/Featurettes/Making Of.mkv", "extra"},
+		{"/tv/Show/Season 1/Behind the Scenes/Interview.mkv", "extra"},
+	} {
+		info := ParsePath(tc.path)
+		assert.Equal(t, tc.extra, info.Extra, tc.path)
+		assert.NotEqual(t, "series", info.Type, tc.path)
+		assert.False(t, info.FolderSeason, tc.path)
+	}
+}
+
+func TestParsePath_EpisodesAndTitlesUsingExtraWordsStayWhatTheyAre(t *testing.T) {
+	for _, path := range []string{
+		"/tv/Show/Season 1/S01E05 - Behind the Mask.mkv",
+		"/tv/Show/Season 1/Show.S01E06.Deleted.Scenes.mkv",
+		"/tv/Show/Season 1/Show - S01E07 - The Trailer.mkv",
+		"/tv/Show/Season 1/03 - Bonus Round.mkv",
+	} {
+		info := ParsePath(path)
+		assert.Empty(t, info.Extra, path)
+		assert.Equal(t, "series", info.Type, path)
+		require.NotNil(t, info.Episode, path)
+	}
+	// A film whose title starts with the word is not a sample.
+	info := ParsePath("/movies/Sample.2019.1080p.mkv")
+	assert.Empty(t, info.Extra)
+	assert.Equal(t, "Sample", info.Title)
+	// An unnumbered episode with an ordinary name is still promoted.
+	info = ParsePath("/tv/Show/Season 1/Pilot.mkv")
+	assert.Empty(t, info.Extra)
+	assert.True(t, info.FolderSeason)
+}

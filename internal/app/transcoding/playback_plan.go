@@ -104,6 +104,20 @@ type LineFit struct {
 	Rung   int
 }
 
+// FitReasons are the transcode reasons a fitted plan carries for its fit
+// (the line could not carry the copy, the floor was asked): what a plan that
+// inherits the fit through a pin has to carry too, or its served master says
+// decision_pinned where the viewer's own reload is the cause.
+func (p PlaybackPlan) FitReasons() []string {
+	var out []string
+	for _, r := range p.Decision.TranscodeReasons {
+		if r == reasonLineExceeded || r == reasonFloorRequest {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // PlaybackPlan is the immutable, fully-resolved answer to "how do we serve this
 // stream". Emitted once and read verbatim; a capacity/config change only
 // affects plans emitted after it.

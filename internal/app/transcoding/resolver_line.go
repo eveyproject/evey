@@ -64,7 +64,7 @@ func (pr *PlanResolver) resolveLineConstrained(ctx context.Context, req Playback
 	fitted := natural
 	fitted.PinnedVideoDecision = "transcode"
 	fitted.fitReason = reasonFloorRequest
-	if line > 0 {
+	if line > 0 && !floor {
 		fitted.fitReason = reasonLineExceeded
 	}
 	tp := pr.resolveDecided(ctx, fitted, pr.Decide(ctx, fitted))
@@ -73,8 +73,12 @@ func (pr *PlanResolver) resolveLineConstrained(ctx context.Context, req Playback
 			slog.String("media_id", req.MediaID), slog.Int64("line_kbps", line), slog.Bool("floor", floor))
 		return plan
 	}
+	// The floor is the lowest rung whatever the line says: the receiver
+	// reloads on it with its measured line still in the query, after the rung
+	// that line picked starved, so the line's pick is exactly the rung to step
+	// below (fitTranscodedPlan applies the same rule to a transcode plan).
 	idx := 0
-	if line > 0 {
+	if line > 0 && !floor {
 		for i, p := range tp.Ladder {
 			if lineCarries(p.VideoBitrate+p.AudioBitrate, line) {
 				idx = i
@@ -94,7 +98,7 @@ func (pr *PlanResolver) resolveLineConstrained(ctx context.Context, req Playback
 	tp.Fit = LineFit{Single: true, Rung: idx}
 	slog.InfoContext(ctx, "hls-vod: plan fitted to the client's line",
 		slog.String("media_id", req.MediaID), slog.String("rung", rung.Name), slog.Int64("rung_kbps", total),
-		slog.Int64("line_kbps", line), slog.Bool("floor", line == 0), slog.String("fp", tp.FingerprintHash))
+		slog.Int64("line_kbps", line), slog.Bool("floor", floor), slog.String("fp", tp.FingerprintHash))
 	return tp
 }
 

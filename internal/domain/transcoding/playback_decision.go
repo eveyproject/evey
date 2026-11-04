@@ -1,5 +1,25 @@
 package transcoding
 
+// Range a declared picture ceiling is read within, on every surface that
+// takes one (HLS master query, stream-info proto). A figure outside it is a
+// stray (a proto zero default, a garbled query), not a decoder limit: it
+// leaves the default standing instead of pinning the ladder to it.
+const (
+	minDeclaredDimension = 240
+	maxDeclaredHeight    = 8640
+	maxDeclaredWidth     = 15360
+)
+
+// DeclaredHeightInRange says whether n is a height ceiling a client may declare.
+func DeclaredHeightInRange(n int) bool {
+	return n >= minDeclaredDimension && n <= maxDeclaredHeight
+}
+
+// DeclaredWidthInRange says whether n is a width ceiling a client may declare.
+func DeclaredWidthInRange(n int) bool {
+	return n >= minDeclaredDimension && n <= maxDeclaredWidth
+}
+
 type ClientProfile struct {
 	VideoCodecs      []string // e.g. ["h264", "vp9", "av1"]
 	AudioCodecs      []string // e.g. ["aac", "mp3", "opus", "flac"]

@@ -51,6 +51,14 @@ describe("MediaDetailFileInfo", () => {
     expect(container.innerHTML).toBe("");
   });
 
+  it("shows no size badge when the size is the proto zero string", async () => {
+    const user = userEvent.setup();
+    render(<MediaDetailFileInfo item={makeItem({ fileSize: "0" })} />);
+    await user.click(screen.getByText("File Info"));
+    expect(screen.getByText("/media/movie.mkv")).toBeInTheDocument();
+    expect(screen.queryByText("0 B")).not.toBeInTheDocument();
+  });
+
   it("renders toggle button with file info label", () => {
     render(<MediaDetailFileInfo item={makeItem()} />);
     expect(screen.getByText("File Info")).toBeInTheDocument();

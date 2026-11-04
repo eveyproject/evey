@@ -124,7 +124,11 @@ func TestMigration000177_ExistingRowsAreStampedNotRegenerated(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, segs, 2)
 
-	// A real replacement still invalidates.
+	// A real replacement still invalidates. The repository writes the columns
+	// of the current schema, so the schema is brought back to it first.
+	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		t.Fatal(err)
+	}
 	replaceFile(t, itemRepo, ep, 100, mod.Add(time.Hour))
 	missing, err = tpRepo.ListMissingMediaItemIDs(ctx, 0)
 	require.NoError(t, err)

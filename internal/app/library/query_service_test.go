@@ -172,7 +172,7 @@ type fakePersonDetailsFetcher struct {
 	Err    error
 }
 
-func (f *fakePersonDetailsFetcher) GetPersonDetails(_ context.Context, _ string) (*library.PersonDetailsResult, error) {
+func (f *fakePersonDetailsFetcher) GetPersonDetails(_ context.Context, _, _ string) (*library.PersonDetailsResult, error) {
 	return f.Result, f.Err
 }
 

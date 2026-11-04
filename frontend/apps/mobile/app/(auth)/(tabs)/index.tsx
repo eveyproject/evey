@@ -42,7 +42,7 @@ import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { coverArtUri } from "../../../src/lib/coverArtUri";
-import { FEED_TYPES, resolveMaxItems } from "@evey/client";
+import { FEED_TYPES, feedItemsToCards, resolveMaxItems } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { ROW_CARD_WIDTH } from "../../../src/lib/rowCardWidth";
 
@@ -569,31 +569,12 @@ export default function HomeScreen() {
     return map;
   }, [resume.data?.progress]);
 
-  // Synthesize a minimal artwork[] from the FeedItem.primaryBlurhash so the
-  // MediaCard placeholder path (which reads item.artwork) works without the
-  // mobile MediaRow having to grow a parallel blurhash prop. The card's
-  // hash extractor is already tolerant of unknown fields on artwork.
   const recommendedItems = useMemo(
-    () =>
-      (recommended.data?.items ?? [])
-        .filter((i) => !!i.mediaItemId)
-        .map((i) => ({
-          id: i.mediaItemId,
-          title: i.title,
-          type: i.type,
-          year: i.year || undefined,
-          artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
-        }) as V1MediaItem),
+    () => feedItemsToCards(recommended.data?.items),
     [recommended.data?.items],
   );
 
-  const popularItems = useMemo(
-    () =>
-      (popular.data ?? []).map(
-        (i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year }) as V1MediaItem,
-      ),
-    [popular.data],
-  );
+  const popularItems = useMemo(() => feedItemsToCards(popular.data), [popular.data]);
 
   const handleItemPress = useCallback((item: V1MediaItem) => {
     router.push(`/media/${item.id}`);

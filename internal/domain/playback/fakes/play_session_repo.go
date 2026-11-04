@@ -10,8 +10,11 @@ import (
 )
 
 type FakePlaySessionRepository struct {
-	mu    sync.RWMutex
-	items map[string]*playback.PlaySession
+	// PanicOnceOnCloseStale makes the next CloseStale panic, once: a test of
+	// the cleanup loop proves the loop outlives one bad sweep.
+	PanicOnceOnCloseStale bool
+	mu                    sync.RWMutex
+	items                 map[string]*playback.PlaySession
 	// commands holds one pending remote command per session, mirroring the
 	// real repo's set-then-destructive-consume contract.
 	commands map[string]string
@@ -167,6 +170,10 @@ func (r *FakePlaySessionRepository) GetActiveByProfile(_ context.Context, profil
 func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time.Duration) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.PanicOnceOnCloseStale {
+		r.PanicOnceOnCloseStale = false
+		panic("fake play session repo: CloseStale panics once")
+	}
 	if r.Err != nil {
 		return 0, r.Err
 	}
@@ -180,6 +187,29 @@ func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time
 		}
 	}
 	return closed, nil
+}
+
+// CloseStaleReturning mirrors CloseStale (the fake has no heartbeat, the start
+// stands in for it) and hands the ended sessions back.
+func (r *FakePlaySessionRepository) CloseStaleReturning(_ context.Context, olderThan time.Duration) ([]*playback.PlaySession, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	cutoff := time.Now().Add(-olderThan)
+	var ended []*playback.PlaySession
+	for _, s := range r.items {
+		if s.EndedAt == nil && s.StartedAt.Before(cutoff) {
+			now := time.Now()
+			s.EndedAt = &now
+			if d, err := shared.NewDurationMs(now.Sub(s.StartedAt).Milliseconds()); err == nil {
+				s.Duration = &d
+			}
+			ended = append(ended, s)
+		}
+	}
+	return ended, nil
 }
 
 func (r *FakePlaySessionRepository) CloseAllActive(_ context.Context) (int, error) {

@@ -32,6 +32,11 @@ import (
 // hosts (NAS), matching the sequential batch design.
 var ErrJobRunning = errors.New("a seek-index job is already running")
 
+// ErrPlaybackActive is a file rewrite asked for by hand while someone is
+// watching. A batch waits for an idle server between files; a request cannot
+// sit and poll, so it is refused and the operator asks again later.
+var ErrPlaybackActive = errors.New("someone is watching: the file rewrite waits for an idle server")
+
 // Job kinds and phases surfaced by Status().
 const (
 	JobScan     = "scan"
@@ -45,6 +50,10 @@ const (
 	// JobReinterleave re-muxes files whose tracks sit in blocks of one track
 	// at a time: every header fine, no sequential player past the first block.
 	JobReinterleave = "reinterleave"
+	// JobAudioRetime and JobUndoRepair are the rewrites an operator asks for
+	// on one file by hand; they hold the slot like a batch while they run.
+	JobAudioRetime = "audio_retime"
+	JobUndoRepair  = "undo_repair"
 
 	PhaseScanning   = "scanning"
 	PhaseProcessing = "processing"

@@ -60,6 +60,7 @@ func (e LoginSucceeded) EventName() string { return "user.login.succeeded" }
 type LoginFailed struct {
 	Username   string
 	Reason     string
+	ClientIP   string
 	AuthMethod string
 	OccurredAt time.Time
 }

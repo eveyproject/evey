@@ -208,14 +208,17 @@ func (r *ArtworkRepository) ListMissingBlurhash(ctx context.Context) ([]*metadat
 	return result, nil
 }
 
-func (r *ArtworkRepository) ListMissingLocalPath(ctx context.Context) ([]*metadata.ArtworkRecord, error) {
+func (r *ArtworkRepository) ListMissingLocalPath(ctx context.Context, includeWaiting bool) ([]*metadata.ArtworkRecord, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.ListMissingLocalPath")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, 2*defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
-		 FROM artwork WHERE source_url IS NOT NULL AND (local_path IS NULL OR local_path = '') ORDER BY id`)
+		 FROM artwork
+		 WHERE source_url IS NOT NULL AND (local_path IS NULL OR local_path = '')
+		   AND ($2 OR (fetch_attempts < $1 AND (next_fetch_at IS NULL OR next_fetch_at <= NOW())))
+		 ORDER BY id`, metadata.ArtworkMaxFetchAttempts, includeWaiting)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -241,9 +244,10 @@ func (r *ArtworkRepository) LocalPathStats(ctx context.Context) (metadata.Artwor
 		`SELECT
 			COUNT(*) AS total,
 			COUNT(CASE WHEN local_path IS NOT NULL AND local_path <> '' THEN 1 END) AS with_local,
-			COUNT(CASE WHEN local_path IS NULL OR local_path = '' THEN 1 END) AS missing_local
-		 FROM artwork`)
-	if err := row.Scan(&stats.TotalRecords, &stats.WithLocalPath, &stats.MissingLocalPath); err != nil {
+			COUNT(CASE WHEN local_path IS NULL OR local_path = '' THEN 1 END) AS missing_local,
+			COUNT(CASE WHEN (local_path IS NULL OR local_path = '') AND fetch_attempts >= $1 THEN 1 END) AS dead
+		 FROM artwork`, metadata.ArtworkMaxFetchAttempts)
+	if err := row.Scan(&stats.TotalRecords, &stats.WithLocalPath, &stats.MissingLocalPath, &stats.Dead); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return stats, err
@@ -259,7 +263,9 @@ func (r *ArtworkRepository) UpdateLocalPath(ctx context.Context, id string, loca
 	span.SetAttributes(attribute.String("artwork.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE artwork SET local_path = $1 WHERE id = $2`, localPath, id)
+	// A fetch that landed closes the failure count: the next miss starts over.
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE artwork SET local_path = $1, fetch_attempts = 0, next_fetch_at = NULL, last_fetch_error = NULL WHERE id = $2`, localPath, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -374,6 +380,34 @@ func (r *ArtworkRepository) DeleteByMediaItemIDs(ctx context.Context, mediaItemI
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
+	}
+	return nil
+}
+
+// RecordFetchFailure counts the miss and schedules the next try: the wait
+// doubles from the base to the cap; a permanent miss is counted up to the
+// maximum at once, so the row is never listed for a fetch again.
+func (r *ArtworkRepository) RecordFetchFailure(ctx context.Context, id string, permanent bool) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.RecordFetchFailure")
+	defer span.End()
+	span.SetAttributes(attribute.String("artwork.id", id), attribute.Bool("permanent", permanent))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE artwork
+		 SET fetch_attempts = CASE WHEN $2 THEN GREATEST(fetch_attempts + 1, $3::int) ELSE fetch_attempts + 1 END,
+		     next_fetch_at = NOW() + LEAST($4::interval * power(2, LEAST(fetch_attempts, 30)), $5::interval),
+		     last_fetch_error = CASE WHEN $2 THEN 'gone' ELSE 'failed' END
+		 WHERE id = $1`,
+		id, permanent, metadata.ArtworkMaxFetchAttempts,
+		metadata.ArtworkFetchBackoffBase.String(), metadata.ArtworkFetchBackoffMax.String())
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }

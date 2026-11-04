@@ -10,6 +10,7 @@ import (
 	libevent "github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/notification"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -210,15 +211,14 @@ func (s *CommandService) CleanupExpired(ctx context.Context) error {
 // The optional initDone channel(s) are closed after the first cleanup pass -
 // tests pass one to wait deterministically instead of sleeping.
 func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- struct{}) {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.ErrorContext(ctx, "recovered panic in notification cleanup", "panic", r)
-			}
-		}()
+	cleanup := func() {
 		if err := s.repo.CleanupExpired(ctx); err != nil {
 			slog.WarnContext(ctx, "notification cleanup", slog.Any("err", err))
 		}
+	}
+	go func() {
+		// Recovery is per tick, so one bad pass is skipped and the next runs.
+		bgloop.Tick("notification.cleanup", cleanup)
 		for _, ch := range initDone {
 			if ch != nil {
 				close(ch)
@@ -231,9 +231,7 @@ func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- st
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := s.repo.CleanupExpired(ctx); err != nil {
-					slog.WarnContext(ctx, "notification cleanup", slog.Any("err", err))
-				}
+				bgloop.Tick("notification.cleanup", cleanup)
 			}
 		}
 	}()

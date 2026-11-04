@@ -25,6 +25,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mp3Client is one of our ExoPlayer apps: it decodes mp3 AND accepts it muxed
@@ -146,4 +147,36 @@ func TestPackagedAudio_OpusFollowsTheOptIn(t *testing.T) {
 	assert.Equal(t, "copy", d.AudioDecision)
 	assert.Equal(t, "direct_stream", d.PlayMethod, "video and audio both copy: a pure remux")
 	assert.NotContains(t, d.TranscodeReasons, "audio_passthrough_unsupported")
+}
+
+// A direct-play verdict carries no reason, so the packaged-audio gate stands
+// down; a request-time pin (vd=transcode on a title whose index is pending)
+// then segments the session after the core ran. The gate must be replayed on
+// the pinned decision: the muxed ffmpeg cannot carry MP3, the bytes are AAC,
+// and "copy" would be baked into every child URL.
+func TestDecide_PinnedTranscodeAppliesPackagedAudioGate(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1280), Height: new(720), Bitrate: int64Ptr(2_000_000), IsDefault: true},
+		{StreamType: "audio", Codec: "mp3", Channels: new(2), Bitrate: int64Ptr(128_000), IsDefault: true},
+	}
+	req := apptranscode.PlaybackRequest{
+		MediaID: "m1", SourcePath: "/f.mp4", Streams: streams, Container: "mp4",
+		Client: transcoding.DefaultWebProfile, Prefs: apptranscode.DefaultTranscodingPreferences(),
+		AudioTrack: -1, SubtitleBurnInTrack: -1,
+	}
+	pr := &apptranscode.PlanResolver{}
+	plain := pr.Decide(t.Context(), req)
+	require.Equal(t, "direct_play", plain.PlayMethod, "the raw file plays as-is: no packaging, no gate")
+	require.Equal(t, "copy", plain.AudioDecision)
+
+	req.PinnedVideoDecision = "transcode"
+	pinned := pr.Decide(t.Context(), req)
+	assert.Equal(t, "transcode", pinned.VideoDecision)
+	assert.Equal(t, "transcode", pinned.AudioDecision, "the segmented session re-encodes mp3")
+	assert.Equal(t, "aac", pinned.AudioCodec)
+	assert.Contains(t, pinned.TranscodeReasons, "audio_passthrough_unsupported")
+
+	// A client that takes MP3 muxed keeps its copy under the same pin.
+	req.Client = mp3PassthroughClient()
+	assert.Equal(t, "copy", pr.Decide(t.Context(), req).AudioDecision)
 }

@@ -160,7 +160,15 @@ async function attemptRefresh(): Promise<string> {
         headers: refreshHeaders,
         body: JSON.stringify({}),
       });
-      if (!res.ok) throw Object.assign(new Error("refresh failed"), { httpStatus: res.status });
+      if (!res.ok) {
+        // A limiter's answer keeps its delay, so the caller backs off by it
+        // instead of reading the retry as an authorization failure.
+        const retryAfter = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
+        throw Object.assign(new Error("refresh failed"), {
+          httpStatus: res.status,
+          ...(Number.isFinite(retryAfter) ? { retryAfterSeconds: retryAfter } : {}),
+        });
+      }
       const data = await res.json() as { accessToken: string };
       updateTokens?.(data.accessToken);
       return data.accessToken;
@@ -215,12 +223,26 @@ async function fetchWithRefresh(
       // be free to refresh again, and nobody gets logged out for it. Latching
       // on transients left long-lived clients (a TV stays on for days)
       // permanently unable to refresh after a single hiccup.
+      // The server refuses a refresh credential with 401 alone; a 403 is the
+      // gate in front of it (remote access off, a bouncer, the CSRF guard) and
+      // a 429 its limiter: transient too, and surfaced as what they are so a
+      // caller never mistakes a banned address for a dead session.
       const status = (refreshErr as { httpStatus?: number }).httpStatus;
-      if (status === 401 || status === 403) {
+      if (status === 401) {
         refreshFailed = true;
         fireUnauthorized();
       }
-      throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
+      // The browser's inline refresh carries the limiter's status and delay;
+      // the natives' forceRefresh answers without one and lands below.
+      if (status === 429) throw refreshErr;
+      if (status === 401) throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
+      // The link is down, not the session: the caller sees the gate's or the
+      // network's answer, never a 401 it would read as a dead session (the
+      // player showed its "session expired" screen for a NAS that was asleep).
+      throw Object.assign(new Error("Session refresh unavailable"), {
+        httpStatus: typeof status === "number" ? status : 503,
+        refreshUnavailable: true,
+      });
     }
   }
 

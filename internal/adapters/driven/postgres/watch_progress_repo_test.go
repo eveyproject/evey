@@ -460,3 +460,68 @@ func TestWatchProgressRepo_Cursor_Resume_Delete(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, all, 3, "the other rows stay")
 }
+
+// DescendantIDs walks the whole tree under a series (seasons, then episodes)
+// and under a season (episodes), and finds nothing under an episode. DeleteMany
+// clears exactly the listed rows of one profile.
+func TestWatchProgressRepo_DescendantIDs_DeleteMany(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	wpRepo := postgres.NewWatchProgressRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("dscu1")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("dscp1", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	other := newTestProfile("dscp2", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, other))
+	lib := newTestLibrary("dsclib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	mk := func(id, parent string, typ library.MediaItemType) *library.MediaItem {
+		it := newTestMediaItem(id, lib.ID)
+		it.Type = typ
+		it.ParentID = parent
+		return it
+	}
+	for _, it := range []*library.MediaItem{
+		mk("dsc-show", "", library.Series),
+		mk("dsc-s1", "dsc-show", library.Season), mk("dsc-s2", "dsc-show", library.Season),
+		mk("dsc-s1e1", "dsc-s1", library.Episode), mk("dsc-s1e2", "dsc-s1", library.Episode), mk("dsc-s2e1", "dsc-s2", library.Episode),
+		mk("dsc-film", "", library.MovieItem),
+	} {
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+
+	d, err := wpRepo.DescendantIDs(ctx, "dsc-show")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dsc-s1e1", "dsc-s1e2", "dsc-s2e1"}, d.Playable)
+	assert.Equal(t, []string{"dsc-s1", "dsc-s2"}, d.Containers)
+	d, err = wpRepo.DescendantIDs(ctx, "dsc-s1")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dsc-s1e1", "dsc-s1e2"}, d.Playable)
+	assert.Empty(t, d.Containers)
+	d, err = wpRepo.DescendantIDs(ctx, "dsc-s1e1")
+	require.NoError(t, err)
+	assert.Empty(t, d.All())
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	for i, id := range []string{"dsc-s1e1", "dsc-s1e2", "dsc-film"} {
+		require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{ID: "dsc-wp" + string(rune('a'+i)), ProfileID: p.ID, MediaItemID: shared.MediaItemID(id), Completed: true, LastPlayedAt: now}))
+	}
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{ID: "dsc-wpo", ProfileID: other.ID, MediaItemID: "dsc-s1e1", Completed: true, LastPlayedAt: now}))
+
+	require.NoError(t, wpRepo.DeleteMany(ctx, string(p.ID), []string{"dsc-s1e1", "dsc-s1e2"}))
+	_, err = wpRepo.GetByProfileAndMedia(ctx, string(p.ID), "dsc-s1e1")
+	require.ErrorIs(t, err, shared.ErrNotFound)
+	_, err = wpRepo.GetByProfileAndMedia(ctx, string(p.ID), "dsc-film")
+	require.NoError(t, err, "an item outside the list keeps its row")
+	_, err = wpRepo.GetByProfileAndMedia(ctx, string(other.ID), "dsc-s1e1")
+	require.NoError(t, err, "another profile keeps its row")
+	require.NoError(t, wpRepo.DeleteMany(ctx, string(p.ID), nil))
+}

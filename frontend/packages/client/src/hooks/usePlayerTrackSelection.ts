@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   burnInSubtitleIndex as pickBurnInSubtitle,
   clientSubtitleTrack,
+  pickDefaultAudioIndex,
   pickDefaultSubtitle,
-  pickPreferredStreamIndex,
   type PlayerAudioStream,
   type PlayerSubtitleStream,
 } from "@evey/api";
@@ -15,7 +15,7 @@ import {
  * - A track picked on the title page (`pick`), or by hand in the player, is
  *   never overridden by the profile's languages when they land late.
  * - Otherwise audio follows the profile's languages, then the file's default,
- *   then the first track; subtitles follow the profile's languages, then the
+ *   then the first track, skipping a commentary track while a main one exists; subtitles follow the profile's languages, then the
  *   track the FILE flags default ("no preference means no subtitle" left a
  *   film's forced track off everywhere, prod 2026-09-05).
  * - A bitmap subtitle picked on the title page is the server's to burn in:
@@ -68,8 +68,7 @@ export function usePlayerTrackSelection({
 
   useEffect(() => {
     if (userPickedAudioRef.current || audioStreams.length === 0) return;
-    const preferred = pickPreferredStreamIndex(audioStreams, audioLangs);
-    setSelectedAudioIndex(preferred ?? audioStreams.find((s) => s.isDefault)?.index ?? audioStreams[0].index);
+    setSelectedAudioIndex(pickDefaultAudioIndex(audioStreams, audioLangs) ?? audioStreams[0].index);
   }, [audioStreams, audioLangs]);
 
   useEffect(() => {

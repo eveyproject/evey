@@ -234,8 +234,10 @@ describe("startDownload", () => {
     const pending = startDownload("m3", "Movie 3");
     const handlers = await waitForTask("m3");
 
+    // purpose=native: the default token slides on a short window and a
+    // resume after a long pause answered 401, erasing the partial file.
     expect(eveyFetchMock).toHaveBeenCalledWith({
-      url: "/api/v1/media/m3/stream-token",
+      url: "/api/v1/media/m3/stream-token?purpose=native",
       method: "POST",
     });
     expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -799,7 +801,7 @@ describe("startDownload endpoint overrides (non-media resources, e.g. music trac
     const handlers = await waitForTask("m20");
 
     expect(eveyFetchMock).toHaveBeenCalledWith({
-      url: "/api/v1/media/m20/stream-token",
+      url: "/api/v1/media/m20/stream-token?purpose=native",
       method: "POST",
     });
     expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({

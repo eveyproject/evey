@@ -34,6 +34,16 @@ describe("usePlayerTrackSelection", () => {
     expect(result.current.clientSubtitleIndex).toBeNull();
   });
 
+  it("never starts on a commentary track while a main track exists", () => {
+    const withCommentary: PlayerAudioStream[] = [
+      { index: 1, trackIndex: 0, language: "eng", isDefault: true, isCommentary: true },
+      { index: 2, trackIndex: 1, language: "eng" },
+      { index: 5, trackIndex: 2, language: "fre" },
+    ];
+    expect(setup({ audioStreams: withCommentary }).result.current.selectedAudioIndex).toBe(2);
+    expect(setup({ audioStreams: withCommentary, audioLangs: ["en"] }).result.current.selectedAudioIndex).toBe(2);
+  });
+
   it("keeps the title page's pick over languages that land late", () => {
     const { result, rerender, initialProps } = setup({ pick: { audio: 1, subtitle: 3 } });
     rerender({ ...initialProps, audioLangs: ["fr"], subtitleLangs: ["en"] });

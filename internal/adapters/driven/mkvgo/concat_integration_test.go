@@ -15,21 +15,34 @@ package mkvgo
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	extmatroska "github.com/gravity-zero/mkvgo/matroska"
 
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 func genEpisode(t *testing.T, ctx context.Context, dir, name string) string {
 	t.Helper()
+	return genEpisodeAudioLate(t, ctx, dir, name, 0)
+}
+
+// genEpisodeAudioLate writes an episode whose audio track starts audioLate
+// after its video: the start-delay defect the packagers cancel in
+// presentation.
+func genEpisodeAudioLate(t *testing.T, ctx context.Context, dir, name string, audioLate time.Duration) string {
+	t.Helper()
 	src := filepath.Join(dir, name)
 	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
 		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+		"-itsoffset", strconv.FormatFloat(audioLate.Seconds(), 'f', 3, 64),
 		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
 		"-t", "12",
 		"-c:v", "libx264", "-g", "48", "-keyint_min", "48", "-pix_fmt", "yuv420p",
@@ -178,5 +191,70 @@ func TestConcatPackagerIntegration_OpenServesResourceBytes(t *testing.T) {
 	}
 	if streamed == 0 {
 		t.Fatal("no resource streamed: every one came back whole")
+	}
+}
+
+// A chain is served with the resync each episode gets on its own: two
+// episodes whose audio starts late by the same amount are planned with that
+// shift (each part's audio init differs from the one the unprobed plan
+// serves), and a late episode beside an aligned one refuses the chain, since
+// one shift cannot be right for both.
+func TestConcatPackagerIntegration_AudioStartDelayResynced(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not in PATH")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+
+	aligned := genEpisode(t, ctx, dir, "s01e01.mkv")
+	late1 := genEpisodeAudioLate(t, ctx, dir, "s01e02.mkv", 500*time.Millisecond)
+	late2 := genEpisodeAudioLate(t, ctx, dir, "s01e03.mkv", 500*time.Millisecond)
+
+	delays, err := extmatroska.AudioStartDelays(ctx, late1)
+	if err != nil {
+		t.Fatalf("AudioStartDelays: %v", err)
+	}
+	if shift := audioPresentationShift(delays); len(shift) == 0 {
+		t.Fatalf("the late episode's delay is not seen by the probe: %v", delays)
+	}
+
+	pkg := NewConcatPackager()
+	defer pkg.Close()
+	if _, err := pkg.Plan(ctx, []string{aligned, late1}, apptranscoding.ConcatOptions{SegmentMs: 6000, URLPrefix: "cc_"}); !errors.Is(err, ErrConcatAudioShiftMismatch) {
+		t.Fatalf("an aligned episode chained with a late one must refuse, got err=%v", err)
+	}
+
+	audioInits := func(p *ConcatPackager, sources []string) [][]byte {
+		plan, err := p.Plan(ctx, sources, apptranscoding.ConcatOptions{SegmentMs: 6000, URLPrefix: "cc_"})
+		if err != nil {
+			t.Fatalf("Plan: %v", err)
+		}
+		var inits [][]byte
+		for _, name := range []string{"p0/init_a1.mp4", "p1/init_a1.mp4"} {
+			data, _, err := plan.Resource(ctx, name)
+			if err != nil {
+				t.Fatalf("Resource(%s): %v (resources: %v)", name, err, plan.Resources())
+			}
+			inits = append(inits, data)
+		}
+		return inits
+	}
+	resynced := audioInits(pkg, []string{late1, late2})
+
+	unprobed := NewConcatPackager()
+	defer unprobed.Close()
+	unprobed.audioDelays = nil
+	verbatim := audioInits(unprobed, []string{late1, late2})
+
+	// Every part of the chain is resynced, as each would be on its own: the
+	// audio init of each part differs from the one served without the probe.
+	for k := range resynced {
+		if bytes.Equal(resynced[k], verbatim[k]) {
+			t.Errorf("part %d of a chain of late episodes is served as if it were aligned: the audio init is the unshifted one (%d bytes)", k, len(verbatim[k]))
+		}
 	}
 }

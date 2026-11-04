@@ -13,9 +13,12 @@ import (
 var ErrDuplicateTokenHash = fmt.Errorf("%w: duplicate key value violates unique constraint", shared.ErrConflict)
 
 type FakeRefreshTokenRepository struct {
-	mu    sync.RWMutex
-	items map[string]*user.RefreshToken
-	Err   error
+	// PanicOnceOnDeleteExpired makes the next DeleteExpired panic, once: a
+	// test of a cleanup loop proves the loop outlives one bad sweep.
+	PanicOnceOnDeleteExpired bool
+	mu                       sync.RWMutex
+	items                    map[string]*user.RefreshToken
+	Err                      error
 }
 
 func NewFakeRefreshTokenRepository() *FakeRefreshTokenRepository {
@@ -155,6 +158,10 @@ func (r *FakeRefreshTokenRepository) DeleteExpired(_ context.Context) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.PanicOnceOnDeleteExpired {
+		r.PanicOnceOnDeleteExpired = false
+		panic("fake refresh token repo: DeleteExpired panics once")
+	}
 	now := time.Now()
 	for id, t := range r.items {
 		// Mirrors the SQL sweep: expired rows, plus rotated rows once the

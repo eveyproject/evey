@@ -2,6 +2,8 @@ package postgres_test
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,7 +19,7 @@ func newTestPerson(id, name string) *library.Person {
 	return &library.Person{
 		ID:          id,
 		Name:        name,
-		ProviderIDs: map[string]string{"tmdb": "999"},
+		ProviderIDs: map[string]string{"tmdb": "t-" + id},
 		ThumbPath:   nil,
 	}
 }
@@ -40,18 +42,67 @@ func TestPersonRepo_Create_Conflict(t *testing.T) {
 	repo := postgres.NewPersonRepository(db)
 	ctx := context.Background()
 
+	// Same provider id, other uuid: what two concurrent enrichments of one
+	// person produce. The id is the identity, the spelling may differ.
 	p1 := newTestPerson("pc1", "Bob Jones")
-	p2 := newTestPerson("pc2", "Bob Jones") // same name, different id
+	p2 := &library.Person{ID: "pc2", Name: "Bob M. Jones", ProviderIDs: map[string]string{"tmdb": "t-pc1"}}
 	require.NoError(t, repo.Create(ctx, p1))
-	require.NoError(t, repo.Create(ctx, p2)) // conflict on unique name
+	require.NoError(t, repo.Create(ctx, p2))
 
 	// RETURNING id: the conflict path must set p2.ID to the SURVIVING row id, not
 	// keep p2's own uuid - else the enricher's media_people cast link targets a
 	// non-existent person and the FK drops it (concurrent-enrichment race).
 	assert.Equal(t, p1.ID, p2.ID, "create conflict must return the existing person id")
-	got, err := repo.GetByName(ctx, "Bob Jones")
+	got, err := repo.GetByProviderID(ctx, "tmdb", "t-pc1")
 	require.NoError(t, err)
 	assert.Equal(t, p1.ID, got.ID)
+	assert.Equal(t, "Bob Jones", got.Name, "the stored name is kept")
+
+	// Without a provider id the name stays the identity.
+	n1 := &library.Person{ID: "pc3", Name: "Nameless Credit"}
+	n2 := &library.Person{ID: "pc4", Name: "Nameless Credit"}
+	require.NoError(t, repo.Create(ctx, n1))
+	require.NoError(t, repo.Create(ctx, n2))
+	assert.Equal(t, n1.ID, n2.ID)
+}
+
+// Two people credited under one name but known to the provider under two ids
+// are two rows; the old unique name merged them into one.
+func TestPersonRepo_Create_HomonymsWithDistinctProviderIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPersonRepository(db)
+	ctx := context.Background()
+
+	a := &library.Person{ID: "ph1", Name: "Sam Taylor", ProviderIDs: map[string]string{"tmdb": "101"}}
+	b := &library.Person{ID: "ph2", Name: "Sam Taylor", ProviderIDs: map[string]string{"tmdb": "202"}}
+	require.NoError(t, repo.Create(ctx, a))
+	require.NoError(t, repo.Create(ctx, b))
+	assert.Equal(t, "ph1", a.ID)
+	assert.Equal(t, "ph2", b.ID)
+
+	got, err := repo.GetByProviderID(ctx, "tmdb", "202")
+	require.NoError(t, err)
+	assert.Equal(t, "ph2", got.ID)
+
+	_, err = repo.GetByProviderID(ctx, "tmdb", "303")
+	require.ErrorIs(t, err, shared.ErrNotFound)
+
+	// A name lookup over homonyms prefers the row WITHOUT an id (the only one
+	// a name may claim) and is deterministic otherwise.
+	byName, err := repo.GetByName(ctx, "Sam Taylor")
+	require.NoError(t, err)
+	assert.Equal(t, "ph1", byName.ID)
+	idless := &library.Person{ID: "ph3", Name: "Sam Taylor"}
+	require.NoError(t, repo.Create(ctx, idless))
+	assert.Equal(t, "ph3", idless.ID)
+	byName, err = repo.GetByName(ctx, "Sam Taylor")
+	require.NoError(t, err)
+	assert.Equal(t, "ph3", byName.ID)
+	batch, err := repo.GetByNamesBatch(ctx, []string{"Sam Taylor"})
+	require.NoError(t, err)
+	assert.Equal(t, "ph3", batch["Sam Taylor"].ID)
 }
 
 func TestPersonRepo_GetByID(t *testing.T) {
@@ -235,4 +286,54 @@ func TestPersonRepo_GetByNamesBatch(t *testing.T) {
 	none, err := repo.GetByNamesBatch(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, none)
+}
+
+// Setting an id on a row stored without one (the enricher claiming it by
+// name) races a create of the same id from another enrichment: both checked
+// "no row has this id" and both wrote one. The claim takes the same lock on
+// the id as the create, so one row ends up holding it, and a claim that
+// lost hands back the owner.
+func TestPersonRepo_ClaimProviderID_RacesCreateToOneRow(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewPersonRepository(db)
+	ctx := context.Background()
+
+	for round := range 20 {
+		tmdb := fmt.Sprintf("claim-%d", round)
+		idless := &library.Person{ID: tmdb + "-idless", Name: "Credited " + tmdb}
+		require.NoError(t, repo.Create(ctx, idless))
+		var wg sync.WaitGroup
+		gate := make(chan struct{})
+		var owner string
+		var claimErr, createErr error
+		created := &library.Person{ID: tmdb + "-new", Name: "Other Spelling " + tmdb, ProviderIDs: map[string]string{"tmdb": tmdb}}
+		wg.Go(func() {
+			<-gate
+			owner, claimErr = repo.ClaimProviderID(ctx, idless.ID, "tmdb", tmdb)
+		})
+		wg.Go(func() {
+			<-gate
+			createErr = repo.Create(ctx, created)
+		})
+		close(gate)
+		wg.Wait()
+		require.NoError(t, claimErr)
+		require.NoError(t, createErr)
+
+		var n int
+		require.NoError(t, db.QueryRow(`SELECT count(*) FROM people WHERE provider_ids->>'tmdb' = $1`, tmdb).Scan(&n))
+		assert.Equal(t, 1, n, "one row holds %s", tmdb)
+		assert.Equal(t, created.ID, owner, "claim and create name the same owner")
+	}
+
+	// Uncontended, the claim sets the id on the row and keeps its others.
+	p := &library.Person{ID: "claim-plain", Name: "Plain Claim", ProviderIDs: map[string]string{"imdb": "nm1"}}
+	require.NoError(t, repo.Create(ctx, p))
+	owner, err := repo.ClaimProviderID(ctx, p.ID, "tmdb", "claim-plain-id")
+	require.NoError(t, err)
+	assert.Equal(t, p.ID, owner)
+	got, err := repo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"imdb": "nm1", "tmdb": "claim-plain-id"}, got.ProviderIDs)
 }

@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
@@ -164,6 +165,67 @@ func (r *WatchProgressRepository) Delete(ctx context.Context, profileID, mediaIt
 		return fmt.Errorf("WatchProgressRepo.Delete: %w", err)
 	}
 	return nil
+}
+
+// DeleteMany removes the profile's rows on the given items in one statement.
+func (r *WatchProgressRepository) DeleteMany(ctx context.Context, profileID string, mediaItemIDs []string) error {
+	if len(mediaItemIDs) == 0 {
+		return nil
+	}
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.DeleteMany")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID), attribute.Int("items", len(mediaItemIDs)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM watch_progress WHERE profile_id = $1 AND media_item_id = ANY($2::text[])`,
+		profileID, pq.Array(mediaItemIDs),
+	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("WatchProgressRepo.DeleteMany: %w", err)
+	}
+	return nil
+}
+
+// DescendantIDs walks parent_id down from the item: seasons are containers,
+// everything else beneath (episodes) is playable. A playable item has no
+// children, so both lists come back empty for it.
+func (r *WatchProgressRepository) DescendantIDs(ctx context.Context, mediaItemID string) (playback.Descendants, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.DescendantIDs")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`WITH RECURSIVE tree AS (
+		   SELECT id, type FROM media_items WHERE parent_id = $1
+		   UNION ALL
+		   SELECT mi.id, mi.type FROM media_items mi INNER JOIN tree ON mi.parent_id = tree.id
+		 )
+		 SELECT id, type FROM tree ORDER BY id`, mediaItemID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return playback.Descendants{}, fmt.Errorf("WatchProgressRepo.DescendantIDs: %w", err)
+	}
+	defer rows.Close()
+	var d playback.Descendants
+	for rows.Next() {
+		var id, typ string
+		if err := rows.Scan(&id, &typ); err != nil {
+			return playback.Descendants{}, fmt.Errorf("WatchProgressRepo.DescendantIDs: %w", err)
+		}
+		if typ == string(library.Season) || typ == string(library.Series) {
+			d.Containers = append(d.Containers, id)
+		} else {
+			d.Playable = append(d.Playable, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return playback.Descendants{}, fmt.Errorf("WatchProgressRepo.DescendantIDs: %w", err)
+	}
+	return d, nil
 }
 
 // DeleteByProfile removes every watch-progress row for the profile (the

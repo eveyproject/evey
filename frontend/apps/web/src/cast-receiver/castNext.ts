@@ -16,6 +16,8 @@ export interface CastNextInfo {
   seasonNumber: number;
   episodeNumber: number;
   seriesTitle: string;
+  /** Where the casting profile left this episode, in ms; 0 starts it from the top. */
+  resumePositionMs: number;
 }
 
 // buildCastNextUrl derives the cast-next endpoint from the playing master's
@@ -49,6 +51,10 @@ export function parseCastNextResponse(data: unknown): CastNextInfo | null {
     seasonNumber: typeof d.season_number === "number" ? d.season_number : 0,
     episodeNumber: typeof d.episode_number === "number" ? d.episode_number : 0,
     seriesTitle: typeof d.series_title === "string" ? d.series_title : "",
+    resumePositionMs:
+      typeof d.resume_position_ms === "number" && Number.isFinite(d.resume_position_ms) && d.resume_position_ms > 0
+        ? d.resume_position_ms
+        : 0,
   };
 }
 
@@ -69,6 +75,13 @@ export function buildNextMasterUrl(streamUrl: string, next: Pick<CastNextInfo, "
     u.searchParams.set("token", next.token);
     u.searchParams.delete("abr");
     u.searchParams.delete("maxKbps");
+    // The audio and subtitle indexes the sender baked name positions in the
+    // CURRENT file: in a pack where the dub comes first on one episode and
+    // second on the next, they pick the wrong language. The next file's
+    // tracks come from the profile's preferences, as the server's warm-up
+    // of this same bare master assumes.
+    u.searchParams.delete("audioTrack");
+    u.searchParams.delete("subtitleTrack");
     return u.toString();
   } catch {
     return null;

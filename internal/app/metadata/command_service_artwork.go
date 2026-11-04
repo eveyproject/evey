@@ -198,7 +198,7 @@ func (s *CommandService) StartBulkDownload(ctx context.Context, serverCtx contex
 	if s.getDataDir() == "" {
 		return "", 0, errors.New("dataDir not configured")
 	}
-	records, err := s.artworkQuery.ListMissingLocalPath(ctx)
+	records, err := s.artworkQuery.ListMissingLocalPath(ctx, true)
 	if err != nil {
 		return "", 0, fmt.Errorf("list missing artwork: %w", err)
 	}
@@ -296,7 +296,7 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 	if s.getDataDir() == "" {
 		return 0, 0
 	}
-	records, err := s.artworkQuery.ListMissingLocalPath(ctx)
+	records, err := s.artworkQuery.ListMissingLocalPath(ctx, false)
 	if err != nil {
 		slog.WarnContext(ctx, "retry missing artworks: list", slog.Any("err", err))
 		return 0, 0
@@ -314,7 +314,7 @@ func (s *CommandService) StartRetryMissing(ctx, serverCtx context.Context) (stri
 	if s.getDataDir() == "" {
 		return "", 0, errors.New("dataDir not configured")
 	}
-	records, err := s.artworkQuery.ListMissingLocalPath(ctx)
+	records, err := s.artworkQuery.ListMissingLocalPath(ctx, true)
 	if err != nil {
 		return "", 0, fmt.Errorf("list missing artwork: %w", err)
 	}
@@ -395,6 +395,7 @@ func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJ
 			if err := s.DownloadArtwork(ctx, rec, destPath); err != nil {
 				slog.DebugContext(ctx, "retry missing artworks: download still failing",
 					slog.String("id", rec.ID), slog.Any("err", err))
+				s.recordFetchFailure(ctx, rec.ID, err)
 				failAtomic.Add(1)
 				return
 			}
@@ -588,10 +589,23 @@ func (s *CommandService) maybeAutoDownload(ctx context.Context, rec *metadata.Ar
 	}
 	if err := s.DownloadArtwork(ctx, rec, destPath); err != nil {
 		slog.WarnContext(ctx, "auto-download artwork", slog.String("id", rec.ID), slog.Any("err", err))
+		s.recordFetchFailure(ctx, rec.ID, err)
 		return
 	}
 	if err := s.artworkCmd.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
 		slog.WarnContext(ctx, "auto-download artwork: save local path", slog.String("id", rec.ID), slog.Any("err", err))
+	}
+}
+
+// recordFetchFailure books a missed fetch so the hourly pass backs off, and
+// gives up a source the provider says is gone. A context that was cancelled
+// is not a miss of the source: nothing is recorded.
+func (s *CommandService) recordFetchFailure(ctx context.Context, id string, fetchErr error) {
+	if ctx.Err() != nil {
+		return
+	}
+	if err := s.artworkCmd.RecordFetchFailure(ctx, id, metadata.IsPermanentFetchError(fetchErr)); err != nil {
+		slog.WarnContext(ctx, "record artwork fetch failure", slog.String("id", id), slog.Any("err", err))
 	}
 }
 

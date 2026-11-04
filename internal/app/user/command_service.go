@@ -59,6 +59,9 @@ type CommandService struct {
 	tokenRevoker TokenRevoker // optional: bumps token_epoch on security events
 	// minPasswordLength is the floor Setup and ResetPassword enforce.
 	minPasswordLength int
+	// graceSiblings counts the sibling sessions issued per rotated refresh
+	// token inside the rotation grace (see admitGraceSibling).
+	graceSiblings graceSiblingCounter
 }
 
 func NewCommandService(

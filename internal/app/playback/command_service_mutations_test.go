@@ -256,12 +256,12 @@ type panicSessionRepo struct {
 	done     chan struct{}
 }
 
-func (r *panicSessionRepo) CloseStale(_ context.Context, _ time.Duration) (int, error) {
+func (r *panicSessionRepo) CloseStaleReturning(_ context.Context, _ time.Duration) ([]*playback.PlaySession, error) {
 	if r.panicked.CompareAndSwap(false, true) {
 		close(r.done)
 		panic("boom cleanup")
 	}
-	return 0, nil
+	return nil, nil
 }
 
 func TestStartCleanupWithInterval_NoPanic_NoRecoverLog(t *testing.T) {
