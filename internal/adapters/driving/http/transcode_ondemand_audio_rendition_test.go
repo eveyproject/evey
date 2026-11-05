@@ -146,3 +146,66 @@ func TestBuildWasmAudioMaster_NamesThePublishedRenditionNotTheDerivedOne(t *test
 	assert.Contains(t, master, `#EVEY-AUDIO-URI:"od_audio2.m3u8?audioTrack=2`, "the VFQ is the plan's second rendition")
 	assert.NotContains(t, master, "od_audio3.m3u8", "od_audio3 is the ENGLISH track - naming it is the bug")
 }
+
+// Two tracks with the same title: the packager keeps the first name and
+// numbers the next ones ("French", "French 2"), so every rendition of a group
+// has its own NAME. Read as a mismatch, the second track was taken for a
+// dropped one and every track after it lost its rendition, audio and
+// subtitles alike.
+const collidingNamesPlanMaster = `#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="French",AUTOSELECT=YES,LANGUAGE="fre",DEFAULT=YES,URI="audio1.m3u8"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="French 2",AUTOSELECT=YES,LANGUAGE="fre",URI="audio2.m3u8"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="eng",AUTOSELECT=YES,LANGUAGE="eng",URI="audio3.m3u8"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="eng 2",AUTOSELECT=YES,LANGUAGE="eng",URI="audio4.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="French",AUTOSELECT=YES,LANGUAGE="fre",FORCED=YES,URI="sub1.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="French 2",AUTOSELECT=YES,LANGUAGE="fre",URI="sub2.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="eng",AUTOSELECT=YES,LANGUAGE="eng",URI="sub3.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="eng 2",AUTOSELECT=YES,LANGUAGE="eng",URI="sub4.m3u8"
+#EXT-X-STREAM-INF:BANDWIDTH=1000000,AUDIO="aud",SUBTITLES="subs"
+playlist.m3u8
+`
+
+func collidingNamesStreams() []*domainlibrary.MediaStream {
+	return []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264"},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Language: "fre", Title: "French"},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Language: "fre", Title: "French"},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Language: "eng"},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Language: "eng"},
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip", Language: "fre", Title: "French", IsForced: true},
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip", Language: "fre", Title: "French"},
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip", Language: "eng"},
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip", Language: "eng"},
+	}
+}
+
+func TestPlanRenditions_NumberedCollidingNamesStillPair(t *testing.T) {
+	streams := collidingNamesStreams()
+	rends := parsePlanAudioRenditions(collidingNamesPlanMaster)
+	for i := range 4 {
+		uri, ok := planRenditionURIFor(rends, streams, i)
+		require.True(t, ok, "audio track %d must pair", i)
+		assert.Equal(t, "audio"+string(rune('1'+i))+".m3u8", uri)
+	}
+	subs := mapPlanSubtitleRenditions(parsePlanSubtitleRenditions(collidingNamesPlanMaster), streams)
+	require.Len(t, subs, 4, "every subtitle track keeps its rendition")
+	for i, s := range subs {
+		assert.Equal(t, i, s.TrackIdx)
+		assert.Equal(t, "sub"+string(rune('1'+i))+".m3u8", s.URI)
+	}
+}
+
+// A real title that merely ends in a number is still matched exactly: the
+// numbered form is accepted on top of the plain title, never instead of it.
+func TestRenditionIsTrack_NumberedForm(t *testing.T) {
+	french := &domainlibrary.MediaStream{StreamType: domainlibrary.StreamTypeAudio, Language: "fre", Title: "French"}
+	part2 := &domainlibrary.MediaStream{StreamType: domainlibrary.StreamTypeAudio, Language: "eng", Title: "Part 2"}
+	assert.True(t, renditionIsTrack(planAudioRendition{name: "French", lang: "fre"}, french))
+	assert.True(t, renditionIsTrack(planAudioRendition{name: "French 2", lang: "fre"}, french))
+	assert.True(t, renditionIsTrack(planAudioRendition{name: "French 12", lang: "fre"}, french))
+	assert.False(t, renditionIsTrack(planAudioRendition{name: "French 1", lang: "fre"}, french), "the first of a collision keeps the bare name")
+	assert.False(t, renditionIsTrack(planAudioRendition{name: "French Canadian", lang: "fre"}, french))
+	assert.False(t, renditionIsTrack(planAudioRendition{name: "French 2x", lang: "fre"}, french))
+	assert.True(t, renditionIsTrack(planAudioRendition{name: "Part 2", lang: "eng"}, part2))
+}

@@ -85,6 +85,12 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			ms.Title = t.Name
 		}
 		ms.HandlerName = t.HandlerName
+		// The number the file itself gives the track: the packager publishes it
+		// on each rendition, so a rendition pairs with its track by number.
+		if t.FileTrackID > 0 && t.FileTrackID <= 1<<31-1 {
+			id := int(t.FileTrackID)
+			ms.SourceTrackID = &id
+		}
 		if cln := t.CodecLongName(); cln != "" {
 			ms.CodecLongName = cln
 		}

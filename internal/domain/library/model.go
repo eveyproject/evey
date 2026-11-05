@@ -361,7 +361,10 @@ const ParserVersion = 2
 //	   track with frame_mbs_only_flag 0 alone is unknown instead of
 //	   interlaced, and the first samples prove an H.264, HEVC or MPEG-2 track
 //	   interlaced with its field order.
-const StreamProbeVersion = 5
+//	6: mkvgo 0.64 - the identifier the file gives each track (the Matroska
+//	   TrackNumber, the MP4 track_ID), stored so a packager rendition pairs
+//	   with its track by number instead of by name.
+const StreamProbeVersion = 6
 
 // LevelProbeVersion is the current revision of the video level backfill's
 // probe. media_streams.level_probe_version records the revision at which a
@@ -437,9 +440,15 @@ func (m *MediaItem) IsPlayable() bool {
 }
 
 type MediaStream struct {
-	ID            string
-	MediaItemID   shared.MediaItemID
-	StreamIndex   int
+	ID          string
+	MediaItemID shared.MediaItemID
+	StreamIndex int
+	// SourceTrackID is the number the FILE gives the track (Matroska
+	// TrackNumber, MP4 tkhd track_ID), nil when the probe did not report it.
+	// StreamIndex is only a position among the surfaced tracks: a packager
+	// that drops one track shifts every position after it, while this number
+	// names the same track on both sides.
+	SourceTrackID *int
 	StreamType    StreamType
 	Codec         string
 	CodecLongName string

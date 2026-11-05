@@ -476,3 +476,20 @@ func TestMapContainer_VP8IsProgressive(t *testing.T) {
 	require.NotNil(t, res.Streams[0].FieldOrder)
 	assert.Equal(t, "progressive", *res.Streams[0].FieldOrder)
 }
+
+// The number the file gives each track is kept on the stream: the packager
+// publishes it on every rendition, and pairing by it survives a track the
+// packager leaves out and two tracks that share a title. A track the probe
+// numbers 0 (unknown) stays unnumbered.
+func TestMapContainer_KeepsTheFileTrackNumber(t *testing.T) {
+	c := &extmkv.Container{Tracks: []extmkv.Track{
+		{Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)), ColorSpace: new(cicpBT709), FileTrackID: 1},
+		{Type: extmkv.AudioTrack, Codec: "aac", FileTrackID: 7},
+		{Type: extmkv.AudioTrack, Codec: "aac"},
+	}}
+	res, ok := mapContainer(c, true)
+	require.True(t, ok)
+	require.NotNil(t, res.Streams[1].SourceTrackID)
+	assert.Equal(t, 7, *res.Streams[1].SourceTrackID)
+	assert.Nil(t, res.Streams[2].SourceTrackID, "an unknown number stays unknown")
+}

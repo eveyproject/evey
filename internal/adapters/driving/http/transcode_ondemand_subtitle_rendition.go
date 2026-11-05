@@ -21,6 +21,7 @@ type planSubtitleRendition struct {
 	lang   string
 	uri    string
 	forced bool
+	track  int // the file's number for the track, 0 when unpublished
 }
 
 func parsePlanSubtitleRenditions(master string) []planSubtitleRendition {
@@ -31,6 +32,7 @@ func parsePlanSubtitleRenditions(master string) []planSubtitleRendition {
 			lang:   attrOf(m[1], "LANGUAGE"),
 			uri:    attrOf(m[1], "URI"),
 			forced: strings.Contains(m[1], "FORCED=YES"),
+			track:  fileTrackOf(m[1]),
 		})
 	}
 	return out
@@ -69,7 +71,7 @@ func mapPlanSubtitleRenditions(rends []planSubtitleRendition, streams []*domainl
 			break
 		}
 		r := rends[next]
-		if !renditionIsTrack(planAudioRendition{name: r.name, lang: r.lang}, s) {
+		if !renditionIsTrack(planAudioRendition{name: r.name, lang: r.lang, track: r.track}, s) {
 			continue
 		}
 		next++

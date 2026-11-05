@@ -47,19 +47,20 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, field_order, idet_interlaced, idet_telecine,
 		sample_aspect_ratio, channels, channel_layout, sample_rate,
 		bitrate, is_external, external_path, level,
-		commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode) VALUES `)
+		commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode,
+		source_track_id) VALUES `)
 
-	args := make([]any, 0, len(streams)*38)
+	args := make([]any, 0, len(streams)*39)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 38
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 39
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
 			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27, base+28, base+29, base+30,
-			base+31, base+32, base+33, base+34, base+35, base+36, base+37, base+38)
+			base+31, base+32, base+33, base+34, base+35, base+36, base+37, base+38, base+39)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
@@ -68,6 +69,7 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 			s.SampleAspectRatio, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
 			s.Commentary, s.HearingImpaired, s.VisualImpaired, s.TextDescriptions, s.Original, s.FrameRateMode,
+			s.SourceTrackID,
 		)
 	}
 
@@ -123,19 +125,20 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID sh
 		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, field_order, idet_interlaced, idet_telecine,
 		sample_aspect_ratio, channels, channel_layout, sample_rate,
 		bitrate, is_external, external_path, level,
-		commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode) VALUES `)
+		commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode,
+		source_track_id) VALUES `)
 
-	args := make([]any, 0, len(streams)*38)
+	args := make([]any, 0, len(streams)*39)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 38
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 39
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
 			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27, base+28, base+29, base+30,
-			base+31, base+32, base+33, base+34, base+35, base+36, base+37, base+38)
+			base+31, base+32, base+33, base+34, base+35, base+36, base+37, base+38, base+39)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
@@ -144,6 +147,7 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID sh
 			s.SampleAspectRatio, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
 			s.Commentary, s.HearingImpaired, s.VisualImpaired, s.TextDescriptions, s.Original, s.FrameRateMode,
+			s.SourceTrackID,
 		)
 	}
 
@@ -171,7 +175,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 		 is_default, is_forced, width, height, framerate, bit_depth, pixel_format, color_space, color_transfer, hdr_type,
 		 dovi_profile, dovi_bl_compat, field_order, idet_interlaced, idet_telecine, sample_aspect_ratio, channels,
 		 channel_layout, sample_rate, bitrate, is_external, external_path, level, keyframes_ms,
-		 commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode
+		 commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode, source_track_id
 		 FROM media_streams WHERE media_item_id = $1 ORDER BY stream_index`, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
@@ -191,6 +195,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 			&s.SampleAspectRatio, &s.Channels, &s.ChannelLayout,
 			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level, pq.Array(&s.Keyframes),
 			&s.Commentary, &s.HearingImpaired, &s.VisualImpaired, &s.TextDescriptions, &s.Original, &s.FrameRateMode,
+			&s.SourceTrackID,
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -224,7 +229,7 @@ func (r *MediaStreamRepository) GetByMediaItemIDs(ctx context.Context, mediaItem
 		 is_default, is_forced, width, height, framerate, bit_depth, pixel_format, color_space, color_transfer, hdr_type,
 		 dovi_profile, dovi_bl_compat, field_order, idet_interlaced, idet_telecine, sample_aspect_ratio, channels,
 		 channel_layout, sample_rate, bitrate, is_external, external_path, level,
-		 commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode
+		 commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode, source_track_id
 		 FROM media_streams WHERE media_item_id = ANY($1) ORDER BY media_item_id, stream_index`, pq.Array(ids))
 	if err != nil {
 		span.RecordError(err)
@@ -244,6 +249,7 @@ func (r *MediaStreamRepository) GetByMediaItemIDs(ctx context.Context, mediaItem
 			&s.SampleAspectRatio, &s.Channels, &s.ChannelLayout,
 			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level,
 			&s.Commentary, &s.HearingImpaired, &s.VisualImpaired, &s.TextDescriptions, &s.Original, &s.FrameRateMode,
+			&s.SourceTrackID,
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -800,17 +806,17 @@ func (r *MediaStreamRepository) RefreshProbedFields(ctx context.Context, mediaIt
 			color_transfer = COALESCE($8, color_transfer), hdr_type = COALESCE($9, hdr_type),
 			bitrate = COALESCE($10, bitrate), channels = COALESCE($11, channels),
 			channel_layout = COALESCE($12, channel_layout), codec = $13, title = $14,
-			field_order = $15::text
+			field_order = $15::text, source_track_id = COALESCE($16::integer, source_track_id)
 		WHERE media_item_id = $1 AND stream_index = $2 AND stream_type = $3 AND NOT is_external
 		  AND (framerate, bit_depth, pixel_format, color_space, color_transfer, hdr_type, bitrate, channels, channel_layout,
-		       codec, COALESCE(title, ''), field_order)
+		       codec, COALESCE(title, ''), field_order, source_track_id)
 		      IS DISTINCT FROM (COALESCE($4, framerate), COALESCE($5, bit_depth), COALESCE($6, pixel_format),
 		                        COALESCE($7, color_space), COALESCE($8, color_transfer), COALESCE($9, hdr_type),
 		                        COALESCE($10, bitrate), COALESCE($11, channels), COALESCE($12, channel_layout),
-		                        $13, $14, $15::text)`,
+		                        $13, $14, $15::text, COALESCE($16::integer, source_track_id))`,
 			string(mediaItemID), s.StreamIndex, string(s.StreamType),
 			s.Framerate, s.BitDepth, s.PixelFormat, s.ColorSpace, s.ColorTransfer, s.HDRType, s.Bitrate,
-			s.Channels, s.ChannelLayout, codec, title, s.FieldOrder)
+			s.Channels, s.ChannelLayout, codec, title, s.FieldOrder, s.SourceTrackID)
 		if err != nil {
 			return res, fmt.Errorf("MediaStreamRepo.RefreshProbedFields update: %w", err)
 		}
