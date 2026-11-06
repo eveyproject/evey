@@ -5,6 +5,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { useAuthStore, toast, type PersistedAuthState } from "@evey/store";
+import { isTokenExpired, noteLiveTokenHeld } from "./lib/authRefresh";
 import { setTokenProvider, setTokensUpdater, setLocaleProvider, resetRefreshFailure, userServiceRefreshToken } from "@evey/api";
 import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
@@ -173,12 +174,22 @@ if (typeof window !== "undefined") {
         persisted.impersonationOrigin !== st.impersonationOrigin
       ) {
         st.hydrateFromPersisted(persisted);
+        // A sign-in from another tab: this one must not keep asking for a password.
+        if (window.location.pathname === "/login") void routerRef?.navigate({ to: "/home" });
       }
     } catch { /* ignore malformed payload */ }
   });
 }
 
+// A live token held at any point of this document: the login route then
+// knows a later arrival follows a sign-out, not a page load (authRefresh).
+function reportLiveToken(token: string | null) {
+  if (token && !isTokenExpired(token)) noteLiveTokenHeld();
+}
+reportLiveToken(useAuthStore.getState().accessToken);
+
 useAuthStore.subscribe((state, prev) => {
+  if (state.accessToken !== prev.accessToken) reportLiveToken(state.accessToken);
   if (state.accessToken !== prev.accessToken) scheduleTokenRefresh();
   // A new token from OUTSIDE the fetcher (login, impersonation) starts a new
   // session: the fetcher's refresh-failure latch must not survive into it.

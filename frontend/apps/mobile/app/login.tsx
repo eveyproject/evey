@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, Linking, ScrollView } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -17,6 +17,7 @@ import { useAuthStore, useServerListStore, useDemoStore, isDefaultServerName, to
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
+import { isAccessExpired, renewOnSignInScreen } from "../src/lib/auth-refresh";
 import { setSsoPollToken } from "../src/lib/ssoFlow";
 import { canSaveCredentials, getSavedCredentials, saveCredentials, clearSavedCredentials } from "../src/lib/saved-credentials";
 import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
@@ -47,6 +48,22 @@ export default function Login() {
   // "remember me" credentials it performs a REAL login - landing here after a
   // session purge is one fingerprint away from being back in, not a retype.
   const canUseBiometric = biometricAvailable && biometricEnabled && (!!accessToken || hasSavedCreds);
+
+  // Reached with a session the server may still honour - a boot whose
+  // renewal got no answer - this screen asked for a password while signed in.
+  // Renew first, and leave as soon as a live token lands: from that renewal,
+  // or from the resume renewal while this screen is up. A sign-in made here
+  // lands on its own; and only while focused, as Quick Connect is pushed on
+  // top and lands on the picker itself.
+  const ownSignIn = useRef(false);
+  useFocusEffect(useCallback(() => {
+    const unsubscribe = useAuthStore.subscribe((s, prev) => {
+      if (s.accessToken === prev.accessToken || ownSignIn.current) return;
+      if (!isAccessExpired(s.accessToken)) router.replace("/profile-select");
+    });
+    void renewOnSignInScreen();
+    return unsubscribe;
+  }, []));
 
   useEffect(() => {
     if (canUseBiometric) {
@@ -81,7 +98,7 @@ export default function Login() {
       return;
     }
     const saved = await getSavedCredentials();
-    if (saved) login({ data: { username: saved.username, password: saved.password } });
+    if (saved) signIn(saved.username, saved.password);
   }
 
   const oidcConfig = useQuery<{ enabled: boolean; buttonLabel?: string }>({
@@ -138,6 +155,7 @@ export default function Login() {
 
   const { mutate: login, isPending } = useUserServiceLogin({
     mutation: {
+      onSettled: () => { ownSignIn.current = false; },
       onSuccess: async (data) => {
         if (data.accessToken) {
           setTokens(data.accessToken);
@@ -180,11 +198,16 @@ export default function Login() {
     },
   });
 
+  function signIn(u: string, p: string) {
+    ownSignIn.current = true;
+    login({ data: { username: u, password: p } });
+  }
+
   function handleLogin() {
     const u = username.trim();
     const p = password.trim();
     if (!u || !p) return;
-    login({ data: { username: u, password: p } });
+    signIn(u, p);
   }
 
   // Join a "watch together" room as a guest (no account): the code mints a

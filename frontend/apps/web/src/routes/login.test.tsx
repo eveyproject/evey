@@ -40,6 +40,9 @@ vi.mock("@evey/store", async (importOriginal) => ({
   ),
 }));
 
+// Whether a password is needed at all is authRefresh's call (login.coldload.test.ts).
+vi.mock("@/lib/authRefresh", () => ({ renewOnLoginArrival: async () => false }));
+
 vi.mock("@/components/QuickConnect", () => ({
   QuickConnect: () => React.createElement("div", { "data-testid": "quick-connect" }, "QuickConnect"),
 }));

@@ -105,3 +105,41 @@ describe("refreshTokenUnderLock", () => {
     }
   });
 });
+
+// The login route on a document load: the refresh cookie may still be live,
+// so ask the server before asking for a password. Not on a document that held
+// a session (a sign-out, whose revocation may be in flight) nor after a
+// refusal (the server already said no): there the form stands.
+describe("renewOnLoginArrival", () => {
+  // The verdict lives at module scope, as the document's does: a fresh module
+  // per test is a fresh document.
+  async function freshDocument() {
+    vi.resetModules();
+    return import("./authRefresh");
+  }
+
+  it("renews on a document that never held a live token", async () => {
+    const doc = await freshDocument();
+    refreshMock.mockResolvedValue({ accessToken: "fresh" });
+    expect(await doc.renewOnLoginArrival()).toBe(true);
+    expect(refreshMock).toHaveBeenCalledOnce();
+    expect(setTokensMock).toHaveBeenCalledWith("fresh");
+  });
+
+  it("does not ask again once a refresh was refused, until a sign-in lands", async () => {
+    const doc = await freshDocument();
+    refreshMock.mockRejectedValue(Object.assign(new Error("refresh failed"), { httpStatus: 401 }));
+    expect(await doc.refreshTokenWithOutcome()).toBe("denied");
+    expect(await doc.renewOnLoginArrival()).toBe(false);
+    expect(refreshMock).toHaveBeenCalledOnce();
+  });
+
+  it("stands aside on a document that held a session: a sign-out is not undone", async () => {
+    const doc = await freshDocument();
+    doc.noteLiveTokenHeld();
+    currentToken = null;
+    refreshMock.mockResolvedValue({ accessToken: "fresh" });
+    expect(await doc.renewOnLoginArrival()).toBe(false);
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+});

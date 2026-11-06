@@ -48,7 +48,7 @@ export async function refreshTokenUnderLock(): Promise<boolean> {
 export type RefreshOutcome = "ok" | "denied" | "transient";
 
 export async function refreshTokenWithOutcome(): Promise<RefreshOutcome> {
-  return underRefreshLock(async () => {
+  const outcome = await underRefreshLock(async (): Promise<RefreshOutcome> => {
     const current = useAuthStore.getState().accessToken;
     if (current && !isTokenExpired(current)) return "ok";
     try {
@@ -64,4 +64,30 @@ export async function refreshTokenWithOutcome(): Promise<RefreshOutcome> {
       return status === 401 || status === 403 ? "denied" : "transient";
     }
   });
+  if (outcome === "denied") refusedSinceLiveToken = true;
+  return outcome;
+}
+
+// Whether this document has held a live token, and whether a refresh was
+// refused since. A /login arrival on a document that held one follows a
+// sign-out, whose revocation may still be in flight; one after a refusal was
+// answered already: the form stands. A document that never held one is a page
+// load, and the refresh cookie may still be honoured - asking for a password
+// there is asking a signed-in visitor to sign in.
+let heldLiveToken = false;
+let refusedSinceLiveToken = false;
+
+// Reported by the app's store watcher (main.tsx) for every live token the
+// document takes on, the persisted one included.
+export function noteLiveTokenHeld(): void {
+  heldLiveToken = true;
+  refusedSinceLiveToken = false;
+}
+
+// The login route asking whether a password is needed at all. True when a
+// usable token is held afterwards; false, with no request, when the session
+// is known to be over.
+export async function renewOnLoginArrival(): Promise<boolean> {
+  if (heldLiveToken || refusedSinceLiveToken) return false;
+  return refreshTokenUnderLock();
 }

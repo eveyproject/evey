@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { QuickConnect } from "@/components/QuickConnect";
 import { writeGuestSession } from "@/features/syncplay/guestSession";
+import { renewOnLoginArrival } from "@/lib/authRefresh";
 
 type LoginSearch = {
   oidc_error?: string;
@@ -37,6 +38,13 @@ export const Route = createFileRoute("/login")({
         if (e && typeof e === "object" && "to" in e) throw e; // re-throw redirect
         // expired or malformed token - stay on login
       }
+    }
+    // No usable token in storage, but the refresh cookie may still be live:
+    // the session is not over until the server says so (authRefresh decides
+    // when asking is right). Not when the form was asked for, nor after an SSO
+    // attempt the visitor has to read the outcome of.
+    if (!search.manual && !search.oidc_error && (await renewOnLoginArrival())) {
+      throw redirect({ to: "/home" });
     }
     // The demo signs its visitors in by itself: its credentials are public
     // and its hourly restore wipes every session, so a form asking for a

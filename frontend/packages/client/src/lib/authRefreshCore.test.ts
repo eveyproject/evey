@@ -152,3 +152,46 @@ describe("createAuthRefresh - a limited refresh", () => {
     vi.unstubAllGlobals();
   });
 });
+
+// The sign-in screen reached with a session the server may still honour: a
+// boot whose renewal got no answer sent the viewer to a password form while
+// signed in. It renews there - but never on a process that held its session
+// already, where the screen follows a sign-out whose revocation may still be
+// in flight: renewing would undo it.
+describe("createAuthRefresh - the sign-in screen", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    useAuthStore.setState({ accessToken: null });
+  });
+
+  it("renews on a process that never held a live token", async () => {
+    const fresh = jwt(900, "fresh");
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ accessToken: fresh }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const flow = createAuthRefresh(storage({}));
+    await expect(flow.renewOnSignInScreen()).resolves.toBe(true);
+    vi.unstubAllGlobals();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(useAuthStore.getState().accessToken).toBe(fresh);
+  });
+
+  it("asks nothing on a process that held a session, even with a token still stored", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const flow = createAuthRefresh(storage({}));
+    useAuthStore.setState({ accessToken: jwt(900, "signed-in") });
+    useAuthStore.getState().logout();
+    await expect(flow.renewOnSignInScreen()).resolves.toBe(false);
+    vi.unstubAllGlobals();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("is false without a request once the store holds no refresh token", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const flow = createAuthRefresh(storage({ getRefreshToken: async () => null }));
+    await expect(flow.renewOnSignInScreen()).resolves.toBe(false);
+    vi.unstubAllGlobals();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

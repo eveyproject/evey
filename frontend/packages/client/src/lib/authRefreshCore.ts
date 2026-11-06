@@ -75,6 +75,7 @@ export interface AuthRefresh {
   ensureAccessToken(): Promise<AccessTokenState>;
   refreshAccessTokenIfNeeded(): Promise<boolean>;
   forceRefresh(): Promise<{ accessToken: string } | null>;
+  renewOnSignInScreen(): Promise<boolean>;
 }
 
 /**
@@ -89,6 +90,15 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
   let inFlight: Promise<RefreshOutcome> | null = null;
   // Set when the last refresh was refused by the server's limiter (429).
   let limited: { httpStatus: number; retryAfterSeconds?: number } | null = null;
+  // Whether this process has held a live access token. A sign-in screen
+  // reached after one follows a sign-out, whose revocation may still be in
+  // flight, or a refusal, which already spoke: the form stands. One reached
+  // without any is a boot whose renewal got no answer, and the stored refresh
+  // token may still be honoured.
+  let heldLiveToken = !isAccessExpired(useAuthStore.getState().accessToken);
+  useAuthStore.subscribe((s) => {
+    if (!isAccessExpired(s.accessToken)) heldLiveToken = true;
+  });
 
   async function doRefresh(lateAnswerRetried = false): Promise<RefreshOutcome> {
     const auth = useAuthStore.getState();
@@ -231,5 +241,13 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
     return tok ? { accessToken: tok } : null;
   }
 
-  return { ensureAccessToken, refreshAccessTokenIfNeeded, forceRefresh };
+  // The sign-in screen asking whether a password is needed at all. True when
+  // a live token is held afterwards; false, with no request, on a process
+  // that already had its session.
+  async function renewOnSignInScreen(): Promise<boolean> {
+    if (heldLiveToken) return false;
+    return refreshAccessTokenIfNeeded();
+  }
+
+  return { ensureAccessToken, refreshAccessTokenIfNeeded, forceRefresh, renewOnSignInScreen };
 }
