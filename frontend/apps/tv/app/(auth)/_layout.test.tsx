@@ -75,7 +75,7 @@ vi.mock("../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", accent: "#88f" } }),
 }));
 
-import AuthLayout from "./_layout";
+import AuthLayout, { unstable_settings } from "./_layout";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -85,6 +85,10 @@ beforeEach(() => {
 });
 
 describe("AuthLayout home shortcut", () => {
+  it("anchors the group on the tabs, so a screen opened from outside has the home under it for Back", () => {
+    expect(unstable_settings.anchor).toBe("(tabs)");
+  });
+
   it("renders the Home shortcut on a deep screen with no sidebar", () => {
     pathnameMock = "/media/123";
     render(<AuthLayout />);
