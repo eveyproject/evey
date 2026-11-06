@@ -141,33 +141,38 @@ func (s *SeekIndexService) ApplyOperatorShift(ctx context.Context, mediaID strin
 		return fmt.Errorf("apply shift: media %s has no file", mediaID)
 	}
 
-	rec := RepairRecord{
-		MediaID: mediaID, Path: f.Path, Op: RepairAudioRetime, Started: s.now(),
-		SizeBefore: fileSizeOf(f.Path),
-		ShiftSec:   map[uint64]float64{track: shiftSec},
-		Evidence: RepairEvidence{
-			Method: "operator",
-			Detail: "judged on a preview clip and applied by hand",
-		},
-	}
-	// One call, one implementation of the rule: the retime, the whole-track
-	// integrity check around it, and the inverse shift that puts the file back
-	// if sound went missing. No backup exists by design, so that inverse IS
-	// the way back.
-	if err := s.RetimeTracksGuarded(ctx, f.Path, rec.ShiftSec); err != nil {
-		// "rolled_back" only when the file on disk really is the original
-		// again - ErrOriginalRestored says so. This used to test for
-		// ErrAudioLost, which a retime cannot return (that is the SAMPLED
-		// guard's sentinel; a retime is judged by the exhaustive one), so
-		// every restored retime was filed as a plain failure.
-		rec.Outcome = repairOutcomeAfterGuard(err)
-		rec.Error = err.Error()
+	// A rewrite of the library disk like any batch repair: it holds the job
+	// slot and stands aside for a viewer, and is refused before anything is
+	// journalled when it cannot have either.
+	return s.runInSlot(JobAudioRetime, f.Path, func(ctx context.Context) error {
+		rec := RepairRecord{
+			MediaID: mediaID, Path: f.Path, Op: RepairAudioRetime, Started: s.now(),
+			SizeBefore: fileSizeOf(f.Path),
+			ShiftSec:   map[uint64]float64{track: shiftSec},
+			Evidence: RepairEvidence{
+				Method: "operator",
+				Detail: "judged on a preview clip and applied by hand",
+			},
+		}
+		// One call, one implementation of the rule: the retime, the whole-track
+		// integrity check around it, and the inverse shift that puts the file back
+		// if sound went missing. No backup exists by design, so that inverse IS
+		// the way back.
+		if err := s.RetimeTracksGuarded(ctx, f.Path, rec.ShiftSec); err != nil {
+			// "rolled_back" only when the file on disk really is the original
+			// again - ErrOriginalRestored says so. This used to test for
+			// ErrAudioLost, which a retime cannot return (that is the SAMPLED
+			// guard's sentinel; a retime is judged by the exhaustive one), so
+			// every restored retime was filed as a plain failure.
+			rec.Outcome = repairOutcomeAfterGuard(err)
+			rec.Error = err.Error()
+			s.journalRepair(ctx, rec)
+			return fmt.Errorf("apply shift: %w", err)
+		}
+		rec.Outcome = "applied"
+		rec.SizeAfter = fileSizeOf(f.Path)
 		s.journalRepair(ctx, rec)
-		return fmt.Errorf("apply shift: %w", err)
-	}
-	rec.Outcome = "applied"
-	rec.SizeAfter = fileSizeOf(f.Path)
-	s.journalRepair(ctx, rec)
-	s.refreshFileState(ctx, f.Path)
-	return nil
+		s.refreshFileState(ctx, f.Path)
+		return nil
+	})
 }

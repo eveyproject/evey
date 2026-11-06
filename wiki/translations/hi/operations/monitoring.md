@@ -1,5 +1,5 @@
 ---
-source_sha: 8225f3cc5ff5a9bf19187b30ea0a5cd214bea962f504708f3de910c38a198b9a
+source_sha: d85aa75ac4fda7ad79d0aa19567a4419404091f702a6f8fe6f95be244ef924d7
 reviewed: true
 ---
 # निगरानी और लॉग { #monitoring-and-logs }
@@ -101,9 +101,12 @@ Grafana कहीं से भी बिना साइन इन किए �
 | `evey_transcodes_active`, `evey_transcode_queue_depth` | बैकग्राउंड ट्रांसकोड के काम (लाइव प्लेबैक के बाहर) जो चल रहे हैं, और जो जगह का इंतज़ार कर रहे हैं। |
 | `evey_hlsvod_sessions_active`, `evey_hlsvod_sessions_rejected_total` | प्लेबैक के segments बनाने वाले FFmpeg प्रोसेस, और वे शुरुआतें जो मना कर दी गईं क्योंकि सर्वर अपनी सीमा पर था। |
 | `evey_hlsvod_cache_size_bytes`, `evey_hlsvod_cache_evicted_bytes_total` | डिस्क पर segment कैश का आकार, और सफ़ाई प्रक्रिया ने कितनी जगह खाली की। |
+| `evey_hls_first_segment_seconds` | किसी प्लेबैक ने अपनी playlist से पहले segment तक कितना इंतज़ार किया, serving path के हिसाब से (`transcode`, `ffmpeg-copy`)। शुरुआत में दर्शकों को महसूस होने वाला इंतज़ार। |
 | `evey_mkvgo_walks_in_flight`, `evey_mkvgo_plan_stats` | सर्वर के अंदर चलने वाला packager: पढ़ी जा रही windows, कतार में लगी reads (`stat="slot_waits"`), देखें [Evey में MKVGo](../playback/mkvgo.md#load-replaced-files-and-updates)। |
 | `evey_http_requests_total`, `evey_http_request_duration_seconds` | method और path के हिसाब से अनुरोध और देरी। |
 | `evey_watcher_alive`, `evey_scan_queue_depth` | क्या हर लाइब्रेरी के फ़ोल्डर मॉनिटर ने अपनी आखिरी जाँच का जवाब दिया (1 या 0), और स्कैन का इंतज़ार कर रही फ़ाइलें। |
+
+[`alerts.example.yml`](https://github.com/eveyproject/evey/blob/master/docs/operations/alerts.example.yml) में इन metrics पर बने alerting नियमों के उदाहरण हैं, जिन्हें आप अपनी Prometheus नियम फ़ाइलों में कॉपी कर सकते हैं।
 
 ## कमांड लाइन { #command-line }
 
@@ -115,5 +118,5 @@ who's online: frontend/apps/web/src/features/admin/DashboardOnline.tsx (presence
 logs: internal/pkg/logger/logger.go - New (file only outside DevMode), rotatingWriter ; config EVEY_LOG_RETENTION_DAYS ; docker-compose.yml ./evey-data:/data
 labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.where.*, admin.logs.live, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
 automatic limits: i18n admin.qoe.overrides.*
-metrics: internal/pkg/metrics/metrics.go (names) ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
+metrics: internal/pkg/metrics/metrics.go (names), HLSFirstSegmentSeconds fed by internal/adapters/driving/http/transcode_first_segment.go ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
 -->

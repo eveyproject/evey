@@ -5,6 +5,7 @@ import {
   itemLabel,
   playerAudioStreams,
   playerSubtitleStreams,
+  subtitleBurnMode,
 } from "@evey/api";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler, BackHandler, findNodeHandle } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
@@ -159,6 +160,7 @@ export default function PlayerScreen() {
   // same reading on every player (usePlayerProfilePrefs). A track picked in
   // this session is never overridden by them (userPickedAudioRef / ...).
   const {
+    profile: activeProfile,
     audioLangs: profileAudioLangs,
     subtitleLangs: profileSubtitleLangs,
     autoplayNext,
@@ -256,7 +258,12 @@ export default function PlayerScreen() {
 
   useDisplayFrameRate(streamInfo);
   const audioStreams: AudioStream[] = useMemo(() => playerAudioStreams(streamInfo?.mediaStreams), [streamInfo]);
-  const subtitleStreams: SubtitleStream[] = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams), [streamInfo]);
+  // The profile's burn-in choice decides which tracks go to the server.
+  const burnMode = subtitleBurnMode(activeProfile?.preferences);
+  const subtitleStreams: SubtitleStream[] = useMemo(
+    () => playerSubtitleStreams(streamInfo?.mediaStreams, burnMode),
+    [streamInfo, burnMode],
+  );
 
   // The audio and subtitle choice, shared with the phone
   // (usePlayerTrackSelection): the title page's pick and a hand pick win over
@@ -542,6 +549,10 @@ export default function PlayerScreen() {
   // a `?roomId=` param - see app/(auth)/syncplay/index.tsx and
   // src/hooks/useSyncplay.ts for the join flow and the host-authority rule.
   const [syncplayBadgeFocused, setSyncplayBadgeFocused] = useState(false);
+  const syncplayBadgeRef = useRef<View>(null);
+  // UP asks for the badge; the request waits for the controls to be on screen,
+  // since a first UP over a bare picture has to mount the top bar first.
+  const [wantBadgeFocus, setWantBadgeFocus] = useState(false);
   // Every one of these fires from a websocket, i.e. possibly while the player
   // is being torn down - hence withPlayer rather than a plain `player?.`.
   const syncplay = useSyncplay({
@@ -1075,6 +1086,9 @@ export default function PlayerScreen() {
   // that keeps every value it closes over current without having to enumerate
   // them as dependencies, which is where a stale-closure bug would creep in on
   // a screen this stateful.
+  const focusSurface = useCallback(() => {
+    (surfaceRef.current as unknown as { requestTVFocus?: () => void })?.requestTVFocus?.();
+  }, []);
   const remoteHandlerRef = useRef<(evt: { eventType: string } | undefined) => void>(() => {});
   remoteHandlerRef.current = (evt: { eventType: string } | undefined) => {
     if (!evt) return;
@@ -1101,6 +1115,18 @@ export default function PlayerScreen() {
     // own onPress to be the one about to fire).
     if (skipFocused && type === "select") return;
     if (syncplayBadgeFocused && type === "select") return;
+    // The top bar's room button holds the focus: BACK and DOWN step off it
+    // (back onto the picture, down into the bottom row), anything else just
+    // keeps the controls up instead of seeking behind the viewer's back.
+    if (syncplayBadgeFocused) {
+      if (type === "menu" || type === "back") {
+        focusSurface();
+      } else if (type === "down") {
+        setBarFocused(true);
+      }
+      resetHideTimer();
+      return;
+    }
     // OK on the focused surface already fires its native onPress - handling
     // "select" here too would double-toggle play/pause.
     if (surfaceFocused && type === "select") return;
@@ -1162,6 +1188,11 @@ export default function PlayerScreen() {
       // left the owner on a bar they could see and not reach (2026-10-24).
       if (!showControls) resetHideTimer();
       setBarFocused(true);
+    } else if (type === "up") {
+      // The way up to the top bar, where "Join a room" lives: a remote had no
+      // path onto that button at all, the surface swallowed every UP.
+      resetHideTimer();
+      setWantBadgeFocus(true);
     } else if (type === "menu" || type === "back") {
       if (showControls) handleBack();
       else resetHideTimer();
@@ -1256,10 +1287,36 @@ export default function PlayerScreen() {
         resetHideTimer();
         return true;
       }
+      if (syncplayBadgeFocused) {
+        focusSurface();
+        resetHideTimer();
+        return true;
+      }
       return false; // nothing open: the player's own exit contract runs
     });
     return () => sub.remove();
-  }, [asleep, wake, anySubPanelOpen, anyOverlayOpen, endedOverlayOpen, cancelNextEp, barFocused, closeSubPanels, closeAllOverlays, resetHideTimer]);
+  }, [asleep, wake, anySubPanelOpen, anyOverlayOpen, endedOverlayOpen, cancelNextEp, barFocused, syncplayBadgeFocused, focusSurface, closeSubPanels, closeAllOverlays, resetHideTimer]);
+
+  useEffect(() => {
+    if (!wantBadgeFocus || !showControls) return;
+    // Later than the surface reclaim below (100 ms), which the same wake can
+    // trigger and which would otherwise pull the focus straight back.
+    const t = setTimeout(() => {
+      setWantBadgeFocus(false);
+      (syncplayBadgeRef.current as unknown as { requestTVFocus?: () => void })?.requestTVFocus?.();
+    }, 150);
+    return () => clearTimeout(t);
+  }, [wantBadgeFocus, showControls]);
+
+  // The controls fold away while the room button holds the focus: it unmounts
+  // with them, and a focus left on nothing leaves the remote deaf.
+  const badgeFocusedRef = useRef(false);
+  badgeFocusedRef.current = syncplayBadgeFocused;
+  useEffect(() => {
+    if (showControls || !badgeFocusedRef.current) return;
+    setSyncplayBadgeFocused(false);
+    focusSurface();
+  }, [showControls, focusSurface]);
 
   // Imperative focus reclaim: whenever no overlay/bar should own the D-pad,
   // force native focus back onto the surface - if no native view is focused
@@ -1436,6 +1493,7 @@ export default function PlayerScreen() {
       <SubtitleOverlay
         mediaId={mediaId}
         subtitleIndex={clientSubtitleIndex}
+        style={subtitleStyle}
       />
 
       {isBuffering && (
@@ -1647,6 +1705,7 @@ export default function PlayerScreen() {
             </Text>
             <View style={styles.badgeRow}>
               <SyncplaySessionBadge
+                ref={syncplayBadgeRef}
                 connected={syncplay.state.connected}
                 onFocusChange={setSyncplayBadgeFocused}
                 onPress={() => {

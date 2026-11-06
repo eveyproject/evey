@@ -572,16 +572,22 @@ ci-clean-checkout:
 # `safe.directory` is needed because the container runs as root over a tree
 # owned by the host user.
 PROTO_BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD)
+BUF_IMAGE ?= bufbuild/buf:1.68.2
 ci-proto-breaking:
 	@echo "→ buf breaking (proto wire compat vs origin/$(PROTO_BRANCH))"
 	@# A remote that has no such branch yet (first push to a fresh repository)
 	@# publishes no wire contract to break: nothing to compare against, skip. A
 	@# branch the remote has but this clone never fetched is still an error.
+	@# The tree checked is the one being pushed (this checkout, a worktree
+	@# included) and the published side is extracted from git into a fresh
+	@# temporary directory: the dev container mounts the main working tree
+	@# only, so a push from a worktree compared the main tree's protos and
+	@# read every new field as deleted.
 	@if git rev-parse --verify --quiet "origin/$(PROTO_BRANCH)" >/dev/null; then \
-	  docker exec -w /app evey-server sh -c '\
-	    git config --global --add safe.directory /app >/dev/null 2>&1; \
-	    git config --global --add safe.directory /app/.git >/dev/null 2>&1; \
-	    buf breaking --against ".git#ref=origin/$(PROTO_BRANCH)"'; \
+	  base=$$(mktemp -d) && \
+	  git archive "origin/$(PROTO_BRANCH)" buf.yaml buf.lock proto | tar -x -C "$$base" && \
+	  docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp \
+	    -v "$(CURDIR)":/w -v "$$base":/base:ro -w /w $(BUF_IMAGE) breaking --against /base; \
 	elif git ls-remote --exit-code --heads origin "$(PROTO_BRANCH)" >/dev/null 2>&1; then \
 	  echo "❌ origin/$(PROTO_BRANCH) is unknown locally - run 'git fetch origin' so this gate has something to compare against"; \
 	  exit 1; \

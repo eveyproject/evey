@@ -11,6 +11,7 @@ import (
 	applibrary "github.com/eveyproject/evey/internal/app/library"
 	"github.com/eveyproject/evey/internal/config"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 )
 
 // wire_events.go starts the background workers, the filesystem watcher and the
@@ -221,7 +222,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 					case <-ctx.Done():
 						return
 					case <-ticker.C:
-						reconcileMusic()
+						bgloop.Tick("music.reconcileSearch", reconcileMusic)
 					}
 				}
 			}()

@@ -101,7 +101,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 	// Drop the option and carry on instead.
 	if opts.ProgressLogPath != "" {
 		if err := os.MkdirAll(filepath.Dir(opts.ProgressLogPath), 0o755); err != nil {
-			slog.Warn("hls: ffmpeg progress log disabled for this session, its directory is not writable",
+			slog.WarnContext(ctx, "hls: ffmpeg progress log disabled for this session, its directory is not writable",
 				slog.String("path", opts.ProgressLogPath), slog.Any("err", err))
 			opts.ProgressLogPath = ""
 		}
@@ -114,7 +114,11 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 		return nil, err
 	}
 	args := BuildFFmpegArgs(opts)
-	slog.Info("hls: ffmpeg start",
+	// Through the context: the request and trace ids the handler injects are
+	// what ties this spawn to the segment request and the session that asked.
+	slog.InfoContext(ctx, "hls: ffmpeg start",
+		slog.String("media_id", opts.MediaID),
+		slog.String("session_id", opts.SessionID),
 		slog.String("media_path", opts.FilePath),
 		slog.String("video_decision", opts.VideoDecision),
 		slog.String("audio_decision", opts.AudioDecision),
@@ -125,6 +129,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 
 	processCtx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(processCtx, "ffmpeg", args...)
+	cmd.Env = procfork.ChildEnv()
 	procfork.DieWithParent(cmd)
 	// Capture stderr in a ring buffer so we can surface real ffmpeg errors
 	// (codec mismatch, channel layout, missing audio encoder, etc.). Without
@@ -250,12 +255,24 @@ func audioFilterOption(flag string, sourceChannels, maxChannels int, normalize b
 // measures hundreds of ms. Below the floor the args stay byte-identical.
 const audioDelayCancelMinSec = 0.1
 
+// cancelledAudioDelaySec is the part of a probed source start delay the
+// session cancels: all of it past the floor, none of it under. A delay under
+// the floor is left alone on its own, so it stays out of the composition
+// with a user resync too - or the user's first step would be worth the step
+// minus that noise.
+func cancelledAudioDelaySec(delaySec float64) float64 {
+	if delaySec > audioDelayCancelMinSec {
+		return delaySec
+	}
+	return 0
+}
+
 // audioNetShiftSec is the single net input shift the second audio input
 // applies: the source-defect cancellation (shift audio EARLIER by the probed
 // start delay) minus the user's resync request (positive = audio LATER). The
 // two compose into one -itsoffset value: -net.
 func audioNetShiftSec(opts transcoding.HLSProcessOpts) float64 {
-	return opts.AudioStartDelaySec - opts.AudioUserOffsetSec
+	return cancelledAudioDelaySec(opts.AudioStartDelaySec) - opts.AudioUserOffsetSec
 }
 
 // audioDelayCancelActive reports whether this session feeds audio from a

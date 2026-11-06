@@ -32,6 +32,7 @@ type cmdSvcDeps struct {
 	cacheDir      string
 	configRepo    shared.ServerConfigRepository
 	prober        *libfakes.FakeStreamProber // optional: pre-seed probe results
+	mediaPersons  *libfakes.FakeMediaPersonRepository
 }
 
 func newCmdSvcWith(d *cmdSvcDeps) (*applib.CommandService, *libfakes.FakeLibraryCommandRepo, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeMediaItemCommandRepo, *libfakes.FakeFileScanner, *sharedfakes.FakeEventBus) {
@@ -50,6 +51,9 @@ func newCmdSvcWith(d *cmdSvcDeps) (*applib.CommandService, *libfakes.FakeLibrary
 	}
 	if d.prober != nil {
 		prober = d.prober
+	}
+	if d.mediaPersons != nil {
+		mediaPersonRepo = d.mediaPersons
 	}
 	if d.chapterRepo == nil {
 		d.chapterRepo = libfakes.NewFakeChapterRepository()

@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
-import { formatDurationMs } from "@evey/api";
+import { formatDurationMs, isPositive } from "@evey/api";
 import { Clock, Film } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -116,7 +116,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
         </Link>
         <div className="flex items-center gap-2 mt-0.5">
           <p className="text-xs text-[var(--text-muted)]">{formatDate(item.lastPlayedAt)}</p>
-          {item.durationMs && (
+          {isPositive(item.durationMs) && (
             <p className="text-xs text-[var(--text-muted)]">{formatDurationMs(item.positionMs)} / {formatDurationMs(item.durationMs)}</p>
           )}
         </div>

@@ -87,6 +87,8 @@ export interface AuthRefresh {
  */
 export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
   let inFlight: Promise<RefreshOutcome> | null = null;
+  // Set when the last refresh was refused by the server's limiter (429).
+  let limited: { httpStatus: number; retryAfterSeconds?: number } | null = null;
 
   async function doRefresh(lateAnswerRetried = false): Promise<RefreshOutcome> {
     const auth = useAuthStore.getState();
@@ -131,13 +133,27 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
       });
       // Only a REFUSAL ends the session; any other non-ok answer is the
       // infrastructure, not the credential, and must leave the session intact.
-      if (res.status === 401 || res.status === 403) {
-        log.warn(`session ended: refresh answered ${res.status}`);
+      // The server refuses a credential with 401 alone: a 403 on this call is
+      // the gate in front of it (remote access switched off while the phone is
+      // away from home, the CSRF guard, a bouncer banning the household's
+      // address) - read as a refusal it burned the refresh token of every
+      // device for a ban that lifted an hour later.
+      if (res.status === 401) {
+        log.warn("session ended: refresh answered 401");
         await storage.clearRefreshToken();
         auth.logout();
         return "refused";
       }
+      if (res.status === 403) {
+        const gate = res.headers.get("X-Evey-Remote-Access");
+        log.warn(`refresh unavailable: answered 403${gate ? ` (remote access ${gate})` : ""}`);
+        return "unavailable";
+      }
       if (!res.ok) {
+        if (res.status === 429) {
+          const retryAfter = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
+          limited = { httpStatus: 429, ...(Number.isFinite(retryAfter) ? { retryAfterSeconds: retryAfter } : {}) };
+        }
         log.warn(`refresh unavailable: answered ${res.status}`);
         return "unavailable";
       }
@@ -204,8 +220,12 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
   // session - the fetcher latches and fires unauthorized), a THROW means
   // transient unavailability (the fetcher stays free to retry later).
   async function forceRefresh(): Promise<{ accessToken: string } | null> {
+    limited = null;
     const outcome = await runRefresh();
     if (outcome === "refused") return null;
+    // The limiter's answer keeps its status and delay, so the fetcher relays a
+    // 429 the caller can back off by instead of an authorization failure.
+    if (outcome !== "ok" && limited) throw Object.assign(new Error("refresh limited"), limited);
     if (outcome !== "ok") throw new Error("refresh unavailable: no answer from the server");
     const tok = useAuthStore.getState().accessToken;
     return tok ? { accessToken: tok } : null;

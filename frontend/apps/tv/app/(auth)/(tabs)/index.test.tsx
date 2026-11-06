@@ -443,6 +443,16 @@ describe("HomeScreen feed-config driven rows", () => {
     expect(screen.getByText("media.home.mostPopular")).toBeTruthy();
   });
 
+  // The popular endpoint names the type like the feed rails (the enum name):
+  // a series card gets the series label and opens the series page.
+  it("labels a popular series card and opens the series page", () => {
+    popularMock.mockReturnValue({ data: [{ mediaItemId: "mi-show", title: "Popular Show", type: "MEDIA_ITEM_TYPE_SERIES" }], isLoading: false });
+    render(<HomeScreen />);
+    expect(screen.getByText("media.itemType.series")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Popular Show"));
+    expect(pushMock).toHaveBeenCalledWith("/media/mi-show");
+  });
+
   it("sends a collection card to the collection, not to /media/<id>", () => {
     render(<HomeScreen />);
     fireEvent.click(screen.getByLabelText("Marvel"));

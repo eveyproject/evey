@@ -62,9 +62,25 @@ vi.mock("../src/components/ParentalPINModal", () => ({
   },
 }));
 
+const clearUnlockedMock = vi.fn();
+vi.mock("../src/hooks/useParentalGate", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/hooks/useParentalGate")>()),
+  clearUnlocked: () => clearUnlockedMock(),
+}));
+
 const invalidateQueriesMock = vi.fn();
+const clearQueriesMock = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock }),
+  useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock, clear: clearQueriesMock }),
+}));
+
+// The switch sends the stored refresh token and writes the rotated one back
+// (SecureStore in the app): the keystore is faked here.
+const setRefreshTokenMock = vi.fn(async (_token: string) => {});
+vi.mock("../src/lib/refresh-token", () => ({
+  getRefreshToken: async () => "stored-rt",
+  setRefreshToken: (token: string) => setRefreshTokenMock(token),
+  clearRefreshToken: async () => {},
 }));
 
 const currentUserMock = vi.fn();
@@ -132,14 +148,58 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
       ] },
       isLoading: false,
     });
+    refreshTokenMock.mockResolvedValueOnce({ accessToken: "new-access-token", refreshToken: "rotated-rt" });
+
+    render(<ProfileSelect />);
+    fireEvent.click(screen.getByText("Adult"));
+
+    // The stored refresh token travels in the body (the silent refresh of this
+    // app sends no cookie, so the jar held a consumed token), and the rotated
+    // one is written back so the next silent refresh does not replay it.
+    await waitFor(() => expect(refreshTokenMock).toHaveBeenCalledWith({ refreshToken: "stored-rt", profileId: "prof-adult" }));
+    expect(setTokensMock).toHaveBeenCalledWith("new-access-token");
+    await waitFor(() => expect(setRefreshTokenMock).toHaveBeenCalledWith("rotated-rt"));
+    // Every screen under the picker refetches as the new profile, kids filter included.
+    expect(clearQueriesMock).toHaveBeenCalledTimes(1);
+    // The unlocks of the profile left behind do not follow the viewer.
+    expect(clearUnlockedMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
+  });
+
+  // A parental unlock belongs to the viewer who typed the PIN: carried over
+  // the switch, a kids profile picked next would open the gated titles.
+  it("forgets every parental unlock once the server confirmed the switch", async () => {
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [
+        { id: "prof-kids", name: "Kid", isKids: true },
+        { id: "prof-adult", name: "Adult", isKids: false },
+      ] },
+      isLoading: false,
+    });
     refreshTokenMock.mockResolvedValueOnce({ accessToken: "new-access-token" });
 
     render(<ProfileSelect />);
     fireEvent.click(screen.getByText("Adult"));
 
-    await waitFor(() => expect(refreshTokenMock).toHaveBeenCalledWith({ profileId: "prof-adult", pinToken: undefined }));
-    expect(setTokensMock).toHaveBeenCalledWith("new-access-token");
     await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
+    expect(clearUnlockedMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the unlocks when the server refuses the switch", async () => {
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [
+        { id: "prof-kids", name: "Kid", isKids: true },
+        { id: "prof-adult", name: "Adult", isKids: false },
+      ] },
+      isLoading: false,
+    });
+    refreshTokenMock.mockRejectedValueOnce(Object.assign(new Error("forbidden"), { httpStatus: 403 }));
+
+    render(<ProfileSelect />);
+    fireEvent.click(screen.getByText("Adult"));
+
+    await waitFor(() => expect(screen.getByLabelText("confirm-pin")).toBeTruthy());
+    expect(clearUnlockedMock).not.toHaveBeenCalled();
   });
 
   it("never applies the switch locally when the server rejects with 403 - it opens the PIN gate instead", async () => {
@@ -156,6 +216,7 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
     fireEvent.click(screen.getByText("Adult"));
 
     await waitFor(() => expect(screen.getByLabelText("confirm-pin")).toBeTruthy());
+    expect(clearUnlockedMock).not.toHaveBeenCalled();
     // Critically: no local profile switch happened while the PIN is pending.
     expect(setTokensMock).not.toHaveBeenCalled();
     expect(dismissToMock).not.toHaveBeenCalledWith("/(auth)/(tabs)");
@@ -180,7 +241,7 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
     fireEvent.click(screen.getByLabelText("confirm-pin"));
 
     await waitFor(() =>
-      expect(refreshTokenMock).toHaveBeenNthCalledWith(2, { profileId: "prof-adult", pinToken: "proof-token" }),
+      expect(refreshTokenMock).toHaveBeenNthCalledWith(2, { refreshToken: "stored-rt", profileId: "prof-adult", pinToken: "proof-token" }),
     );
     expect(setTokensMock).toHaveBeenCalledWith("new-access-token");
     await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));

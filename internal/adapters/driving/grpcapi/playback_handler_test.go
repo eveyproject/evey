@@ -1810,3 +1810,43 @@ func TestGetStreamInfo_FileGoneFromDisk(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, rescanned, "a title whose file is there triggers nothing")
 }
+
+// Without a selected index the HLS master serves the track the profile's
+// languages pick, not the container default: the stream-info verdict must
+// judge that same track (the French DTS here, re-encoded for an AAC client).
+func TestGetStreamInfo_JudgesTheLanguagePreferredTrack(t *testing.T) {
+	h, _, _, mediaQuery, profileRepo, streamRepo := newTestPlaybackHandler()
+	require.NoError(t, profileRepo.Create(context.Background(), &user.Profile{
+		ID: "profile-fr", UserID: "user-1", Name: "French", AudioLanguages: []string{"fr"},
+	}))
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-lang-audio", Title: "Dual Audio", Type: "movie", File: &library.MediaFile{ContainerFormat: "mp4"}})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-lang-audio", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-lang-audio", StreamIndex: 1, StreamType: "audio", Codec: "aac", Language: "eng", Channels: new(2), IsDefault: true},
+		{MediaItemID: "mi-lang-audio", StreamIndex: 2, StreamType: "audio", Codec: "dts", Language: "fre", Channels: new(6)},
+	})
+	req := &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-lang-audio", SupportedAudioCodecs: []string{"aac", "mp3"}}
+
+	resp, err := h.GetStreamInfo(ctxWithClaims("user-1", "profile-fr", true), req)
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", resp.AudioDecision, "the French DTS the master serves is re-encoded")
+
+	resp, err = h.GetStreamInfo(ctxWithClaims("user-1", "profile-1", true), req)
+	require.NoError(t, err)
+	assert.Equal(t, "copy", resp.AudioDecision, "no language preference: the default English AAC")
+}
+
+// A commentary track flagged default is not the implicit pick (the master
+// skips it): the verdict judges the main track the master serves.
+func TestGetStreamInfo_SkipsACommentaryDefaultTrack(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-commentary", Title: "Commentary Default", Type: "movie", File: &library.MediaFile{ContainerFormat: "mp4"}})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-commentary", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-commentary", StreamIndex: 1, StreamType: "audio", Codec: "aac", Language: "eng", Channels: new(2), IsDefault: true, Commentary: true},
+		{MediaItemID: "mi-commentary", StreamIndex: 2, StreamType: "audio", Codec: "dts", Language: "eng", Channels: new(6)},
+	})
+	resp, err := h.GetStreamInfo(pbAdminCtx(), &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-commentary", SupportedAudioCodecs: []string{"aac", "mp3"}})
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", resp.AudioDecision, "the DTS main track the master serves is re-encoded, not the AAC commentary")
+}

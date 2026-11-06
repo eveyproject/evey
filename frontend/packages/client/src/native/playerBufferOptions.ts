@@ -7,6 +7,9 @@
 // collections of up to 2.5 s dropped frames and starved the audio. The cap is
 // an eighth of the heap the platform grants, never under 16 MiB; a heap of
 // 512 MiB or more keeps the player's own sizing, so the cap stays under 64 MiB.
+// The cap gives way under a few seconds of playable media (the expo-video patch,
+// DefaultLoadControl): a single segment heavier than the cap would otherwise
+// block the separate audio rendition behind it, and playback with it.
 
 const MIB = 1024 * 1024;
 export const PLAYER_BUFFER_MIN_BYTES = 16 * MIB;

@@ -1634,3 +1634,65 @@ func TestAutoEnrichItem_DiskCountReadErrorDoesNotDisableTheMatchGuard(t *testing
 		"a series whose disk structure cannot be read must not be matched against a provider "+
 			"with the validation silently disabled")
 }
+
+// Season and episode details bypass the cached provider, so the text is
+// cleaned again where it is written onto the item.
+func TestApplyBasicFields_SanitizesProviderText(t *testing.T) {
+	item := &domainlib.MediaItem{ID: "ep-1", Type: domainlib.Episode, Title: "S01E01"}
+	result := &domain.MetadataResult{
+		Title: "Pi\x00lot", Overview: "\u202EOver\x07view", Tagline: " Tag\x1f ",
+		Genres: []string{"Dra\x00ma"}, People: []domain.PersonResult{{Name: "Na\x00me"}},
+	}
+	applyBasicFields(item, result)
+	assert.Equal(t, "Pilot", item.Title)
+	assert.Equal(t, "Overview", item.Overview)
+	assert.Equal(t, "Tag", item.Tagline)
+	assert.Equal(t, []string{"Drama"}, item.Catalog.Genres)
+	assert.Equal(t, "Name", result.People[0].Name)
+}
+
+// The same images in another order are a change: sort_order is what makes a
+// poster the first one, so a provider that re-ranked its images must be
+// written, not read as "nothing new".
+func TestArtworkSetUnchanged_OrderCounts(t *testing.T) {
+	a, b := "https://img/a.jpg", "https://img/b.jpg"
+	existing := []*domain.ArtworkRecord{
+		{Type: domain.ArtworkTypePoster, SourceURL: &b, SortOrder: 1},
+		{Type: domain.ArtworkTypePoster, SourceURL: &a, SortOrder: 0},
+	}
+	same := []domain.ArtworkResult{{Type: domain.ArtworkTypePoster, URL: a}, {Type: domain.ArtworkTypePoster, URL: b}}
+	swapped := []domain.ArtworkResult{{Type: domain.ArtworkTypePoster, URL: b}, {Type: domain.ArtworkTypePoster, URL: a}}
+	assert.True(t, artworkSetUnchanged(existing, same), "same images in the stored order")
+	assert.False(t, artworkSetUnchanged(existing, swapped), "same images, another first poster")
+	assert.False(t, artworkSetUnchanged(existing, same[:1]))
+}
+
+// The same images re-ranked by the provider move in sort_order only: the rows,
+// their downloaded files and blurhashes stay, and nothing is fetched again.
+func TestReplaceArtwork_ReorderOnlyMovesSortOrder(t *testing.T) {
+	e, artRepo, _, _, _, _ := newTestEnricher(&fakeProvider{name: "tmdb"}, nil, nil)
+	ctx := context.Background()
+	a, b := "https://img/a.jpg", "https://img/b.jpg"
+	local := "/data/artworks/m1/a.jpg"
+	require.NoError(t, artRepo.Create(ctx, &domain.ArtworkRecord{ID: "art-a", MediaItemID: "m1", Type: domain.ArtworkTypePoster, Provider: "tmdb", SourceURL: &a, LocalPath: &local, SortOrder: 0}))
+	require.NoError(t, artRepo.Create(ctx, &domain.ArtworkRecord{ID: "art-b", MediaItemID: "m1", Type: domain.ArtworkTypePoster, Provider: "tmdb", SourceURL: &b, SortOrder: 1}))
+
+	records, err := e.replaceArtwork(ctx, "m1", []domain.ArtworkResult{
+		{Type: domain.ArtworkTypePoster, URL: b, Provider: "tmdb"},
+		{Type: domain.ArtworkTypePoster, URL: a, Provider: "tmdb"},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, records, "nothing new to download")
+	assert.Zero(t, artRepo.DeleteByMediaItemIDCalls)
+	got, err := artRepo.GetByMediaItem(ctx, "m1")
+	require.NoError(t, err)
+	order := map[string]int{}
+	for _, r := range got {
+		order[r.ID] = r.SortOrder
+		if r.ID == "art-a" {
+			require.NotNil(t, r.LocalPath)
+			assert.Equal(t, local, *r.LocalPath)
+		}
+	}
+	assert.Equal(t, map[string]int{"art-b": 0, "art-a": 1}, order)
+}

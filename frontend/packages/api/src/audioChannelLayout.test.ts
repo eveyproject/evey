@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { formatAudioTrackLabel, formatChannelLayout, trackDisplayName } from "./audioChannelLayout";
+import { formatAudioTrackLabel, formatChannelLayout, tagAudioTrackLabel, trackDisplayName } from "./audioChannelLayout";
+import type { PlayerAudioStream } from "./playerStreams";
 
 describe("formatChannelLayout", () => {
   // The drift this replaces: web's track menu said "2.0", web's own stream
@@ -60,5 +61,25 @@ describe("trackDisplayName", () => {
 
   it("keeps an audio label readable when only the language is known", () => {
     expect(formatAudioTrackLabel({ title: "", language: "eng", channels: 2 }, "Track 1")).toBe("eng - 2.0");
+  });
+});
+
+describe("tagAudioTrackLabel", () => {
+  const t = (key: string) => `<${key}>`;
+
+  // A commentary or audio-description track often carries the same language
+  // and layout as the main one: without the tag the menu lists two identical
+  // entries and the viewer cannot tell which one is the film.
+  it("names a commentary and an audio-description track", () => {
+    expect(tagAudioTrackLabel("English - 5.1", { isCommentary: true }, t)).toBe("English - 5.1 - <media.streams.commentary>");
+    expect(tagAudioTrackLabel("English - 2.0", { isVisualImpaired: true }, t)).toBe("English - 2.0 - <media.streams.audioDescription>");
+    expect(tagAudioTrackLabel("English", { isCommentary: true, isVisualImpaired: true }, t))
+      .toBe("English - <media.streams.commentary> - <media.streams.audioDescription>");
+  });
+
+  it("leaves a main track's label as it was", () => {
+    expect(tagAudioTrackLabel("English - 5.1", {}, t)).toBe("English - 5.1");
+    const hearingImpaired: PlayerAudioStream = { index: 1, trackIndex: 0, isHearingImpaired: true };
+    expect(tagAudioTrackLabel("English - 5.1", hearingImpaired, t)).toBe("English - 5.1");
   });
 });

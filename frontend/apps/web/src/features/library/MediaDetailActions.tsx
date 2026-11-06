@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { formatTimeMs, itemLabel, type TrackPick } from "@evey/api";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
-import { RESUME_PROGRESS_QUERY } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, resumableMs } from "@evey/client";
 import { Play, RotateCcw, EyeOff, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { useTranslation } from "react-i18next";
@@ -104,7 +104,8 @@ export function MediaDetailActions({
   });
   const watched = watchedOverride ?? (progress?.played === true);
   const resumeMs = progress?.positionMs;
-  const hasProgress = !!resumeMs && Number(resumeMs) > 0 && progress?.played !== true;
+  // A film seen before and watched again resumes too: see resumableMs.
+  const hasProgress = resumableMs(progress) > 0;
 
   const invalidateWatched = () => {
     invalidateWatchedState(qc, item.id);
@@ -191,13 +192,9 @@ export function MediaDetailActions({
             }}
           />
         )}
-        {/* Not offered for a series/season: the server's MarkAsWatched writes a
-            single progress row on the id it is given and nothing cascades it to
-            the episodes (no MediaMarkedWatched consumer descends the tree), so a
-            "watched" series would leave every episode unwatched - a misleading
-            button. Only real playable items (movie/episode) get the toggle.
-            Kept in sync with apps/mobile. */}
-        {item.id && !isSeries && !isSeason && (
+        {/* Offered on a series and a season too: the server marks every
+            episode beneath the id it is given, and unmarks them the same way. */}
+        {item.id && (
           watched ? (
             <Button {...lock} variant="secondary" size="lg" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-unwatched-btn">
               <EyeOff size={ICON.md} />

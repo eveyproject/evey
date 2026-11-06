@@ -17,6 +17,7 @@ import (
 
 	"github.com/eveyproject/evey/internal/domain/backup"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	"github.com/eveyproject/evey/internal/pkg/id"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -148,7 +149,13 @@ func (s *Service) createBackup(ctx context.Context) (*backup.BackupManifest, err
 	if err != nil {
 		return nil, fmt.Errorf("Service.CreateBackup: check schema version: %w", err)
 	}
+	return s.dumpToStore(ctx, schemaVersion)
+}
 
+// dumpToStore dumps the database into the store under a new manifest. The
+// caller holds opMu in the mode its operation needs: a backup shares the lock,
+// a restore owns it and takes its safety dump through here.
+func (s *Service) dumpToStore(ctx context.Context, schemaVersion string, opts ...backup.BackupManifestOption) (*backup.BackupManifest, error) {
 	includeTelemetry := false
 	if s.includeTelemetry != nil {
 		includeTelemetry = s.includeTelemetry()
@@ -177,10 +184,11 @@ func (s *Service) createBackup(ctx context.Context) (*backup.BackupManifest, err
 		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
 	}
 
-	m, err := backup.NewBackupManifest(id.New("bk-"), s.version, BackupTables,
+	opts = append([]backup.BackupManifestOption{
 		backup.WithBackupSHA256(hex.EncodeToString(h.Sum(nil))),
 		backup.WithBackupSchemaVersion(schemaVersion),
-	)
+	}, opts...)
+	m, err := backup.NewBackupManifest(id.New("bk-"), s.version, BackupTables, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
 	}
@@ -245,6 +253,17 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 			archive.manifest.SchemaVersion, currentSchemaVersion)
 	}
 
+	// The tables are about to be replaced in one transaction with no way
+	// back: the database as it stands goes to the store first, so a restore
+	// of the wrong archive is undone by restoring this one. Without it the
+	// restore does not run.
+	safety, err := s.dumpToStore(ctx, currentSchemaVersion, backup.WithBackupReason(backup.ReasonPreRestore))
+	if err != nil {
+		return fmt.Errorf("restore: safety backup of the current database: %w", err)
+	}
+	slog.InfoContext(ctx, "restore: current database saved before the tables are replaced",
+		slog.String("backup_id", safety.ID))
+
 	f, err := os.Open(archive.dumpPath)
 	if err != nil {
 		return fmt.Errorf("restore: open dump temp file: %w", err)
@@ -270,14 +289,14 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 		return
 	}
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.ErrorContext(ctx, "panic in backup scheduler", slog.Any("recover", r))
+		// Recovery is per tick: a recover around the loop would end the
+		// schedule at its first panic, and a backup that silently stops
+		// is its own outage.
+		bgloop.Tick("backup.retention", func() {
+			if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
+				slog.WarnContext(ctx, "backup retention cleanup", slog.Any("err", err))
 			}
-		}()
-		if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
-			slog.WarnContext(ctx, "backup retention cleanup", slog.Any("err", err))
-		}
+		})
 		for _, ch := range initDone {
 			if ch != nil {
 				close(ch)
@@ -290,7 +309,7 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				s.runScheduledBackupCycle(ctx, retentionDays)
+				bgloop.Tick("backup.schedule", func() { s.runScheduledBackupCycle(ctx, retentionDays) })
 			}
 		}
 	}()

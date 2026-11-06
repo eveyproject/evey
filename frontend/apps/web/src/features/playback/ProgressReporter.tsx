@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 import { playbackServiceReportProgress, eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
-import { PREWARM_PROGRESS_THRESHOLD } from "@evey/client";
+import { PREWARM_PROGRESS_THRESHOLD, refreshProgressViews } from "@evey/client";
 
 /**
  * Live cast (Chromecast) playback state, relayed by the sender page. While
@@ -30,7 +31,7 @@ interface ProgressReporterProps {
   transcodeOffsetRef?: React.RefObject<number>;
   /** Current media item id - drives the predictive next-episode warm-up. */
   mediaId?: string;
-  /** Media type (episode / movie / ...) - gates the warm-up to episodes. */
+  /** The proto MediaItemType value of the item - gates the warm-up to episodes. */
   mediaType?: string;
   onRemoteStop?: () => void;
   /**
@@ -59,6 +60,11 @@ const HAVE_METADATA = 1;
 export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, onRemoteMessage, cast, remoteActive = false }: ProgressReporterProps) {
   const pendingRef = useRef(false);
   const errorCountRef = useRef(0);
+  // See refreshProgressViews: the media page re-reads its Resume button once
+  // the last position has landed. From the context, so no provider is no crash.
+  const queryClient = useContext(QueryClientContext);
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
   // One prewarm per media item per mount - fires exactly when the
   // current play first crosses the threshold. Resets whenever the
   // mediaId changes (next ep starts).
@@ -135,7 +141,7 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
         if (
           !casting &&
           mediaId &&
-          mediaType === "episode" &&
+          mediaType === "MEDIA_ITEM_TYPE_EPISODE" &&
           prewarmedForRef.current !== mediaId &&
           video.duration > 0 &&
           video.currentTime / video.duration >= PREWARM_PROGRESS_THRESHOLD
@@ -206,12 +212,15 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
           isMuted: cast.isMuted,
           volumeLevel: Math.round(cast.volume * 100),
           castDeviceName: cast.deviceName,
-        }).catch((err) => console.warn("final progress report failed", err));
+        })
+          .catch((err) => console.warn("final progress report failed", err))
+          .finally(() => refreshProgressViews(queryClientRef.current));
         return;
       }
       if (!last) return;
       playbackServiceReportProgress({ sessionId, ...last, castDeviceName: "" })
-        .catch((err) => console.warn("final progress report failed", err));
+        .catch((err) => console.warn("final progress report failed", err))
+        .finally(() => refreshProgressViews(queryClientRef.current));
     };
     // Re-create the interval when the underlying mediaId changes so a new
     // ep gets its own prewarmedForRef bookkeeping.

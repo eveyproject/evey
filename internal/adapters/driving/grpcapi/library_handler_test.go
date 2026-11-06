@@ -248,6 +248,28 @@ func TestLibraryHandler_ListLibraries_FilteredByAccess(t *testing.T) {
 	assert.False(t, ids["lib-2"])
 }
 
+// A library's roots are the host's absolute paths: the admin screens that
+// manage libraries read them, a viewer listing the libraries it may browse
+// never does - as for the item's file_path, they lay the filesystem out.
+func TestLibraryHandler_ListLibraries_PathsAreAdminOnly(t *testing.T) {
+	h, libQuery, _, _, libraryAccess, _, _ := newTestLibraryHandler()
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/srv/media/movies"}})
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	viewer, err := h.ListLibraries(userCtx("user-2", "profile-2"), &eveyv1.ListLibrariesRequest{})
+	require.NoError(t, err)
+	require.Len(t, viewer.Libraries, 1)
+	assert.Empty(t, viewer.Libraries[0].Paths, "a viewer never sees where the files live")
+	one, err := h.GetLibrary(userCtx("user-2", "profile-2"), &eveyv1.GetLibraryRequest{Id: "lib-1"})
+	require.NoError(t, err)
+	assert.Empty(t, one.Paths)
+
+	admin, err := h.ListLibraries(adminCtx(), &eveyv1.ListLibrariesRequest{})
+	require.NoError(t, err)
+	require.Len(t, admin.Libraries, 1)
+	assert.Equal(t, []string{"/srv/media/movies"}, admin.Libraries[0].Paths)
+}
+
 func TestLibraryHandler_DeleteLibrary(t *testing.T) {
 	h, _, _, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
@@ -1123,4 +1145,79 @@ func TestLibraryHandler_GetMediaItem_StampsOverlaidAncestorTitles(t *testing.T) 
 	assert.Equal(t, "Serie corrigee", resp.SeriesTitle)
 	assert.Equal(t, "Saison traduite", resp.SeasonTitle)
 	assert.Equal(t, int32(1), resp.SeasonIndexNumber)
+}
+
+// A root that is not an absolute, clean path is refused at the boundary: the
+// update path already refused it, the create path let it through to the
+// scanner.
+func TestLibraryHandler_CreateLibrary_RejectsUnsafePaths(t *testing.T) {
+	h, _, _, _, _, _, _, scanner := newTestLibraryHandlerWithScanner()
+	h.translator = eveyi18n.NewEmpty()
+	called := make(chan struct{}, 8)
+	scanner.OnScan = func(string) { called <- struct{}{} }
+
+	for _, p := range []string{".", "", "/", "../x"} {
+		_, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+			Name: "Movies", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{p},
+		})
+		require.Error(t, err, "path %q", p)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "path %q", p)
+	}
+	select {
+	case <-called:
+		t.Fatal("scan triggered for a library that was not created")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// Create and update judge a root by the same rule: any absolute, clean path.
+// Update used to demand a "/media" prefix (which "/mediafoo" also met), so a
+// library created on another mount could never have its roots edited.
+func TestLibraryHandler_UpdateAcceptsTheRootsCreateAccepts(t *testing.T) {
+	h, libQuery, _, _, _, _, _, _ := newTestLibraryHandlerWithScanner()
+	h.translator = eveyi18n.NewEmpty()
+
+	created, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+		Name: "NAS", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{"/mnt/nas"},
+	})
+	require.NoError(t, err)
+	libQuery.Seed(&library.Library{ID: shared.LibraryID(created.Id), Name: "NAS", Type: "movie", Paths: []string{"/mnt/nas"}})
+
+	updated, err := h.UpdateLibrary(adminCtx(), &eveyv1.UpdateLibraryRequest{Id: created.Id, Paths: []string{"/mnt/nas", "/srv/films/"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/mnt/nas", "/srv/films"}, updated.Paths)
+
+	for _, p := range []string{"/mnt/../etc", "mnt/nas", "/"} {
+		_, err = h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+			Name: "NAS", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{p},
+		})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "create %q: %v", p, err)
+		_, err = h.UpdateLibrary(adminCtx(), &eveyv1.UpdateLibraryRequest{Id: created.Id, Paths: []string{p}})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "update %q: %v", p, err)
+	}
+}
+
+// A path with "." or ".." in it is refused as typed, on create and on update:
+// normalising it first would turn "/media/../etc" into "/etc" and accept a
+// root the admin never named.
+func TestLibraryHandler_DotSegmentsAreRefusedNotNormalised(t *testing.T) {
+	h, libQuery, _, _, _, _, _, _ := newTestLibraryHandlerWithScanner()
+	h.translator = eveyi18n.NewEmpty()
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
+
+	for _, p := range []string{"/media/../etc", "/media/./x", "/media/x/../y"} {
+		_, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+			Name: "Movies", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{p},
+		})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "create %q: %v", p, err)
+
+		_, err = h.UpdateLibrary(adminCtx(), &eveyv1.UpdateLibraryRequest{Id: "lib-1", Paths: []string{p}})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "update %q: %v", p, err)
+	}
+	// A trailing slash is still tidied, not refused.
+	resp, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+		Name: "Movies", Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, Paths: []string{"/media/movies/"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/media/movies"}, resp.Paths)
 }

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   formatAudioTrackLabel,
+  tagAudioTrackLabel,
   formatDurationMs,
   formatTimeMs,
   getRatingServiceGetMyThumbRatingQueryKey,
@@ -33,16 +34,19 @@ import {
   RESUME_PROGRESS_QUERY,
   buildWatchProgressMaps,
   invalidateWatchedState,
+  feedItemsToCards,
   personTypeLabelKey,
   resolvePlayTarget,
   useSeriesPlayTarget,
   sortByIndexNumber,
+  sortEpisodesByIndex,
   sortTrailers,
   trailerUrl,
   useIsFavorite,
   useMediaItemCollections,
   useParentalGate,
   useToggleFavorite,
+  resumableMs,
 } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Pressable } from "../components/ui";
@@ -135,10 +139,7 @@ function PosterShelf({ title, items }: { title: string; items: { id: string; tit
 function SimilarShelf({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const { data: similar } = useFeedServiceSimilarItems(item.id ?? "");
-  const cards = useMemo(
-    () => (similar?.items ?? []).filter((s) => !!s.mediaItemId).map((s) => ({ id: s.mediaItemId as string, title: s.title })),
-    [similar],
-  );
+  const cards = useMemo(() => feedItemsToCards(similar?.items), [similar]);
   return <PosterShelf title={t("media.detail.similarTitles")} items={cards} />;
 }
 
@@ -176,7 +177,7 @@ function TrackPickRow({ streams, pick, onChange }: { streams: V1MediaStream[]; p
         <FocusRoot className="track-pick-row">
           <span className="track-pick-title">{t("media.streams.audio")}</span>
           {pill("a:auto", t("media.streams.auto"), pick.audio === undefined, () => onChange({ ...pick, audio: undefined }))}
-          {audio.map((s) => pill(`a:${s.index}`, formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language), pick.audio === s.index, () => onChange({ ...pick, audio: s.index })))}
+          {audio.map((s) => pill(`a:${s.index}`, tagAudioTrackLabel(formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language), s, (k) => t(k)), pick.audio === s.index, () => onChange({ ...pick, audio: s.index })))}
         </FocusRoot>
       ) : null}
       {subtitles.length > 0 ? (
@@ -270,7 +271,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
     { query: { enabled: isSeries && !!firstSeasonId } },
   );
   const episodes = useMemo(
-    () => sortByIndexNumber(isSeason ? children : (firstSeasonEpisodes?.items ?? [])),
+    () => sortEpisodesByIndex(isSeason ? children : (firstSeasonEpisodes?.items ?? [])),
     [isSeason, children, firstSeasonEpisodes?.items],
   );
 
@@ -354,7 +355,8 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
 
   const meta = [media.year, formatDurationMs(media.durationMs), media.officialRating].filter(Boolean).join("  •  ");
   const resumeMs = Number(watchProgress?.positionMs ?? 0);
-  const hasProgress = resumeMs > 0 && !watchProgress?.played;
+  // A film seen before and watched again resumes too: see resumableMs.
+  const hasProgress = resumableMs(watchProgress) > 0;
   const people = media.people ?? [];
   const actors = people.filter((p) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR");
   const crew = people.filter((p) => p.type === "PERSON_TYPE_DIRECTOR" || p.type === "PERSON_TYPE_WRITER" || p.type === "PERSON_TYPE_PRODUCER");

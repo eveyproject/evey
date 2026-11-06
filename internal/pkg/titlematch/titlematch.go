@@ -32,6 +32,15 @@ func Equivalent(a, b string) bool {
 	return strings.HasPrefix(na, nb+" ") || strings.HasPrefix(nb, na+" ")
 }
 
+// SameName says whether two names are the same one after normalisation, and
+// nothing looser. An artist name takes no edition suffix: "Prince" is not
+// "Prince Royce", and letting the word-boundary tolerance of Equivalent in
+// here served one artist the other's album art.
+func SameName(a, b string) bool {
+	na, nb := Normalize(a), Normalize(b)
+	return na != "" && na == nb
+}
+
 // Normalize réduit un libellé à une forme comparable : minuscules, accents
 // repliés, ponctuation transformée en séparateur de mot, espaces normalisés.
 func Normalize(s string) string {

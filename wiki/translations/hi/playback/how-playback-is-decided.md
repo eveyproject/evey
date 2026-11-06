@@ -1,5 +1,5 @@
 ---
-source_sha: d3516f7424f33931631da9e552219eb09b706908443cd9b654577b22f6864c37
+source_sha: 1dc44f90f440f0e01525a6cb083acd57f77c55b0e0b61641670b2d12d9bd36a5
 reviewed: true
 ---
 # Evey प्लेबैक का तरीका कैसे चुनता है { #how-playback-is-decided }
@@ -60,6 +60,10 @@ reviewed: true
 सिर्फ़ उसी ऑडियो ट्रैक को जाँचा जाता है जो चल रहा है। अगर किसी फ़ाइल का
 कमेंट्री ट्रैक DTS में है और वह चुना नहीं गया है, तो उसकी वजह से फ़ाइल
 ट्रांसकोड नहीं होती।
+
+जिस फ़ाइल को कोई भी तरीका इस डिवाइस पर नहीं चला सकता, उसे प्लेबैक शुरू होने से
+पहले ही **यह सर्वर इस फ़ाइल के लिए पर्याप्त शक्तिशाली नहीं है** के साथ मना कर
+दिया जाता है: देखें [ट्रांसकोडिंग और सर्वर की क्षमता](transcoding.md#sharing-the-capacity)।
 
 स्ट्रीम जानकारी प्लेबैक शुरू होते समय तैयार होती है। सिर्फ़ एक स्थिति वह
 पहले से नहीं देख सकती: स्ट्रीम शुरू होते समय ग्राफ़िक्स कार्ड पूरी तरह व्यस्त हो। तब
@@ -171,7 +175,7 @@ H.264, और 4:2:2, 4:4:4 या 12-बिट में कोई भी वी
 <!-- sources
 decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels)
 
-session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked)
+session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked) ; internal/adapters/driving/http/transcode_vod_admission.go - ErrCodeSourceTooHeavy
 remote cap: internal/adapters/driving/grpcapi/playback_handler.go - resolvePlaybackPrefs ; internal/config/config.go - RemoteBitrateCapKbps
 client caps: internal/domain/transcoding/playback_decision.go - ClientProfile ; frontend/packages/client/src/web/codec.ts ; frontend/packages/media-caps/src/castUrl.ts
 example: internal/app/transcoding/testdata/route_golden.txt - "nvenc-pass | 2160p-hevc-hdr10-70m | hdr-tv{,-20m} | {plain,gpu-full,title-blocked}"

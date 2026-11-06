@@ -12,7 +12,7 @@ import {
   SUBTITLE_TEXT_COLORS,
   type SubtitleStyle,
 } from "../../lib/subtitleStyle";
-import { formatAudioTrackLabel, qualityRungsFromHeights, trackDisplayName, type QualityLevel } from "@evey/api";
+import { formatAudioTrackLabel, tagAudioTrackLabel, qualityRungsFromHeights, trackDisplayName, type QualityLevel } from "@evey/api";
 
 // The track shapes every player lists: one definition in @evey/api.
 export type { PlayerAudioStream as AudioStream, PlayerSubtitleStream as SubtitleStream } from "@evey/api";
@@ -433,7 +433,7 @@ export function PlayerSettingsPanel({
               </>
             )}
             {audioStreams.map((s) => {
-              const label = formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language);
+              const label = tagAudioTrackLabel(formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language), s, (k) => t(k));
               return (
                 <OptionRow
                   key={s.index}

@@ -10,11 +10,13 @@ import (
 	"net"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/domain/user"
 	"github.com/eveyproject/evey/internal/pkg/id"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
@@ -75,7 +77,7 @@ func loginAttemptKeys(ctx context.Context, username string) (pairKey, userKey st
 
 // publishLoginFailed announces a refused login (webhook user.login.failed).
 func (s *CommandService) publishLoginFailed(ctx context.Context, username, reason string) {
-	evt := user.LoginFailed{Username: username, Reason: reason, AuthMethod: "local", OccurredAt: time.Now()}
+	evt := user.LoginFailed{Username: username, Reason: reason, ClientIP: LoginClientIP(ctx), AuthMethod: "local", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
@@ -118,6 +120,13 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	defer span.End()
 	username = strings.TrimSpace(username)
 	password = normalizePassword(password)
+	// A name no account can carry is refused before anything is read or
+	// written: the failure counters and the audit log are keyed on the name
+	// as typed, and an unbounded one was a free write of any size into them.
+	if user.ValidateUsername(username) != nil {
+		s.publishLoginFailed(ctx, "", "invalid_username")
+		return "", "", ErrInvalidCredentials
+	}
 	// Hard lock per (client IP, user): a stranger's failures must not lock the
 	// owner out. The user-wide cap, far higher, still stops distributed guessing.
 	pairKey, userKey := loginAttemptKeys(ctx, username)
@@ -208,7 +217,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		return "", "", fmt.Errorf("CommandService.Login: %w", err)
 	}
 
-	evtLogin := user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()}
+	evtLogin := user.LoginSucceeded{UserID: u.ID, ClientIP: LoginClientIP(ctx), AuthMethod: "local", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtLogin); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtLogin.EventName()), slog.Any("err", err))
 	}
@@ -368,8 +377,9 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		// into a silent, complete parental bypass for the whole token TTL, and
 		// a permanently unscannable profile row into a permanent one.
 		//
-		// Refusing logs the user out, which is recoverable. Handing out an
-		// unrestricted token is not.
+		// No token goes out: the handler reads this as a server fault the
+		// client retries later, not as a refusal that drops its refresh token.
+		// Handing out an unrestricted token is the one thing not recoverable.
 		slog.WarnContext(ctx, "refresh: profile lookup failed, refusing rather than dropping the profile binding",
 			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 		return "", "", fmt.Errorf("refresh: load profiles: %w", pErr)
@@ -470,10 +480,20 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 	// grace has long passed.
 	var newRefresh string
 	rotate := func(ctx context.Context) error {
+		// The sibling slot is taken here, once every profile and PIN check
+		// above has passed: a refused attempt must not spend it. A recovered
+		// interrupted rotation is graced too but lies past the window, and is
+		// not a sibling.
+		if graced && withinRotationGrace(rt) && !s.admitGraceSibling(ctx, rt) {
+			return ErrInvalidCredentials
+		}
 		if !graced {
 			if markErr := s.markRefreshTokenUsed(ctx, rt); markErr != nil {
 				if !errors.Is(markErr, ErrInvalidCredentials) {
 					return markErr
+				}
+				if !s.admitGraceSibling(ctx, rt) {
+					return ErrInvalidCredentials
 				}
 				// Lost the claim to a concurrent rotation that committed
 				// between our validate and this claim - milliseconds ago,
@@ -527,6 +547,79 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 // validateRefreshToken) - this closes the UX hole that decision left open.
 const refreshRotationGrace = 30 * time.Second
 
+// maxGraceSiblings bounds the sibling sessions one rotated token can mint
+// inside the grace. The grace exists for a few tabs racing one cookie; without
+// a ceiling, a token stolen inside the window was amplified into as many
+// persistent sessions as the thief cared to replay.
+const maxGraceSiblings = 3
+
+// graceSiblingCounter is in memory on purpose: it only has to live as long as
+// the grace itself, and a restart that forgets it reopens at most one window.
+type graceSiblingCounter struct {
+	mu      sync.Mutex
+	entries map[string]graceSiblingEntry
+	// lastPurge bounds the stale-entry scan to once per grace window: run on
+	// every admission it made a burst of rotations quadratic under the lock.
+	lastPurge time.Time
+}
+
+type graceSiblingEntry struct {
+	count int
+	first time.Time
+}
+
+// admit reports whether one more sibling may be issued for tokenID, and
+// counts it if so. Entries older than the grace are dropped once a window has
+// passed since the last purge: past the grace the token is refused upstream
+// anyway, so a stale entry left a little longer changes no verdict.
+func (c *graceSiblingCounter) admit(tokenID string, now time.Time) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil {
+		c.entries = make(map[string]graceSiblingEntry)
+		c.lastPurge = now
+	}
+	if now.Sub(c.lastPurge) > refreshRotationGrace {
+		for id, e := range c.entries {
+			if now.Sub(e.first) > 2*refreshRotationGrace {
+				delete(c.entries, id)
+			}
+		}
+		c.lastPurge = now
+	}
+	e, ok := c.entries[tokenID]
+	if !ok {
+		e.first = now
+	}
+	if e.count >= maxGraceSiblings {
+		return false
+	}
+	e.count++
+	c.entries[tokenID] = e
+	return true
+}
+
+// withinRotationGrace reports a token rotated inside the grace window. A nil
+// UsedAt (legacy row claimed before the column existed) fails closed.
+func withinRotationGrace(rt *user.RefreshToken) bool {
+	return rt.Used && rt.UsedAt != nil && time.Since(*rt.UsedAt) <= refreshRotationGrace
+}
+
+// admitGraceSibling gates every sibling session of a rotated token. A refusal
+// is a security signal (a replay beyond any plausible tab race), so it is
+// logged at WARN and counted.
+func (s *CommandService) admitGraceSibling(ctx context.Context, rt *user.RefreshToken) bool {
+	if s.graceSiblings.admit(rt.ID, time.Now()) {
+		return true
+	}
+	metrics.AuthFailuresTotal.WithLabelValues("refresh_grace_exhausted").Inc()
+	slog.WarnContext(ctx, "refresh rejected: too many sibling sessions from one rotated token (replay inside the grace)",
+		slog.String("userID", string(rt.UserID)),
+		slog.String("tokenID", rt.ID),
+		slog.Int("maxSiblings", maxGraceSiblings))
+	return false
+}
+
 // rotationRecoveryWindow bounds how long an interrupted rotation can be
 // recovered from (rotationWasInterrupted). A television switched off
 // overnight still gets its session back; a token presented a day after the
@@ -534,8 +627,10 @@ const refreshRotationGrace = 30 * time.Second
 const rotationRecoveryWindow = 24 * time.Hour
 
 // validateRefreshToken performs the hash-lookup + reuse/expiry gating (it does
-// NOT consume the token; see markRefreshTokenUsed). Any failure path returns
-// ErrInvalidCredentials. The bool reports a GRACED token: one already rotated
+// NOT consume the token; see markRefreshTokenUsed). Every refusal returns
+// ErrInvalidCredentials; a store that could not answer returns its own error,
+// which the handler serves as a fault, never as a refusal (a refusal is what
+// makes a client drop its refresh token). The bool reports a GRACED token: one already rotated
 // within refreshRotationGrace - a multi-tab race loser, entitled to a sibling
 // session (the caller must then skip the claim). A rotation older than the
 // grace is a genuine replay and is rejected WITHOUT purging the user's other
@@ -547,11 +642,20 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 	hash := hex.EncodeToString(h[:])
 
 	rt, err := s.refreshTkns.GetByTokenHash(ctx, hash)
-	if err != nil {
+	if errors.Is(err, shared.ErrNotFound) {
 		slog.InfoContext(ctx, "refresh rejected: token not found",
 			slog.String("tokenPrefix", safeTokenPrefix(token)),
 			slog.String("token_info", s.tokens.DescribeRefreshToken(token)))
 		return nil, false, ErrInvalidCredentials
+	}
+	if err != nil {
+		// A token that cannot be CHECKED is not a token that is wrong: a store
+		// that times out or is away must not read as a refusal, or every
+		// device of the household burns its refresh token during a database
+		// incident and asks for the password once the database is back.
+		slog.WarnContext(ctx, "refresh: token lookup failed",
+			slog.String("tokenPrefix", safeTokenPrefix(token)), slog.Any("err", err))
+		return nil, false, fmt.Errorf("refresh token lookup: %w", err)
 	}
 
 	if rt.IsExpired() {
@@ -568,7 +672,7 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 	if rt.Used {
 		// nil UsedAt (legacy row claimed before the column existed) fails
 		// closed: no timestamp, no grace.
-		if rt.UsedAt != nil && time.Since(*rt.UsedAt) <= refreshRotationGrace {
+		if withinRotationGrace(rt) {
 			slog.InfoContext(ctx, "refresh: rotated token within grace, issuing sibling session (multi-tab race loser)",
 				slog.String("userID", string(rt.UserID)),
 				slog.String("tokenID", rt.ID))

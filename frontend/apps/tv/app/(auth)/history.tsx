@@ -10,7 +10,7 @@ import {
   watchHistoryLabel,
 } from "@evey/api";
 import type { V1WatchProgress } from "@evey/api";
-import { formatDurationMs } from "@evey/api";
+import { formatDurationMs, isPositive } from "@evey/api";
 import { toast, useDemoStore } from "@evey/store";
 import { invalidateWatchedState } from "@evey/client";
 import { useTheme } from "../../src/providers/ThemeProvider";
@@ -168,7 +168,7 @@ function HistoryItem({
         <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
           {formatDate(item.lastPlayedAt)}
         </Text>
-        {item.durationMs && (
+        {isPositive(item.durationMs) && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
             {/* formatDurationMs answers "" at zero, which printed a title as
                 "  / 1h 27min" - a hole where the position should be. */}

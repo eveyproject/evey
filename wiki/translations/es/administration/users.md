@@ -1,5 +1,5 @@
 ---
-source_sha: 6e76969ff95c1e39240ccc551c83d1cf46ca20ebd5bc3c3544267ad5ed7b37a4
+source_sha: 2f1406a949bfb11d75aba2f70e749541bc2360e2f26a52d02212ed714008cc6d
 reviewed: true
 ---
 # Usuarios, perfiles y control parental { #users-profiles-and-parental-control }
@@ -201,8 +201,7 @@ mostrar se oculta.
 
 | Fila | Qué muestra |
 | --- | --- |
-| **Reanudar reproducción** | Lo que el perfil empezó y no terminó, lo más reciente primero. Un título cuenta como visto al 90 %. |
-| **A continuación** | Para cada serie que el perfil ha empezado, el siguiente episodio que todavía no ha visto. |
+| **Reanudar reproducción** | Lo que el perfil empezó y no terminó, y para cada serie que está viendo el episodio que toca a continuación: una tarjeta por serie, la actividad más reciente primero. Un título entra en la fila tras 3 minutos de reproducción, así que una elección al azar o un zapeo no entran. Un título cuenta como visto al 90 %. |
 | **Colecciones** | Las colecciones, con un enlace a la lista completa. |
 | **Recomendado para ti** | Películas y series de los géneros que más ve el perfil, primero las que mejor encajan y después por valoración. Un género cuenta cuando aparece en al menos 3 de las últimas 200 reproducciones del perfil. |
 | **Más populares** | Las películas y series más reproducidas en el servidor en los últimos 90 días. |
@@ -260,7 +259,7 @@ requests: i18n admin.mediaRequests.* (approve, reject, later, tabAccess, accessD
 share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
 PIN lockout: internal/app/user/pin_attempts.go - Attempt (lock check, compare and count as one step), pinTiers, Reset ; internal/adapters/driving/http/auth_handler.go - resetLockout ; profile_schedule.go Unlock counts on the adult profiles tried
 opening hours: internal/domain/user/schedule.go - AccessSchedule, DefaultKidsSchedule, Window, AccessAt, OverrideUntil ; internal/app/user/profile_schedule.go - Unlock (adult PIN only) ; internal/adapters/driving/http/profile_closed.go (httpAuthMiddleware, httpStreamAuthMiddleware) ; grpcapi/interceptors/profile_hours.go ; grpcapi/playback_closing_soon.go (closingWarnLead 10 min) ; internal/app/config/timezone.go - KeyServerTimezone ; postgres profile_repo.go - scheduleFromJSON (unreadable = closed) ; i18n auth.profile.schedule.*, auth.profile.locked.*, admin.serverConfig.timezone
-home: internal/app/feed/* ; i18n admin.serverConfig.feedConfig.*, media.home.*
+home: internal/app/feed/* ; internal/domain/playback/model.go - MinResumeRailPosition ; internal/adapters/driven/postgres/watch_progress_resume_rail_test.go ; i18n admin.serverConfig.feedConfig.*, media.home.*, common.feeds.labels.resume_playback
 first profile named after the username: internal/app/user/user_service.go, access_service.go - RegisterWithInvite (NewProfile with u.Username)
 invite link built from the admin's browser address: frontend/apps/web/src/features/admin/InviteLinkRow.tsx - inviteUrl (window.location.origin)
 requester notified of the answer: internal/app/mediarequest/service.go - Answer ; i18n notifications push.request_answered

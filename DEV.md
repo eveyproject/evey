@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.26.1+
+- Go 1.27.3+ (the version `go.mod` names)
 - Node.js 22+ / pnpm 10+
 - Docker & Docker Compose
 - [buf](https://buf.build/) (protobuf generation)
@@ -114,7 +114,7 @@ go test ./internal/app/library/... -race -count=1  # Single package
 
 ### Frontend
 ```bash
-cd frontend && pnpm --filter web test              # Unit tests (1082 tests)
+cd frontend && pnpm --filter web test              # Unit tests
 ```
 
 ### E2E

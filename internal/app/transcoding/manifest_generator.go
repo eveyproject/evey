@@ -178,6 +178,15 @@ type ManifestInput struct {
 	// under an AC-3 init. Empty = the AAC rendition path, unchanged.
 	WasmAudio bool
 
+	// RemuxCopyClosed / PackagerClosed bake rc=0 / pk=0 into every URI: the
+	// playback started while the admin had the ffmpeg copy rung / the
+	// on-demand packager switched off. Plan inputs like the pins: a child
+	// that lost them would resolve against the live setting, and a toggle
+	// mid-play would re-fingerprint the session. False emits nothing (a
+	// playback started with the engine on keeps it).
+	RemuxCopyClosed bool
+	PackagerClosed  bool
+
 	// HDRCapable mirrors the request's `hdr=1` client capability into every
 	// baked URL. The master decision (copy rung vs tonemap) reads this flag;
 	// without re-baking it, the variant/segment requests re-derive the decision
@@ -1040,6 +1049,12 @@ func querySuffix(in ManifestInput) string {
 		// Audio-rendition decision input: keeps the passthrough (AC-3 copy)
 		// segments/init aligned with the playlist that named them (see field doc).
 		q.Set("wasmAudio", "1")
+	}
+	if in.RemuxCopyClosed {
+		q.Set("rc", "0")
+	}
+	if in.PackagerClosed {
+		q.Set("pk", "0")
 	}
 	if encoded := q.Encode(); encoded != "" {
 		return "?" + encoded

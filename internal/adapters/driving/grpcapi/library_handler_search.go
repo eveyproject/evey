@@ -181,6 +181,7 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 			inShowByID[id].ParentId = full.ParentID
 			if full.IndexNumber != nil {
 				inShowByID[id].IndexNumber = int32(*full.IndexNumber)
+				inShowByID[id].HasIndexNumber = true
 			}
 		}
 		fillAncestorTitles(ctx, h.overlaidItemsFetch, resp.Items)

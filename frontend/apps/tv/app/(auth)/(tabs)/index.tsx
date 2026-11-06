@@ -4,7 +4,7 @@ import { View, Text, ScrollView, FlatList, StyleSheet, Animated, DeviceEventEmit
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   usePlaybackServiceGetResumeItems,
@@ -12,6 +12,8 @@ import {
   useLibraryServiceListLibraries,
   useFeedServiceGetFeedConfig,
   useFeedServiceRecommended,
+  useNotificationServiceGetUnreadCount,
+  getNotificationServiceGetUnreadCountQueryKey,
   getLibraryServiceListMediaItemsQueryOptions,
   getMusicServiceGetAlbumsQueryOptions,
   getPhotoServiceListPhotoAlbumsQueryOptions,
@@ -37,11 +39,12 @@ import { HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { buildHomeSections, placedPluginIds, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
-import { serverImageUri } from "@evey/client";
+import { feedItemsToCards, serverImageUri } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 import { libraryFirstPageQueries } from "../../../src/lib/libraryGrid";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
+import { HOME_LISTS_MAX_AGE_MS, refreshHomeLists } from "../../../src/lib/homeFreshness";
 
 // How long the home waits for its slower rows before showing what it has.
 const HOME_REVEAL_CAP_MS = 2500;
@@ -635,6 +638,26 @@ export default function HomeScreen() {
   // from the player, a library or anywhere else, the resume row must be re-read
   // or a title started elsewhere (a library, a search) is missing from it.
   useRefetchOnReturn(resume.refetch);
+  // New titles reach the rows two ways (see homeFreshness): back on the home,
+  // rows older than a minute are read again along with the notification
+  // count; and a count that rises - the "new film" notification - re-reads
+  // every row at once, the viewer may well still be sitting on the home.
+  const qc = useQueryClient();
+  const refreshOnReturn = useCallback(() => {
+    void refreshHomeLists(qc, HOME_LISTS_MAX_AGE_MS);
+    void qc.invalidateQueries({ queryKey: getNotificationServiceGetUnreadCountQueryKey() });
+  }, [qc]);
+  useRefetchOnReturn(refreshOnReturn);
+  // Read once a minute while the home is on screen: the television can sit
+  // here all evening, and nothing else would ask.
+  const { data: unread } = useNotificationServiceGetUnreadCount(undefined, { query: { refetchInterval: 60_000 } });
+  const unreadCount = Number(unread?.count ?? 0);
+  const lastUnreadRef = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = lastUnreadRef.current;
+    lastUnreadRef.current = unreadCount;
+    if (prev !== null && unreadCount > prev) void refreshHomeLists(qc);
+  }, [unreadCount, qc]);
   const recommended = useFeedServiceRecommended({ limit: fetchSize("recommended") }, keepRow);
   const popular = useMostPopular(fetchSize("most_popular"));
   const [resumeSize, recommendedSize, popularSize] = [
@@ -713,24 +736,11 @@ export default function HomeScreen() {
   // shapes; both are projected onto V1MediaItem so one card component serves
   // every row (same projection mobile does).
   const recommendedItems = useMemo(
-    () =>
-      (recommended.data?.items ?? [])
-        .filter((i) => !!i.mediaItemId)
-        .map((i) => ({
-          id: i.mediaItemId,
-          title: i.title,
-          type: i.type,
-          year: i.year || undefined,
-          artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
-        }) as V1MediaItem)
-        .slice(0, recommendedSize),
+    () => feedItemsToCards(recommended.data?.items).slice(0, recommendedSize),
     [recommended.data, recommendedSize],
   );
   const popularItems = useMemo(
-    () =>
-      (popular.data ?? [])
-        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type, year: i.year }) as V1MediaItem)
-        .slice(0, popularSize),
+    () => feedItemsToCards(popular.data).slice(0, popularSize),
     [popular.data, popularSize],
   );
 

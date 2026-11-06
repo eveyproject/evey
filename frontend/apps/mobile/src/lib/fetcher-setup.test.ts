@@ -73,9 +73,10 @@ beforeEach(() => {
 });
 
 describe("initFetcher - unauthorized handler", () => {
-  it("logs out, clears the stored refresh token, and routes to /login", async () => {
+  it("logs out, clears the stored refresh token, and routes to /login once the session is gone", async () => {
     await initFetcher();
-    useAuthStore.setState({ accessToken: "token-A" });
+    // A refused refresh has already cleared the tokens: nothing is held.
+    useAuthStore.setState({ accessToken: null });
 
     const handler = api.setUnauthorizedHandler.mock.calls[0]?.[0] as () => void;
     handler();
@@ -83,6 +84,21 @@ describe("initFetcher - unauthorized handler", () => {
     expect(useAuthStore.getState().accessToken).toBeNull();
     expect(clearRefreshToken).toHaveBeenCalledTimes(1);
     expect(routerReplace).toHaveBeenCalledWith("/login");
+  });
+
+  // A 401 scoped to one call while a live token is held (the refresh just
+  // succeeded, the retried call answered 401 on its own) is that call's
+  // problem: it signed the viewer out with a refresh token still valid.
+  it("ignores a 401 while a live token is still held", async () => {
+    await initFetcher();
+    useAuthStore.setState({ accessToken: "token-A" });
+
+    const handler = api.setUnauthorizedHandler.mock.calls[0]?.[0] as () => void;
+    handler();
+
+    expect(useAuthStore.getState().accessToken).toBe("token-A");
+    expect(clearRefreshToken).not.toHaveBeenCalled();
+    expect(routerReplace).not.toHaveBeenCalled();
   });
 });
 

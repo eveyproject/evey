@@ -174,13 +174,25 @@ type playbackServe struct {
 	libraryAccess LibraryAccessChecker
 	profilePrefs  ProfilePrefsGetter
 	parental      ParentalChecker
+	// serverLang is the server's metadata language, the last language the
+	// default audio track is picked by (the master reads the same one).
+	serverLang func() string
 }
 
 func playbackInfoHandler(decider apptranscoding.PlaybackDecider, libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker, profilePrefs ProfilePrefsGetter, parental ParentalChecker) http.HandlerFunc {
+	return playbackInfoHandlerFor(nil, decider, libSvc, libraryAccess, profilePrefs, parental)
+}
+
+// playbackInfoHandlerFor is playbackInfoHandler with the server language the
+// default audio track resolution falls back on; nil reads as none.
+func playbackInfoHandlerFor(serverLang func() string, decider apptranscoding.PlaybackDecider, libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker, profilePrefs ProfilePrefsGetter, parental ParentalChecker) http.HandlerFunc {
 	if decider == nil {
 		decider = apptranscoding.UnwiredDecider()
 	}
-	h := &playbackServe{decider: decider, libSvc: libSvc, libraryAccess: libraryAccess, profilePrefs: profilePrefs, parental: parental}
+	if serverLang == nil {
+		serverLang = func() string { return "" }
+	}
+	h := &playbackServe{decider: decider, libSvc: libSvc, libraryAccess: libraryAccess, profilePrefs: profilePrefs, parental: parental, serverLang: serverLang}
 	return h.serveHTTP
 }
 
@@ -245,6 +257,14 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// on existence, so PlaybackInfo doesn't report "transcode" for a title that
 	// merely carries a bitmap track the user isn't playing.
 	prefs.SubtitleBurnInTrack = parseIntQuery(r, "subtitleTrack", -1)
+	// The track the master will serve: an explicit choice, else the one the
+	// profile's languages pick. Judged on the container default instead, the
+	// info called a copy what the master re-encodes.
+	audioTrack, explicit := explicitAudioTrack(r, streams)
+	if !explicit {
+		audioTrack = resolveDefaultAudioTrack(streams, buildPrefLangs(prefs.AudioLanguages, prefs.Locale, h.serverLang()))
+	}
+	prefs.AudioTrack = audioTrack
 	// The plan's decision (Decide: the core plus the request-time pins), the
 	// same one the master this info announces will be served from.
 	decided := h.decider.Reported(r.Context(), apptranscoding.PlaybackRequest{
@@ -255,7 +275,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		Client:              client,
 		Prefs:               prefs,
 		MaxBitrateKbps:      userMaxBitrate,
-		AudioTrack:          prefs.AudioTrack,
+		AudioTrack:          audioTrack,
 		SubtitleBurnInTrack: prefs.SubtitleBurnInTrack,
 		WasmAudio:           prefs.WasmAudio,
 		SourceBytes:         sourceBytesOf(item),

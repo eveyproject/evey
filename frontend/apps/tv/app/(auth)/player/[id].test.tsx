@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen, act } from "@testing-library/react";
+import { render, fireEvent, screen, act, waitFor } from "@testing-library/react";
+import * as SecureStore from "expo-secure-store";
+import type { SubtitleStyle } from "../../../src/lib/subtitleStyle";
 import React from "react";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 
@@ -255,11 +257,21 @@ vi.mock("../../../src/components/SubtitlePicker", () => ({
     return null;
   },
 }));
+// The keystore holds the subtitle appearance; a map stands in for it so a
+// test can seed what the viewer chose before the screen mounts.
+vi.mock("expo-secure-store", () => {
+  const store = new Map<string, string>();
+  return {
+    getItemAsync: async (key: string) => store.get(key) ?? null,
+    setItemAsync: async (key: string, value: string) => { store.set(key, value); },
+    deleteItemAsync: async (key: string) => { store.delete(key); },
+  };
+});
 // Captured, not rendered: what the screen hands the overlay IS the assertion -
 // a track drawn client-side must reach it, and must not reach the server.
-let lastOverlayProps: { subtitleIndex: number | null } | null = null;
+let lastOverlayProps: { subtitleIndex: number | null; style?: SubtitleStyle } | null = null;
 vi.mock("../../../src/components/SubtitleOverlay", () => ({
-  SubtitleOverlay: (p: { subtitleIndex: number | null }) => {
+  SubtitleOverlay: (p: { subtitleIndex: number | null; style?: SubtitleStyle }) => {
     lastOverlayProps = p;
     overlayRenders++;
     return null;
@@ -1531,5 +1543,20 @@ describe("resume position (TV)", () => {
     sessionState.progress = { positionMs: "60000", durationMs: "90006" };
     render(<PlayerScreen />);
     expect(playerMock.currentTime).toBe(60);
+  });
+});
+
+describe("apparence des sous-titres", () => {
+  // Le picker enregistrait le choix et l'overlay dessinait toujours le style
+  // par défaut : l'écran ne lui passait pas la préférence chargée.
+  it("l'overlay reçoit le style que le spectateur a enregistré", async () => {
+    await SecureStore.setItemAsync(
+      "evey-subtitle-style",
+      JSON.stringify({ color: "#fde047", fontSize: 150, position: "top" }),
+    );
+    render(<PlayerScreen />);
+    await waitFor(() => {
+      expect(lastOverlayProps?.style).toMatchObject({ color: "#fde047", fontSize: 150, position: "top" });
+    });
   });
 });

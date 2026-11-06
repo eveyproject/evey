@@ -149,8 +149,11 @@ var knownQualities = map[string]bool{
 var reBogusResolution = regexp.MustCompile(`^\d{3,4}[pP]$`)
 
 var (
-	reSeriesPart = regexp.MustCompile(`(?i)^[sS](\d{1,2})[eE](\d{1,3})$`)
-	reSeasonX    = regexp.MustCompile(`(?i)^(\d{1,2})[xX](\d{1,3})$`)
+	// A multi-episode file ("S01E01E02", "1x01x02") keeps its first number:
+	// an item has one index, and the trailing ones only left the whole
+	// marker in the title, turning the file into a movie.
+	reSeriesPart = regexp.MustCompile(`(?i)^[sS](\d{1,2})[eE](\d{1,3})(?:[eE]\d{1,3})*$`)
+	reSeasonX    = regexp.MustCompile(`(?i)^(\d{1,2})[xX](\d{1,3})(?:[xX]\d{1,3})*$`)
 	reYear       = regexp.MustCompile(`^((?:19|20)\d{2})$`)
 	reCodec      = regexp.MustCompile(`(?i)\b(x264|x265|h\.?264|h\.?265|hevc|avc|av1|vp9|mpeg[24]|xvid|divx)\b`)
 	reAudio      = regexp.MustCompile(`(?i)\b(aac|dts-hd\.?ma|dts-hd|dts|truehd|atmos|flac|ac3|eac3|dd5\.?1|dd7\.?1|dd2\.?0|opus|pcm|mp3|lpcm)\b`)
@@ -170,6 +173,51 @@ var (
 	reEditionSuffix = regexp.MustCompile(`(?i)\b(director(?:'s|s)?[ ._-]?cut|version[ ._-]longue|extended(?:[ ._-](?:cut|edition))?|theatrical[ ._-]cut|final[ ._-]cut|special[ ._-]edition|criterion(?:[ ._-](?:collection|edition))?|remastered|uncut|unrated|redux|extreme[ ._-]edition|extreme|dc)\b`)
 )
 
+// Folder-level markers used when the file name alone carries no season or
+// episode: a show laid out as "Show/Season 2/03 - Title.mkv" names its season
+// in the folder and its episode as a leading number. Without this fallback
+// every such file parsed as a movie, and the TV scan then grouped it under a
+// one-file series named after the episode.
+var (
+	reSeasonFolder   = regexp.MustCompile(`(?i)^(?:season|saison|s)[ ._-]*(\d{1,3})$`)
+	reSpecialsFolder = regexp.MustCompile(`(?i)^specials?$`)
+	reLeadingEpisode = regexp.MustCompile(`^(\d{1,3})(?:[ ._-]|$)`)
+	reEpisodeMarker  = regexp.MustCompile(`(?i)(?:^|[ ._-])(?:e|ep|episode)[ ._-]*(\d{1,3})(?:[ ._-]|$)`)
+	// reExtraName finds the bonus words in a file name, reExtraFolder a folder
+	// that holds nothing else. Separators are any of . _ - and space.
+	reExtraName   = regexp.MustCompile(`(?i)(?:^|[ ._-])(samples?|trailers?|teasers?|featurettes?|behind[ ._-]the[ ._-]scenes|deleted[ ._-]scenes?|extras?|bonus)(?:[ ._-]|$)`)
+	reExtraFolder = regexp.MustCompile(`(?i)^(samples?|trailers?|teasers?|featurettes?|behind[ ._-]the[ ._-]scenes|deleted[ ._-]scenes?|extras?|bonus(?:es)?)$`)
+)
+
+// extraKind tells a show's bonus file from an episode, for a file whose name
+// states no episode: "sample", "extra" or "". A sample word that opens a
+// longer name is a title ("Sample.2019.mkv" is a film), not a sample: a
+// sample is dropped from every library, so that one guess is kept narrow.
+func extraKind(path string) string {
+	base := filepath.Base(path)
+	name := strings.TrimSpace(strings.TrimSuffix(base, filepath.Ext(base)))
+	if m := reExtraFolder.FindStringSubmatch(strings.TrimSpace(filepath.Base(filepath.Dir(path)))); m != nil {
+		return kindOf(m[1])
+	}
+	loc := reExtraName.FindStringSubmatchIndex(name)
+	if loc == nil {
+		return ""
+	}
+	word := name[loc[2]:loc[3]]
+	kind := kindOf(word)
+	if kind == "sample" && loc[2] == 0 && strings.TrimLeft(name[loc[3]:], " ._-") != "" {
+		return ""
+	}
+	return kind
+}
+
+func kindOf(word string) string {
+	if strings.HasPrefix(strings.ToLower(word), "sample") {
+		return "sample"
+	}
+	return "extra"
+}
+
 type ParsedInfo struct {
 	Title        string
 	CleanTitle   string
@@ -184,6 +232,16 @@ type ParsedInfo struct {
 	Codec        string
 	Audio        string
 	ReleaseGroup string
+	// FolderSeason marks an episode read from the "Season N" folder layout
+	// rather than from the file name; NameTitle is then the title the file
+	// name alone gives, for a library where that layout means nothing.
+	FolderSeason bool
+	NameTitle    string
+	// Extra is "sample" or "extra" when the name or the folder holding the
+	// file says it is a sample, trailer, featurette or other bonus of a show
+	// rather than an episode, "" otherwise. Such a file is never promoted to
+	// an episode from a "Season N" folder.
+	Extra string
 }
 
 type FilenameParser struct{}
@@ -198,6 +256,90 @@ func SplitFilename(filename string) []string {
 
 func (p *FilenameParser) Parse(filename string) ParsedInfo {
 	return ParseFilename(filename)
+}
+
+// ParsePath parses a file by its name, then by the folders above it: a file
+// whose name carries no season/episode marker but sits in a "Season N" (or
+// "Specials") folder is an episode of that season of the show named by the
+// folder above. Its episode number is the one its name states; a name that
+// states none ("Pilot.mkv") gives an episode without a number, filed after
+// the numbered ones, rather than a movie that a TV library turned into a
+// one-file series. The show folder also lends its year when the file has
+// none. A movie library reads such a file back as the movie its name says.
+func ParsePath(path string) ParsedInfo {
+	info := ParseFilename(path)
+	if info.Type == "series" {
+		return info
+	}
+	base := filepath.Base(path)
+	episode, numbered := episodeNumberFromName(strings.TrimSuffix(base, filepath.Ext(base)))
+	if !numbered {
+		// A number in the name ("03 - Bonus Round") makes it an episode
+		// whatever words follow; without one, a bonus word or folder makes
+		// it an extra, never promoted.
+		if info.Extra = extraKind(path); info.Extra != "" {
+			return info
+		}
+	}
+	dir := filepath.Dir(path)
+	season, ok := seasonFolderNumber(filepath.Base(dir))
+	if !ok {
+		return info
+	}
+	show := ParseFilename(filepath.Base(filepath.Dir(dir)) + ".mkv")
+	if show.Title == "" {
+		return info
+	}
+	info.FolderSeason = true
+	info.NameTitle = info.Title
+	info.Type = "series"
+	info.Season = &season
+	info.Episode = nil
+	info.SE = ""
+	if numbered {
+		info.Episode = &episode
+		info.SE = fmt.Sprintf("S%02dE%02d", season, episode)
+	}
+	info.Title = show.Title
+	info.CleanTitle = show.CleanTitle
+	if info.Year == nil {
+		info.Year = show.Year
+	}
+	return info
+}
+
+// seasonFolderNumber reads the season a folder name states ("Season 2",
+// "Saison 02", "S3", "Specials" = 0).
+func seasonFolderNumber(name string) (int, bool) {
+	name = strings.TrimSpace(name)
+	if reSpecialsFolder.MatchString(name) {
+		return 0, true
+	}
+	m := reSeasonFolder.FindStringSubmatch(name)
+	if len(m) != 2 {
+		return 0, false
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// episodeNumberFromName reads an episode number stated without a season:
+// a leading number ("03 - Title"), or an E/EP/Episode marker ("Episode 3").
+func episodeNumberFromName(name string) (int, bool) {
+	name = strings.TrimSpace(name)
+	for _, re := range []*regexp.Regexp{reLeadingEpisode, reEpisodeMarker} {
+		if m := re.FindStringSubmatch(name); len(m) == 2 {
+			n, err := strconv.Atoi(m[1])
+			if err != nil {
+				return 0, false
+			}
+			return n, true
+		}
+	}
+	return 0, false
 }
 
 func ParseFilename(filename string) ParsedInfo {

@@ -113,3 +113,22 @@ func TestWasmAudio_ProfileChannelCapDeclinesTheWasmPath(t *testing.T) {
 	assert.Contains(t, d.TranscodeReasons, "audio_channels_exceeded")
 	assert.Equal(t, 2, d.MaxAudioChannels)
 }
+
+// The HTTP master marshals the client's wasm opt-in on the request, not on
+// the profile prefs: the served audio is the client's own decode either way
+// (the delivery reads the request), so the verdict the session is logged and
+// counted under must say so too.
+func TestDecide_HTTPWasmRequestYieldsWasmVerdict(t *testing.T) {
+	req := apptranscode.PlaybackRequest{
+		MediaID: "m1", SourcePath: "/f.mkv", Streams: wasmStreams("eac3", 6), Container: "matroska",
+		Client: transcoding.DefaultWebProfile, Prefs: apptranscode.DefaultTranscodingPreferences(),
+		AudioTrack: -1, SubtitleBurnInTrack: -1, WasmAudio: true,
+	}
+	d := (&apptranscode.PlanResolver{}).Decide(t.Context(), req)
+	assert.Equal(t, "wasm", d.AudioDecision)
+	assert.NotContains(t, d.TranscodeReasons, "audio_codec_unsupported")
+
+	req.WasmAudio = false
+	d = (&apptranscode.PlanResolver{}).Decide(t.Context(), req)
+	assert.Equal(t, "transcode", d.AudioDecision, "without the opt-in the track is re-encoded")
+}

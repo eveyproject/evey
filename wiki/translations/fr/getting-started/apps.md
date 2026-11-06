@@ -1,5 +1,5 @@
 ---
-source_sha: d4f0a9db7cd2a975f63f1fae6ffe21b95537fc4e0139ac81da8e8a75c7ed3625
+source_sha: 19a58f257c7925a42694296f89739751d4aa369febbecbabc2f268b6d406383f
 reviewed: true
 ---
 # Connecter les applications { #connect-the-apps }
@@ -236,7 +236,11 @@ passe.
       (`downloads.quality_choice`, voir
       [Diffusion de la lecture et téléchargements](../environment/playback-delivery.md)).
     - **Caster** vers un Chromecast.
-- **Android TV.** Un écran pensé pour la télécommande.
+- **Android TV.** Un écran pensé pour la télécommande. Pendant la lecture,
+  l'application passe le téléviseur sur une fréquence de rafraîchissement qui
+  est un multiple entier de la cadence de la vidéo quand il en propose une
+  (50 Hz pour un épisode en 25 images par seconde, plutôt que 59,94), pour
+  que chaque image reste à l'écran aussi longtemps que les autres.
 - **Navigateur de la télévision (`/tv`).** Le même genre d'écran pensé pour
   la télécommande, dans le navigateur de la TV, sans bouton pour caster vers
   un Chromecast.

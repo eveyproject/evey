@@ -158,6 +158,12 @@ type HLSLandedStart interface {
 type HLSProcessOpts struct {
 	OutputDir string
 	FilePath  string
+	// MediaID and SessionID (the decision hash that names the producer's
+	// session and its cache directory) ride every log line of the process, so
+	// an ffmpeg failure ties back to the playback that spawned it. Logging
+	// only: never part of the arguments.
+	MediaID   string
+	SessionID string
 	Profiles  []HLSProfile
 	// QualityTargets is the rate control of each rung, aligned with Profiles
 	// (the plan's QualityPolicy answer). Absent or zero entries fall back to

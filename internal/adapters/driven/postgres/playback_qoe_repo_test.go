@@ -80,3 +80,43 @@ func TestPlaybackQoERepo_PurgeKeepsEverythingInsideTheWindow(t *testing.T) {
 	require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM playback_qoe_events`).Scan(&n))
 	assert.Equal(t, 1, n)
 }
+
+// A batch lands whole, every row with its own values: the sink hands the
+// repository what piled up behind a slow write, and a tuple shifted by one
+// column would store one viewer's figures under another's session.
+func TestPlaybackQoERepo_InsertMany_LandsEveryRowWithItsOwnValues(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPlaybackQoERepo(db)
+	ctx := context.Background()
+
+	rows := make([]postgres.QoEEventRow, 0, 3)
+	for i := range 3 {
+		rows = append(rows, postgres.QoEEventRow{
+			SessionID:      "sess-batch",
+			ContentID:      "media-1",
+			SegmentIdx:     new(i),
+			BufferLengthMs: new(1000 * (i + 1)),
+			ObjectType:     "v",
+			Raw:            map[string]string{"sid": "sess-batch"},
+			RemoteIP:       "",
+		})
+	}
+	require.NoError(t, repo.InsertMany(ctx, rows))
+	require.NoError(t, repo.InsertMany(ctx, nil), "an empty batch is a no-op")
+
+	got, err := db.QueryContext(ctx,
+		`SELECT segment_idx, buffer_length_ms FROM playback_qoe_events WHERE session_id = $1 ORDER BY segment_idx`, "sess-batch")
+	require.NoError(t, err)
+	defer got.Close()
+	var seen []int
+	for got.Next() {
+		var seg, buf int
+		require.NoError(t, got.Scan(&seg, &buf))
+		assert.Equal(t, 1000*(seg+1), buf, "row %d keeps its own buffer length", seg)
+		seen = append(seen, seg)
+	}
+	require.NoError(t, got.Err())
+	assert.Equal(t, []int{0, 1, 2}, seen)
+}

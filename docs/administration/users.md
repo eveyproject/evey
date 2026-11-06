@@ -183,8 +183,7 @@ The home page is a stack of rows. A row with nothing to show is hidden.
 
 | Row | What it shows |
 | --- | --- |
-| **Resume Playback** | What the profile started and has not finished, most recent first. A title counts as watched at 90 %. |
-| **Up Next** | For each series the profile has started, the next episode not yet watched. |
+| **Resume Playback** | What the profile started and has not finished, and for each series it is watching the episode to play next: one card per series, most recent activity first. A title joins the row after 3 minutes of playback, so a shuffle draw or a zap does not. A title counts as watched at 90 %. |
 | **Collections** | The collections, with a link to the full list. |
 | **Recommended For You** | Films and series in the genres the profile watches most, best match first, then by rating. A genre counts when it appears in at least 3 of the profile's last 200 playbacks. |
 | **Most Popular** | The films and series played most on the server over the last 90 days. |
@@ -239,7 +238,7 @@ requests: i18n admin.mediaRequests.* (approve, reject, later, tabAccess, accessD
 share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
 PIN lockout: internal/app/user/pin_attempts.go - Attempt (lock check, compare and count as one step), pinTiers, Reset ; internal/adapters/driving/http/auth_handler.go - resetLockout ; profile_schedule.go Unlock counts on the adult profiles tried
 opening hours: internal/domain/user/schedule.go - AccessSchedule, DefaultKidsSchedule, Window, AccessAt, OverrideUntil ; internal/app/user/profile_schedule.go - Unlock (adult PIN only) ; internal/adapters/driving/http/profile_closed.go (httpAuthMiddleware, httpStreamAuthMiddleware) ; grpcapi/interceptors/profile_hours.go ; grpcapi/playback_closing_soon.go (closingWarnLead 10 min) ; internal/app/config/timezone.go - KeyServerTimezone ; postgres profile_repo.go - scheduleFromJSON (unreadable = closed) ; i18n auth.profile.schedule.*, auth.profile.locked.*, admin.serverConfig.timezone
-home: internal/app/feed/* ; i18n admin.serverConfig.feedConfig.*, media.home.*
+home: internal/app/feed/* ; internal/domain/playback/model.go - MinResumeRailPosition ; internal/adapters/driven/postgres/watch_progress_resume_rail_test.go ; i18n admin.serverConfig.feedConfig.*, media.home.*, common.feeds.labels.resume_playback
 first profile named after the username: internal/app/user/user_service.go, access_service.go - RegisterWithInvite (NewProfile with u.Username)
 invite link built from the admin's browser address: frontend/apps/web/src/features/admin/InviteLinkRow.tsx - inviteUrl (window.location.origin)
 requester notified of the answer: internal/app/mediarequest/service.go - Answer ; i18n notifications push.request_answered

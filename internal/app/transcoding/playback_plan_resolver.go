@@ -220,6 +220,10 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	// while the user plays an AAC track, or vice-versa). Mirrors the audioTrack
 	// resolution the fingerprint and the ffmpeg -map already use.
 	prefs.AudioTrack = req.AudioTrack
+	// The client's wasm opt-in rides the request (the delivery serves the
+	// audio client-side from it): the verdict must read the same flag, or
+	// the session is logged and counted as a re-encode it never does.
+	prefs.WasmAudio = req.WasmAudio
 	prefs.SourceBitrateKbps = req.SourceBitrateKbps
 	prefs.SourceNeedsRemux = req.SourceNeedsRemux
 	d := MakePlaybackDecisionWithPrefs(ctx, req.Streams, req.Container, req.Client, req.MaxBitrateKbps, prefs, req.SourcePath)
@@ -332,6 +336,11 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 			d.VideoCodec = "h264"
 		}
 	}
+	// The pins and the HDR re-add above can turn a direct play into a
+	// segmented session after the core ran: the packaged-audio gate it
+	// skipped (no reason on the board then) must be replayed on what is
+	// served now, or "copy" is baked into every child URL over AAC bytes.
+	applyPackagedAudioPassthrough(d, toStreamSpecs(req.Streams), req.Client, prefs)
 	return *d
 }
 
@@ -359,8 +368,11 @@ func (pr *PlanResolver) Reported(ctx context.Context, req PlaybackRequest) trans
 	// an H.264 ladder in the segments). Name the gate, the way the master's
 	// log does (TranscodeCause), and say transcode.
 	// A direct play hands the raw file over: no rung, no gate, nothing to
-	// correct - the rule is for the packaged sessions only.
-	if d.VideoDecision == "copy" && d.PlayMethod != "direct_play" && !isCopy {
+	// correct - the rule is for the packaged sessions only. Nor is a copy
+	// the packager carries: the master dispatches on the delivery first,
+	// and the packager needs no ffmpeg producer to serve the source verbatim.
+	packaged := pr.resolveDelivery(ctx, req, d, route).Video == EngineMkvgo
+	if d.VideoDecision == "copy" && d.PlayMethod != "direct_play" && !isCopy && !packaged {
 		d.VideoDecision = "transcode"
 		gate := SourceCopyBlocker(req.Streams)
 		if gate == "" {

@@ -1,5 +1,5 @@
 ---
-source_sha: 8225f3cc5ff5a9bf19187b30ea0a5cd214bea962f504708f3de910c38a198b9a
+source_sha: d85aa75ac4fda7ad79d0aa19567a4419404091f702a6f8fe6f95be244ef924d7
 reviewed: true
 ---
 # 监控和日志 { #monitoring-and-logs }
@@ -49,9 +49,12 @@ reviewed: true
 | `evey_transcodes_active`、`evey_transcode_queue_depth` | 后台转码任务（实时播放以外的）：正在运行的，以及在等待空位的。 |
 | `evey_hlsvod_sessions_active`、`evey_hlsvod_sessions_rejected_total` | 正在生成播放片段的 FFmpeg 进程，以及因为服务器已达上限而被拒绝的启动。 |
 | `evey_hlsvod_cache_size_bytes`、`evey_hlsvod_cache_evicted_bytes_total` | 磁盘上片段缓存的大小，以及清理程序释放的空间。 |
+| `evey_hls_first_segment_seconds` | 一次播放从播放列表到第一个片段等待了多久，按服务路径区分（`transcode`、`ffmpeg-copy`）。也就是观众在开始播放时感受到的等待。 |
 | `evey_mkvgo_walks_in_flight`、`evey_mkvgo_plan_stats` | 进程内的封装器：正在读取的窗口、排队的读取（`stat="slot_waits"`），见 [Evey 中的 MKVGo](../playback/mkvgo.md#load-replaced-files-and-updates)。 |
 | `evey_http_requests_total`、`evey_http_request_duration_seconds` | 按方法和路径统计的请求数和延迟。 |
 | `evey_watcher_alive`、`evey_scan_queue_depth` | 每个媒体库的文件夹监视器是否响应了上一次检查（1 或 0），以及等待扫描的文件。 |
+
+[`alerts.example.yml`](https://github.com/eveyproject/evey/blob/master/docs/operations/alerts.example.yml) 包含基于这些指标的告警规则示例，可复制到您自己的 Prometheus 规则文件中。
 
 ## 命令行 { #command-line }
 
@@ -62,5 +65,5 @@ who's online: frontend/apps/web/src/features/admin/DashboardOnline.tsx (presence
 logs: internal/pkg/logger/logger.go - New (file only outside DevMode), rotatingWriter ; config EVEY_LOG_RETENTION_DAYS ; docker-compose.yml ./evey-data:/data
 labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.where.*, admin.logs.live, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
 automatic limits: i18n admin.qoe.overrides.*
-metrics: internal/pkg/metrics/metrics.go (names) ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
+metrics: internal/pkg/metrics/metrics.go (names), HLSFirstSegmentSeconds fed by internal/adapters/driving/http/transcode_first_segment.go ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
 -->

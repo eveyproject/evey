@@ -14,12 +14,20 @@ type reportCall struct {
 }
 
 type reportRecorder struct {
-	mu    sync.Mutex
-	calls []reportCall
-	err   error
+	panicOnce bool
+	mu        sync.Mutex
+	calls     []reportCall
+	err       error
 }
 
 func (r *reportRecorder) report(_ context.Context, profileID, mediaItemID string, positionMs int64) error {
+	r.mu.Lock()
+	if r.panicOnce {
+		r.panicOnce = false
+		r.mu.Unlock()
+		panic("report panics once")
+	}
+	r.mu.Unlock()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.err != nil {
@@ -38,6 +46,25 @@ func (r *reportRecorder) all() []reportCall {
 func testTracker(rec *reportRecorder) *CastProgressTracker {
 	t := NewCastProgressTracker(rec.report)
 	return t
+}
+
+// A report that panics costs one flush, not the tracker: the next tick
+// reports the position the receiver reached.
+func TestCastProgress_FlushLoopSurvivesAPanickingReport(t *testing.T) {
+	rec := &reportRecorder{panicOnce: true}
+	tr := testTracker(rec)
+	tr.flushEvery = 5 * time.Millisecond
+	tr.Start(t.Context())
+	defer tr.Stop()
+
+	tr.ObserveFetch("p1", "m1", 120_000)
+	deadline := time.Now().Add(2 * time.Second)
+	for len(rec.all()) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("no report after the panicking one: the flush loop died")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // The receiver fetches AHEAD of the playhead (it buffers minutes), so the

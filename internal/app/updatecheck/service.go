@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 )
 
 // Config keys the admin sets; both optional.
@@ -121,7 +122,7 @@ func (s *Service) Start(ctx context.Context) {
 				return
 			case <-t.C:
 			}
-			s.Check(ctx)
+			bgloop.Tick("updatecheck.check", func() { s.Check(ctx) })
 			t.Reset(checkInterval)
 		}
 	}()

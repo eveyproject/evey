@@ -196,14 +196,16 @@ describe("MediaDetailActions", () => {
     expect(screen.getByTestId("mark-watched-btn")).toBeInTheDocument();
   });
 
-  it("hides mark-watched button for a series (server does not cascade to episodes)", () => {
+  // The button used to be hidden on a series and a season because the server
+  // wrote one row on the container; it now marks every episode beneath it.
+  it("shows mark-watched button for a series", () => {
     render(<MediaDetailActions {...defaultProps} isSeries />, { wrapper: Wrapper });
-    expect(screen.queryByTestId("mark-watched-btn")).not.toBeInTheDocument();
+    expect(screen.getByTestId("mark-watched-btn")).toBeInTheDocument();
   });
 
-  it("hides mark-watched button for a season", () => {
+  it("shows mark-watched button for a season", () => {
     render(<MediaDetailActions {...defaultProps} isSeason />, { wrapper: Wrapper });
-    expect(screen.queryByTestId("mark-watched-btn")).not.toBeInTheDocument();
+    expect(screen.getByTestId("mark-watched-btn")).toBeInTheDocument();
   });
 
   it("shows download button when filePath present", () => {

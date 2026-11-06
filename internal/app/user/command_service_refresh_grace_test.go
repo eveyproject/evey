@@ -105,3 +105,87 @@ func TestRefreshToken_UsedWithoutTimestamp_Rejected(t *testing.T) {
 		t.Fatalf("a used row without used_at must be rejected, got: %v", err)
 	}
 }
+
+// The grace exists for a handful of tabs that raced one cookie, not for a
+// token stolen inside the window: each replay minted one more persistent
+// session, without a ceiling. The ceiling is the ceiling of that race.
+func TestRefresh_GraceIssuesAtMostThreeSiblings(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "M", IsDefault: true})
+
+	raw := "rotated-moments-ago-refresh-tok"
+	h := sha256.Sum256([]byte(raw))
+	justNow := time.Now()
+	if err := d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt-graced", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		Used: true, UsedAt: &justNow,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range maxGraceSiblings {
+		if _, _, err := d.svc.RefreshToken(ctx, raw, "", ""); err != nil {
+			t.Fatalf("sibling %d within the grace must be issued: %v", i+1, err)
+		}
+	}
+	if _, _, err := d.svc.RefreshToken(ctx, raw, "", ""); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("a replay past %d siblings must be refused, got: %v", maxGraceSiblings, err)
+	}
+}
+
+// A sibling slot is spent only when a sibling is actually issued: attempts
+// refused afterwards (a profile the token cannot reach, a missing PIN proof)
+// used to burn the slots, and the tab that legitimately lost the race was
+// then refused.
+func TestRefresh_GraceSlotsSurviveRefusedAttempts(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "M", IsDefault: true})
+
+	raw := "rotated-then-misused-refresh-tok"
+	h := sha256.Sum256([]byte(raw))
+	justNow := time.Now()
+	if err := d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt-misused", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		Used: true, UsedAt: &justNow,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range maxGraceSiblings {
+		if _, _, err := d.svc.RefreshToken(ctx, raw, "not-a-profile-of-this-user", ""); err == nil {
+			t.Fatalf("attempt %d on a foreign profile must be refused", i)
+		}
+	}
+	if _, _, err := d.svc.RefreshToken(ctx, raw, "", ""); err != nil {
+		t.Fatalf("refused attempts must not spend the sibling slots: %v", err)
+	}
+}
+
+// The purge of stale entries runs at most once per grace window: scanning
+// every entry on every admission made a burst of rotations quadratic under
+// the lock. Stale entries are still dropped once a window has passed.
+func TestGraceSiblingCounter_PurgesLazily(t *testing.T) {
+	var c graceSiblingCounter
+	t0 := time.Now()
+	c.admit("fresh", t0)
+	c.entries["stale"] = graceSiblingEntry{count: 1, first: t0.Add(-time.Hour)}
+
+	c.admit("other", t0.Add(time.Second))
+	if _, ok := c.entries["stale"]; !ok {
+		t.Fatal("an admission inside the window must not scan the entries")
+	}
+
+	c.admit("later", t0.Add(refreshRotationGrace+time.Second))
+	if _, ok := c.entries["stale"]; ok {
+		t.Fatal("a stale entry must be dropped once a window has passed")
+	}
+	if _, ok := c.entries["later"]; !ok {
+		t.Fatal("the admitted token must be counted")
+	}
+}

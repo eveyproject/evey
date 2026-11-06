@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   formatAudioTrackLabel,
+  tagAudioTrackLabel,
   trackDisplayName,
   useLibraryServiceGetMediaItem,
-  pickPreferredStreamIndex,
+  pickDefaultAudioIndex,
   pickDefaultSubtitle,
   playerAudioStreams,
   playerSubtitleStreams,
@@ -165,11 +166,11 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const userPickedAudio = useRef(audio !== undefined);
   const userPickedSubtitle = useRef(subtitle !== undefined);
 
-  // Profile preference first, then the file's default, then the first track.
+  // Profile preference first, then the file's default, then the first track,
+  // never a commentary track while a main one exists.
   useEffect(() => {
     if (userPickedAudio.current || audioStreams.length === 0) return;
-    const preferred = pickPreferredStreamIndex(audioStreams, profileAudioLangs);
-    setSelectedAudio(preferred ?? audioStreams.find((s) => s.isDefault)?.index ?? audioStreams[0].index);
+    setSelectedAudio(pickDefaultAudioIndex(audioStreams, profileAudioLangs) ?? audioStreams[0].index);
   }, [audioStreams, profileAudioLangs]);
   // The subtitle auto-pick never restarts the stream by itself: a text or
   // PGS track is drawn here, and a default bitmap track the viewer did not
@@ -577,7 +578,10 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   // --- settings panel --------------------------------------------------------
   // The labels the phone, the browser and the Android television print, from
   // the shared helpers: one track must not read differently per client.
-  const audioLabel = useCallback((s: V1MediaStream, fallback: string) => formatAudioTrackLabel(s, fallback, i18n.language), [i18n.language]);
+  const audioLabel = useCallback(
+    (s: V1MediaStream, fallback: string) => tagAudioTrackLabel(formatAudioTrackLabel(s, fallback, i18n.language), s, (k) => t(k)),
+    [t, i18n.language],
+  );
   const subtitleLabel = useCallback(
     (s: V1MediaStream, fallback: string) => `${trackDisplayName(s, fallback, i18n.language)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
     [t, i18n.language],

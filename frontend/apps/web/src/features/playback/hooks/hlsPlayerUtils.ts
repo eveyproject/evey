@@ -1,5 +1,6 @@
 import { buildCastStreamUrl, type CastProfile, type ReceiverStreamInfo } from "@evey/media-caps/cast";
 import type { SubtitleStream } from "../SubtitleSelector";
+import { defaultAudioCandidates } from "@evey/api";
 // The codec/HLS negotiation helpers are shared with the TV web client:
 // packages/client/src/web/hlsCodecParams.ts. Re-exported so the call sites
 // and tests in this folder keep importing from where they always did.
@@ -373,6 +374,9 @@ function matchLang(
 //   4. isDefault flag
 //   5. First available stream
 //
+// Every step runs among defaultAudioCandidates: a commentary track is never
+// the automatic pick while a main track exists, as on the server.
+//
 // For steps 2-3 we iterate the ordered list and return the first stream that
 // is actually present in the file, so missing languages are silently skipped.
 //
@@ -382,12 +386,13 @@ function matchLang(
 // then started every next film on the English track (2026-09-03). Per-series
 // memory keeps its priority: that one is scoped to what the user picked it on.
 export function resolveDefaultAudio(
-  audioStreams: { index: number; trackIndex: number; language?: string; title?: string; isDefault?: boolean }[],
+  allAudioStreams: { index: number; trackIndex: number; language?: string; title?: string; isDefault?: boolean; isCommentary?: boolean }[],
   seriesId: string | undefined,
   getSeriesTrackPrefs: (id: string) => { audioLang?: string } | null,
   getPreferredAudioLang: () => string | null,
   profileAudioLangs?: string[],
 ) {
+  const audioStreams = defaultAudioCandidates(allAudioStreams);
   // 1. Per-series override wins unconditionally.
   const seriesPrefs = seriesId ? getSeriesTrackPrefs(seriesId) : null;
   if (seriesPrefs?.audioLang) {

@@ -32,6 +32,10 @@ type WatchProgressBuffer struct {
 
 	mu      sync.Mutex
 	pending map[watchProgressKey]*playback.WatchProgress
+	// inflight holds the entries a running Flush took out of pending and has
+	// not written yet: between the two they are in neither the map nor the
+	// database, and Peek must still find them.
+	inflight map[watchProgressKey]*playback.WatchProgress
 
 	// started guards Stop against a deadlock when called without a prior Start:
 	// doneCh is only ever closed by the Start goroutine's defer, so waiting on it
@@ -103,9 +107,28 @@ func (b *WatchProgressBuffer) snapshot() []*playback.WatchProgress {
 	for _, wp := range b.pending {
 		out = append(out, wp)
 	}
+	b.inflight = b.pending
 	b.pending = make(map[watchProgressKey]*playback.WatchProgress)
 	b.mu.Unlock()
 	return out
+}
+
+// Peek returns a copy of the freshest position waiting to be written for
+// (profileID, mediaItemID), if any. Reads go through it so a position the
+// player reported a second ago is not missing from what the media page shows.
+func (b *WatchProgressBuffer) Peek(profileID shared.ProfileID, mediaItemID shared.MediaItemID) (*playback.WatchProgress, bool) {
+	k := watchProgressKey{profileID: profileID, mediaItemID: mediaItemID}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	wp, ok := b.pending[k]
+	if !ok {
+		wp, ok = b.inflight[k]
+	}
+	if !ok {
+		return nil, false
+	}
+	c := *wp
+	return &c, true
 }
 
 // Flush drains and upserts every pending entry in ONE batch statement (the
@@ -120,6 +143,11 @@ func (b *WatchProgressBuffer) Flush(ctx context.Context) int {
 	if len(entries) == 0 {
 		return 0
 	}
+	defer func() {
+		b.mu.Lock()
+		b.inflight = nil
+		b.mu.Unlock()
+	}()
 	if err := b.repo.UpsertMany(ctx, entries); err == nil {
 		return len(entries)
 	} else {

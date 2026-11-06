@@ -12,6 +12,20 @@ const log = clientLogger("device");
 const UNREACHABLE_AFTER = 6;
 const UNREACHABLE_RETRY_MS = 10 * 60_000;
 
+// The server drops a socket that stays silent for two minutes. A keepalive
+// well inside that window keeps the registration from being torn down and
+// rebuilt on every timeout; the frame is read and ignored server-side, its
+// arrival alone resets the deadline.
+const PING_INTERVAL_MS = 45_000;
+// Every delay is spread by this fraction either way: identical cadences had
+// every device of a household ping, and after a server restart reconnect,
+// in step.
+const JITTER_FRACTION = 0.2;
+
+function jittered(ms: number): number {
+  return Math.round(ms * (1 + JITTER_FRACTION * (2 * Math.random() - 1)));
+}
+
 interface LoadAndPlayCommand {
   type: "loadAndPlay";
   mediaId: string;
@@ -81,6 +95,7 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
     let cancelled = false;
     let attempt = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingTimer: ReturnType<typeof setTimeout> | null = null;
     let deviceId = "";
     let backgrounded = false;
     async function connect() {
@@ -119,6 +134,7 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
           name: stateRef.current.deviceName(),
           deviceType,
         }));
+        schedulePing();
       };
 
       ws.onmessage = (event) => {
@@ -143,9 +159,31 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
 
       ws.onclose = () => {
         ws = null;
+        stopPing();
         if (!opened) unopenedRef.current += 1;
         scheduleReconnect();
       };
+    }
+
+    function schedulePing() {
+      stopPing();
+      pingTimer = setTimeout(() => {
+        pingTimer = null;
+        if (cancelled || !ws) return;
+        try {
+          ws.send(JSON.stringify({ type: "ping" }));
+        } catch (err) {
+          log.warn("ping failed:", err);
+        }
+        schedulePing();
+      }, jittered(PING_INTERVAL_MS));
+    }
+
+    function stopPing() {
+      if (pingTimer) {
+        clearTimeout(pingTimer);
+        pingTimer = null;
+      }
     }
 
     function scheduleReconnect() {
@@ -156,12 +194,13 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
         ? UNREACHABLE_RETRY_MS
         : Math.min(30_000, 1000 * Math.pow(2, attempt));
       attempt += 1;
-      reconnectTimer = setTimeout(() => { void connect(); }, delay);
+      reconnectTimer = setTimeout(() => { void connect(); }, jittered(delay));
     }
 
     // Clear handlers before close() so the deliberate teardown below never
     // trips onclose's own reconnect scheduling.
     function teardownSocket() {
+      stopPing();
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;

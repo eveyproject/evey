@@ -1,5 +1,5 @@
 ---
-source_sha: 183de3f3debe04fa20962ddd47cf680476ffb11f924669acd3a1f78d1a1ad221
+source_sha: 8409828551fb37b2c675f36eab993aed4c224ba6a45f3073a76b096d458bbf74
 reviewed: true
 ---
 # Transkodierung und Serverkapazität { #transcoding-and-server-capacity }
@@ -96,6 +96,14 @@ Wird der Platz knapp, reagiert der Server in dieser Reihenfolge:
    auf den Prozessor, wenn dieser Platz hat.
 3. **Eine Ablehnung.** Hat keiner von beiden Platz, zeigt der Player **Der
    Server transkodiert gerade andere Streams** und kann es erneut versuchen.
+
+Eine Ablehnung ist endgültig und keine Frage des Platzes. Eine Datei, deren
+Kodierung für dieses Gerät mehr kosten würde als die gesamte gemessene
+Kapazität, auf einem Server, auf dem sonst nichts läuft, wird mit **Dieser
+Server ist für diese Datei nicht leistungsstark genug** abgelehnt, und der
+Player versucht es nicht erneut. Das passiert nur, wenn die Datei auf diesem
+Gerät weder unverändert abgespielt noch kopiert werden kann; der Ausweg ist
+ein Gerät, das die Datei direkt dekodiert.
 
 Scheitert eine Kodierung auf der Grafikkarte bei einem Titel, geht dieser
 Titel eine Zeit lang an den Prozessor, für alle Zuschauer. Die Karte selbst
@@ -204,7 +212,7 @@ Geschwindigkeitstest nicht, meldet der Bericht, dass der Upload nicht gemessen
 werden konnte, und nennt keine Zahl für Zuschauer von außen.
 
 <!-- sources
-disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After) ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full
+disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After, ErrCodeSourceTooHeavy, tooHeavyForIdleHost) ; i18n player.sourceTooHeavy ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full
 clear all empties extracted subtitles: internal/app/transcoding/service.go - WithDerivedCachePurge ; internal/adapters/driving/http/subtitle_cache.go - SubtitleCachePurger (/data/subtitles)
 calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - swBenchLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
 capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability

@@ -797,7 +797,10 @@ export async function startDownload(
   const kind = opts?.kind ?? "video";
   let ext = resolveExtension(kind, opts?.formatHint);
 
-  const tokenUrl = opts?.tokenUrl ?? `/api/v1/media/${mediaItemId}/stream-token`;
+  // purpose=native asks for the long window a native fetcher needs: the
+  // default token slides on a few minutes of traffic, and a transfer resumed
+  // after a longer cut answered 401, which erased the partial file.
+  const tokenUrl = opts?.tokenUrl ?? `/api/v1/media/${mediaItemId}/stream-token?purpose=native`;
   let downloadPath = opts?.downloadPath ?? `/api/v1/media/${mediaItemId}/download`;
 
   const { token } = await eveyFetch<{ token: string }>({

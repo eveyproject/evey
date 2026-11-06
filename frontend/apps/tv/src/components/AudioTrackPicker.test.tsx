@@ -42,8 +42,9 @@ vi.mock("./FocusableCard", () => ({
 
 vi.mock("@evey/theme", () => ({ FONT_SIZE: { sm: 12, xs: 10, base: 14, lg: 18, xl: 22 } }));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
   formatChannelLayout: (channels?: number) => (channels ? `${channels}ch` : ""),
+  tagAudioTrackLabel: (await importOriginal<typeof import("@evey/api")>()).tagAudioTrackLabel,
 }));
 
 import { AudioTrackPicker, type AudioStream } from "./AudioTrackPicker";

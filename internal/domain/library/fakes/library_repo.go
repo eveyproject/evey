@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -102,6 +103,20 @@ func (r *FakeLibraryRepository) Update(_ context.Context, lib *library.Library) 
 		return ErrNotFound
 	}
 	r.items[string(lib.ID)] = lib
+	return nil
+}
+
+func (r *FakeLibraryRepository) TouchLastScannedAt(_ context.Context, id shared.LibraryID, at time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	lib, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	lib.LastScannedAt = &at
 	return nil
 }
 

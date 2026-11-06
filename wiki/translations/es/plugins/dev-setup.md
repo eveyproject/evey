@@ -1,5 +1,5 @@
 ---
-source_sha: 4a666dfa2c12290f8a0b0b78d5751a32b7d8b3b95a89284bddb67ae767e73d4c
+source_sha: 1228995cc2e68d60fc487b1964ca10ac8b4d40ada5f82047cdbcf9d42528c0f6
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -416,7 +416,7 @@ host RPC permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; 
 host RPCs: internal/adapters/driving/pluginhost/host_server.go - Log, GetConfig, SetConfig, GetData ; fetch.go - Fetch (GET/HEAD, maxFetchBytes, fetchTimeout)
 frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc ; internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy
 bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge
-cosign: internal/adapters/driven/pluginrunner/cosign.go - loadP256PublicKey ; internal/config/config.go - CosignPolicy validation
+cosign: internal/adapters/driven/pluginrunner/cosign.go - NewCosignVerifier, readPackageKey, verifyBlobSignature ; internal/config/config.go - CosignPolicy validation
 install order: internal/app/plugin/install.go - installLocalZip, parseAndValidateManifest, resolveExistingPlugin, verifyPluginIntegrity, extractPluginToStaging, validateStagedPlugin, checkEscalatedWarnings, swapAndPersistPlugin ; update.go - ApplyUpdate ; zip limits: docs/SECURITY.md (ZIP extraction)
 resource limits: internal/config/config.go - Plugins ; internal/adapters/driven/pluginrunner/runner_resmon.go ; i18n admin.plugins.resourceLimits.*
 error texts: internal/adapters/driven/pluginrunner/manifest.go ; internal/domain/plugin/model.go ; internal/app/plugin/install.go ; cosign.go ; runner_resmon.go

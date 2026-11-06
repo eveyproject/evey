@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eveyproject/evey/internal/domain/metadata"
+
 	"github.com/eveyproject/evey/internal/pkg/ssrf"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -43,7 +45,7 @@ func (d *ArtworkHTTPDownloader) Download(ctx context.Context, url, destPath stri
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download failed with status %d", resp.StatusCode)
+		return &metadata.FetchStatusError{Code: resp.StatusCode}
 	}
 
 	ct := resp.Header.Get("Content-Type")

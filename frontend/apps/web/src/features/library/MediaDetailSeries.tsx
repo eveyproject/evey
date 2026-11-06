@@ -13,9 +13,9 @@ import {
 } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
-import { formatDurationMs, seasonLabel } from "@evey/api";
+import { formatDurationMs, isPositive, seasonLabel } from "@evey/api";
 import { artworkUrl } from "./artworkUrl";
-import { useSeriesPlayTarget, useWatchProgressMaps } from "@evey/client";
+import { sortEpisodesByIndex, useSeriesPlayTarget, useWatchProgressMaps } from "@evey/client";
 import { DownloadButton } from "@/features/playback/DownloadButton";
 import { useStreamToken } from "@/hooks/useStreamToken";
 import { useDemoLock } from "@/hooks/useDemoMode";
@@ -153,7 +153,7 @@ function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number
             E{ep.indexNumber ?? "?"}
           </span>
           <span className="text-base font-medium truncate">{ep.title}</span>
-          {ep.durationMs && (
+          {isPositive(ep.durationMs) && (
             <span className="text-sm flex-shrink-0 ml-auto text-[var(--text-muted)]">{formatDurationMs(ep.durationMs)}</span>
           )}
         </div>
@@ -208,7 +208,7 @@ function SeasonCard({ seasonId }: { seasonId: string }) {
   const { t } = useTranslation();
   const { data: season } = useLibraryServiceGetMediaItem(seasonId);
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId, "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE });
-  const episodes = sortByIndex(episodesData?.items ?? []);
+  const episodes = sortEpisodesByIndex(episodesData?.items ?? []);
   const firstEpisode = episodes[0];
 
   const label = seasonLabel(season ?? {}, t);
@@ -285,7 +285,7 @@ export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPla
     { parentId: firstSeason?.id ?? "", "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE },
     { query: { enabled: !!firstSeason?.id } } as never,
   );
-  const episodes = sortByIndex(episodesData?.items ?? []);
+  const episodes = sortEpisodesByIndex(episodesData?.items ?? []);
   const episode = target.episode ?? episodes[0];
 
   if (!episode?.id) return null;
@@ -301,7 +301,7 @@ export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPla
 export function PlaySeasonButton({ seasonId, onPlay }: { seasonId: string; onPlay: (episodeId: string) => void }) {
   const { t } = useTranslation();
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId, "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE });
-  const episodes = sortByIndex(episodesData?.items ?? []);
+  const episodes = sortEpisodesByIndex(episodesData?.items ?? []);
   const firstEpisode = episodes[0];
 
   if (!firstEpisode?.id) return null;
@@ -336,7 +336,7 @@ export function SeriesSection({ item }: { item: V1MediaItem }) {
 export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "", "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE });
-  const episodes = sortByIndex(episodesData?.items ?? []);
+  const episodes = sortEpisodesByIndex(episodesData?.items ?? []);
   const { watchedMap, percentMap } = useWatchProgressMaps();
   if (!episodes.length) return null;
 

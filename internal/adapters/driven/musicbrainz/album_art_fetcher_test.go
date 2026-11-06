@@ -298,3 +298,19 @@ func TestFetchSanitizesLuceneSyntaxInTheQuery(t *testing.T) {
 		t.Fatalf("un titre avec '?' doit être géré : %v", err)
 	}
 }
+
+// Le crédit d'artiste se compare strictement : un nom qui prolonge celui
+// demandé est un autre artiste.
+func TestFetchRejectsAnArtistWhoseNameMerelyExtendsTheRequestedOne(t *testing.T) {
+	s := &stubAPIs{
+		searchResults: []map[string]any{releaseGroup("rg-x", "Purple Rain", "Prince Royce")},
+		releases:      []map[string]any{release("rel-x", "CD")},
+		art:           map[string][]byte{"/release/rel-x/front-500": jpegOfSize(t, 500, 500)},
+	}
+	if _, _, err := newFetcher(t, s).Fetch(context.Background(), "Prince", "Purple Rain"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("attendu os.ErrNotExist pour un artiste au nom plus long, obtenu %v", err)
+	}
+	if len(s.artRequests) != 0 {
+		t.Errorf("la pochette de l'autre artiste ne doit pas être demandée (%v)", s.artRequests)
+	}
+}

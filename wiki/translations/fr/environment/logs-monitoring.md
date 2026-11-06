@@ -1,5 +1,5 @@
 ---
-source_sha: 84d4aedb514ecf260e351de19cd0ddda1771d2b1ed9173179da8a7b9ff4e192a
+source_sha: db8fc3535937c91ca8bbccb3b627d7937ea9ffe9c2082fe5d629d8023b7b6469
 reviewed: true
 ---
 # Sauvegardes, logs et supervision { #backups-logs-and-monitoring }

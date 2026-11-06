@@ -76,6 +76,19 @@ type BenchmarkRunner struct {
 	// behaviour: generate the synthetic clip on first run.
 	sdrSrc benchSampleSource
 	hdrSrc benchSampleSource
+
+	// hdrGenerate produces the synthetic HDR clip (generateHDRSample; tests
+	// substitute a counter). hdrMemo holds the HDR input resolved for the
+	// current bench: the software HDR ladder and the HW bridge both need it,
+	// and a generation that failed once in a bench must not be paid again
+	// (an x265 crash cost ten seconds twice per calibration).
+	hdrGenerate func(dst string) error
+	hdrMu       sync.Mutex
+	hdrMemo     struct {
+		done     bool
+		path     string
+		fallback bool
+	}
 }
 
 // benchSampleSource locates one calibration input. Resolution order (see
@@ -141,7 +154,7 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &BenchmarkRunner{
+	r := &BenchmarkRunner{
 		ffmpegPath:    opts.FfmpegPath,
 		samplePath:    opts.SamplePath,
 		hwDetector:    NewHWDetector(opts.FfmpegPath),
@@ -161,6 +174,8 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 			sha256:       opts.HDRSampleSHA256,
 		},
 	}
+	r.hdrGenerate = r.generateHDRSample
+	return r
 }
 
 // hwBenchLadder is the resolution rungs we probe for hardware-encode
@@ -223,6 +238,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		slog.String("pin_backend", pref.Backend),
 		slog.Bool("hw_disabled", pref.DisableHW))
 
+	r.forgetHDRSample()
 	sample, fallback := r.resolveSample(ctx)
 
 	// Walk the declarative software ladder table (plain SDR, HDR->SDR tonemap,
@@ -695,25 +711,56 @@ func synthBenchSource(pixFmt string) string {
 // cost, so an over-fat sample understates the host. Slow on weak hosts (~30-60 s
 // at 4K) but runs once, reused across reboots/recalibrations.
 func (r *BenchmarkRunner) generateSample(dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return fmt.Errorf("mkdir bench dir: %w", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Production, Site: "benchmark.generate_sample", UnboundedThreads: true}, r.ffmpegBin(),
-		"-hide_banner", "-nostats", "-y",
+	return r.encodeSample(dst, "benchmark.generate_sample", 0,
 		"-f", "lavfi", "-i", synthBenchSource("yuv420p"),
 		"-c:v", "libx265", "-preset", "medium",
 		"-x265-params", "bframes=4:ref=3:b-adapt=2:rc-lookahead=20",
 		"-b:v", "5M", "-maxrate", "6M", "-bufsize", "10M",
 		"-tag:v", "hvc1",
 		"-an",
-		dst,
 	)
-	if err != nil {
-		return fmt.Errorf("ffmpeg generate sample: %w (tail: %s)", err, tailString(string(out), 200))
+}
+
+// hdrSampleEncodeMemBytes is the working set the 4K 10-bit libx265 sample
+// encode holds, declared to procfork so the encode is admitted for what it
+// needs instead of dying under the decoder-sized production cap (1.5 GiB on
+// a small host, 3.5 GiB of address space): measured with four cores, 2.4 GiB
+// resident and 3.4 GiB of address space, which x265 overran on a 4-core VM
+// and segfaulted on a frame malloc. The preset, the lookahead and the
+// frame-thread count move it by a tenth at most; the 4K frames are the cost.
+// The 8-bit encode (1.6 GiB resident, 2.4 GiB of address space) fits the
+// class cap with the same margin this leaves the 10-bit one.
+const hdrSampleEncodeMemBytes = 5 << 29 // 2.5 GiB
+
+// encodeSample runs one synthetic sample encode into dst through a temporary
+// file in the same directory, renamed only once ffmpeg exited cleanly. ffmpeg
+// opens its output before encoding a frame, so a crash or a timeout used to
+// leave a 0-byte clip at dst that the next bench found "cached", condemned and
+// paid for again. On failure nothing is left behind.
+func (r *BenchmarkRunner) encodeSample(dst, site string, memBytes int64, args ...string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("mkdir bench dir: %w", err)
 	}
-	return nil
+	tmp, err := os.CreateTemp(filepath.Dir(dst), "sample-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp: %w", err)
+	}
+	tmpName := tmp.Name()
+	_ = tmp.Close()
+	defer func() { _ = os.Remove(tmpName) }() //nolint:errcheck // best-effort temp cleanup; rename consumes it on success
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	argv := append([]string{"-hide_banner", "-nostats", "-y"}, args...)
+	// ffmpeg names the muxer from the extension: the temp file has none.
+	argv = append(argv, "-f", "hevc", tmpName)
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Production, Site: site, UnboundedThreads: true, MinMemBytes: memBytes}, r.ffmpegBin(), argv...)
+	if err != nil {
+		return fmt.Errorf("ffmpeg %s: %w (tail: %s)", site, err, tailString(string(out), 200))
+	}
+	if st, err := os.Stat(tmpName); err != nil || st.Size() == 0 {
+		return fmt.Errorf("ffmpeg %s: exited clean but wrote nothing", site)
+	}
+	return os.Rename(tmpName, dst)
 }
 
 // hdrSamplePath is the on-disk path for the 10-bit HDR10 bench sample, next to
@@ -726,8 +773,25 @@ func (r *BenchmarkRunner) hdrSamplePath() string {
 // cascade as the SDR one (operator file > cached > pinned download > synthetic).
 // A real HDR clip is strongly preferred: the synthetic understates the 10-bit
 // decode + tonemap cost, which is exactly what pins the HDR cap too low.
+//
+// Resolved once per bench (see hdrMemo): the second caller in the same bench
+// gets the first verdict, a failed generation included.
 func (r *BenchmarkRunner) resolveHDRSample(ctx context.Context) (string, bool) {
-	return r.resolveBenchSample(ctx, "HDR", r.hdrSrc, r.hdrSamplePath(), r.generateHDRSample)
+	r.hdrMu.Lock()
+	defer r.hdrMu.Unlock()
+	if !r.hdrMemo.done {
+		r.hdrMemo.path, r.hdrMemo.fallback = r.resolveBenchSample(ctx, "HDR", r.hdrSrc, r.hdrSamplePath(), r.hdrGenerate)
+		r.hdrMemo.done = true
+	}
+	return r.hdrMemo.path, r.hdrMemo.fallback
+}
+
+// forgetHDRSample opens a new bench: the next resolveHDRSample looks at the
+// disk (and the host) again.
+func (r *BenchmarkRunner) forgetHDRSample() {
+	r.hdrMu.Lock()
+	defer r.hdrMu.Unlock()
+	r.hdrMemo.done = false
 }
 
 // generateHDRSample produces a ~5 s 3840x2160 HEVC Main10 HDR10 clip (bt2020 /
@@ -737,13 +801,7 @@ func (r *BenchmarkRunner) resolveHDRSample(ctx context.Context) (string, bool) {
 // target as the SDR sample; the tonemap compute cost is luminance-independent,
 // so a representative-bitrate 10-bit clip exercises it honestly.
 func (r *BenchmarkRunner) generateHDRSample(dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return fmt.Errorf("mkdir bench dir: %w", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Production, Site: "benchmark.generate_hdr_sample", UnboundedThreads: true}, r.ffmpegBin(),
-		"-hide_banner", "-nostats", "-y",
+	return r.encodeSample(dst, "benchmark.generate_hdr_sample", hdrSampleEncodeMemBytes,
 		"-f", "lavfi", "-i", synthBenchSource("yuv420p10le"),
 		"-c:v", "libx265", "-preset", "medium", "-pix_fmt", "yuv420p10le",
 		// Main10 + HDR10 metadata so the decoder runs the real 10-bit path and
@@ -754,12 +812,7 @@ func (r *BenchmarkRunner) generateHDRSample(dst string) error {
 		"-color_primaries", "bt2020", "-color_trc", "smpte2084", "-colorspace", "bt2020nc",
 		"-b:v", "5M", "-maxrate", "6M", "-bufsize", "10M",
 		"-tag:v", "hvc1", "-an",
-		dst,
 	)
-	if err != nil {
-		return fmt.Errorf("ffmpeg generate HDR sample: %w (tail: %s)", err, tailString(string(out), 200))
-	}
-	return nil
 }
 
 // ffmpegBin returns the resolved ffmpeg binary path, falling back to

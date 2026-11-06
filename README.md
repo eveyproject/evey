@@ -6,7 +6,7 @@
 
 Self-hosted media server for movies, TV shows, music, and photos.
 
-[Website](https://eveyproject.org) · [Live demo](https://demo.eveyproject.org) · [Documentation](https://eveyproject.org) · [Privacy policy](https://eveyproject.org/privacy/) · [Security policy](SECURITY.md)
+[Website](https://eveyproject.org) · [Live demo](https://demo.eveyproject.org) · [Privacy policy](https://eveyproject.org/privacy/) · [Security policy](SECURITY.md)
 
 Status: public beta, versions 0.x.
 

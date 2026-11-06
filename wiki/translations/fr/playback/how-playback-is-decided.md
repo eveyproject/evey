@@ -1,5 +1,5 @@
 ---
-source_sha: d3516f7424f33931631da9e552219eb09b706908443cd9b654577b22f6864c37
+source_sha: 1dc44f90f440f0e01525a6cb083acd57f77c55b0e0b61641670b2d12d9bd36a5
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture { #how-playback-is-decided }
@@ -60,6 +60,10 @@ Les raisons se répartissent en quatre catégories :
 
 Seule la piste audio écoutée est prise en compte : un fichier dont la piste de
 commentaire, non sélectionnée, est en DTS ne sera pas transcodé pour autant.
+
+Un fichier qu'aucune des méthodes ne peut servir sur cet appareil est refusé
+avant le début de la lecture, avec **Ce serveur n'est pas assez puissant pour
+ce fichier** : voir [Transcodage et capacité du serveur](transcoding.md#sharing-the-capacity).
 
 Les Infos du flux sont calculées au lancement de la lecture. Un seul cas leur
 échappe : une carte graphique saturée au moment précis où le flux démarre. Le

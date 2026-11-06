@@ -117,12 +117,19 @@ func (g SegmentGrid) SegmentStartTicks(n int) int64 {
 	return int64(n) * g.SegmentTicks()
 }
 
-// SegmentIndexAt is the segment holding time sec (the seek arithmetic).
+// segmentIndexSlack absorbs the float error of a start computed on a /1001
+// grid: n * 72072 / 24000 is not representable, and a quotient a hair under
+// n would floor to the previous segment. One microsecond is far below any
+// frame and far above the representation error.
+const segmentIndexSlack = 1e-6
+
+// SegmentIndexAt is the segment holding time sec (the seek arithmetic). The
+// exact start of a segment maps to that segment, not the one before it.
 func (g SegmentGrid) SegmentIndexAt(sec float64) int {
 	if sec <= 0 {
 		return 0
 	}
-	return int(math.Floor(sec / g.SegmentSeconds()))
+	return int(math.Floor((sec + segmentIndexSlack) / g.SegmentSeconds()))
 }
 
 // FrameCount is how many frames a media of durationMs holds on this grid.

@@ -181,3 +181,24 @@ func TestClientProfileFromRequest_PixelFormats(t *testing.T) {
 	got = clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{SupportedPixelFormats: []string{"", " "}}, "")
 	assert.Nil(t, got.PixelFormats, "an empty declaration keeps the built-in rule")
 }
+
+// The master reads ?maxHeight / ?maxWidth / ?maxH264Height inside fixed
+// ranges and ignores anything else; a value the master ignores must be
+// ignored here too, or the stream-info verdict would announce a 144p
+// transcode the manifest never builds.
+func TestClientProfileFromRequest_DimensionsOutsideTheMasterRangeAreNotACap(t *testing.T) {
+	def := transcoding.DefaultWebProfile
+	for _, bad := range []int32{1, 239, 8641, 100000} {
+		got := clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxHeight: bad, MaxH264Height: bad}, "")
+		assert.Equal(t, def.MaxHeight, got.MaxHeight, "height %d is outside the master's range", bad)
+		assert.Equal(t, def.MaxH264Height, got.MaxH264Height, "h264 height %d is outside the master's range", bad)
+	}
+	for _, bad := range []int32{1, 239, 15361} {
+		got := clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxWidth: bad}, "")
+		assert.Equal(t, def.MaxWidth, got.MaxWidth, "width %d is outside the master's range", bad)
+	}
+	got := clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxHeight: 240, MaxWidth: 15360, MaxH264Height: 8640}, "")
+	assert.Equal(t, 240, got.MaxHeight)
+	assert.Equal(t, 15360, got.MaxWidth)
+	assert.Equal(t, 8640, got.MaxH264Height)
+}

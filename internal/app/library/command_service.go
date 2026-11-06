@@ -167,6 +167,11 @@ func (s *CommandService) WithIngestActivePlayback(count func() int) {
 	s.scan.WithIngestActivePlayback(count)
 }
 
+// WithArtworkPurger lets the scan drop the artwork of an item it refiles.
+func (s *CommandService) WithArtworkPurger(p ArtworkPurger) {
+	s.scan.WithArtworkPurger(p)
+}
+
 // WithPruneGuard sets the thresholds past which a root's deletions are held.
 func (s *CommandService) WithPruneGuard(g PruneGuard) {
 	s.scan.WithPruneGuard(g)

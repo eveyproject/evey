@@ -496,3 +496,300 @@ func TestScanTVShow_SeriesKeepsFolderYear(t *testing.T) {
 		assert.Nil(t, c.Year, "no year invented for an undated show")
 	}
 }
+
+// A file an older parser read as a movie (one-file series named after the
+// episode) is refiled under the show and season the current parser names,
+// keeping its id: the row carries the watch history.
+func TestScanTVShow_RefilesItemParsedByOlderParser(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+	ctx := context.Background()
+	const path = "/tv/Show/Season 2/03 - Pilot.mkv"
+
+	// The layout the old parser produced: series "03 Pilot" > "Season 0" > a movie row.
+	staleSeries := &library.MediaItem{ID: "stale-series", LibraryID: "lib-tv", Type: library.Series, Title: "03 Pilot", ScanTitle: "03 Pilot",
+		File: &library.MediaFile{Fingerprint: "series:lib-tv:03 pilot"}}
+	staleSeason := &library.MediaItem{ID: "stale-season", LibraryID: "lib-tv", Type: library.Season, Title: "Season 0", ScanTitle: "Season 0", ParentID: "stale-series",
+		IndexNumber: new(0), File: &library.MediaFile{Fingerprint: "season:lib-tv:03 pilot:0"}}
+	stale := &library.MediaItem{ID: "ep-1", LibraryID: "lib-tv", Type: library.MovieItem, Title: "03 Pilot", ScanTitle: "03 Pilot", ParentID: "stale-season",
+		File: &library.MediaFile{Path: path, Size: 500, Fingerprint: "fp-1", ParserVersion: 0}}
+	for _, it := range []*library.MediaItem{staleSeries, staleSeason, stale} {
+		require.NoError(t, mediaRepo.Create(ctx, it))
+	}
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: path, Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(2), Episode: new(3), Type: library.Episode},
+	}
+	_, _, err := svc.ScanLibrary(ctx, "lib-tv")
+	require.NoError(t, err)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1, "the one-file series is gone, the show remains")
+	assert.Equal(t, "Show", series[0].Title)
+	seasons := itemsByType(mediaRepo, "season")
+	require.Len(t, seasons, 1)
+	assert.Equal(t, "Season 2", seasons[0].Title)
+
+	got, err := mediaRepo.GetByID(ctx, "ep-1")
+	require.NoError(t, err, "same row, same id")
+	assert.Equal(t, library.Episode, got.Type)
+	assert.Equal(t, string(seasons[0].ID), got.ParentID)
+	require.NotNil(t, got.IndexNumber)
+	assert.Equal(t, 3, *got.IndexNumber)
+	assert.Equal(t, "S02E03", got.Title)
+	assert.Equal(t, library.ParserVersion, got.File.ParserVersion)
+	assert.Empty(t, itemsByType(mediaRepo, "movie"))
+}
+
+// A row the parser has already placed correctly is left as it is.
+func TestScanTVShow_LeavesCorrectlyFiledEpisodeAlone(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+	ctx := context.Background()
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/Season 2/03 - Pilot.mkv", Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(2), Episode: new(3), Type: library.Episode},
+	}
+	_, _, err := svc.ScanLibrary(ctx, "lib-tv")
+	require.NoError(t, err)
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 1)
+	episodes[0].Title = "Enriched title"
+	require.NoError(t, mediaRepo.Update(ctx, episodes[0]))
+
+	_, _, err = svc.ScanLibrary(ctx, "lib-tv")
+	require.NoError(t, err)
+	got, err := mediaRepo.GetByID(ctx, episodes[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Enriched title", got.Title, "the enriched title of a well-filed episode survives a re-scan")
+	assert.Equal(t, episodes[0].ParentID, got.ParentID)
+	require.Len(t, itemsByType(mediaRepo, "episode"), 1)
+}
+
+type recordingArtworkPurger struct{ purged []string }
+
+func (p *recordingArtworkPurger) DeleteByMediaItemID(_ context.Context, id string) error {
+	p.purged = append(p.purged, id)
+	return nil
+}
+
+// A misfiled row the enricher had matched as a movie keeps nothing of that
+// match once refiled as an episode: the movie-space provider id, overview,
+// cast and artwork describe another work. The item is announced as added so
+// it is matched again as an episode; its id, and the history on it, stay.
+func TestScanTVShow_RefileDropsTheEnrichmentOfTheOldType(t *testing.T) {
+	t.Parallel()
+	mediaPersons := libfakes.NewFakeMediaPersonRepository()
+	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvcWith(&cmdSvcDeps{mediaPersons: mediaPersons})
+	purger := &recordingArtworkPurger{}
+	svc.WithArtworkPurger(purger)
+	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}})
+	ctx := context.Background()
+	const path = "/tv/Show/Season 2/03 - Pilot.mkv"
+	stale := &library.MediaItem{ID: "ep-1", LibraryID: "lib-tv", Type: library.MovieItem, Title: "Pilot (the movie)", ScanTitle: "03 Pilot",
+		Overview: "A movie overview", Tagline: "A movie tagline", OriginalTitle: "Pilot",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "999"}},
+		File:    &library.MediaFile{Path: path, Size: 500, Fingerprint: "fp-1"}}
+	require.NoError(t, mediaRepo.Create(ctx, stale))
+	require.NoError(t, mediaPersons.Create(ctx, &library.MediaPerson{MediaItemID: "ep-1", PersonID: "p-1", RoleType: "actor"}))
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: path, Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(2), Episode: new(3), Type: library.Episode},
+	}
+	_, _, err := svc.ScanLibrary(ctx, "lib-tv")
+	require.NoError(t, err)
+
+	got, err := mediaRepo.GetByID(ctx, "ep-1")
+	require.NoError(t, err)
+	assert.Equal(t, library.Episode, got.Type)
+	assert.Empty(t, got.Overview)
+	assert.Empty(t, got.Tagline)
+	assert.Empty(t, got.OriginalTitle)
+	if got.Catalog != nil {
+		assert.Empty(t, got.Catalog.ProviderIDs, "a movie-space provider id does not name an episode")
+	}
+	cast, err := mediaPersons.GetByMediaItemID(ctx, "ep-1")
+	require.NoError(t, err)
+	assert.Empty(t, cast)
+	assert.Equal(t, []string{"ep-1"}, purger.purged)
+	var announced bool
+	for _, e := range bus.PublishedEvents() {
+		if added, ok := e.(library.MediaItemAdded); ok && added.MediaItemID == "ep-1" {
+			announced = true
+			assert.Equal(t, library.Episode, added.Type)
+			assert.Equal(t, "Show", added.SeriesTitle)
+		}
+	}
+	assert.True(t, announced, "the refiled item is announced so it is matched again")
+}
+
+// In a movie library a "Season N" folder is just a folder: the two files
+// below are two movies named by their files, not episodes of a series that
+// a movie library cannot hold (the scan refused them and they vanished).
+func TestScanMovieLibrary_SeasonFolderFilesStayMovies(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-m", Name: "Movies", Type: "movie", Paths: []string{"/movies"}})
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/Collection/Season 1/01 - First Movie.mkv", Size: 500, Fingerprint: "fp-1", Title: "Collection", Season: new(1), Episode: new(1),
+			Type: library.Episode, FolderSeason: true, NameTitle: "01 First Movie"},
+		{Path: "/movies/Collection/Season 1/02 - Second Movie.mkv", Size: 600, Fingerprint: "fp-2", Title: "Collection", Season: new(1), Episode: new(2),
+			Type: library.Episode, FolderSeason: true, NameTitle: "02 Second Movie"},
+	}
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-m")
+	require.NoError(t, err)
+	movies := itemsByType(mediaRepo, "movie")
+	require.Len(t, movies, 2)
+	titles := map[string]bool{}
+	for _, m := range movies {
+		titles[m.Title] = true
+	}
+	assert.True(t, titles["01 First Movie"])
+	assert.True(t, titles["02 Second Movie"])
+	assert.Empty(t, itemsByType(mediaRepo, "episode"))
+}
+
+// The orphan heal never renames an episode: its stored title is the SxxEyy
+// label, and the path's title is its series'.
+func TestScanTVShow_HealLeavesAnEpisodeTitleAlone(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}})
+	const path = "/tv/Show/Season 2/03 - Pilot.mkv"
+	scanner.Results["/tv"] = []library.ScannedFile{{Path: path, Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(2), Episode: new(3), Type: library.Episode}}
+	scanner.ParsedTitles[path] = "Show"
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 1)
+	assert.Equal(t, "S02E03", episodes[0].Title)
+}
+
+// A file without a number in a "Season N" folder is an episode of that
+// season, named by its file and without an index: the season lists it after
+// the numbered episodes (index_number sorts NULLS LAST), and no one-file
+// series is made of it.
+func TestScanTVShow_UnnumberedSeasonFileIsAnEpisodeOfThatSeason(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}})
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/Season 1/01 - First.mkv", Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(1), Episode: new(1),
+			Type: library.Episode, FolderSeason: true, NameTitle: "01 First"},
+		{Path: "/tv/Show/Season 1/Pilot.mkv", Size: 600, Fingerprint: "fp-2", Title: "Show", Season: new(1),
+			Type: library.Episode, FolderSeason: true, NameTitle: "Pilot"},
+	}
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1)
+	assert.Equal(t, "Show", series[0].Title)
+	seasons := itemsByType(mediaRepo, "season")
+	require.Len(t, seasons, 1)
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 2)
+	var unnumbered *library.MediaItem
+	for _, ep := range episodes {
+		assert.Equal(t, string(seasons[0].ID), ep.ParentID)
+		if ep.IndexNumber == nil {
+			unnumbered = ep
+		}
+	}
+	require.NotNil(t, unnumbered, "the unnumbered file keeps no index")
+	assert.Equal(t, "Pilot", unnumbered.Title, "named by its file, not by its series")
+	assert.Empty(t, itemsByType(mediaRepo, "movie"))
+}
+
+// The row an older parser made of that file (a movie under a one-file series
+// named after it) is refiled in place as an episode of the season, keeping
+// its id and the history on it.
+func TestScanTVShow_RefilesUnnumberedSeasonFileParsedByOlderParser(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}})
+	ctx := context.Background()
+	const path = "/tv/Show/Season 1/Pilot.mkv"
+	staleSeries := &library.MediaItem{ID: "stale-series", LibraryID: "lib-tv", Type: library.Series, Title: "Pilot", ScanTitle: "Pilot",
+		File: &library.MediaFile{Fingerprint: "series:lib-tv:pilot"}}
+	staleSeason := &library.MediaItem{ID: "stale-season", LibraryID: "lib-tv", Type: library.Season, Title: "Season 0", ScanTitle: "Season 0", ParentID: "stale-series",
+		IndexNumber: new(0), File: &library.MediaFile{Fingerprint: "season:lib-tv:pilot:0"}}
+	stale := &library.MediaItem{ID: "ep-1", LibraryID: "lib-tv", Type: library.MovieItem, Title: "Pilot", ScanTitle: "Pilot", ParentID: "stale-season",
+		File: &library.MediaFile{Path: path, Size: 500, Fingerprint: "fp-1", ParserVersion: 1}}
+	for _, it := range []*library.MediaItem{staleSeries, staleSeason, stale} {
+		require.NoError(t, mediaRepo.Create(ctx, it))
+	}
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: path, Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(1), Type: library.Episode, FolderSeason: true, NameTitle: "Pilot"},
+	}
+	_, _, err := svc.ScanLibrary(ctx, "lib-tv")
+	require.NoError(t, err)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1, "the one-file series is gone, the show remains")
+	assert.Equal(t, "Show", series[0].Title)
+	seasons := itemsByType(mediaRepo, "season")
+	require.Len(t, seasons, 1)
+	got, err := mediaRepo.GetByID(ctx, "ep-1")
+	require.NoError(t, err, "same row, same id")
+	assert.Equal(t, library.Episode, got.Type)
+	assert.Equal(t, string(seasons[0].ID), got.ParentID)
+	assert.Nil(t, got.IndexNumber)
+	assert.Equal(t, "Pilot", got.Title)
+	assert.Equal(t, library.ParserVersion, got.File.ParserVersion)
+	assert.Empty(t, itemsByType(mediaRepo, "movie"))
+}
+
+// In a movie library the same file stays the movie its name says.
+func TestScanMovieLibrary_UnnumberedSeasonFolderFileStaysAMovie(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-m", Name: "Movies", Type: "movie", Paths: []string{"/movies"}})
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/Collection/Season 1/Pilot.mkv", Size: 500, Fingerprint: "fp-1", Title: "Collection", Season: new(1),
+			Type: library.Episode, FolderSeason: true, NameTitle: "Pilot"},
+	}
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-m")
+	require.NoError(t, err)
+	movies := itemsByType(mediaRepo, "movie")
+	require.Len(t, movies, 1)
+	assert.Equal(t, "Pilot", movies[0].Title)
+	assert.Empty(t, itemsByType(mediaRepo, "episode"))
+}
+
+// A trailer or featurette of a show is not an episode: a TV library leaves it
+// out instead of filing it where autoplay would chain into it. A movie
+// library keeps it as the movie its name says.
+func TestScanTVShow_LeavesExtrasOut(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}})
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/Season 1/Show.S01E01.mkv", Size: 500, Fingerprint: "fp-1", Title: "Show", Season: new(1), Episode: new(1), Type: library.Episode},
+		{Path: "/tv/Show/Season 1/Trailer.mkv", Size: 600, Fingerprint: "fp-2", Title: "Trailer", Type: library.MovieItem, Extra: "extra"},
+	}
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	assert.Len(t, itemsByType(mediaRepo, "episode"), 1)
+	assert.Empty(t, itemsByType(mediaRepo, "movie"))
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1, "no one-file series made of the trailer")
+	assert.Equal(t, "Show", series[0].Title)
+}
+
+func TestScanMovieLibrary_KeepsExtrasAsMovies(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-m", Name: "Movies", Type: "movie", Paths: []string{"/movies"}})
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/Film/Film Trailer.mkv", Size: 600, Fingerprint: "fp-2", Title: "Film Trailer", Type: library.MovieItem, Extra: "extra"},
+	}
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-m")
+	require.NoError(t, err)
+	assert.Len(t, itemsByType(mediaRepo, "movie"), 1)
+}

@@ -87,6 +87,7 @@ func registerArtworkAdminRoutes(
 			"withLocalPath":    stats.WithLocalPath,
 			"missingLocalPath": stats.MissingLocalPath,
 			"totalSizeBytes":   stats.TotalSizeBytes,
+			"dead":             stats.Dead,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {

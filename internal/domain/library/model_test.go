@@ -1,6 +1,7 @@
 package library_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -581,6 +582,46 @@ func TestMediaFile_BitrateBps(t *testing.T) {
 	for _, c := range cases {
 		if got := c.file.BitrateBps(); got != c.want {
 			t.Errorf("%s: BitrateBps() = %d, want %d", c.name, got, c.want)
+		}
+	}
+}
+
+// A library root is walked by the scanner and keys every confinement check:
+// a relative path walks whatever the server's working directory is, an
+// uncleaned one escapes the prefix checks, and the filesystem root is the
+// whole host.
+func TestLibrary_Validate_RejectsUnsafePaths(t *testing.T) {
+	t.Parallel()
+	for _, p := range []string{"", ".", "/", "../x", "relative/x", "/media/../x", "/media/movies/"} {
+		l := &library.Library{ID: "lib-1", Name: "Movies", Type: library.Movie, Paths: []string{"/media/ok", p}}
+		err := l.Validate()
+		if !errors.Is(err, library.ErrInvalidLibraryPath) {
+			t.Errorf("path %q: want ErrInvalidLibraryPath, got %v", p, err)
+		}
+	}
+	ok := &library.Library{ID: "lib-1", Name: "Movies", Type: library.Movie, Paths: []string{"/media/movies", "/mnt/nas/films"}}
+	if err := ok.Validate(); err != nil {
+		t.Errorf("absolute clean paths rejected: %v", err)
+	}
+}
+
+// The kernel and system trees are no media library: a root there hands the
+// scanner, the probe and the stream endpoints the host's devices, process
+// table or configuration. The tree itself and every path under it are
+// refused; a name that only starts with the same letters is not.
+func TestValidateLibraryPath_RefusesSystemTrees(t *testing.T) {
+	for _, p := range []string{
+		"/proc", "/proc/self", "/sys", "/sys/class", "/dev", "/dev/sda1",
+		"/etc", "/etc/ssl", "/boot", "/boot/efi", "/run", "/run/secrets",
+	} {
+		if err := library.ValidateLibraryPath(p); !errors.Is(err, library.ErrInvalidLibraryPath) {
+			t.Errorf("%s: want refused, got %v", p, err)
+		}
+	}
+	// /run/media is where removable drives mount on a desktop host.
+	for _, p := range []string{"/mnt/nas", "/media", "/srv/films", "/devices", "/etcetera", "/running", "/run/media/disk"} {
+		if err := library.ValidateLibraryPath(p); err != nil {
+			t.Errorf("%s: want accepted, got %v", p, err)
 		}
 	}
 }

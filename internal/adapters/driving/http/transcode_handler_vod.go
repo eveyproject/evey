@@ -52,6 +52,7 @@ type hlsVODServe struct {
 	subtitlePrewarm *subtitlePrewarmer
 	startHints      positionHints[float64] // master's ?startSec= (seconds) -> variant pre-warm
 	livePositions   positionHints[int]     // decision hash -> last segment served, for a later init
+	firstSegment    firstSegmentClock      // master -> first media segment, evey_hls_first_segment_seconds
 
 	// servingRecord: see SessionServingRecord; nil = not wired (tests).
 	servingRecord SessionServingRecord
@@ -81,13 +82,20 @@ type hlsVODServe struct {
 	// working producer. When the selector is set it takes precedence.
 	orchestrator *apptranscoding.SegmentOrchestrator
 
-	// copyProducer serves the H.264 video-COPY (remux) rung when wired (behind
-	// EVEY_REMUX_COPY=on): a dedicated SoftwareProducer in copy mode - the
-	// paced remux, one `-c:v copy` + AAC session, seek = restart. nil =
-	// the copy path is off and every request routes through the selector
-	// (transcode) exactly as before. Interface-typed because both producers
-	// satisfy it; only copy requests (isCopyRequest) are routed here.
+	// copyProducer serves the H.264 video-COPY (remux) rung when wired: a
+	// dedicated SoftwareProducer in copy mode - the paced remux, one
+	// `-c:v copy` + AAC session, seek = restart. nil = no copy path, every
+	// request routes through the selector (transcode). Wired whatever the
+	// admin switch says: remuxCopyFlag decides per playback whether a new
+	// master may use it. Interface-typed because both producers satisfy it;
+	// only copy requests (isCopyRequest) are routed here.
 	copyProducer apptranscoding.StreamProducer
+	// remuxCopyFlag / packagerFlag are the admin switches over the two
+	// packaging engines (transcoding.remux_copy, transcoding.hls_ondemand),
+	// read where a playback starts and carried by its URLs from there
+	// (transcode_serving_gates.go). nil = open: the wiring alone decides.
+	remuxCopyFlag *liveServerFlag
+	packagerFlag  *liveServerFlag
 	// keyframeWarmer nudges the bounded on-demand index walk. Optional (nil =
 	// no nudge); see copyBlockedOnlyByMissingIndex for why it matters here.
 	keyframeWarmer func(ctx context.Context, mediaID, path string) bool
@@ -141,11 +149,13 @@ type hlsVODServe struct {
 	admissionNoteRoute func(key, routeIdentity string)
 
 	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS -
-	// zero-storage, stateless, byte-identical HLS + DASH - when wired (behind
-	// transcoding.hls_ondemand). It supersedes copyProducer for video+audio
-	// copy-eligible requests whose source packages verbatim (see planHLSEligible
-	// / transcode_ondemand.go); everything else falls through to the ffmpeg
-	// pipeline unchanged. nil = feature off, no behaviour change.
+	// zero-storage, stateless, byte-identical HLS + DASH - when wired. It
+	// supersedes copyProducer for video+audio copy-eligible requests whose
+	// source packages verbatim (see planHLSEligible / transcode_ondemand.go);
+	// everything else falls through to the ffmpeg pipeline unchanged. Wired
+	// whatever transcoding.hls_ondemand says: packagerFlag decides per
+	// playback, and a session the packager started keeps its resources after
+	// the switch goes off. nil = not wired.
 	onDemand apptranscoding.OnDemandPackager
 
 	// playbackActivity is how this stateless path reports "someone is watching".
@@ -159,6 +169,8 @@ type hlsVODServe struct {
 	// token - the only playback signal once the sender's browser closes
 	// (see cast_observe.go). nil = not wired.
 	castProgress CastFetchObserver
+	// castResume reads the saved position cast-next hands the receiver.
+	castResume CastResumeReader
 
 	// onDemandEncrypt AES-128-encrypts the on-demand rung's media segments
 	// (behind transcoding.hls_ondemand_encrypt). Off by default; requires
@@ -422,7 +434,9 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case file == "master.m3u8":
-		h.serveMaster(w, r, mediaID, item, streams, span)
+		// A playback starts here: the packaging switches are read now and
+		// stamped onto the request, the session keeps them (transcode_serving_gates.go).
+		h.serveMaster(w, h.stampServingGates(r), mediaID, item, streams, span)
 	case file == "key":
 		// AES-128 key for the on-demand encrypted rung (EXT-X-KEY URI="key").
 		// Access already enforced by commonAuth above.
@@ -441,7 +455,7 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		// The DASH entry point: the packager's manifest when the plan's video
 		// engine is mkvgo, the plan-declared one over the ffmpeg fragments
 		// otherwise (see serveManifestMPD).
-		h.serveManifestMPD(w, r, mediaID, item, streams, span)
+		h.serveManifestMPD(w, h.stampServingGates(r), mediaID, item, streams, span)
 	case strings.HasPrefix(file, onDemandPrefix):
 		// On-demand copy rung (mp4.PlanHLS): every prefixed sub-resource
 		// (od_playlist.m3u8, od_seg00001.m4s, od_audio1.m3u8, od_init.mp4,
@@ -594,6 +608,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// follows still warms its rafale.
 	sec, _ := startSecondsHint(r)
 	h.startHints.remember(startHintKey(r, mediaID), sec, time.Now())
+	h.firstSegment.arm(startHintKey(r, mediaID), time.Now())
 
 	// ONE resolution: decision, route, shaped ladder, fingerprint and the
 	// delivery strategy - which engine carries the video and the audio. From
@@ -1276,6 +1291,11 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		servedBy = "ffmpeg-copy"
 	}
 	w.Header().Set("X-Evey-Served-By", servedBy)
+	if !isInit {
+		if d, ok := h.firstSegment.take(startHintKey(r, mediaID), time.Now()); ok {
+			metrics.HLSFirstSegmentSeconds.WithLabelValues(servedBy).Observe(d.Seconds())
+		}
+	}
 	switch filepath.Ext(path) {
 	case ".ts":
 		w.Header().Set("Content-Type", "video/mp2t")
@@ -1308,7 +1328,10 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 // producerForPlan picks the producer for a resolved plan: a projection of
 // plan.Route (ADR-0030), nothing is re-derived here.
 func (h *hlsVODServe) producerForPlan(rp *requestPlan) apptranscoding.StreamProducer {
-	return h.planResolver().ProducerForPlan(rp.Plan)
+	// Every wired engine, whatever the gates say now: the plan already chose
+	// its route, and a copy route opened by its playback's master must still
+	// find the copy producer after the admin switched the rung off.
+	return h.planResolverWith(h.copyProducer != nil, h.onDemand != nil).ProducerForPlan(rp.Plan)
 }
 
 // planAsServed is the plan an ffmpeg manifest serves. A copy the decision
@@ -1329,9 +1352,23 @@ func (h *hlsVODServe) planAsServed(r *http.Request, mediaID string, item *domain
 	// pin a variant request reads off its URI.
 	req := rp.Request
 	req.PinnedVideoDecision = "transcode"
-	plan, err := h.planResolver().Resolve(r.Context(), req)
+	plan, err := h.planResolverFor(r).Resolve(r.Context(), req)
 	if err != nil {
 		return r, rp
+	}
+	// The pin resolves the transcode ladder unjudged (a child URL resolves
+	// ONE plan), so the fit the first resolution found for the receiver's
+	// line or floor rides along: same ladder, same rung index. Without it the
+	// rescue reload on a title whose copy rung is closed was served the whole
+	// ladder again - the symptom the fit exists to end.
+	// The pinned ladder is frozen under its own admission pin key: the fit's
+	// index only names the same rung on a ladder of the same shape.
+	if fit := rp.Plan.Fit; fit.Single && !plan.Fit.Single && fit.Rung >= 0 && fit.Rung < len(plan.Ladder) && len(plan.Ladder) == len(rp.Plan.Ladder) {
+		plan.Fit = fit
+		plan.Decision.TranscodeReasons = append(plan.Decision.TranscodeReasons, rp.Plan.FitReasons()...)
+		slog.InfoContext(r.Context(), "hls-vod: fit carried onto the plan as served",
+			slog.String("media_id", mediaID), slog.String("rung", plan.Ladder[fit.Rung].Name),
+			slog.Any("reasons", rp.Plan.FitReasons()), slog.String("fp", plan.FingerprintHash))
 	}
 	return pinned, &requestPlan{
 		Plan:       plan,
@@ -1428,6 +1465,9 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.transcode.PrewarmNext")
 	defer span.End()
 	r = r.WithContext(ctx)
+	// The next episode's master will read the packaging switches as they are
+	// now: warm the plan it will resolve.
+	r = h.stampServingGates(r)
 
 	currentID := r.PathValue("id")
 	if currentID == "" {
@@ -1595,6 +1635,14 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 		span.SetStatus(codes.Error, "file needs remux")
 		return
 	}
+	// Serving binds this token to the plan's hash and reclaims the one it
+	// left, and says what it served, exactly as the HLS master does: the
+	// manifest is declared from the plan AS SERVED, so every segment URI it
+	// emits names the fingerprint the segment request resolves. Declared
+	// from the plan before the pin, a title whose copy rung is closed sealed
+	// the copy's fingerprint and every segment was refused as stale.
+	r, rp = h.planAsServed(r, mediaID, item, streams, rp)
+	h.reclaimSupersededHash(r, mediaID, rp)
 	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
 	if err != nil {
 		h.writeManifestErr(r.Context(), w, span, err, mediaID)
@@ -1628,10 +1676,6 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
-	// Serving binds this token to the plan's hash and reclaims the one it
-	// left, and says what it served, exactly as the HLS master does.
-	r, rp = h.planAsServed(r, mediaID, item, streams, rp)
-	h.reclaimSupersededHash(r, mediaID, rp)
 	{
 		p := domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rp.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"}
 		if rp.IsCopy {

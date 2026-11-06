@@ -1,5 +1,5 @@
 ---
-source_sha: 84d4aedb514ecf260e351de19cd0ddda1771d2b1ed9173179da8a7b9ff4e192a
+source_sha: db8fc3535937c91ca8bbccb3b627d7937ea9ffe9c2082fe5d629d8023b7b6469
 reviewed: true
 ---
 # Copias de seguridad, registros y supervisión { #backups-logs-and-monitoring }
@@ -59,6 +59,6 @@ valor guardado en **Administración → Configuración del servidor → Datos y 
 internal/config/config.go - EVEY_BACKUP_*, EVEY_LOG_*, EVEY_*_RETENTION_DAYS, EVEY_METRICS_*, EVEY_OTLP_ENDPOINT, EVEY_TRACING_* ; ScrapeToken comment ; WarnValidate (DevMode, sample ratio)
 overrides: cmd/evey/main.go - loadOverride (log.level, *_retention_days) ; internal/adapters/driving/http/settings_handler.go (log.level live via logger.SetLevel ; retention keys) ; i18n admin.serverSettings.logLevel, *RetentionDays, retentionSweepHint
 backup: cmd/evey/main.go (StartScheduler env interval + DB cron scheduler both started) ; internal/app/backup/service.go - StartScheduler (returns when interval <= 0 ; CleanupOldBackups first, then each tick) ; i18n admin.backup.schedule.*
-dev mode: internal/adapters/driven/pluginrunner/runner.go ; cmd/evey/wire_infra.go - refuseDevModeInProd
+dev mode: internal/adapters/driven/pluginrunner/runner.go ; cmd/evey/wire_infra.go - cfg.Log.DevMode, WithAllowMissingSandbox
 log dir: Dockerfile
 -->

@@ -60,6 +60,8 @@ var neverWrittenByMessage = map[string]string{
 	"MetadataResult.provider_id":              "never written: tracked in backlog",
 	"MkvTrack.bit_depth":                      "never written: tracked in backlog",
 	"MkvTrack.frame_rate":                     "never written: tracked in backlog",
+	"MkvTrack.pixel_format":                   "never written BY DESIGN: the MKV toolbox RPCs are not exposed; the client pixelFormat read is MediaStream's (stream info panel), surfaced when packages/client joined the scan",
+	"TranscodeProfile.audio_bitrate":          "never written: the domain profile carries no audio bitrate; the client audioBitrate read is StreamInfo's (stream info panel), surfaced when packages/client joined the scan",
 	"MkvTrack.is_forced":                      "never written: tracked in backlog; masked today by the untyped IsForced writes of the subtitle scanner, so the guard cannot fire on it",
 	"ScheduledTask.last_error":                "never written: tracked in backlog",
 	"RollbackMediaSeekIndexResponse.restored": "never written: read by the TV browser app, surfaced when tv-web joined the scan; tracked in backlog",
@@ -333,6 +335,9 @@ func TestNoClientReadOfAFieldTheServerNeverWrites(t *testing.T) {
 		filepath.Join(repoRoot, "frontend/apps/tv/app"),
 		filepath.Join(repoRoot, "frontend/apps/tv/src"),
 		filepath.Join(repoRoot, "frontend/apps/tv-web/src"),
+		// The shared hooks and api wrappers read proto fields too: a field
+		// read only there was invisible to this guard.
+		filepath.Join(repoRoot, "frontend/packages/client/src"),
 	}, isClientSource)
 	for _, f := range deadFields(t, fields, server, client) {
 		if _, ok := allowlist[f[strings.IndexByte(f, '.')+1:]]; ok {

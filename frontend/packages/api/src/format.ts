@@ -14,6 +14,13 @@ export function formatBytes(bytes: number | string | null | undefined): string {
   return `${value.toFixed(exponent > 0 ? 1 : 0)} ${BYTE_UNITS[exponent]}`;
 }
 
+// Whether a server quantity is really there. The gateway serializes an int64
+// zero as the string "0", which is truthy, so a bare `x && ...` guard renders
+// the slot for a missing duration or size; NaN and null are absent too.
+export function isPositive(value: number | string | null | undefined): boolean {
+  return Number(value) > 0;
+}
+
 // Player/track clock: "m:ss", or "h:mm:ss" from one hour up.
 export function formatTime(seconds: number): string {
   const s = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;

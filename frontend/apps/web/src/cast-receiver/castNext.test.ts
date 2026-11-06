@@ -37,6 +37,7 @@ describe("parseCastNextResponse", () => {
         season_number: 2,
         episode_number: 5,
         series_title: "Some Series",
+        resume_position_ms: 754000,
       }),
     ).toEqual({
       nextMediaItemId: "mi-2",
@@ -45,7 +46,19 @@ describe("parseCastNextResponse", () => {
       seasonNumber: 2,
       episodeNumber: 5,
       seriesTitle: "Some Series",
+      resumePositionMs: 754000,
     });
+  });
+
+  // The next episode starts where the profile left it; anything else the
+  // server could answer (absent on an older server, negative, garbage)
+  // starts it from the top.
+  it("reads the resume position, zero when absent or unusable", () => {
+    const base = { next_media_item_id: "mi-2", token: "tok-2" };
+    expect(parseCastNextResponse(base)?.resumePositionMs).toBe(0);
+    expect(parseCastNextResponse({ ...base, resume_position_ms: -5 })?.resumePositionMs).toBe(0);
+    expect(parseCastNextResponse({ ...base, resume_position_ms: "754000" })?.resumePositionMs).toBe(0);
+    expect(parseCastNextResponse({ ...base, resume_position_ms: 1200 })?.resumePositionMs).toBe(1200);
   });
 
   it("degrades missing metadata to zero values but keeps the switch", () => {
@@ -75,6 +88,17 @@ describe("buildNextMasterUrl", () => {
       token: "tok-2",
     });
     expect(url).toBe("https://evey.example/api/v1/media/mi-2/hls/master.m3u8?token=tok-2");
+  });
+
+  // The current file's audio and subtitle indexes name positions in THAT
+  // file: kept on the next one, a pack with the dub first on one episode and
+  // second on the next played the wrong language.
+  it("drops the current file's audio and subtitle track indexes", () => {
+    const url = buildNextMasterUrl(
+      "https://evey.example/api/v1/media/mi-1/hls/master.m3u8?token=tok-1&audioTrack=0&subtitleTrack=2&maxHeight=1080",
+      { nextMediaItemId: "mi-2", token: "tok-2" },
+    );
+    expect(url).toBe("https://evey.example/api/v1/media/mi-2/hls/master.m3u8?token=tok-2&maxHeight=1080");
   });
 
   it("returns null on a foreign URL", () => {
@@ -108,6 +132,7 @@ describe("upNextLabel", () => {
     seasonNumber: 2,
     episodeNumber: 5,
     seriesTitle: "Some Series",
+    resumePositionMs: 0,
   };
 
   it("renders the French heading on a fr device", () => {

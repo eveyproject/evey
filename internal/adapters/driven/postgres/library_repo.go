@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -122,6 +123,22 @@ func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) er
 	)
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Update: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
+func (r *LibraryRepository) TouchLastScannedAt(ctx context.Context, id shared.LibraryID, at time.Time) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library.TouchLastScannedAt")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE libraries SET last_scanned_at = $1 WHERE id = $2`, at, string(id))
+	if err != nil {
+		return fmt.Errorf("LibraryRepo.TouchLastScannedAt: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return shared.ErrNotFound

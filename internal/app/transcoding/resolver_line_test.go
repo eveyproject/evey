@@ -94,8 +94,10 @@ func TestResolveLine_FloorRefusedOnLeanSource(t *testing.T) {
 	assert.False(t, plan.Fit.Single)
 }
 
-// Precedence as the receiver stacks them: the measured line first; a line
-// that carries the copy hands over to the floor when both are asked.
+// Precedence as the receiver stacks them: the floor wins whatever the line
+// says. The receiver reloads on the floor with its measured line still in the
+// query, so a floor that deferred to the line re-served the very rung that
+// had just starved: on a copy the line carries as on one it does not.
 func TestResolveLine_LineThenFloor(t *testing.T) {
 	pr := lineResolver()
 	plan, err := pr.Resolve(context.Background(), lineRequest(4000, 12000, true))
@@ -105,10 +107,15 @@ func TestResolveLine_LineThenFloor(t *testing.T) {
 
 	req := lineRequest(7400, 6000, true)
 	natural := transcodeLadderOf(t, pr, req)
+	lineOnly, err := pr.Resolve(context.Background(), lineRequest(7400, 6000, false))
+	require.NoError(t, err)
+	require.True(t, lineOnly.Fit.Single)
+	require.Positive(t, lineOnly.Fit.Rung, "premise: the 6 Mbps line picks a rung above the lowest")
 	plan, err = pr.Resolve(context.Background(), req)
 	require.NoError(t, err)
-	require.True(t, plan.Fit.Single)
-	assert.Contains(t, plan.Decision.TranscodeReasons, reasonLineExceeded, "a line that does not carry the copy wins over the floor")
+	assert.Equal(t, LineFit{Single: true, Rung: 0}, plan.Fit, "the floor steps below the rung the line picked")
+	assert.Contains(t, plan.Decision.TranscodeReasons, reasonFloorRequest)
+	assert.NotContains(t, plan.Decision.TranscodeReasons, reasonLineExceeded)
 	assert.Equal(t, natural.Ladder, plan.Ladder)
 }
 

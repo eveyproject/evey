@@ -25,6 +25,27 @@ type ProgressCommandRepo interface {
 	// DeleteByProfile removes every watch-progress row for the profile (clear
 	// watch history). Returns the number of rows deleted.
 	DeleteByProfile(ctx context.Context, profileID string) (int, error)
+	// DeleteMany removes the profile's progress rows on the given items, so
+	// each appears never-watched again. Empty input is a no-op.
+	DeleteMany(ctx context.Context, profileID string, mediaItemIDs []string) error
+	// DescendantIDs walks the parent tree under a media item: the playable
+	// rows (episodes) and the containers (seasons) beneath it. Both are empty
+	// for a playable item, so a caller marking "this id" can tell a series
+	// from an episode without reading the item itself.
+	DescendantIDs(ctx context.Context, mediaItemID string) (Descendants, error)
+}
+
+// Descendants is what sits under a container in the media tree, by kind.
+type Descendants struct {
+	Playable   []string
+	Containers []string
+}
+
+// All lists every descendant, playable first.
+func (d Descendants) All() []string {
+	out := make([]string, 0, len(d.Playable)+len(d.Containers))
+	out = append(out, d.Playable...)
+	return append(out, d.Containers...)
 }
 
 type SessionCommandRepo interface {
@@ -55,6 +76,11 @@ type SessionCommandRepo interface {
 	// missed a column) blanked video_engine. The video columns are never named.
 	SetSessionAudioPath(ctx context.Context, sessionID, decision, engine, audioCodec string) (bool, error)
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
+	// CloseStaleReturning ends every session whose last heartbeat is older
+	// than olderThan and returns them, ended. The end is the last heartbeat,
+	// not the sweep: that is when the viewer was last there, and the duration
+	// stored is measured to it.
+	CloseStaleReturning(ctx context.Context, olderThan time.Duration) ([]*PlaySession, error)
 	// CloseAllActive ends every session still open, regardless of age. Called
 	// once as the server drains: the process is going away and every encode
 	// with it, so no open session can survive the exit as anything but a

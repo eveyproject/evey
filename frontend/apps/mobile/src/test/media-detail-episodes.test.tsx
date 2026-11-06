@@ -524,4 +524,15 @@ describe("MediaDetailScreen episode watched toggle", () => {
     expect(markWatchedCalls).toEqual([{ mediaItemId: second.id, params: { profileId: "profile-1" } }]);
     expect(toggles()[1].getAttribute("accessibilitylabel")).toBe("media.detail.markUnwatched");
   });
+
+  // The season itself can be marked: the server marks every episode beneath it.
+  it("offers the watched toggle on the season itself", () => {
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+    const seriesToggle = document.querySelector(
+      'button[accessibilitylabel="media.detail.markWatched"]:not([testid="episode-watched-toggle"])',
+    );
+    expect(seriesToggle).not.toBeNull();
+    fireEvent.click(seriesToggle!);
+    expect(markWatchedCalls).toEqual([{ mediaItemId: SEASON_ID, params: { profileId: "profile-1" } }]);
+  });
 });

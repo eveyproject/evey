@@ -84,3 +84,12 @@ func TestIndexSparse_DetailAndPictureMissing(t *testing.T) {
 		t.Fatal("no findings = not sparse")
 	}
 }
+
+// Cues that point past the end of a file that is otherwise complete are a
+// stale index, not a lost tail: a reindex rebuilds them from the clusters.
+func TestHasIndexDefect_CuesStale(t *testing.T) {
+	d := &Diagnosis{Findings: []DiagnosisFinding{{Kind: "cues-stale"}}}
+	if !d.HasIndexDefect() {
+		t.Fatal("cues-stale must route the file to a reindex")
+	}
+}

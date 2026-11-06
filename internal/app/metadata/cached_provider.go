@@ -84,9 +84,14 @@ func (c *CachedProvider) lang() string {
 func (c *CachedProvider) Name() string                            { return c.inner.Name() }
 func (c *CachedProvider) Unwrap() domainmetadata.MetadataProvider { return c.inner }
 
+// Search cleans the provider's text (SanitizeText) before it is cached or
+// returned: this wrapper sits in front of every provider, so it is the one
+// place a body's control or bidi characters are stopped.
 func (c *CachedProvider) Search(ctx context.Context, query string, year *int, mediaType string) ([]domainmetadata.MetadataResult, error) {
 	if c.ttl <= 0 {
-		return c.inner.Search(ctx, query, year, mediaType)
+		results, err := c.inner.Search(ctx, query, year, mediaType)
+		sanitizeResults(results)
+		return results, err
 	}
 	key := searchKey(c.inner.Name(), c.lang(), query, year, mediaType)
 	if results, ok := c.getSearch(key); ok {
@@ -96,13 +101,16 @@ func (c *CachedProvider) Search(ctx context.Context, query string, year *int, me
 	if err != nil {
 		return results, err
 	}
+	sanitizeResults(results)
 	c.putSearch(key, results)
 	return results, nil
 }
 
 func (c *CachedProvider) GetByProviderID(ctx context.Context, providerID, mediaType string) (*domainmetadata.MetadataResult, error) {
 	if c.ttl <= 0 {
-		return c.inner.GetByProviderID(ctx, providerID, mediaType)
+		result, err := c.inner.GetByProviderID(ctx, providerID, mediaType)
+		result.Sanitize()
+		return result, err
 	}
 	key := fmt.Sprintf("%s|%s|%s|%s", c.inner.Name(), c.lang(), providerID, mediaType)
 	if result, ok := c.getByID(key); ok {
@@ -112,8 +120,15 @@ func (c *CachedProvider) GetByProviderID(ctx context.Context, providerID, mediaT
 	if err != nil {
 		return result, err
 	}
+	result.Sanitize()
 	c.putByID(key, result)
 	return result, nil
+}
+
+func sanitizeResults(results []domainmetadata.MetadataResult) {
+	for i := range results {
+		results[i].Sanitize()
+	}
 }
 
 func (c *CachedProvider) getSearch(key string) ([]domainmetadata.MetadataResult, bool) {

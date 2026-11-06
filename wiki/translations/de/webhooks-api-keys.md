@@ -1,8 +1,8 @@
 ---
-source_sha: 44e8e90d77d0eb2abdd259fe7a12d693a5f6af4856125bd2b2da2194a7c6ef42
+source_sha: 745f1579c3d2e068044e2a60897a0af69afbbca8c999f13888b8822a7d7b2d90
 reviewed: true
 ---
-# Webhooks und API-Schlüssel
+# Webhooks und API-Schlüssel { #webhooks-and-api-keys }
 
 Zwei Wege, Evey mit anderen Werkzeugen zu verbinden, ohne ein Plugin zu
 schreiben: Ein Webhook schickt die Ereignisse des Servers an eine Adresse
@@ -11,7 +11,7 @@ aufrufen. Beides legt ein Administrator im Verwaltungsbereich an. Diese Seite
 richtet sich an die Person, die sie einrichtet, und an die Person, die den
 Empfänger oder das Skript schreibt.
 
-## Ereignisse an eine URL schicken
+## Ereignisse an eine URL schicken { #send-events-to-a-url }
 
 **Verwaltung → Webhooks → Webhook erstellen**: ein **Name**, eine **URL**,
 die **Ereignisse**, die gesendet werden, und optional ein **Geheimnis** zum
@@ -36,6 +36,11 @@ veröffentlicht, unter anderem:
 
 Ein Plugin, das `EmitEvent` aufruft, veröffentlicht `plugin.event.<type>`.
 Ein Webhook auf **Alle Ereignisse** empfängt auch das.
+
+`playback.stopped` wird für jede beendete Sitzung ausgelöst, mit einem `Reason`:
+`client`, wenn der Player das Stoppen gemeldet hat, `stale`, wenn der Server eine
+Sitzung beendet hat, deren Heartbeat verstummt ist (ein geschlossener Tab, ein
+ausgeschalteter Fernseher).
 
 **Zustellung.** Jedes Ereignis ist ein JSON-`POST` mit diesen Headern:
 
@@ -77,7 +82,7 @@ Verwaltungsbereich.
     Empfänger in Ihrem lokalen Netz braucht eine öffentliche Adresse oder
     einen Vermittler.
 
-## Den Server aus einem Skript aufrufen
+## Den Server aus einem Skript aufrufen { #call-the-server-from-a-script }
 
 Mit einem API-Schlüssel ruft ein Skript die Server-API ohne Passwort auf.
 Schlüssel legt ein Administrator unter **Verwaltung → API-Schlüssel → Neuer

@@ -108,7 +108,7 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 		slog.WarnContext(ctx, "media detail: load streams failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
 	} else {
 		for _, s := range streams {
-			pb.Streams = append(pb.Streams, mediaStreamToProto(s))
+			pb.Streams = append(pb.Streams, mediaStreamToProto(s, ctxIsAdmin(ctx)))
 		}
 	}
 	return pb, nil
@@ -313,7 +313,7 @@ func mediaItemsToProto(ctx context.Context, items []*library.MediaItem, pf paren
 			pb.People = append(pb.People, castMemberToProto(cm))
 		}
 		for _, s := range streamsMap[string(item.ID)] {
-			pb.Streams = append(pb.Streams, mediaStreamToProto(s))
+			pb.Streams = append(pb.Streams, mediaStreamToProto(s, ctxIsAdmin(ctx)))
 		}
 		out = append(out, pb)
 	}

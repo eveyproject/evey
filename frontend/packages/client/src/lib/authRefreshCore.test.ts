@@ -87,3 +87,68 @@ describe("createAuthRefresh - an answer read long after it was sent", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+// Only the server's own refusal of the credential (401) ends a session. A 403
+// on this call comes from what stands in front of the server - remote access
+// switched off while the phone is away, a bouncer banning the household's
+// address, the CSRF guard - and reading it as a refusal burned the refresh
+// token of every device of the house for a ban that lifted an hour later.
+describe("createAuthRefresh - a 403 is the gate, not the credential", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    useAuthStore.setState({ accessToken: jwt(-60, "expired") });
+  });
+
+  it("keeps the session and the stored token on a 403", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 403, headers: { "X-Evey-Remote-Access": "disabled" } })));
+    const logout = vi.spyOn(useAuthStore.getState(), "logout");
+    const clear = vi.fn(async () => {});
+    const flow = createAuthRefresh(storage({ clearRefreshToken: clear }));
+    await expect(flow.forceRefresh()).rejects.toThrow(/unavailable/);
+    vi.unstubAllGlobals();
+    expect(clear).not.toHaveBeenCalled();
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  it("still ends the session on a 401", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 401 })));
+    const logout = vi.spyOn(useAuthStore.getState(), "logout");
+    const clear = vi.fn(async () => {});
+    const flow = createAuthRefresh(storage({ clearRefreshToken: clear }));
+    // forceRefresh's contract: null is a refusal, a throw an absent answer.
+    await expect(flow.forceRefresh()).resolves.toBeNull();
+    vi.unstubAllGlobals();
+    expect(clear).toHaveBeenCalledTimes(1);
+    expect(logout).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The refresh route has its own limiter: a 429 there is the server asking
+// for a pause, not a dead session. The natives' forceRefresh is what the
+// fetcher's 401 retry calls; it used to throw a bare Error, so the original
+// request failed as an authorization error with no delay to honour.
+describe("createAuthRefresh - a limited refresh", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("rejects forceRefresh with the limiter's status and delay, and keeps the session", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 429, headers: { "Retry-After": "7" } })));
+    useAuthStore.setState({ accessToken: jwt(-60) });
+    const clearRefreshToken = vi.fn(async () => {});
+    const flow = createAuthRefresh(storage({ clearRefreshToken }));
+    await expect(flow.forceRefresh()).rejects.toMatchObject({ httpStatus: 429, retryAfterSeconds: 7 });
+    expect(clearRefreshToken).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().accessToken).not.toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("still rejects any other unavailable answer without a status", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 502 })));
+    const flow = createAuthRefresh(storage({}));
+    const err = await flow.forceRefresh().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { httpStatus?: number }).httpStatus).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+});

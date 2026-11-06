@@ -317,3 +317,59 @@ describe("ProgressReporter", () => {
     });
   });
 });
+
+describe("ProgressReporter - next-episode warm-up", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    mockReportProgress.mockResolvedValue({});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // The route hands over the proto enum value of the item's type, never the
+  // bare word the admin sessions table prints: comparing against that word
+  // left the warm-up unreachable for every episode.
+  it("posts prewarm-next once an episode passes the threshold", async () => {
+    const { eveyFetch } = await import("@evey/api");
+    vi.mocked(eveyFetch).mockResolvedValue({} as never);
+    const { ProgressReporter } = await import("./ProgressReporter");
+    const videoRef = createVideoRef();
+    Object.defineProperty(videoRef.current, "duration", { value: 100, writable: true });
+    videoRef.current.currentTime = 95;
+
+    render(
+      React.createElement(ProgressReporter, {
+        sessionId: "sess1",
+        videoRef,
+        mediaId: "ep1",
+        mediaType: "MEDIA_ITEM_TYPE_EPISODE",
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(eveyFetch).toHaveBeenCalledWith({ url: "/api/v1/media/ep1/prewarm-next", method: "POST" });
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(eveyFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("never warms up a movie", async () => {
+    const { eveyFetch } = await import("@evey/api");
+    vi.mocked(eveyFetch).mockResolvedValue({} as never);
+    const { ProgressReporter } = await import("./ProgressReporter");
+    const videoRef = createVideoRef();
+    Object.defineProperty(videoRef.current, "duration", { value: 100, writable: true });
+    videoRef.current.currentTime = 95;
+    render(
+      React.createElement(ProgressReporter, {
+        sessionId: "sess1",
+        videoRef,
+        mediaId: "mov1",
+        mediaType: "MEDIA_ITEM_TYPE_MOVIE",
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(eveyFetch).not.toHaveBeenCalled();
+  });
+});

@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -86,7 +87,7 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string, serverLang string) 
 	}
 
 	result.People = mapDetailPeople(d.Credits)
-	result.Artwork = mapDetailArtwork(d.Images)
+	result.Artwork = mapDetailArtwork(d.Images, serverLang, d.OriginalLanguage)
 
 	if d.Videos != nil {
 		result.Trailers = selectTrailers(d.Videos.Results, serverLang)
@@ -289,15 +290,46 @@ func mapDetailPeople(credits *tmdbCredits) []domain.PersonResult {
 	return people
 }
 
-func mapDetailArtwork(images *tmdbImages) []domain.ArtworkResult {
+// mapDetailArtwork keeps the first few images of each kind, the server's
+// language first: TMDB lists images by vote, which puts the English poster
+// ahead of the French one on a French server, and the first poster is the one
+// every surface shows.
+func mapDetailArtwork(images *tmdbImages, serverLang, originalLang string) []domain.ArtworkResult {
 	if images == nil {
 		return nil
 	}
 	var artwork []domain.ArtworkResult
-	artwork = appendImages(artwork, images.Posters, domain.ArtworkTypePoster, 5)
-	artwork = appendImages(artwork, images.Backdrops, domain.ArtworkTypeBackdrop, 5)
-	artwork = appendImages(artwork, images.Logos, domain.ArtworkTypeLogo, 3)
+	artwork = appendImages(artwork, rankImages(images.Posters, serverLang, originalLang, false), domain.ArtworkTypePoster, 5)
+	artwork = appendImages(artwork, rankImages(images.Backdrops, serverLang, originalLang, true), domain.ArtworkTypeBackdrop, 5)
+	artwork = appendImages(artwork, rankImages(images.Logos, serverLang, originalLang, false), domain.ArtworkTypeLogo, 3)
 	return artwork
+}
+
+// rankImages orders images by language: the server's, the title's original
+// one, untagged, English, the rest. A backdrop is shown behind the page's own
+// text, so for backdrops (textless) the untagged ones come first: an image
+// tagged with a language carries burnt-in text. Stable, so TMDB's vote order
+// holds within a rank.
+func rankImages(imgs []tmdbImage, serverLang, originalLang string, textlessFirst bool) []tmdbImage {
+	server, original := imageLanguage(serverLang), imageLanguage(originalLang)
+	rank := func(img tmdbImage) int {
+		switch lang := strings.ToLower(img.ISO639_1); {
+		case lang == "" && textlessFirst:
+			return -1
+		case server != "" && lang == server:
+			return 0
+		case original != "" && lang == original:
+			return 1
+		case lang == "":
+			return 2
+		case lang == "en":
+			return 3
+		}
+		return 4
+	}
+	out := slices.Clone(imgs)
+	slices.SortStableFunc(out, func(a, b tmdbImage) int { return rank(a) - rank(b) })
+	return out
 }
 
 func appendImages(dst []domain.ArtworkResult, imgs []tmdbImage, artType string, limit int) []domain.ArtworkResult {

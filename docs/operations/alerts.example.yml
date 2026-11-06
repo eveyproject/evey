@@ -1,0 +1,21 @@
+# Example Prometheus alerting rules for an Evey server. Copy the groups you
+# want into your own rule files and tune the thresholds to your hardware: a
+# small machine that transcodes in software starts slower than one with a GPU.
+groups:
+  - name: evey-playback
+    rules:
+      - alert: EveySlowPlaybackStart
+        # Most viewers wait long for the first picture: the encoder is slow to
+        # start (host at capacity, a disk that keeps requests waiting) or the
+        # segment cache cannot keep up. Split by serving path: a slow copy
+        # points at the disk, a slow transcode at the encoder.
+        expr: |
+          histogram_quantile(0.9,
+            sum by (le, served_by) (rate(evey_hls_first_segment_seconds_bucket[15m]))
+          ) > 10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Playback starts slowly ({{ $labels.served_by }})"
+          description: "9 in 10 playbacks served by {{ $labels.served_by }} waited up to {{ $value | humanizeDuration }} for their first segment over the last 15 minutes."

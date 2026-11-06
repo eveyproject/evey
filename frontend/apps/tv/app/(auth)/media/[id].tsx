@@ -24,7 +24,7 @@ import { useAuthStore, useDemoStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
-import { RESUME_PROGRESS_QUERY, buildWatchProgressMaps, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, buildWatchProgressMaps, feedItemsToCards, resumableMs, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
@@ -37,7 +37,7 @@ import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, CARD_WIDTH_GRID } from "../../../src/lib/tvLayout";
-import { resolvePlayTarget, sortByIndexNumber } from "../../../src/lib/playTarget";
+import { resolvePlayTarget, sortByIndexNumber, sortEpisodesByIndex } from "../../../src/lib/playTarget";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { SagaSection } from "../../../src/components/SagaSection";
@@ -195,13 +195,7 @@ const SimilarShelf = memo(function SimilarShelf({
 }) {
   const { t } = useTranslation();
   const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
-  const cards = useMemo(
-    () =>
-      (similarData?.items ?? [])
-        .filter((fi) => !!fi.mediaItemId)
-        .map((fi) => ({ id: fi.mediaItemId as string, title: fi.title })),
-    [similarData],
-  );
+  const cards = useMemo(() => feedItemsToCards(similarData?.items), [similarData]);
 
   return (
     <PosterShelf
@@ -749,7 +743,7 @@ export default function MediaDetailScreen() {
   // the first id in the array - the Play button started on whichever episode
   // sorted first by TITLE. Web and mobile already sorted; only the TV did not.
   const episodes = useMemo(
-    () => sortByIndexNumber(isSeason ? children : (episodesData?.items ?? [])),
+    () => sortEpisodesByIndex(isSeason ? children : (episodesData?.items ?? [])),
     [isSeason, children, episodesData?.items],
   );
 
@@ -888,7 +882,8 @@ export default function MediaDetailScreen() {
 
 
   const resumeMs = watchProgress?.positionMs;
-  const hasProgress = resumeMs && Number(resumeMs) > 0 && !watchProgress?.played;
+  // A film seen before and watched again resumes too: see resumableMs.
+  const hasProgress = resumableMs(watchProgress) > 0;
 
 
   return (
@@ -980,9 +975,8 @@ export default function MediaDetailScreen() {
           </Text>
         </Pressable>
 
-        {/* No series/season guard: marking a whole season watched from the
-            couch is a normal TV use, and the web equivalent
-            (MediaDetailActions.tsx) has no such guard either. */}
+        {/* Offered on a series and a season too: the server marks every
+            episode beneath the id it is given, and unmarks them the same way. */}
         <Pressable
           onPress={() => {
             if (!profileId) return;

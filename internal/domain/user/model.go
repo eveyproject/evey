@@ -2,10 +2,13 @@ package user
 
 import (
 	"errors"
+	"fmt"
 	"net/mail"
 	"slices"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/id"
@@ -275,9 +278,36 @@ type LibraryAccess struct {
 	GrantedAt time.Time
 }
 
-func (u *User) Validate() error {
-	if strings.TrimSpace(u.Username) == "" {
+// UsernameMaxRunes bounds a username: the login path keys its failure
+// counters and its audit rows on the name as typed, so an unbounded one is a
+// free write of any size into those tables for anyone.
+const UsernameMaxRunes = 64
+
+// ValidateUsername refuses what no account is allowed to carry: an empty
+// name, one past UsernameMaxRunes, malformed UTF-8, or a control or format
+// character (a bidi override, a zero-width joiner) that lets two names look
+// the same on screen.
+func ValidateUsername(name string) error {
+	if strings.TrimSpace(name) == "" {
 		return errors.New("username is required")
+	}
+	if !utf8.ValidString(name) {
+		return errors.New("username is not valid UTF-8")
+	}
+	if utf8.RuneCountInString(name) > UsernameMaxRunes {
+		return fmt.Errorf("username is longer than %d characters", UsernameMaxRunes)
+	}
+	for _, r := range name {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return errors.New("username contains a control or format character")
+		}
+	}
+	return nil
+}
+
+func (u *User) Validate() error {
+	if err := ValidateUsername(u.Username); err != nil {
+		return err
 	}
 	// Surrounding whitespace is tolerated: rows written before this check
 	// tightened may carry it, and refusing them would block the account's

@@ -42,7 +42,7 @@ values and applies them without a restart. How the gate decides:
 
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Sign-in attempts per address per minute. | Server Config → Accounts & security → **Login Rate Limit**, live |
+| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Sign-in attempts per address per minute. The silent session renewal has its own fixed budget and never spends this one. | Server Config → Accounts & security → **Login Rate Limit**, live |
 | `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Requests per address per minute on the API. | Server Config → Accounts & security → **Global Rate Limit**, live |
 
 ## Container user

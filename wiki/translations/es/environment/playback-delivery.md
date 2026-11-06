@@ -1,5 +1,5 @@
 ---
-source_sha: ebb072bbebfc9bd7bf678229831e531e8fb4937c38720f305ee4e13f6535e311
+source_sha: b9edaa14b28ad46c4709ea321f479e45e254f3dc0abd9f7dfacfde3959487cd0
 reviewed: true
 ---
 # Entrega de la reproducción y descargas { #playback-delivery-and-downloads }
@@ -14,16 +14,18 @@ elige un flujo en primer lugar:
 Una variable con clave de panel también se puede definir como una fila con
 esa clave en **Administración → Configuración del servidor → Entradas de
 configuración**; la fila tiene prioridad sobre el entorno. El panel sugiere las claves de las
-descargas; las demás se escriben tal como aparecen aquí. Todas se leen al
+descargas; las demás se escriben tal como aparecen aquí. Se leen al
 arrancar, así que un cambio se aplica en el siguiente reinicio, se haga como
-se haga.
+se haga, salvo las dos marcadas «siguiente reproducción»: un cambio en ellas
+se aplica en pocos segundos a las reproducciones que empiezan después, y una
+reproducción ya en curso conserva el ajuste con el que empezó.
 
 ## Empaquetado { #packaging }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_HLS_ONDEMAND` | activado | Sirve un archivo cuyas pistas se pueden copiar reempaquetándolo sobre la marcha, sin ffmpeg y sin escribir en la caché. `off`: esos archivos pasan por la vía de copia de ffmpeg. | Entradas de configuración `transcoding.hls_ondemand`, al reiniciar |
-| `EVEY_REMUX_COPY` | activado | La vía de copia de ffmpeg: el vídeo se copia sin recodificar cuando el archivo lo permite. `off`: esos archivos se transcodifican. | Entradas de configuración `transcoding.remux_copy`, al reiniciar |
+| `EVEY_HLS_ONDEMAND` | activado | Sirve un archivo cuyas pistas se pueden copiar reempaquetándolo sobre la marcha, sin ffmpeg y sin escribir en la caché. `off`: esos archivos pasan por la vía de copia de ffmpeg. | Entradas de configuración `transcoding.hls_ondemand`, siguiente reproducción |
+| `EVEY_REMUX_COPY` | activado | La vía de copia de ffmpeg: el vídeo se copia sin recodificar cuando el archivo lo permite. `off`: esos archivos se transcodifican. | Entradas de configuración `transcoding.remux_copy`, siguiente reproducción |
 | `EVEY_HLS_AUDIO_RENDITION_ENABLED` | `true` | Ofrece las pistas de audio como versiones aparte, para que un reproductor cambie de idioma sin volver a descargar el vídeo. También permite reproducir un vídeo copiado con una pista de audio recodificada por separado. | ninguno |
 | `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Añade una calidad baja transcodificada junto a un flujo copiado, para que un reproductor cuya conexión cae bruscamente pueda bajar de calidad en lugar de quedarse parado. No cuesta nada hasta que un reproductor la usa. | ninguno |
 | `EVEY_HLS_ONDEMAND_CONCAT` | activado | Reproducción sin cortes entre episodios, cuando el reproductor web la pide. Un episodio que no se puede copiar vuelve al flujo normal. | Entradas de configuración `transcoding.hls_ondemand_concat`, al reiniciar |

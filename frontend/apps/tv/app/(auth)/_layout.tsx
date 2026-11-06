@@ -23,6 +23,13 @@ import { resolveServerUrl } from "../../src/lib/server-config";
 import { initI18n } from "../../src/i18n";
 import { useTheme } from "../../src/providers/ThemeProvider";
 
+// A screen opened straight from outside - a link, a Cast load, a device
+// command landing in the player - used to be the whole stack: Back had
+// nothing to pop to, and the player's own fallback handed the viewer a media
+// screen that was the whole stack in turn. Anchoring the group on the tabs
+// puts the home under every such entry, so Back always ends there.
+export const unstable_settings = { anchor: "(tabs)" };
+
 function isTokenExpired(token: string): boolean {
   try {
     const tokenParts = token.split(".");
@@ -170,9 +177,9 @@ export default function AuthLayout() {
       {/* The theme is painted by the navigation card itself (contentStyle),
           not by a wrapper under it: each opaque full-screen layer is a 1080p
           fill the television's GPU pays on every frame, and the home was
-          stacking four of them (overdraw measured on the box, 2026-09-20).
+          stacking four of them (overdraw measured on the box).
           The wrapper only paints the inset band below a deep screen, which is
-          its own padding and would otherwise show white (box, 2026-09-19). */}
+          its own padding and would otherwise show white (box). */}
       <View style={{ flex: 1, backgroundColor: deepScreen && !fullBleed ? theme.colors.bg : undefined, paddingBottom: (deepScreen && !fullBleed && !padsItself ? HOME_SHORTCUT_INSET : 0) + musicBarInset }}>
         <ErrorBoundary>
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.bg } }} />

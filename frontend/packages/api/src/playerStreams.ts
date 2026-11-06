@@ -1,5 +1,6 @@
 import type { V1MediaStream } from "./generated/library.schemas";
-import { isBurnInSubtitle } from "./imageSubtitles";
+import { isBurnInSubtitle, isImageSubtitle } from "./imageSubtitles";
+import { pickPreferredStreamIndex } from "./langCodes";
 
 /** An audio track as every player lists it. */
 export interface PlayerAudioStream {
@@ -13,6 +14,11 @@ export interface PlayerAudioStream {
   /** Source codec (ac3/eac3/aac...): drives the web's wasm-audio path. */
   codec?: string;
   channels?: number;
+  /** Director/cast commentary: never the automatic pick while a main track exists. */
+  isCommentary?: boolean;
+  isHearingImpaired?: boolean;
+  /** Audio description for the visually impaired. */
+  isVisualImpaired?: boolean;
 }
 
 /** A subtitle track as every player lists it. */
@@ -49,11 +55,64 @@ export function playerAudioStreams(streams: V1MediaStream[] | undefined): Player
       isDefault: s.isDefault,
       codec: s.codec,
       channels: s.channels,
+      isCommentary: s.isCommentary,
+      isHearingImpaired: s.isHearingImpaired,
+      isVisualImpaired: s.isVisualImpaired,
     }));
 }
 
-/** The subtitle tracks of a title, in file order. */
-export function playerSubtitleStreams(streams: V1MediaStream[] | undefined): PlayerSubtitleStream[] {
+/**
+ * The audio tracks an automatic pick may land on: every non-commentary track,
+ * or all of them when every track is commentary (commentary beats silence).
+ * The server's default selection applies the same filter before any other
+ * rule, so a client that picks its own default names the track the server
+ * would serve.
+ */
+export function defaultAudioCandidates<T extends { isCommentary?: boolean }>(streams: T[]): T[] {
+  const main = streams.filter((s) => !s.isCommentary);
+  return main.length > 0 ? main : streams;
+}
+
+/**
+ * The absolute index of the default audio track: the profile's languages in
+ * order, then the file's default flag, then the first track - each step among
+ * defaultAudioCandidates. Null when the title has no audio.
+ */
+export function pickDefaultAudioIndex(
+  streams: { index: number; language?: string; isDefault?: boolean; isCommentary?: boolean }[],
+  preferredLangs: string[],
+): number | null {
+  const candidates = defaultAudioCandidates(streams);
+  if (candidates.length === 0) return null;
+  return pickPreferredStreamIndex(candidates, preferredLangs)
+    ?? candidates.find((s) => s.isDefault)?.index
+    ?? candidates[0].index;
+}
+
+/**
+ * The profile's "subtitle burn-in" choice, as stored under subtitle_burn_in:
+ * "auto" burns only a bitmap the player cannot draw, "always" burns every
+ * bitmap track (PGS included, at the cost of the copy rung), "never" burns
+ * nothing, so a bitmap the player cannot draw stays off the picture rather
+ * than turning the stream into a transcode. Text is never burnt: the server
+ * only burns bitmaps, so a text track is drawn by the player in every mode.
+ */
+export type SubtitleBurnMode = "auto" | "always" | "never";
+
+/** Reads subtitle_burn_in off a profile's preferences; anything else is auto. */
+export function subtitleBurnMode(prefs: Record<string, string> | undefined): SubtitleBurnMode {
+  const v = (prefs?.["subtitle_burn_in"] ?? "").trim().toLowerCase();
+  return v === "always" || v === "never" ? v : "auto";
+}
+
+function burnsIn(codec: string | null | undefined, mode: SubtitleBurnMode): boolean {
+  if (mode === "never") return false;
+  if (mode === "always") return isImageSubtitle(codec);
+  return isBurnInSubtitle(codec);
+}
+
+/** The subtitle tracks of a title, in file order, flagged for burn-in by the profile's mode. */
+export function playerSubtitleStreams(streams: V1MediaStream[] | undefined, burnMode: SubtitleBurnMode = "auto"): PlayerSubtitleStream[] {
   return (streams ?? [])
     .filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
     .map((s, i) => ({
@@ -66,6 +125,6 @@ export function playerSubtitleStreams(streams: V1MediaStream[] | undefined): Pla
       isExternal: s.isExternal,
       externalPath: s.externalPath,
       codec: s.codec,
-      burnIn: isBurnInSubtitle(s.codec),
+      burnIn: burnsIn(s.codec, burnMode),
     }));
 }

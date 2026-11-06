@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -59,6 +60,20 @@ func (r *FakeLibraryCommandRepo) Update(_ context.Context, lib *library.Library)
 	return nil
 }
 
+func (r *FakeLibraryCommandRepo) TouchLastScannedAt(_ context.Context, id shared.LibraryID, at time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	lib, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	lib.LastScannedAt = &at
+	return nil
+}
+
 func (r *FakeLibraryCommandRepo) Delete(_ context.Context, id shared.LibraryID) error {
 	if r.Err != nil {
 		return r.Err
@@ -73,4 +88,11 @@ func (r *FakeLibraryCommandRepo) Delete(_ context.Context, id shared.LibraryID) 
 	}
 	delete(r.items, string(id))
 	return nil
+}
+
+// Get returns the stored library for a test's assertions, nil when absent.
+func (r *FakeLibraryCommandRepo) Get(id shared.LibraryID) *library.Library {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.items[string(id)]
 }

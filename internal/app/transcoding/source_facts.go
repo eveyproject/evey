@@ -160,12 +160,23 @@ func copySourceOf(s *library.MediaStream) CopySource {
 // off, disk guard). The closed label set of the transcode-sessions metric.
 func TranscodeCause(decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
 	if decision.VideoDecision == "transcode" {
+		pinned := false
 		for _, r := range decision.TranscodeReasons {
-			if r != "container_incompatible" {
+			switch {
+			case r == "container_incompatible":
+			case strings.HasPrefix(r, "audio_"):
+				// An audio reason says nothing about why the picture is encoded.
+			case r == "decision_pinned":
+				// The pin held a copy verdict to transcode: the cause is the
+				// rung the copy could not get, read below from the source.
+				pinned = true
+			default:
 				return r
 			}
 		}
-		return "video_transcode"
+		if !pinned {
+			return "video_transcode"
+		}
 	}
 	if b := SourceCopyBlocker(streams); b != "" {
 		return "copy_blocked:" + b

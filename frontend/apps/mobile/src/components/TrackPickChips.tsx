@@ -1,6 +1,6 @@
 import { View, Text, Pressable } from "react-native";
 import { useTranslation } from "react-i18next";
-import { formatAudioTrackLabel, type TrackPick, type V1MediaStream, trackDisplayName } from "@evey/api";
+import { formatAudioTrackLabel, tagAudioTrackLabel, type TrackPick, type V1MediaStream, trackDisplayName } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 
 interface Props {
@@ -25,7 +25,7 @@ export function TrackPickChips({ streams, pick, onChange }: Props) {
     { key: "auto", label: t("media.streams.auto"), selected: pick.audio === undefined, onPress: () => onChange({ ...pick, audio: undefined }) },
     ...audio.map((s) => ({
       key: String(s.index),
-      label: formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language),
+      label: tagAudioTrackLabel(formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language), s, (k) => t(k)),
       selected: pick.audio === s.index,
       onPress: () => onChange({ ...pick, audio: s.index }),
     })),

@@ -44,6 +44,19 @@ describe("a rung's label agrees with the title page", () => {
     expect(nominalQualityTier(1080, 1920)).toBe(1080);
   });
 
+  // A phone recording is as tall as a scope film is wide: its height is not
+  // the tier it belongs to.
+  it("names a portrait frame by its sides, not its axes", () => {
+    expect(resolutionTier(1080, 1920)).toBe(1080);
+    expect(resolutionTier(818, 1920)).toBe(1080);
+    expect(resolutionTier(2160, 3840)).toBe(2160);
+    expect(resolutionTier(720, 1280)).toBe(720);
+    expect(resolutionTier(576, 1024)).toBe(0);
+    expect(resolutionTier(1920, 818)).toBe(1080);
+    expect(resolutionTier(undefined, 1080)).toBe(1080);
+    expect(resolutionTier(1920, 0)).toBe(1080);
+  });
+
   it("labels the menu from the master's widths", () => {
     expect(parseHlsMasterResolutions(MASTER)).toEqual([{ width: 1920, height: 798 }, { width: 1280, height: 532 }]);
     expect(qualityRungsFromHeights(parseHlsMasterResolutions(MASTER))).toEqual([

@@ -54,6 +54,10 @@ The reasons fall into four groups:
 Only the audio track being played is judged. A file whose unselected
 commentary track is in DTS is not transcoded because of it.
 
+A file that none of the methods can serve on this device is refused before
+playback starts, with **This server isn't powerful enough for this file**:
+see [Transcoding and server capacity](transcoding.md#sharing-the-capacity).
+
 Stream info is computed when playback starts. The one case it cannot foresee
 is a graphics card that is full at the moment the stream starts: the stream
 then moves to the processor, and **Admin → Now Playing** shows the backend
@@ -160,7 +164,7 @@ the player would otherwise ask for.
 <!-- sources
 decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels)
 
-session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked)
+session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked) ; internal/adapters/driving/http/transcode_vod_admission.go - ErrCodeSourceTooHeavy
 remote cap: internal/adapters/driving/grpcapi/playback_handler.go - resolvePlaybackPrefs ; internal/config/config.go - RemoteBitrateCapKbps
 client caps: internal/domain/transcoding/playback_decision.go - ClientProfile ; frontend/packages/client/src/web/codec.ts ; frontend/packages/media-caps/src/castUrl.ts
 example: internal/app/transcoding/testdata/route_golden.txt - "nvenc-pass | 2160p-hevc-hdr10-70m | hdr-tv{,-20m} | {plain,gpu-full,title-blocked}"

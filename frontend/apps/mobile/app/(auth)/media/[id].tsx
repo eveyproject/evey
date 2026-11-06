@@ -66,7 +66,7 @@ import { MetadataEditSheet } from "../../../src/components/media/MetadataEditShe
 import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { RESUME_PROGRESS_QUERY, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, compareEpisodeIndex, invalidateWatchedState, resumableMs, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { StarIcons } from "../../../src/components/media/StarIcons";
 import { personKeyExtractor, renderCastItem } from "../../../src/components/media/CastCard";
@@ -323,9 +323,7 @@ export default function MediaDetailScreen() {
 
   const episodes = useMemo(
     () =>
-      [...(isSeason ? children : (episodesData?.items ?? []))].sort(
-        (a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0),
-      ),
+      [...(isSeason ? children : (episodesData?.items ?? []))].sort(compareEpisodeIndex),
     [isSeason, children, episodesData?.items],
   );
   const seasons = useMemo(
@@ -658,7 +656,8 @@ export default function MediaDetailScreen() {
   }
 
   const resumeMs = watchProgress?.positionMs;
-  const hasProgress = resumeMs && Number(resumeMs) > 0 && !watchProgress?.played;
+  // A film seen before and watched again resumes too: see resumableMs.
+  const hasProgress = resumableMs(watchProgress) > 0;
 
   const mediaLabel = itemLabel(media, t);
 
@@ -995,13 +994,9 @@ export default function MediaDetailScreen() {
             </>
           )}
 
-          {/* Deliberately NOT offered for a series/season: the server's
-              MarkAsWatched writes a single progress row on the id it is given and
-              nothing cascades it to the episodes (verified: no MediaMarkedWatched
-              consumer descends the tree), so a "watched" series would leave every
-              episode unwatched - a misleading button. Web shows it anyway; this is
-              the one place we keep the mobile behaviour over web parity. */}
-          {!demo && !isSeries && !isSeason && (
+          {/* Offered on a series and a season too: the server marks every
+              episode beneath the id it is given, and unmarks them the same way. */}
+          {!demo && (
             <Pressable
               onPress={() => {
                 if (!profileId) return;

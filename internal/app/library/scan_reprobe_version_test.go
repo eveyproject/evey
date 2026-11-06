@@ -303,3 +303,57 @@ func TestScanService_StaleProbeVersion_SkipsFilesBeingWatched(t *testing.T) {
 	assert.Equal(t, int64(2), h.prober.Calls.Load())
 	assert.Equal(t, library.StreamProbeVersion, version("/m/watched.mkv"))
 }
+
+// A row at an older prober revision with NO streams stored (a probe that
+// yielded nothing before the retry budget existed) has nothing to refresh in
+// place: the version re-probe would write none and stamp the row as current,
+// streamless for good. Such a row takes the full probe, is stamped only once
+// streams were written, and on failure enters the bounded retries instead.
+func TestScanService_StaleProbeVersion_StreamlessRowIsProbedInFull(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		probeFails bool
+	}{{"probe succeeds", false}, {"probe fails", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newScanHarness()
+			h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+			h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+			h.scanner.Results["/m"] = []library.ScannedFile{
+				{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
+			}
+			h.prober.Results["/m/a.mkv"] = &library.ProbeResult{
+				Duration: mustProbeDuration(42000),
+				Streams:  []*library.MediaStream{{ID: "ps1", StreamIndex: 0, StreamType: "video", Codec: "vp9"}},
+			}
+			_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+			require.NoError(t, err)
+			item := h.media.All()[0]
+
+			// The row predates both the version and the retry budget, and its
+			// streams were never written.
+			require.NoError(t, h.streams.DeleteByMediaItemID(context.Background(), item.ID))
+			item.File.StreamProbeVersion = 0
+			item.File.StreamProbeAttempts = 0
+			require.NoError(t, h.media.Update(context.Background(), item))
+			if tc.probeFails {
+				h.prober.Err = errors.New("ffprobe: exit status 1")
+			}
+
+			_, _, err = h.svc.ScanLibrary(context.Background(), "lib-1")
+			require.NoError(t, err)
+
+			got := h.media.All()[0]
+			streams, err := h.streams.GetByMediaItemID(context.Background(), item.ID)
+			require.NoError(t, err)
+			if tc.probeFails {
+				assert.Empty(t, streams)
+				assert.Less(t, got.File.StreamProbeVersion, library.StreamProbeVersion, "a failed probe does not stamp the row as current")
+				assert.Positive(t, got.File.StreamProbeAttempts, "the bounded retries take the row over")
+				return
+			}
+			assert.Len(t, streams, 1, "the streams are written in full, not refreshed against nothing")
+			assert.Equal(t, library.StreamProbeVersion, got.File.StreamProbeVersion)
+			assert.Zero(t, got.File.StreamProbeAttempts)
+		})
+	}
+}

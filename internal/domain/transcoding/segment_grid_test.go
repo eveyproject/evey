@@ -111,3 +111,25 @@ func TestSegmentGrid_SameTimelineForEveryRung(t *testing.T) {
 
 func formatExtinf(sec float64) string { return fmt.Sprintf("%.3f", sec) }
 func itoa(n int) string               { return strconv.Itoa(n) }
+
+// The exact start of segment n must map back to n: a seek to a segment
+// boundary that lands one segment early replays three seconds the player
+// already has. The /1001 grids produce starts that float cannot hold
+// exactly, so the lookup has to absorb that representation error.
+func TestSegmentGrid_SegmentIndexAtAnExactStartIsThatSegment(t *testing.T) {
+	t.Parallel()
+	for _, fps := range []float64{23.976, 25, 29.97, 47.952, 59.94, 119.88} {
+		g := GridForFrameRate(fps)
+		wrong := 0
+		for n := range 5000 {
+			if g.SegmentIndexAt(g.SegmentStartSeconds(n)) != n {
+				wrong++
+			}
+		}
+		assert.Zero(t, wrong, "fps %v: exact starts mapped to the previous segment", fps)
+		// A time strictly inside a segment still maps to it, and the last
+		// instant before a boundary maps to the segment before.
+		assert.Equal(t, 39, g.SegmentIndexAt(g.SegmentStartSeconds(39)+0.5), "fps %v", fps)
+		assert.Equal(t, 38, g.SegmentIndexAt(g.SegmentStartSeconds(39)-0.001), "fps %v", fps)
+	}
+}

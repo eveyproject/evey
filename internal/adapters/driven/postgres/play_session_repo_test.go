@@ -540,3 +540,50 @@ func TestPlaySessionRepo_ReopenEndedBefore(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, reopened)
 }
+
+// The stale sweep ends a session at its last heartbeat, measures the duration
+// to it, and hands the row back; a session still beating is not returned.
+func TestPlaySessionRepo_CloseStaleReturning(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("psu9")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("psp9", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("pslib9")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("psmi9", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	stale := newTestPlaySession("ps9-stale", string(p.ID), string(item.ID))
+	require.NoError(t, sessionRepo.Create(ctx, stale))
+	live := newTestPlaySession("ps9-live", string(p.ID), string(item.ID))
+	require.NoError(t, sessionRepo.Create(ctx, live))
+	// The stale one started ten minutes ago and last beat five minutes ago.
+	_, err := db.ExecContext(ctx, `UPDATE play_sessions SET started_at = NOW() - INTERVAL '10 minutes', updated_at = NOW() - INTERVAL '5 minutes' WHERE id = $1`, stale.ID)
+	require.NoError(t, err)
+
+	ended, err := sessionRepo.CloseStaleReturning(ctx, 2*time.Minute)
+	require.NoError(t, err)
+	require.Len(t, ended, 1)
+	assert.Equal(t, stale.ID, ended[0].ID)
+	assert.Equal(t, p.ID, ended[0].ProfileID)
+	require.NotNil(t, ended[0].EndedAt)
+	require.NotNil(t, ended[0].Duration)
+	assert.InDelta(t, 5*60*1000, ended[0].Duration.Milliseconds(), 2000, "measured start to last heartbeat")
+
+	var endedAtIsHeartbeat bool
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT ended_at = updated_at FROM play_sessions WHERE id = $1`, stale.ID).Scan(&endedAtIsHeartbeat))
+	assert.True(t, endedAtIsHeartbeat)
+	got, err := sessionRepo.GetByID(ctx, live.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.EndedAt)
+}

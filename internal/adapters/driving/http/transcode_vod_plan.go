@@ -52,12 +52,27 @@ type requestPlan struct {
 	Request apptranscoding.PlaybackRequest
 }
 
-// planResolver assembles the app-layer resolver from the handler's live
+// planResolver is the resolver of a playback that would start now: the
+// packaging engines the current admin settings open. For the surfaces that
+// answer without a playback request (pre-play info, picture plan).
+func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
+	return h.planResolverFor(nil)
+}
+
+// planResolverFor is the resolver of request r: the packaging engines its
+// playback was started with (servingGates), never the live setting, so a
+// toggle never moves a running session.
+func (h *hlsVODServe) planResolverFor(r *http.Request) *apptranscoding.PlanResolver {
+	copyOpen, packagerOpen := h.servingGates(r)
+	return h.planResolverWith(copyOpen, packagerOpen)
+}
+
+// planResolverWith assembles the app-layer resolver from the handler's live
 // fields, per call: hand-built test handlers mutate fields after
 // construction, and dynamic toggles (capability, hw flags) must be read
 // fresh. Assembly is a plain struct literal - no allocation beyond the
-// resolver itself.
-func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
+// resolver itself. copyOpen / packagerOpen gate the two packaging engines.
+func (h *hlsVODServe) planResolverWith(copyOpen, packagerOpen bool) *apptranscoding.PlanResolver {
 	pr := &apptranscoding.PlanResolver{
 		Capability: h.capability,
 		// The per-route cost model the backend-per-route pick reads (cheapest
@@ -84,7 +99,6 @@ func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
 		ClassLookup:            h.classLookup,
 		ClassLookupTTL:         mediaLookupTTL,
 		Selector:               h.selector,
-		CopyProducer:           h.copyProducer,
 		AdmissionRoute:         h.admissionRoute,
 		AdmissionPinnedClass:   h.admissionPinnedClass,
 		AdmissionBind:          h.admissionBind,
@@ -93,12 +107,17 @@ func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
 		AdmissionNoteRoute:     h.admissionNoteRoute,
 		UseFMP4:                h.useFMP4,
 		AudioRenditionEnabled:  h.audioRenditionEnabled,
-		OnDemandPackager:       h.onDemand != nil,
+		OnDemandPackager:       packagerOpen,
 		OnDemandTrackTrim:      h.onDemandTrackTrim,
 		AudioRenditionPipeline: h.audio != nil,
 		// Same predicate as audioRenditionsFor's transcode branch (minus the
 		// telecine gate the resolver applies itself).
 		TranscodeAudioRendition: h.encoderReorderProbe != nil && h.frameRateProbe != nil,
+	}
+	// Assigned only when open: a nil interface is the resolver's "no copy
+	// rung" (IsCopy), never a typed nil.
+	if copyOpen && h.copyProducer != nil {
+		pr.CopyProducer = h.copyProducer
 	}
 	if h.cache != nil {
 		pr.FreeBytes = h.cache.FreeBytes
@@ -180,7 +199,7 @@ func (h *hlsVODServe) probePlan(r *http.Request, mediaID string, item *domainlib
 	streams = h.warmKeyframesInline(r, mediaID, item, streams)
 	audioTrack := h.resolveAudioTrackWith(r, streams, prefs)
 	req := h.marshalPlaybackRequest(r, mediaID, item, streams, prefs, audioTrack)
-	plan, err := h.planResolver().Resolve(r.Context(), req)
+	plan, err := h.planResolverFor(r).Resolve(r.Context(), req)
 	if err != nil {
 		return nil, err
 	}

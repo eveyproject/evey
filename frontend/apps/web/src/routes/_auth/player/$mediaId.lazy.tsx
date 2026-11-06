@@ -3,7 +3,7 @@ import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { shedI18nKey } from "@evey/client";
+import { compareEpisodeIndex, shedI18nKey } from "@evey/client";
 import { episodeLabel, libraryServiceGetMediaItem, libraryServiceListMediaItems, playerAudioStreams, playerSubtitleStreams } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
@@ -298,7 +298,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const episodes = useMemo(
     () =>
       [...(episodesData?.items ?? [])]
-        .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
+        .sort(compareEpisodeIndex)
         .map((ep) => toEpisodeNavItem(ep, season?.indexNumber)),
     [episodesData?.items, season?.indexNumber],
   );

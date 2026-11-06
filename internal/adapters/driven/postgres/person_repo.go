@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
@@ -36,26 +37,116 @@ func (r *PersonRepository) Create(ctx context.Context, person *library.Person) e
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	// RETURNING id so person.ID reflects the PERSISTED row. A concurrent
-	// enrichment can create the same person (unique name) between the caller's
-	// GetByName miss and this insert; a plain DO NOTHING would silently keep the
-	// existing row but leave person.ID as the caller's fresh uuid, so the
-	// downstream media_people cast link would target a non-existent person id and
-	// the FK would drop the link. DO UPDATE SET name=name is a no-op that
-	// preserves every existing field while letting RETURNING hand back the
-	// surviving row id.
-	if err = txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`INSERT INTO people (id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for, bio_checked_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-		 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-		 RETURNING id`,
-		person.ID, person.Name, providerJSON, person.ThumbPath, person.Biography, person.Birthday, person.Deathday, person.PlaceOfBirth, person.KnownFor, person.BioCheckedAt,
-	).Scan(&person.ID); err != nil {
+	person.Name = sanitizePersonName(person.Name)
+	if tmdb := person.ProviderIDs["tmdb"]; tmdb != "" {
+		err = r.createByProviderID(ctx, person, tmdb, providerJSON)
+	} else {
+		err = r.createByName(ctx, person, providerJSON)
+	}
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	return nil
+}
+
+// createByName inserts a person the provider gave no id for: its name is its
+// identity, unique among the id-less rows only. RETURNING id so person.ID
+// reflects the PERSISTED row. A concurrent enrichment can create the same
+// person between the caller's GetByName miss and this insert; a plain DO
+// NOTHING would silently keep the existing row but leave person.ID as the
+// caller's fresh uuid, so the downstream media_people cast link would target
+// a non-existent person id and the FK would drop the link. DO UPDATE SET
+// name=name is a no-op that preserves every existing field while letting
+// RETURNING hand back the surviving row id.
+func (r *PersonRepository) createByName(ctx context.Context, person *library.Person, providerJSON []byte) error {
+	return txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`INSERT INTO people (id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for, bio_checked_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		 ON CONFLICT (name) WHERE COALESCE(provider_ids->>'tmdb', '') = '' DO UPDATE SET name = EXCLUDED.name
+		 RETURNING id`,
+		person.ID, person.Name, providerJSON, person.ThumbPath, person.Biography, person.Birthday, person.Deathday, person.PlaceOfBirth, person.KnownFor, person.BioCheckedAt,
+	).Scan(&person.ID)
+}
+
+// createByProviderID inserts a person the provider knows under tmdb, unless
+// a row already carries that id: then person.ID becomes that row's id, for
+// the same cast-link reason as createByName. The id index cannot be unique
+// (rows credited under two spellings of one id predate it), so the race
+// between two enrichments of one person is closed by a lock on the id held
+// to the end of the transaction instead of by a conflict target.
+func (r *PersonRepository) createByProviderID(ctx context.Context, person *library.Person, tmdb string, providerJSON []byte) error {
+	return NewTxUnit(r.db).Do(ctx, func(ctx context.Context) error {
+		ex := txFromCtx(ctx, r.db)
+		existing, err := lockProviderID(ctx, ex, "tmdb", tmdb)
+		if err != nil {
+			return err
+		}
+		if existing != "" {
+			person.ID = existing
+			return nil
+		}
+		_, err = ex.ExecContext(ctx,
+			`INSERT INTO people (id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for, bio_checked_at)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			person.ID, person.Name, providerJSON, person.ThumbPath, person.Biography, person.Birthday, person.Deathday, person.PlaceOfBirth, person.KnownFor, person.BioCheckedAt,
+		)
+		return err
+	})
+}
+
+// lockProviderID takes the transaction lock that serialises every write
+// giving a person this provider id, then returns the row already holding it
+// ("" when none). Create and ClaimProviderID both go through it.
+func lockProviderID(ctx context.Context, ex dbExecutor, provider, id string) (string, error) {
+	if _, err := ex.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "people."+provider+":"+id); err != nil {
+		return "", err
+	}
+	query := `SELECT id FROM people WHERE provider_ids->>'tmdb' = $1 ORDER BY id LIMIT 1`
+	args := []any{id}
+	if provider != "tmdb" {
+		query = `SELECT id FROM people WHERE provider_ids->>$2 = $1 ORDER BY id LIMIT 1`
+		args = append(args, provider)
+	}
+	var existing string
+	err := ex.QueryRowContext(ctx, query, args...).Scan(&existing)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return existing, err
+}
+
+func (r *PersonRepository) ClaimProviderID(ctx context.Context, personID, provider, id string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.person.ClaimProviderID")
+	defer span.End()
+	span.SetAttributes(attribute.String("person.id", personID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	owner := personID
+	err := NewTxUnit(r.db).Do(ctx, func(ctx context.Context) error {
+		ex := txFromCtx(ctx, r.db)
+		existing, err := lockProviderID(ctx, ex, provider, id)
+		if err != nil {
+			return err
+		}
+		if existing != "" {
+			owner = existing
+			return nil
+		}
+		_, err = ex.ExecContext(ctx,
+			// A person created without ids stores JSON null, and null || {...}
+			// is an array that no ->> lookup finds: start from an object.
+			`UPDATE people SET provider_ids = COALESCE(NULLIF(provider_ids, 'null'::jsonb), '{}'::jsonb) || jsonb_build_object($2::text, $3::text) WHERE id = $1`,
+			personID, provider, id)
+		return err
+	})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return "", err
+	}
+	return owner, nil
 }
 
 func (r *PersonRepository) GetByID(ctx context.Context, id string) (*library.Person, error) {
@@ -82,7 +173,34 @@ func (r *PersonRepository) GetByName(ctx context.Context, name string) (*library
 	defer cancel()
 	person, err := r.scanPerson(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for, bio_checked_at
-		 FROM people WHERE name = $1`, name))
+		 FROM people WHERE name = $1
+		 ORDER BY (COALESCE(provider_ids->>'tmdb', '') <> ''), id LIMIT 1`, name))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return person, nil
+}
+
+func (r *PersonRepository) GetByProviderID(ctx context.Context, provider, id string) (*library.Person, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.person.GetByProviderID")
+	defer span.End()
+	span.SetAttributes(attribute.String("person.provider", provider))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	// The tmdb key is spelled out so the expression index serves it; another
+	// provider key goes through the generic, unindexed form. Rows sharing one
+	// id may exist (the index is not unique): the lowest id is the stable pick.
+	query := `SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for, bio_checked_at
+		 FROM people WHERE provider_ids->>'tmdb' = $1 ORDER BY id LIMIT 1`
+	args := []any{id}
+	if provider != "tmdb" {
+		query = `SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for, bio_checked_at
+		 FROM people WHERE provider_ids->>$2 = $1 ORDER BY id LIMIT 1`
+		args = append(args, provider)
+	}
+	person, err := r.scanPerson(txFromCtx(ctx, r.db).QueryRowContext(ctx, query, args...))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -93,7 +211,8 @@ func (r *PersonRepository) GetByName(ctx context.Context, name string) (*library
 
 // GetByNamesBatch returns a name→Person map for the given names. Missing
 // names are simply absent from the map. Single query with ANY($1) so a
-// cast of 50 names doesn't translate to 50 round-trips.
+// cast of 50 names doesn't translate to 50 round-trips. Among homonyms the
+// row without a provider id is the one returned, as in GetByName.
 func (r *PersonRepository) GetByNamesBatch(ctx context.Context, names []string) (map[string]*library.Person, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.person.GetByNamesBatch")
 	defer span.End()
@@ -106,7 +225,8 @@ func (r *PersonRepository) GetByNamesBatch(ctx context.Context, names []string) 
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for, bio_checked_at
-		 FROM people WHERE name = ANY($1)`, pq.Array(names))
+		 FROM (SELECT DISTINCT ON (name) * FROM people WHERE name = ANY($1)
+		       ORDER BY name, (COALESCE(provider_ids->>'tmdb', '') <> ''), id) p`, pq.Array(names))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -213,3 +333,10 @@ func (r *PersonRepository) scanPerson(row *sql.Row) (*library.Person, error) {
 }
 
 var _ library.PersonRepository = (*PersonRepository)(nil)
+
+// sanitizePersonName drops what Postgres refuses in a TEXT value (invalid
+// UTF-8, U+0000): a provider name carrying either failed the insert and the
+// whole cast with it, on every enrichment.
+func sanitizePersonName(name string) string {
+	return strings.ReplaceAll(strings.ToValidUTF8(name, ""), "\x00", "")
+}

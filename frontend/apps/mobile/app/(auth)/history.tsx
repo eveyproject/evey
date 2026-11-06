@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { formatDurationMs } from "@evey/api";
+import { formatDurationMs, isPositive } from "@evey/api";
 import { View, Text, SectionList, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
@@ -93,7 +93,7 @@ function HistoryItem({ item, onRemove, isPending }: {
         <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
           {formatDate(item.lastPlayedAt)}
         </Text>
-        {item.durationMs && (
+        {isPositive(item.durationMs) && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
             {formatDurationMs(item.positionMs)} / {formatDurationMs(item.durationMs)}
           </Text>

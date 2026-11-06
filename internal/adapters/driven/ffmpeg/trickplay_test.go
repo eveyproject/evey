@@ -171,3 +171,98 @@ func TestTrickplayFilter_TonemapsHDRSources(t *testing.T) {
 		}
 	}
 }
+
+// snapshotFakes are an ffmpeg that records its argv and an ffprobe that
+// reports the given transfer curve for the first video stream.
+func snapshotFakes(t *testing.T, transfer string) (bin, probe, argsFile string) {
+	t.Helper()
+	dir := t.TempDir()
+	argsFile = filepath.Join(dir, "args")
+	bin = writeFakeBinary(t, filepath.Join(dir, "ffmpeg"), "#!/bin/sh\ncat > /dev/null\nprintf '%s\\n' \"$@\" > "+argsFile+"\nprintf 'jpeg'\n")
+	probe = writeFakeBinary(t, filepath.Join(dir, "ffprobe"),
+		fmt.Sprintf("#!/bin/sh\nprintf '{\"streams\":[{\"color_transfer\":\"%s\"}],\"format\":{\"start_time\":\"0.000\"}}'\n", transfer))
+	return bin, probe, argsFile
+}
+
+func recordedVF(t *testing.T, argsFile string) string {
+	t.Helper()
+	raw, err := os.ReadFile(argsFile)
+	require.NoError(t, err)
+	args := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	for i, a := range args {
+		if a == "-vf" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	t.Fatalf("no -vf in %v", args)
+	return ""
+}
+
+// A snapshot of an HDR source is a small SDR picture like the trickplay strip
+// and the player: sampled as if it were SDR it came out grey and washed out.
+// The exact decode and the keyframe-packet decode both tone-map; an SDR
+// source keeps the bare scale, byte for byte.
+func TestSnapshot_TonemapsAnHDRSource(t *testing.T) {
+	bin, probe, argsFile := snapshotFakes(t, "smpte2084")
+	g := NewTrickplayGenerator(bin, probe)
+
+	out, err := g.ExtractFrame(context.Background(), "/fake/hdr.mkv", 12.5, 640)
+	require.NoError(t, err)
+	assert.Equal(t, "jpeg", string(out))
+	vf := recordedVF(t, argsFile)
+	assert.True(t, strings.HasPrefix(vf, "scale=640:-1,"), "the scale leads: %q", vf)
+	assert.Contains(t, vf, "tonemap", "the exact decode tone-maps: %q", vf)
+
+	_, err = g.DecodePacketToJPEG(context.Background(), "/fake/hdr.mkv", []byte{0, 0, 0, 1}, ".hevc", 640)
+	require.NoError(t, err)
+	vf = recordedVF(t, argsFile)
+	assert.Contains(t, vf, "tonemap", "the keyframe-packet decode tone-maps: %q", vf)
+
+	sdrBin, sdrProbe, sdrArgs := snapshotFakes(t, "bt709")
+	g = NewTrickplayGenerator(sdrBin, sdrProbe)
+	_, err = g.ExtractFrame(context.Background(), "/fake/sdr.mkv", 12.5, 640)
+	require.NoError(t, err)
+	assert.Equal(t, "scale=640:-1", recordedVF(t, sdrArgs), "an SDR source keeps the bare scale")
+}
+
+// The colour of a source is read once per file, not once per snapshot: the
+// scrubbing preview asks for many frames of the same file in a row, and a
+// probe per frame would cost more than the frame on the cheap path.
+func TestSnapshot_ProbesTheColourOncePerFile(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	countFile := filepath.Join(dir, "probes")
+	bin := writeFakeBinary(t, filepath.Join(dir, "ffmpeg"), "#!/bin/sh\ncat > /dev/null\nprintf '%s\\n' \"$@\" > "+argsFile+"\nprintf 'jpeg'\n")
+	probe := writeFakeBinary(t, filepath.Join(dir, "ffprobe"),
+		"#!/bin/sh\necho probe >> "+countFile+"\nprintf '{\"streams\":[{\"color_transfer\":\"smpte2084\"}],\"format\":{\"start_time\":\"0.000\"}}'\n")
+	probes := func() int {
+		raw, _ := os.ReadFile(countFile)
+		return strings.Count(string(raw), "probe")
+	}
+	src := filepath.Join(dir, "hdr.mkv")
+	require.NoError(t, os.WriteFile(src, []byte("x"), 0o644))
+	other := filepath.Join(dir, "other.mkv")
+	require.NoError(t, os.WriteFile(other, []byte("y"), 0o644))
+	g := NewTrickplayGenerator(bin, probe)
+	ctx := context.Background()
+
+	_, err := g.ExtractFrame(ctx, src, 1, 640)
+	require.NoError(t, err)
+	_, err = g.DecodePacketToJPEG(ctx, src, []byte{0, 0, 0, 1}, ".hevc", 640)
+	require.NoError(t, err)
+	_, err = g.ExtractFrame(ctx, src, 2, 640)
+	require.NoError(t, err)
+	assert.Equal(t, 1, probes(), "one probe for three snapshots of the same file")
+	assert.Contains(t, recordedVF(t, argsFile), "tonemap", "the remembered colour still tone-maps")
+
+	_, err = g.ExtractFrame(ctx, other, 1, 640)
+	require.NoError(t, err)
+	assert.Equal(t, 2, probes(), "another file is probed once")
+
+	// A rewritten file (new modification time) is read again.
+	later := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(src, later, later))
+	_, err = g.ExtractFrame(ctx, src, 3, 640)
+	require.NoError(t, err)
+	assert.Equal(t, 3, probes(), "a changed file is probed again")
+}

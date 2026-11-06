@@ -99,7 +99,7 @@ type personDetailProviderStub struct {
 	detailHits atomic.Int32
 }
 
-func (s *personDetailProviderStub) GetPersonDetails(_ context.Context, _ string) (*domainlib.PersonDetailsResult, error) {
+func (s *personDetailProviderStub) GetPersonDetails(_ context.Context, _, _ string) (*domainlib.PersonDetailsResult, error) {
 	s.detailHits.Add(1)
 	return s.details, s.detailsErr
 }
@@ -379,7 +379,7 @@ type detailOnlyProviderStub struct {
 	detailHits atomic.Int32
 }
 
-func (s *detailOnlyProviderStub) GetPersonDetails(_ context.Context, _ string) (*domainlib.PersonDetailsResult, error) {
+func (s *detailOnlyProviderStub) GetPersonDetails(_ context.Context, _, _ string) (*domainlib.PersonDetailsResult, error) {
 	s.detailHits.Add(1)
 	return s.details, nil
 }

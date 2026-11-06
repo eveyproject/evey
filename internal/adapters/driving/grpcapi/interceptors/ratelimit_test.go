@@ -277,3 +277,34 @@ func TestRateLimitStream_PerIPIsolationAndUnknownCaller(t *testing.T) {
 	require.Error(t, err, "an unidentifiable stream caller must hit the limit like any other")
 	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
+
+// The HTTP route in front of the status poll is sized for three televisions
+// behind one address, each asking every few seconds. The gRPC budget on the
+// same route must not undercut it, or every other poll of the second
+// television is refused before the HTTP limiter ever sees it.
+func TestDefaultPublicMethodLimiters_QuickConnectPollFitsThreeTelevisions(t *testing.T) {
+	limiters := interceptors.DefaultPublicMethodLimiters()
+	interceptor := interceptors.RateLimitUnary(limiters)
+	handler := func(ctx context.Context, req any) (any, error) { return "ok", nil }
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.UserService/CheckQuickConnect"}
+	ctx := ipCtx("10.0.0.7")
+	const televisions, pollsPerMinute = 3, 20
+	for i := range televisions * pollsPerMinute {
+		_, err := interceptor(ctx, nil, info, handler)
+		require.NoError(t, err, "poll %d of a burst three televisions produce in one minute", i)
+	}
+}
+
+// The gateway calls RefreshToken with the caller's real address, behind the
+// HTTP refresh route sized at 60 per minute: a smaller gRPC budget refused
+// the second half of a household's renewals before that route ever could.
+func TestDefaultPublicMethodLimiters_RefreshFitsTheHTTPRouteBudget(t *testing.T) {
+	interceptor := interceptors.RateLimitUnary(interceptors.DefaultPublicMethodLimiters())
+	handler := func(ctx context.Context, req any) (any, error) { return "ok", nil }
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.UserService/RefreshToken"}
+	ctx := ipCtx("10.0.0.9")
+	for i := range 60 {
+		_, err := interceptor(ctx, nil, info, handler)
+		require.NoError(t, err, "refresh %d of a burst the HTTP route admits", i)
+	}
+}

@@ -77,6 +77,7 @@ func newTestRemuxServe(t *testing.T, rmx Remuxer, libAccess LibraryAccessChecker
 		remuxer:       rmx,
 		cacheDir:      filepath.Join(t.TempDir(), "remux"),
 		baseURL:       "http://localhost",
+		sem:           make(chan struct{}, remuxMaxConcurrentProductions),
 	}
 }
 
@@ -317,4 +318,154 @@ func TestRemuxServe_MirroredSourceRemuxedUnderItsOwnName(t *testing.T) {
 	files, err := os.ReadDir(h.cacheDir)
 	require.NoError(t, err)
 	assert.Len(t, files, 2, "the mirrored remux has a name of its own")
+}
+
+// blockingRemuxer holds every production open until released and records
+// how many ran at once: the proof that distinct titles queue on the
+// production slots instead of each spawning its own remux.
+type blockingRemuxer struct {
+	release chan struct{}
+	mu      sync.Mutex
+	inFlight,
+	peak,
+	calls int
+}
+
+func (b *blockingRemuxer) CanRemux(string) bool { return true }
+
+func (b *blockingRemuxer) DisplayMatrix(context.Context, string) (int, bool, error) {
+	return 0, false, nil
+}
+
+func (b *blockingRemuxer) RemuxToMP4(_ context.Context, _, dst string) error {
+	b.mu.Lock()
+	b.calls++
+	b.inFlight++
+	if b.inFlight > b.peak {
+		b.peak = b.inFlight
+	}
+	b.mu.Unlock()
+	<-b.release
+	b.mu.Lock()
+	b.inFlight--
+	b.mu.Unlock()
+	return os.WriteFile(dst, []byte("DATA"), 0o644)
+}
+
+func (b *blockingRemuxer) remuxCalls() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.calls
+}
+
+func (b *blockingRemuxer) peakInFlight() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.peak
+}
+
+// Ten distinct titles asked at the same instant, each with its own cache
+// key, must never run more remuxes at once than the production slots allow:
+// the single-flight only collapses repeats of ONE title, and a viewer
+// walking a library could otherwise start one ffmpeg per title.
+func TestRemux_ConcurrentDistinctItemsBoundedByProductionSlots(t *testing.T) {
+	rmx := &blockingRemuxer{release: make(chan struct{})}
+	h := newTestRemuxServe(t, rmx, allowAll())
+
+	const titles = 10
+	var wg sync.WaitGroup
+	errs := make(chan error, titles)
+	for i := range titles {
+		wg.Go(func() {
+			out := filepath.Join(h.cacheDir, "item-"+string(rune('a'+i))+".mp4")
+			errs <- h.ensureRemuxed(context.Background(), "/tmp/fake.mkv", out)
+		})
+	}
+
+	// Give every goroutine the chance to reach a production slot, then let
+	// them all through; the peak is sampled by the remuxer itself.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		rmx.mu.Lock()
+		running := rmx.inFlight
+		rmx.mu.Unlock()
+		if running >= remuxMaxConcurrentProductions {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(rmx.release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, remuxMaxConcurrentProductions, rmx.peakInFlight(),
+		"distinct titles must queue on the production slots, not each run their own remux")
+}
+
+// A viewer gone while queued on the production slots takes no slot: the
+// request returns on its cancellation and no remux runs for it. A follower
+// of the same title still gets its file.
+func TestRemux_CancelledWaiterProducesNothing(t *testing.T) {
+	rmx := &blockingRemuxer{release: make(chan struct{})}
+	h := newTestRemuxServe(t, rmx, allowAll())
+	// Released at the end, or on a failure before it: the slot holders must
+	// never outlive the test.
+	release := sync.OnceFunc(func() { close(rmx.release) })
+	var wg sync.WaitGroup
+	t.Cleanup(func() {
+		release()
+		wg.Wait()
+	})
+	slotErrs := make(chan error, 2)
+	for _, name := range []string{"slot-one", "slot-two"} {
+		wg.Go(func() {
+			slotErrs <- h.ensureRemuxed(context.Background(), "/tmp/fake.mkv", filepath.Join(h.cacheDir, name+".mp4"))
+		})
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		rmx.mu.Lock()
+		running := rmx.inFlight
+		rmx.mu.Unlock()
+		if running >= remuxMaxConcurrentProductions {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	queued := filepath.Join(h.cacheDir, "queued.mp4")
+	leaderErr := make(chan error, 1)
+	go func() { leaderErr <- h.ensureRemuxed(ctx, "/tmp/fake.mkv", queued) }()
+	// The viewer gone leads the flight; the follower joins once it is queued.
+	time.Sleep(50 * time.Millisecond)
+	followerErr := make(chan error, 1)
+	go func() { followerErr <- h.ensureRemuxed(context.Background(), "/tmp/fake.mkv", queued) }()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-leaderErr:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(2 * time.Second):
+		t.Fatal("the cancelled waiter is still queued on the slots")
+	}
+
+	release()
+	select {
+	case err := <-followerErr:
+		require.NoError(t, err, "the follower takes the flight over as its own leader")
+	case <-time.After(3 * time.Second):
+		t.Fatal("the follower never got its file")
+	}
+	_, err := os.Stat(queued)
+	require.NoError(t, err, "the follower's file is on disk")
+	wg.Wait()
+	close(slotErrs)
+	for err := range slotErrs {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, 3, rmx.remuxCalls(), "two slots and the follower's own remux, none for the viewer gone")
 }

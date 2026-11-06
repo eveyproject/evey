@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	domain "github.com/eveyproject/evey/internal/domain/metadata"
@@ -28,6 +29,21 @@ type TMDBProvider struct {
 }
 
 func (p *TMDBProvider) language() string { return p.languageFn() }
+
+// imageLanguages is the include_image_language value for a server language:
+// the language itself (reduced to its ISO 639-1 part, the only form the image
+// filter knows: "fr-FR" matched nothing), then English, then the untagged
+// images. Without the parameter a season or an episode appended images
+// filtered on the request language alone.
+func imageLanguages(lang string) string {
+	return imageLanguage(lang) + ",en,null"
+}
+
+// imageLanguage reduces a server language ("fr-FR", "pt-BR") to the two
+// letters TMDB tags images with.
+func imageLanguage(lang string) string {
+	return strings.ToLower(strings.SplitN(strings.TrimSpace(lang), "-", 2)[0])
+}
 
 // Language exposes the provider's current language so a fronting cache can key
 // on it (implements domain.LanguageAware).
@@ -162,8 +178,8 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetEpisodeDetails")
 	defer span.End()
 
-	u := fmt.Sprintf("%s/tv/%s/season/%d/episode/%d?language=%s&append_to_response=images,external_ids",
-		p.baseURL, seriesID, seasonNum, episodeNum, p.language())
+	u := fmt.Sprintf("%s/tv/%s/season/%d/episode/%d?language=%s&append_to_response=images,external_ids&include_image_language=%s",
+		p.baseURL, seriesID, seasonNum, episodeNum, p.language(), imageLanguages(p.language()))
 	body, err := p.doRequestWithRetry(ctx, u)
 	if err != nil {
 		return nil, fmt.Errorf("tmdb episode request: %w", err)
@@ -223,8 +239,8 @@ func (p *TMDBProvider) GetSeasonDetails(ctx context.Context, seriesID string, se
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetSeasonDetails")
 	defer span.End()
 
-	u := fmt.Sprintf("%s/tv/%s/season/%d?language=%s&append_to_response=images,external_ids",
-		p.baseURL, seriesID, seasonNum, p.language())
+	u := fmt.Sprintf("%s/tv/%s/season/%d?language=%s&append_to_response=images,external_ids&include_image_language=%s",
+		p.baseURL, seriesID, seasonNum, p.language(), imageLanguages(p.language()))
 	body, err := p.doRequestWithRetry(ctx, u)
 	if err != nil {
 		return nil, fmt.Errorf("tmdb season request: %w", err)
@@ -286,7 +302,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 	params := url.Values{
 		"append_to_response":     {"credits,keywords,images,external_ids,videos,release_dates,content_ratings,alternative_titles"},
 		"language":               {p.language()},
-		"include_image_language": {p.language() + ",en,null"},
+		"include_image_language": {imageLanguages(p.language())},
 		"include_video_language": {p.language() + ",en,null"},
 	}
 	u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
@@ -491,11 +507,16 @@ func (p *TMDBProvider) AlternativeTitles(ctx context.Context, providerID string,
 	return titles, nil
 }
 
-// GetPersonDetails searches TMDB for a person by name and returns biographical info.
-func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*PersonDetails, error) {
+// GetPersonDetails returns a person's biographical info: read by tmdbID when
+// it is known, else searched by name (first result). Two homonyms are two
+// TMDB people, and the name search answered the first one for both.
+func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name, tmdbID string) (*PersonDetails, error) {
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetPersonDetails")
 	defer span.End()
 
+	if tmdbID != "" {
+		return p.personDetail(ctx, tmdbID)
+	}
 	searchURL := fmt.Sprintf("%s/search/person?query=%s&language=%s", p.baseURL, url.QueryEscape(name), p.language())
 	body, err := p.doRequestWithRetry(ctx, searchURL)
 	if err != nil {
@@ -508,10 +529,12 @@ func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*Pers
 	if len(searchResp.Results) == 0 {
 		return nil, nil
 	}
-	tmdbID := searchResp.Results[0].ID
+	return p.personDetail(ctx, strconv.Itoa(searchResp.Results[0].ID))
+}
 
-	detailURL := fmt.Sprintf("%s/person/%d?language=%s", p.baseURL, tmdbID, p.language())
-	body, err = p.doRequestWithRetry(ctx, detailURL)
+func (p *TMDBProvider) personDetail(ctx context.Context, tmdbID string) (*PersonDetails, error) {
+	detailURL := fmt.Sprintf("%s/person/%s?language=%s", p.baseURL, url.PathEscape(tmdbID), p.language())
+	body, err := p.doRequestWithRetry(ctx, detailURL)
 	if err != nil {
 		return nil, fmt.Errorf("tmdb get person detail: %w", err)
 	}

@@ -48,6 +48,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/shared"
 	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 	"github.com/eveyproject/evey/internal/domain/webhook"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	"github.com/eveyproject/evey/internal/pkg/bgtasks"
 	"github.com/eveyproject/evey/internal/pkg/coalesce"
 	"github.com/eveyproject/evey/internal/pkg/cpubudget"
@@ -73,6 +74,9 @@ import (
 //   "library.updated"       → filesystem watcher (re-arm on new paths or monitoring switch)
 //   "notification.created"  → email adapter (send email, only when SMTP configured)
 //   "*"                     → webhook dispatcher (delivers matching webhooks)
+//
+//   "user.login.succeeded"  → login history (LoginRecorder)
+//   "user.login.failed"     → login history (LoginRecorder)
 //
 // All other domain events (user.*, playback.*, transcode.*, plugin.*, rating.*,
 // activity.*, music.*, photo.*, mkv.*, metadata.*) are published but have no
@@ -159,6 +163,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		applibrary.WithFileSettle(applibrary.DefaultFileSettle),
 	)
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
+	libCmdSvc.WithArtworkPurger(r.Artwork)
 	libCmdSvc.WithPruneGuard(applibrary.PruneGuard{
 		MaxMissingRatio: cfg.Library.PruneMaxMissingPercent / 100,
 		MinMissing:      cfg.Library.PruneMinMissing,
@@ -387,6 +392,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	enricher.SetArtworkPostSaveHook(metadataCmdSvc.ArtworkAutoDownloadHook())
 
 	activityCmdSvc := appactivity.NewCommandService(r.LoginHistory, r.ServerMetric, r.AuditLog, bus)
+	// The login history is written from the login events; without this
+	// subscriber the table (and the admin's history) stayed empty.
+	appactivity.NewLoginRecorder(activityCmdSvc, r.User).Register(bus)
 	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory,
 		appactivity.WithAnalyticsReader(postgres.NewAnalyticsReader(db)),
 		appactivity.WithServerConfig(r.ServerCfg),
@@ -951,9 +959,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 				return
 			case <-reprobe.C:
 				timer.Stop()
-				calibrationSvc.ReprobeDemotedHW(ctx)
+				bgloop.Tick("calibration.reprobeDemotedHW", func() { calibrationSvc.ReprobeDemotedHW(ctx) })
 			case <-timer.C:
-				calibrationSvc.BenchWhenOpportune(ctx)
+				bgloop.Tick("calibration.benchWhenOpportune", func() { calibrationSvc.BenchWhenOpportune(ctx) })
 			}
 		}
 	}()

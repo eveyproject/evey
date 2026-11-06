@@ -15,7 +15,20 @@ type qoeStorageAdapter struct {
 }
 
 func (a qoeStorageAdapter) InsertEvent(ctx context.Context, evt appqoe.Event) error {
-	return a.repo.Insert(ctx, postgres.QoEEventRow{
+	return a.repo.Insert(ctx, qoeRow(evt))
+}
+
+// InsertEvents writes a batch the sink drained in one statement.
+func (a qoeStorageAdapter) InsertEvents(ctx context.Context, evts []appqoe.Event) error {
+	rows := make([]postgres.QoEEventRow, len(evts))
+	for i, evt := range evts {
+		rows[i] = qoeRow(evt)
+	}
+	return a.repo.InsertMany(ctx, rows)
+}
+
+func qoeRow(evt appqoe.Event) postgres.QoEEventRow {
+	return postgres.QoEEventRow{
 		UserID:           nilIfEmpty(evt.UserID),
 		MediaItemID:      nilIfEmpty(evt.MediaItemID),
 		SessionID:        evt.Payload.SessionID,
@@ -39,7 +52,7 @@ func (a qoeStorageAdapter) InsertEvent(ctx context.Context, evt appqoe.Event) er
 		Raw:              evt.Payload.Raw,
 		DeviceClass:      evt.DeviceClass,
 		RemoteIP:         evt.RemoteIP,
-	})
+	}
 }
 
 func nilIfEmpty(s string) *string {
