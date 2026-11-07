@@ -37,3 +37,16 @@ func TestRefreshToken_UnknownToken_IsRefused(t *testing.T) {
 		t.Fatalf("an unknown token is a refusal, got %v", err)
 	}
 }
+
+// A browser whose refresh cookie is gone presents nothing at all. That is a
+// refusal decided without the store: with the store away, the verdict is
+// still the refusal, which proves no lookup was made for an empty token.
+func TestRefreshToken_NoToken_IsRefusedWithoutALookup(t *testing.T) {
+	d := newAuthTestDeps()
+	d.refreshTkns.Err = errors.New("dial tcp: connection refused")
+
+	_, _, err := d.svc.RefreshToken(context.Background(), "", "", "")
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("an absent token is a refusal before any lookup, got %v", err)
+	}
+}

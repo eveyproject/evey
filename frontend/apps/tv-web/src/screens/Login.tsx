@@ -1,11 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useUserServiceLogin } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { FocusRoot, useBackHandler } from "../tv/focus";
 import { Chip, Pressable, Spinner, TextField } from "../components/ui";
 import { clearSavedUsername, getSavedUsername, saveUsername } from "../lib/savedCredentials";
-import { refreshTokenStore } from "../lib/session";
+import { authRefresh, refreshTokenStore } from "../lib/session";
 import { navigate, replace } from "../app/router";
 
 /** Sign in as the Android television lays it out; the remote lands on Quick Connect. */
@@ -20,6 +20,12 @@ export function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const changeServer = useCallback(() => replace({ name: "server" }), []);
   useBackHandler(changeServer);
+  // Reached with a session the server may still honour - a boot whose
+  // renewal got no answer: renew before asking for a password. The shell
+  // leaves for the picker the moment a token is held.
+  useEffect(() => {
+    void authRefresh.renewOnSignInScreen();
+  }, []);
 
   // One request per press: the field's Enter and the button both submit, and
   // isPending lags a render - the server locks an account after five failures.

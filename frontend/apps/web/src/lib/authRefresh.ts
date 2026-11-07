@@ -48,7 +48,7 @@ export async function refreshTokenUnderLock(): Promise<boolean> {
 export type RefreshOutcome = "ok" | "denied" | "transient";
 
 export async function refreshTokenWithOutcome(): Promise<RefreshOutcome> {
-  return underRefreshLock(async () => {
+  const outcome = await underRefreshLock(async (): Promise<RefreshOutcome> => {
     const current = useAuthStore.getState().accessToken;
     if (current && !isTokenExpired(current)) return "ok";
     try {
@@ -61,7 +61,65 @@ export async function refreshTokenWithOutcome(): Promise<RefreshOutcome> {
     } catch (err) {
       console.warn("token refresh failed", err);
       const status = (err as { httpStatus?: number }).httpStatus;
+      // Only the server's own refusal of the cookie outlives this document: a
+      // 403 is the gate in front of it (the CSRF guard, remote access off).
+      if (status === 401) noteSessionEnded();
       return status === 401 || status === 403 ? "denied" : "transient";
     }
   });
+  if (outcome === "denied") refusedSinceLiveToken = true;
+  return outcome;
+}
+
+// Whether this document has held a live token, and whether a refresh was
+// refused since. A /login arrival on a document that held one follows a
+// sign-out, whose revocation may still be in flight; one after a refusal was
+// answered already: the form stands. A document that never held one is a page
+// load, and the refresh cookie may still be honoured - asking for a password
+// there is asking a signed-in visitor to sign in.
+let heldLiveToken = false;
+let refusedSinceLiveToken = false;
+
+// What this browser last knew of its refresh cookie, which the page cannot
+// read. "ended" is written only when the server itself ended the cookie: a
+// sign-out, or a refresh it refused. Anything else, the absence included,
+// means the cookie may be live and the server is the one to ask - an
+// "ended" guessed from a missing hint would show the form on a live session.
+const SESSION_HINT_KEY = "evey-session-hint";
+
+function writeSessionHint(value: "live" | "ended"): void {
+  try {
+    localStorage.setItem(SESSION_HINT_KEY, value);
+  } catch { /* storage unavailable: the server is asked, as before */ }
+}
+
+function sessionKnownEnded(): boolean {
+  try {
+    return localStorage.getItem(SESSION_HINT_KEY) === "ended";
+  } catch {
+    return false;
+  }
+}
+
+// Reported by the app's store watcher (main.tsx) for every live token the
+// document takes on, the persisted one included. A live token was issued
+// with the cookie, so the cookie is live too.
+export function noteLiveTokenHeld(): void {
+  heldLiveToken = true;
+  refusedSinceLiveToken = false;
+  writeSessionHint("live");
+}
+
+// The server ended this browser's cookie: a sign-out it was asked for, or a
+// refresh it refused. Until a sign-in lands, no /login load asks it again.
+export function noteSessionEnded(): void {
+  writeSessionHint("ended");
+}
+
+// The login route asking whether a password is needed at all. True when a
+// usable token is held afterwards; false, with no request, when the session
+// is known to be over.
+export async function renewOnLoginArrival(): Promise<boolean> {
+  if (heldLiveToken || refusedSinceLiveToken || sessionKnownEnded()) return false;
+  return refreshTokenUnderLock();
 }

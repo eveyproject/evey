@@ -13,9 +13,10 @@ vi.mock("expo-secure-store", () => ({
   }),
 }));
 
-const authState = { accessToken: null as string | null, setTokens: vi.fn(), logout: vi.fn() };
+// Read at import: the flow watches the store from the moment it is built.
+const authState = vi.hoisted(() => ({ accessToken: null as string | null, setTokens: vi.fn(), logout: vi.fn() }));
 vi.mock("@evey/store", () => ({
-  useAuthStore: { getState: () => authState },
+  useAuthStore: { getState: () => authState, subscribe: () => () => {} },
 }));
 
 vi.mock("./server-config", () => ({
