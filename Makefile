@@ -372,10 +372,13 @@ ci-fast-build:
 # has.
 GO_CI_IMAGE ?= golang:1.27-trixie
 GO_UNIT_PKGS = ./cmd/... ./internal/... ./tests/...
+# The CI runner has no seccomp profile around the tests; Docker's default one
+# refuses move_pages, which the launcher's own filter must let through.
+GO_CI_SECCOMP ?= --security-opt seccomp=unconfined
 ci-fast-unit:
 	@echo "→ go test (unit, -race, excl. postgres+gen) - throwaway $(GO_CI_IMAGE), non-root, as CI"
 	@mkdir -p "$$HOME/.cache/evey-gocache" "$$HOME/go/pkg/mod"
-	@docker run --rm --user $$(id -u):$$(id -g) \
+	@docker run --rm --user $$(id -u):$$(id -g) $(GO_CI_SECCOMP) \
 		-v "$(CURDIR)":/app -w /app \
 		-v "$$HOME/go/pkg/mod":/go/pkg/mod \
 		-v "$$HOME/.cache/evey-gocache":/gocache -e GOCACHE=/gocache -e HOME=/tmp \
@@ -402,7 +405,7 @@ ci-fast-unit-changed:
 	echo "→ go test (unit, -race) on the $$(echo $$pkgs | wc -w) changed package(s) - throwaway $(GO_CI_IMAGE), non-root, as CI"; \
 	echo "    $$pkgs"; \
 	mkdir -p "$$HOME/.cache/evey-gocache" "$$HOME/go/pkg/mod"; \
-	docker run --rm --user $$(id -u):$$(id -g) \
+	docker run --rm --user $$(id -u):$$(id -g) $(GO_CI_SECCOMP) \
 		-v "$(CURDIR)":/app -w /app \
 		-v "$$HOME/go/pkg/mod":/go/pkg/mod \
 		-v "$$HOME/.cache/evey-gocache":/gocache -e GOCACHE=/gocache -e HOME=/tmp \
