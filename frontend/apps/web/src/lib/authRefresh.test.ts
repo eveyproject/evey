@@ -22,6 +22,7 @@ beforeEach(() => {
   refreshMock.mockReset();
   setTokensMock.mockReset();
   currentToken = null;
+  localStorage.clear();
 });
 
 describe("isTokenExpired", () => {
@@ -141,5 +142,52 @@ describe("renewOnLoginArrival", () => {
     refreshMock.mockResolvedValue({ accessToken: "fresh" });
     expect(await doc.renewOnLoginArrival()).toBe(false);
     expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  // The page cannot read the HttpOnly cookie, so the browser keeps what it
+  // last knew of it: a sign-out or a refused refresh ends it, and later
+  // loads of /login show the form without a request. A sign-in starts over.
+  it("asks nothing on a later load once this browser's session ended", async () => {
+    (await freshDocument()).noteSessionEnded();
+    const later = await freshDocument();
+    refreshMock.mockResolvedValue({ accessToken: "fresh" });
+    expect(await later.renewOnLoginArrival()).toBe(false);
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("asks again on a later load once a sign-in landed after the end", async () => {
+    (await freshDocument()).noteSessionEnded();
+    (await freshDocument()).noteLiveTokenHeld();
+    const later = await freshDocument();
+    refreshMock.mockResolvedValue({ accessToken: "fresh" });
+    expect(await later.renewOnLoginArrival()).toBe(true);
+    expect(refreshMock).toHaveBeenCalledOnce();
+  });
+
+  it("remembers the server's own refusal (401) across loads, not the gate's (403)", async () => {
+    const refused = await freshDocument();
+    refreshMock.mockRejectedValue(Object.assign(new Error("refresh failed"), { httpStatus: 401 }));
+    expect(await refused.refreshTokenWithOutcome()).toBe("denied");
+    refreshMock.mockResolvedValue({ accessToken: "fresh" });
+    expect(await (await freshDocument()).renewOnLoginArrival()).toBe(false);
+    expect(refreshMock).toHaveBeenCalledOnce();
+
+    localStorage.clear();
+    const gated = await freshDocument();
+    refreshMock.mockRejectedValue(Object.assign(new Error("refresh failed"), { httpStatus: 403 }));
+    expect(await gated.refreshTokenWithOutcome()).toBe("denied");
+    refreshMock.mockResolvedValue({ accessToken: "fresh" });
+    expect(await (await freshDocument()).renewOnLoginArrival()).toBe(true);
+  });
+
+  it("still asks when the hint cannot be read", async () => {
+    const doc = await freshDocument();
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("SecurityError"); });
+    try {
+      refreshMock.mockResolvedValue({ accessToken: "fresh" });
+      expect(await doc.renewOnLoginArrival()).toBe(true);
+    } finally {
+      getItem.mockRestore();
+    }
   });
 });

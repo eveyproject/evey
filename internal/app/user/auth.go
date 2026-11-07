@@ -638,6 +638,11 @@ const rotationRecoveryWindow = 24 * time.Hour
 // or an interrupted rotation, and it logged the whole account out of every
 // device (préprod: daily false positives).
 func (s *CommandService) validateRefreshToken(ctx context.Context, token string) (*user.RefreshToken, bool, error) {
+	// A browser whose refresh cookie is gone still asks: nothing to look up.
+	if token == "" {
+		slog.InfoContext(ctx, "refresh rejected: no token presented")
+		return nil, false, ErrInvalidCredentials
+	}
 	h := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(h[:])
 
@@ -682,9 +687,9 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 		// never reached the client. The app was killed between our commit and
 		// its own write (an install, a crash at boot - a television is killed
 		// far more often than a browser), so it still holds this token and the
-		// successor we issued has never been used by anyone. Measured on the
-		// living-room box 2026-09-19: that client is logged out for good, with
-		// no keyboard to answer the login screen it lands on.
+		// successor we issued has never been used by anyone. Measured on a
+		// living-room box: that client is logged out for good, with no
+		// keyboard to answer the login screen it lands on.
 		//
 		// A thief replaying a consumed token has no such alibi: the legitimate
 		// client did receive the successor and did use it.

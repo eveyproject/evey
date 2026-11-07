@@ -5,7 +5,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { useAuthStore, toast, type PersistedAuthState } from "@evey/store";
-import { isTokenExpired, noteLiveTokenHeld } from "./lib/authRefresh";
+import { isTokenExpired, noteLiveTokenHeld, noteSessionEnded } from "./lib/authRefresh";
 import { setTokenProvider, setTokensUpdater, setLocaleProvider, resetRefreshFailure, userServiceRefreshToken } from "@evey/api";
 import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
@@ -42,6 +42,9 @@ window.addEventListener("evey:unauthorized", () => {
   if (!useAuthStore.getState().accessToken) return;
   queryClientRef?.clear();
   useAuthStore.getState().logout();
+  // The fetcher reached this after a refresh the server refused, or another
+  // tab signed out: either way the cookie is over.
+  noteSessionEnded();
   localStorage.removeItem("evey-recent-searches");
   if (window.location.pathname !== "/login") {
     if (routerRef) {

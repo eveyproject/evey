@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useDemoMode } from "@/hooks/useDemoMode";
 import { markDemoManualLogout } from "@/lib/demoAutoLogin";
+import { noteSessionEnded } from "@/lib/authRefresh";
 
 // Accept undefined: `active` can be undefined when the profiles list is empty
 // (loading window, or a transient 0-profile state), and the avatar button calls
@@ -150,6 +151,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
       .catch((err) => console.warn("logout failed", err));
     qc.clear();
     logout();
+    noteSessionEnded();
     localStorage.removeItem("evey-recent-searches");
     // A deliberate sign-out on the demo holds the login form open for a day
     // instead of signing this visitor straight back in as `demo`.
