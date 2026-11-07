@@ -103,6 +103,32 @@ describe("TrickplayPreview", () => {
     expect(inner.style.backgroundPosition).toBe("-160px 0px");
   });
 
+  it("keeps the manifest when the hover ends before it arrives, so the next hover shows previews", async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    mockEveyFetchRaw.mockReturnValue(new Promise<Response>((r) => { resolveFetch = r; }));
+
+    const { TrickplayPreview } = await import("./TrickplayPreview");
+    const first = render(
+      React.createElement(TrickplayPreview, { mediaId: "m-left-early", hoverTime: 5, streamToken: "st-1" }),
+    );
+    await waitFor(() => {
+      expect(mockEveyFetchRaw).toHaveBeenCalledTimes(1);
+    });
+    // The pointer leaves the seek bar: the component unmounts mid-flight.
+    first.unmount();
+    resolveFetch({ text: async () => mockVTT } as Response);
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The pointer comes back.
+    const second = render(
+      React.createElement(TrickplayPreview, { mediaId: "m-left-early", hoverTime: 5, streamToken: "st-1" }),
+    );
+    await waitFor(() => {
+      expect(second.container.firstChild).not.toBeNull();
+    });
+    expect(mockEveyFetchRaw).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects on 401 via eveyFetchRaw (handled by fetcher)", async () => {
     mockFetchRawError();
 
