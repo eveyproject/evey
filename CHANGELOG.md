@@ -7,6 +7,11 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-08
+
+Server image `eveyproject/evey:0.1.4` (also `0.1` and `latest`). The
+television and phone fixes below ship with the next app builds.
+
 ### Upgrade notes
 - Migrations 000188 to 000193, all additive. The library is probed again
   once in the background after the upgrade so every stream gets the track
