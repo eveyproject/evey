@@ -7,6 +7,240 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+### Upgrade notes
+- Migrations 000188 to 000193, all additive. The library is probed again
+  once in the background after the upgrade so every stream gets the track
+  number the file gives it (renditions pair on it from now on).
+- The cast receiver artifact has to be republished with this server.
+- Sources with 5.1 audio re-encoded on a multi-rung ladder get a new cache
+  key: a session on one of them reloads once.
+
+### Added
+- The sign-in screen renews a session the server may still honour instead
+  of asking for a password: a page load on the sign-in page with no usable
+  access token asks the server first, on the web, the phone and the
+  television; a sign-in from another tab sends a tab sitting on the sign-in
+  page to the home.
+- Mobile: the profile menu's Quick Connect entry opens the screen to type or
+  scan the code another device shows, not the one that shows this phone's.
+- Television: UP in the player reaches the "Join a room" button of the top
+  bar, DOWN the bottom row, BACK returns to the picture; the subtitle style
+  picker lays each setting out as one row.
+- The television home picks up titles added while it is on screen (rows
+  re-read when the notification count rises, and on return when older than a
+  minute).
+- Stream metadata carries whether an audio or subtitle track is a commentary,
+  hearing-impaired, visual-impaired or original-language track; home cards
+  carry the community rating and a blurhash. Admin settings `hls_ondemand`
+  and `remux_copy` apply live to new playbacks.
+- Serving observability: ffmpeg log lines are correlated with their session,
+  and a first-segment latency metric ships with an example alert.
+
+### Changed
+- Playback: a title watched again resumes below its completion point; the
+  media page reads the last position once the player's final report has
+  landed, so BACK offers Resume instead of Play.
+- People are identified by their TMDB id; homonyms are no longer merged.
+  Multi-episode files take the first number, an unnumbered file under a
+  season folder is an episode of that season, extras and samples are not
+  episodes.
+- Library roots follow one rule on create and update; system trees are
+  refused. Library roots and sidecar paths are admin-only in the API;
+  `/remux.mp4` is bounded by rate and production slots.
+- The packager (mkvgo 0.66.1) reads an HLS window ahead as a whole on local
+  disks, MP4 segments and Matroska subtitle scans alike, so a cold file comes
+  off the disk in large sequential reads instead of thousands of small ones.
+
+### Fixed
+- Web: seek previews survive a hover that leaves the bar before the manifest
+  arrives; the title no longer stays without previews until a reload.
+- Session resilience: only a 401 from the refresh endpoint ends a session; a
+  403, a 5xx or a network failure keeps it; a slow database no longer refuses
+  refresh tokens; the television profile switch rotates the refresh token;
+  parental unlocks are cleared on profile switch.
+- Casting: `abr=floor` and `maxKbps` survive the plan as served (HLS and
+  DASH), so a receiver's rescue reload gets the single low rung; the next
+  episode resumes where the cast left it.
+- Television: the subtitle overlay is handed the appearance the viewer chose;
+  saving a theme no longer writes the old theme back from a stale profile
+  cache; the profile's subtitle burn-in choice (auto / always / never) is
+  obeyed by the native players; the byte cap of the native load control gives
+  way to a starved player; a screen opened from outside (a link, a Cast load,
+  a device command) gets the home under it so BACK has somewhere to go.
+- Scan safety: a replaced file is re-probed; a file upgraded under a new name
+  keeps its item (progress, favourites, playlists); orphan cleanup waits for
+  files still being written; rows without streams, symlinked roots and
+  transactional prune are handled; backups land atomically.
+- Episode chains: gapless playback applies the same audio resync as single
+  episodes, or refuses the chain.
+- Transcoding: twelve divergences between what the manifest declared and what
+  was served are closed; renditions are paired with the file's own track
+  number instead of a name that mkvgo now numbers when duplicated.
+- Media health: cues pointing past the end of a complete file (`cues-stale`)
+  send the file to a reindex.
+- External audit items: season-folder episodes, recursive mark-watched,
+  stale sessions, provider text sanitising, portrait video tiers, dead
+  artwork back-off, TMDB image ranking, login history, strict artist match.
+- Calibration on a small host: the HDR sample encode declares its memory and
+  is refused cleanly when the host lacks the room instead of crashing, lands
+  atomically and is resolved once per bench.
+- Server: a token refresh presenting no token is refused before any lookup.
+
+### Security
+- Dependencies: brotli 1.2.7 and klauspost/compress 1.20.2 (govulncheck
+  findings); mkvgo 0.63.0 to 0.66.1 (field order re-probe, 32-bit bounds,
+  malformed-input refusals).
+
+## [0.1.3] - 2026-11-02
+
+Hotfix on top of 0.1.2.
+
+### Fixed
+- Casting: a receiver that cannot decode the source (HEVC, HDR) gets a
+  transcode ladder from the first master; its measured line (`maxKbps`) and
+  its starvation rescue (`abr=floor`) were only applied to copy plans, so a
+  television whose decoder dropped frames on the top rung reloaded on the
+  floor and got the same rungs again until the receiver gave up (image gone,
+  sound on). A transcoded plan is now narrowed too: the floor is its lowest
+  rung, the line the highest rung it carries.
+
+## [0.1.2] - 2026-11-02
+
+### Changed
+- Home (television, mobile): one "Resume" row, kept only after three minutes
+  played, one card per series (the unfinished episode or the next one),
+  ordered by latest activity; the next-up row is retired. Recommended and
+  popular cards print the release year on every client.
+- Library (television, mobile): the grid shows whole rows only, poster and
+  title; on the television the filters scroll away with the first row, a
+  selected chip carries a check mark distinct from the focus, and a summary of
+  the active filters stays visible. Media action labels wrap and truncate
+  inside their button. Home cards, library grid cards and side rail entries
+  are memoised; covers and faces are requested at the size they are shown.
+
+### Fixed
+- Television: a token refresh answered during sleep no longer signs the viewer
+  out on wake; the player buffer is sized to an eighth of the heap, the dead
+  64 MiB ceiling is gone.
+- Library prune guard: the confirmation is bound to a snapshot of the missing
+  set (deletes only that set, lapses after ten minutes, rejected if the set
+  changed); the same mass-disappearance guard covers music and photo
+  libraries, and rows under none of the library's paths (a changed library
+  path) instead of deleting them unguarded.
+- Admin: the edit-user dialog rereads library access at every opening and
+  writes it only if the admin changed it; a failed load shows a retry instead
+  of a form whose Save would lift the restriction.
+
+### Security
+- Frontend dependencies patched through pnpm overrides (node-forge, seroval,
+  decode-uri-component, glob, minimatch), with the regressions of the first
+  pass corrected: `query-string` 9 loaded through its named-export entry on
+  the phone and the television.
+
+## [0.1.1] - 2026-11-01
+
+### Upgrade notes
+- Migration 000187 turns real-time library monitoring on for every existing
+  library. Going back means restoring the pre-migration dump.
+- Plugin fetch broker: an `external_fetch` entry without a port now allows 80
+  and 443 only, and `host:port` that port only, on every redirect hop (a
+  documented contract change).
+
+### Added
+- Metadata plugins lay their texts over TMDB, field by field, per locale: the
+  administrator chooses which fields a plugin may replace, reversibly.
+- Real-time library monitoring is the default and can be switched on an
+  existing library; a title already out of the catalogue shows a dedicated
+  "gone" screen on the four players, its library is rescanned in the
+  background, and the player moves on to the next episode.
+- Native players (television, phone): a playback error reaches the server
+  taken apart (renderer, format verdict, decoder, mime, codecs, size, frame
+  rate, bitrate, causes); every stream verdict is logged with the
+  capabilities the client declared; a source that fails before the player
+  screen subscribes is no longer lost.
+- Web: the render watch carries Firefox's painted frame rate beside the frame
+  callback count, so a cadence report tells a missed frame from a coalesced
+  callback.
+- Webhooks: each delivery adds `X-Evey-Timestamp` and `X-Evey-Signature-V2`
+  (an HMAC over timestamp, delivery id and body) for replay protection;
+  `X-Evey-Signature` is unchanged.
+- Library prune guard: deletions under a root are held when too many of its
+  items vanish in one pass (5 % and at least 20 by default, configurable), one
+  notification per suspension, automatic resume when the ratio falls back,
+  otherwise an admin confirms from a banner.
+
+### Changed
+- Television app fluid on low-memory devices: lighter lists, player
+  stability; the launcher icon fits the adaptive mask.
+- A source heavier than the server's whole encode capacity is refused for
+  good (`source_too_heavy`) and every player drops its retry for another
+  device.
+- The library watcher runs its initial walk in the background with a timeout
+  per root; a root that fails drops its watches and marks the library
+  unhealthy; an inotify overflow triggers a rescan; mergerfs, shfs, virtiofs
+  and grpcfuse count as network filesystems.
+- Dependabot opens security updates only, grouped per ecosystem.
+
+### Fixed
+- Lipsync on the television for 23.976 and 29.97 sources: the audio rendition
+  playlist declares the grid its segments are cut on, so sequence-mode
+  players no longer run the audio early segment after segment; seek and
+  teardown corrected alongside.
+- An interlaced H.264 track muxed one field per block reports its field rate;
+  it is now counted in frames for its level, so a 1080i stream no longer
+  re-encodes for a decoder that plays it.
+- Native player: a file's audio track is applied by language and title, not
+  by list position (the original-language to dubbed swap).
+- Player: the subtitle overlay and the skip button follow the playhead through
+  a selector and re-render only when the active cue or segment changes.
+- Playlist music tracks play in the music player on every client instead of
+  landing on the video page; the device socket backs off instead of retrying
+  every 30 seconds forever.
+- The logs page stops its live tail on a refusal instead of hammering a
+  refused stream; the admin menu leaves out Logs where the demo refuses them.
+- HLS accounting: a resource served whole counts when its bytes leave, not
+  when it is opened; a HEAD answers from its size.
+- Parental control: the barrier comes first on every route; wrong PINs feed
+  one lockout shared by HTTP and gRPC, growing from a minute to a day;
+  loosening a PIN-guarded profile needs its current PIN; library restriction
+  is an explicit flag, so a deleted library or a revoked last grant denies
+  instead of granting; the Quick Connect secret stays server-side, an
+  authorized code is claimed once, an expired request can no longer be
+  authorized.
+- Plugins: the live directory is moved aside during an upgrade and restored
+  on any failed step; the boot sweep restores an interrupted swap; the fetch
+  broker caps in-flight fetches and body bytes per plugin; plugin logs are
+  capped at a daily byte budget; the seccomp filter refuses resource,
+  scheduling and page placement syscalls aimed at another process.
+- Backup restore streams the validated dump into psql, stops on a rejected
+  line before it can commit, and refuses to overlap a backup or another
+  restore.
+- Search: a Meilisearch write waits for its task and fails when the task
+  fails; a refused batch is bisected down to the refused documents; a
+  document is dead-lettered after five refusals; deleting a library purges its
+  documents at once; the outbox drain no longer deletes a row re-enqueued
+  after it was listed.
+- Transcoding: a seek the host has no encode slot for is refused at once; the
+  audio orchestrator stops an evicted session outside its lock; a session
+  whose ffmpeg exits on its own releases itself; the rebase pump replaces a
+  published init whose moov is incomplete; segments are served under a
+  sliding write deadline so a client that stops reading releases the handler.
+- Webhooks: a configured header can no longer replace the signature or
+  delivery headers; event deliveries get a budget that covers every retry.
+- DLNA: renderer discovery trusts responders on private or link-local
+  addresses only, and play refuses a media URL that is not absolute http(s).
+- Smart playlist rules compile to SQL in the database adapter, with the genre
+  bound safely; playlist items pointing at a removed title are purged.
+- tv-web: "remember me" keeps only the username and erases a password left in
+  local storage.
+
+### Security
+- go-jose 4.1.6 closes a denial of service when parsing JWKs with RSA keys.
+- Frontend dependencies moved past their advisories (orval 8, vitest 4,
+  vite 7, happy-dom 21, turbo 2.11), the example plugins and the end-to-end
+  suite likewise.
+- mkvgo 0.62.0 on the server and the offline audio decoder.
+
 ## [0.1.0] - 2026-10-24
 
 First public release: the server image `eveyproject/evey:0.1.0` (also
