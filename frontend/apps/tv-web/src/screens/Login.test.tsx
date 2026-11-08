@@ -3,10 +3,11 @@ import { render, screen, fireEvent } from "@testing-library/react";
 
 // "Remember me": opted in, the username comes back the next time the viewer
 // lands here; the password is never kept in the browser's storage.
-const { mutate, replaceMock, setRefreshToken } = vi.hoisted(() => ({
+const { mutate, replaceMock, setRefreshToken, renew } = vi.hoisted(() => ({
   mutate: vi.fn(),
   replaceMock: vi.fn(),
   setRefreshToken: vi.fn(),
+  renew: vi.fn(async () => false),
 }));
 
 vi.mock("../tv/focus", () => ({
@@ -17,7 +18,7 @@ vi.mock("../tv/focus", () => ({
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, f?: unknown) => (typeof f === "string" ? f : k) }) }));
 vi.mock("../app/router", () => ({ replace: (...a: unknown[]) => replaceMock(...a), navigate: vi.fn() }));
-vi.mock("../lib/session", () => ({ refreshTokenStore: { setRefreshToken } }));
+vi.mock("../lib/session", () => ({ refreshTokenStore: { setRefreshToken }, authRefresh: { renewOnSignInScreen: renew } }));
 const authState = { setTokens: vi.fn() };
 vi.mock("@evey/store", () => ({ useAuthStore: (sel: any) => sel(authState) }));
 let onSuccess: (data: unknown) => Promise<void> = async () => {};
@@ -91,5 +92,16 @@ describe("tv-web login, remember me", () => {
     await onSuccess({ accessToken: "a" });
     expect(localStorage.getItem("evey-tv-saved-username")).toBeNull();
     expect(localStorage.getItem("evey-tv-saved-password")).toBeNull();
+  });
+});
+
+// A boot whose renewal got no answer lands here with a session the server
+// may still honour: the screen asks for a renewal first; the shell leaves for
+// the picker the moment a token is held.
+describe("tv-web login, a session the server may still honour", () => {
+  it("asks for a renewal on arrival", () => {
+    renew.mockClear();
+    render(<LoginScreen />);
+    expect(renew).toHaveBeenCalledOnce();
   });
 });

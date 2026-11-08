@@ -13,3 +13,4 @@ const refresh = createAuthRefresh({ getRefreshToken, setRefreshToken, clearRefre
 export const ensureAccessToken = refresh.ensureAccessToken;
 export const refreshAccessTokenIfNeeded = refresh.refreshAccessTokenIfNeeded;
 export const forceRefresh = refresh.forceRefresh;
+export const renewOnSignInScreen = refresh.renewOnSignInScreen;

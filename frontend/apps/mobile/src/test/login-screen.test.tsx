@@ -24,8 +24,27 @@ vi.mock("@expo/vector-icons/Ionicons", () => ({
   default: ({ name }: any) => React.createElement("span", { "data-testid": `icon-${name}` }),
 }));
 
+const routerMock = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }));
 vi.mock("expo-router", () => ({
-  router: { push: vi.fn(), replace: vi.fn(), back: vi.fn() },
+  router: routerMock,
+  useFocusEffect: (cb: () => void | (() => void)) => React.useEffect(cb, [cb]),
+}));
+
+// The store a sign-in screen watches: a token landing from outside (the boot
+// or resume renewal) is announced to its subscribers.
+const store = vi.hoisted(() => ({
+  state: { accessToken: null as string | null },
+  listeners: [] as Array<(s: { accessToken: string | null }, prev: { accessToken: string | null }) => void>,
+  land(accessToken: string | null) {
+    const prev = this.state;
+    this.state = { accessToken };
+    for (const l of this.listeners) l(this.state, prev);
+  },
+}));
+const renew = vi.hoisted(() => ({ fn: vi.fn(async () => false) }));
+vi.mock("../lib/auth-refresh", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/auth-refresh")>()),
+  renewOnSignInScreen: () => renew.fn(),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -45,7 +64,13 @@ vi.mock("@evey/api", async (importOriginal) => ({
 
 vi.mock("@evey/store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/store")>()),
-  useAuthStore: (selector: (s: any) => unknown) => selector({ setTokens: vi.fn(), accessToken: null }),
+  useAuthStore: Object.assign(
+    (selector: (s: any) => unknown) => selector({ setTokens: vi.fn(), accessToken: null }),
+    {
+      getState: () => store.state,
+      subscribe: (l: (typeof store.listeners)[number]) => { store.listeners.push(l); return () => { store.listeners.splice(store.listeners.indexOf(l), 1); }; },
+    },
+  ),
   useServerListStore: (selector: (s: any) => unknown) => selector({ activeServerId: null, setServerName: vi.fn() }),
 }));
 
@@ -149,5 +174,35 @@ describe("Login screen", () => {
     const { container } = renderLogin();
     await new Promise((r) => setTimeout(r, 0));
     expect(hasRememberMe(container)).toBe(false);
+  });
+});
+
+function liveJwt(): string {
+  return `h.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 900 }))}.s`;
+}
+
+// A boot whose renewal got no answer lands here with a session the server
+// may still honour: the screen renews first, and leaves for the picker as
+// soon as a live token is held - from that renewal, or from the resume
+// renewal landing while the form is up.
+describe("Login screen - a session the server may still honour", () => {
+  it("asks for a renewal on arrival", () => {
+    renew.fn.mockClear();
+    renderLogin();
+    expect(renew.fn).toHaveBeenCalledOnce();
+  });
+
+  it("leaves for the picker when a live token lands from outside, not when the screen is gone", () => {
+    routerMock.replace.mockClear();
+    store.state = { accessToken: null };
+    const { unmount } = renderLogin();
+    store.land(`h.${btoa(JSON.stringify({ exp: 1 }))}.s`);
+    expect(routerMock.replace).not.toHaveBeenCalled();
+    store.land(liveJwt());
+    expect(routerMock.replace).toHaveBeenCalledWith("/profile-select");
+    routerMock.replace.mockClear();
+    unmount();
+    store.land(liveJwt());
+    expect(routerMock.replace).not.toHaveBeenCalled();
   });
 });

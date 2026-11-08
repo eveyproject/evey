@@ -40,9 +40,31 @@ vi.mock("@evey/api", () => ({
   useAdminSystemServiceGetSetupStatus: () => ({ data: undefined }),
 }));
 const order = vi.hoisted(() => ({ calls: [] as string[] }));
+// The store a sign-in screen watches: a token landing from outside (the boot
+// or wake renewal) is announced to its subscribers.
+const store = vi.hoisted(() => ({
+  state: { accessToken: null as string | null },
+  listeners: [] as Array<(s: { accessToken: string | null }, prev: { accessToken: string | null }) => void>,
+  land(accessToken: string | null) {
+    const prev = this.state;
+    this.state = { accessToken };
+    for (const l of this.listeners) l(this.state, prev);
+  },
+}));
+const renew = vi.hoisted(() => ({ fn: vi.fn(async () => false) }));
 vi.mock("@evey/store", () => ({
-  useAuthStore: (sel: (s: { setTokens: (t: string) => void }) => unknown) => sel({ setTokens: () => { order.calls.push("access"); } }),
+  useAuthStore: Object.assign(
+    (sel: (s: { setTokens: (t: string) => void }) => unknown) => sel({ setTokens: () => { order.calls.push("access"); } }),
+    {
+      getState: () => store.state,
+      subscribe: (l: (typeof store.listeners)[number]) => { store.listeners.push(l); return () => { store.listeners.splice(store.listeners.indexOf(l), 1); }; },
+    },
+  ),
   useDemoStore: { getState: () => ({ setDemoMode: () => {} }) },
+}));
+vi.mock("../src/lib/auth-refresh", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/lib/auth-refresh")>()),
+  renewOnSignInScreen: () => renew.fn(),
 }));
 vi.mock("../src/lib/refresh-token", () => ({ setRefreshToken: async () => { order.calls.push("refresh"); } }));
 vi.mock("../src/providers/ThemeProvider", () => ({
@@ -61,6 +83,52 @@ beforeEach(() => {
   server.cleared = 0;
   server.cacheCleared = 0;
   back.handler = null;
+  store.state = { accessToken: null };
+  store.listeners.length = 0;
+  renew.fn.mockClear();
+});
+
+function liveJwt(): string {
+  return `h.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 900 }))}.s`;
+}
+
+// A boot whose renewal got no answer lands here with a session the server
+// may still honour: the screen renews first, and leaves for the picker as
+// soon as a live token is held - from that renewal, or from the wake renewal
+// landing while the form is up. Its own sign-in lands on its own.
+describe("tv login screen - a session the server may still honour", () => {
+  it("asks for a renewal on arrival", () => {
+    render(<Login />);
+    expect(renew.fn).toHaveBeenCalledOnce();
+  });
+
+  it("leaves for the picker when a live token lands from outside", () => {
+    render(<Login />);
+    store.land(liveJwt());
+    expect(router.replace).toHaveBeenCalledWith("/profile-select");
+  });
+
+  it("stays when the token that lands is expired, and when the screen is gone", () => {
+    const { unmount } = render(<Login />);
+    store.land(`h.${btoa(JSON.stringify({ exp: 1 }))}.s`);
+    expect(router.replace).not.toHaveBeenCalled();
+    unmount();
+    store.land(liveJwt());
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("lets its own sign-in land on its own: one navigation, not two", async () => {
+    render(<Login />);
+    fireEvent.change(screen.getByLabelText("auth.login.username"), { target: { value: "ann" } });
+    fireEvent.change(screen.getByLabelText("auth.login.password"), { target: { value: "pw" } });
+    fireEvent.click(signIn());
+    // The mutation's setTokens announces the token while the sign-in is in flight.
+    store.land(liveJwt());
+    await api.opts.onSuccess({ accessToken: "acc", refreshToken: "ref" });
+    api.opts.onSettled();
+    expect(router.replace).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenCalledWith("/profile-select");
+  });
 });
 
 // Once a server is chosen this screen is the root: the remote's BACK key

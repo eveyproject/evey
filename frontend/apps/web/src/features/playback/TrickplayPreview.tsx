@@ -42,9 +42,14 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
       try {
         const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
         const text = await res.text();
-        if (cancelled) return;
         const parsed = parseTrickplayVTT(text);
+        // Cached before the cancelled check: this component lives only while
+        // the pointer is on the seek bar, so a hover that leaves before the
+        // answer lands is the ordinary case, not the exception. Dropping the
+        // answer while keeping the fetchedIds guard left the title without
+        // previews until the page was reloaded.
         cueCache.set(mediaId, parsed);
+        if (cancelled) return;
         setCues(parsed);
         setLoaded(parsed.length > 0);
 

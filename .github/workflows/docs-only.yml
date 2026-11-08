@@ -1,0 +1,23 @@
+name: CI (docs only)
+
+# ci.yml ignores docs and Markdown, so a pull request made only of them would
+# never get the required "CI passed" check and could not be merged. This
+# workflow takes exactly those paths and reports the same check at once.
+on:
+  pull_request:
+    branches: [master, dev]
+    paths:
+      - 'docs/**'
+      - 'wiki/**'
+      - '**/*.md'
+
+permissions:
+  contents: read
+
+jobs:
+  ci-pass:
+    name: CI passed
+    runs-on: ubuntu-latest
+    steps:
+      - name: nothing the jobs test or ship changed
+        run: echo "docs-only change, nothing to test"

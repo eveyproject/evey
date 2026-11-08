@@ -7,6 +7,7 @@ import { useAuthStore, useDemoStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { setRefreshToken } from "../src/lib/refresh-token";
 import { clearServerUrl } from "../src/lib/server-config";
+import { isAccessExpired, renewOnSignInScreen } from "../src/lib/auth-refresh";
 import { queryClient } from "../src/lib/query-client";
 
 export default function Login() {
@@ -51,6 +52,20 @@ export default function Login() {
   }, [changeServer]));
 
   const inFlight = useRef(false);
+  // Reached with a session the server may still honour - a boot whose
+  // renewal got no answer - this screen asked for a password a television
+  // has no keyboard for. Renew first, and leave as soon as a live token
+  // lands: from that renewal, or from the wake renewal while this screen is
+  // up. A sign-in made here lands on its own; and only while focused, as
+  // Quick Connect is pushed on top and lands on the picker itself.
+  useFocusEffect(useCallback(() => {
+    const unsubscribe = useAuthStore.subscribe((s, prev) => {
+      if (s.accessToken === prev.accessToken || inFlight.current) return;
+      if (!isAccessExpired(s.accessToken)) router.replace("/profile-select");
+    });
+    void renewOnSignInScreen();
+    return unsubscribe;
+  }, []));
   const { mutate: login, isPending } = useUserServiceLogin({
     mutation: {
       onSettled: () => { inFlight.current = false; },
