@@ -5,20 +5,20 @@
   <!-- Android 13+: without this the Cast SDK's media notification (a
        foreground service) cannot show, Android freezes the app ~60s after
        the screen turns off, and receivers that do not survive losing their
-       sender (an operator box, 2026-07-26) cut the playback. The runtime
+       sender (an operator box) cut the playback. The runtime
        request lives in lib/castNotificationPermission.ts. -->
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-  <!-- Permission du service declare plus bas. Depuis targetSdk 34 un service
-       de premier plan doit annoncer son type ET detenir la permission
-       correspondante, sinon Android refuse son demarrage. -->
+  <!-- Permission for the service declared below. Since targetSdk 34 a
+       foreground service must announce its type AND hold the matching
+       permission, otherwise Android refuses to start it. -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
-  <!-- Verrous tenus pendant une session Cast par cast/CastKeepAlive.kt. Un
-       service de premier plan empeche le GEL du processus mais ne retient pas
-       le CPU : ecran eteint, le CPU se suspend, les PONG du heartbeat CASTV2
-       ne partent plus, la box ferme la socket sender et demonte le recepteur
-       (mesure prod 2026-07-28 : mort de la TV 3 min 40 apres le silence du
-       telephone). Le wakelock partiel est la piece porteuse, c'est ce que
-       tient un client Android Cast tres repandu ; le WifiLock est la ceinture en plus. -->
+  <!-- Locks held during a Cast session by cast/CastKeepAlive.kt. A foreground
+       service keeps the process from being FROZEN but does not hold the CPU:
+       screen off, the CPU suspends, the CASTV2 heartbeat PONGs stop going out,
+       the receiver closes the sender socket and tears the receiver down
+       (measured in prod: the TV died 3 min 40 after the phone went silent).
+       The partial wakelock is the load-bearing piece, it is what a widespread
+       Android Cast client holds; the WifiLock is the extra belt. -->
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
   <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
@@ -42,34 +42,38 @@
     </intent>
   </queries>
   <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="true" android:theme="@style/AppTheme" android:supportsRtl="true" android:enableOnBackInvokedCallback="false" android:fullBackupContent="@xml/secure_store_backup_rules" android:dataExtractionRules="@xml/secure_store_data_extraction_rules" android:usesCleartextTraffic="true">
-    <!-- Notre OptionsProvider (Cast Connect) : celui du paquet, plus
-         setAndroidReceiverCompatible(true), voir cast/EveyCastOptionsProvider.kt.
-         Ce manifeste est tenu a la main (pas de prebuild), la ligne est donc
-         ecrite ici en plus du plugin withCastConnectSender. -->
+    <!-- Our OptionsProvider (Cast Connect): the package's one plus
+         setAndroidReceiverCompatible(true), see cast/EveyCastOptionsProvider.kt.
+         This manifest is maintained by hand (no prebuild), so the line is
+         written here in addition to the withCastConnectSender plugin. -->
     <meta-data android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME" android:value="com.evey.app.cast.EveyCastOptionsProvider"/>
     <!-- Custom Evey Web Receiver (Cast Console D36A449B, https://cast.eveyproject.org):
          probes its capabilities on the TV and decodes AC-3 in wasm. While the app
          console is Unpublished, only registered test devices load it - publish
          before distributing this APK. -->
     <meta-data android:name="com.reactnative.googlecast.RECEIVER_APPLICATION_ID" android:value="D36A449B"/>
-    <!-- Le Cast SDK PORTE la classe MediaNotificationService mais ne la
-         declare dans aucun de ses AAR (play-services-cast-framework 22.3.1 ne
-         declare que MediaIntentReceiver et ReconnectionService) : c'est a
-         l'app de le faire. Sans cette ligne le service ne demarre jamais, la
-         notification media Cast n'existe pas, et rien n'empeche Android de
-         geler l'app des qu'elle quitte le premier plan - le recepteur perd
-         alors son sender et la box le demonte (prod 2026-07-28 18:40 UTC :
-         ReportProgress mort net 21 s apres le debut du cast, reprise a la
-         reactivation de l'ecran a 18:53:16). C'est le chainon qui manquait a
-         POST_NOTIFICATIONS ajoutee en beta.12. -->
+    <!-- The Cast SDK SHIPS the MediaNotificationService class but declares it
+         in none of its AARs (play-services-cast-framework 22.3.1 only declares
+         MediaIntentReceiver and ReconnectionService): the app has to. Without
+         this line the service never starts, the Cast media notification does
+         not exist, and nothing stops Android from freezing the app as soon as
+         it leaves the foreground - the receiver then loses its sender and the
+         box tears it down (measured in prod: ReportProgress died 21 s into the
+         cast, resumed when the screen was woken 13 min later). This is the
+         link POST_NOTIFICATIONS alone was missing. -->
     <service android:name="com.google.android.gms.cast.framework.media.MediaNotificationService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>
-    <!-- GoogleCastOptionsProvider (react-native-google-cast) appelle
-         setExpandedControllerActivityClassName() SANS condition, alors que le
-         plugin expo du paquet ne declare cette activite que si on lui passe
-         expandedController: true. La notification media du SDK visait donc un
-         composant absent du manifeste. On la declare pour que la pile Cast
-         soit complete plutot que d'a moitie exister. -->
+    <!-- GoogleCastOptionsProvider (react-native-google-cast) calls
+         setExpandedControllerActivityClassName() UNCONDITIONALLY, while the
+         package's expo plugin only declares that activity when given
+         expandedController: true. The SDK's media notification therefore
+         targeted a component missing from the manifest. Declare it so the
+         Cast stack is complete rather than half there. -->
     <activity android:name="com.reactnative.googlecast.RNGCExpandedControllerActivity" android:exported="false"/>
+    <!-- play-services-code-scanner (pulled in by expo-camera for its
+         launchScanner API, which this app never calls) declares its delegate
+         activity portrait-only. Android 16 ignores that lock on large screens
+         and Play flags it as a resize/orientation restriction, so lift it. -->
+    <activity android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity" android:screenOrientation="unspecified" tools:replace="android:screenOrientation"/>
     <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
