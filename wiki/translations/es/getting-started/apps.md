@@ -1,5 +1,5 @@
 ---
-source_sha: 19a58f257c7925a42694296f89739751d4aa369febbecbabc2f268b6d406383f
+source_sha: f6f465ffe636c6e842ef744a39a77b3e6fd46b422c1155d344e35510fa29d296
 reviewed: true
 ---
 # Conectar las aplicaciones { #connect-the-apps }
@@ -16,9 +16,9 @@ cualquiera de tus dispositivos.
   servidor. Ahí está también el panel de administración, para los
   administradores.
 - **Android** (teléfono, tablet) y **Android TV**: las apps de Evey,
-  en [Google Play](https://play.google.com/store/apps/details?id=com.evey.app)
-  cuando se apruebe la revisión de Google de la ficha pública (consulta
-  [Limitaciones conocidas](limitations.md)).
+  en [Google Play](https://play.google.com/store/apps/details?id=com.evey.app).
+  Una sola ficha para las dos: el teléfono y el televisor instalan cada uno
+  la versión hecha para ellos.
 - **El navegador web de un televisor** (LG, Samsung y otros): nada que
   instalar. Abre la dirección del servidor seguida de `/tv`: consulta
   [En el navegador web de un televisor](#on-a-televisions-web-browser).

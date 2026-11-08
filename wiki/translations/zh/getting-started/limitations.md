@@ -1,5 +1,5 @@
 ---
-source_sha: 9ec00e9464587406ecdffdd125543fdaf6988a5989c62a715f8a88417d946b9f
+source_sha: 170f4b1278f7ac11da8c7b0df793fa1d04fddf774390b29e678f45a80d77a6da
 reviewed: true
 ---
 
@@ -10,12 +10,6 @@ Evey 目前还做不到的事，在这里说清楚，免得有人在想看电影
 ## 没有 iPhone、iPad 或 Apple TV 应用 { #no-app-for-iphone-ipad-or-apple-tv }
 
 Evey 有一个适用于 Android 手机和平板的应用，还有一个适用于 Android TV 和 Google TV 的应用。iPhone、iPad 和 Apple TV 都没有应用。在这些设备上，请在网页浏览器中打开服务器地址。
-
-延伸阅读：[连接应用](apps.md)。
-
-## Android 应用正在等待 Google 的审核 { #the-android-apps-are-waiting-for-googles-review }
-
-Android 和 Android TV 应用已提交到 Google Play。审核通过之前，公开的应用页面不可见，只有受邀参加测试的帐户才能安装；[应用](apps.md)页面上的链接会在审核通过时生效。网页应用和电视浏览器中的 `/tv` 页面无需安装，所有人都能使用。
 
 延伸阅读：[连接应用](apps.md)。
 
