@@ -38,10 +38,10 @@ class MainApplication : Application(), ReactApplication {
       ReleaseLevel.STABLE
     }
     loadReactNative(this)
-    // Verrous CPU/Wi-Fi tenus pendant une session Cast. Branche ici, sur le
-    // thread principal, parce que CastContext l'exige - et cote natif plutot
-    // que via un pont JS : c'est justement le JS qui meurt quand l'ecran
-    // s'eteint, il ne peut donc pas etre celui qui relache.
+    // CPU/Wi-Fi locks held during a Cast session. Hooked up here, on the main
+    // thread, because CastContext requires it - and on the native side rather
+    // than through a JS bridge: JS is precisely what dies when the screen
+    // turns off, so it cannot be the one that releases.
     CastKeepAlive.install(this)
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
   }

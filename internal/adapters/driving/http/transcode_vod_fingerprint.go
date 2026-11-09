@@ -200,7 +200,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		FirstRungIndex:   firstRung,
 		// Seal this moment's decision hash into every URI the manifest emits.
 		// stream_N is a ladder INDEX; if the ladder reshapes mid-play the same
-		// URL silently maps to another rendition (the 2026-07-15 rainbow). A
+		// URL silently maps to another rendition (a rainbow screen). A
 		// later request whose fp no longer matches is refused with 410 instead
 		// of serving a stranger's bytes. The plan's hash IS this request's
 		// fingerprint hash - sealed and compared values are one resolution.
@@ -256,13 +256,20 @@ func audioOffsetMsQuery(r *http.Request) int {
 }
 
 // pinnedAudioDecision mirrors pinnedVideoDecision for the audio side.
+//
+// A wasm decision mints no pin: wasmAudio=1 already rides every child URL and
+// keeps it, while an ad=transcode stamp would make each child resolve a
+// re-encode, hash another fingerprint than the master sealed and get a 410.
 func pinnedAudioDecision(r *http.Request, decision domaintranscoding.PlaybackDecision) string {
 	if r != nil {
 		if v := r.URL.Query().Get("ad"); v == "copy" || v == "transcode" {
 			return v
 		}
 	}
-	if decision.AudioDecision == "copy" {
+	switch decision.AudioDecision {
+	case "wasm":
+		return ""
+	case "copy":
 		return "copy"
 	}
 	return "transcode"
@@ -336,8 +343,8 @@ func (h *hlsVODServe) decideWith(ctx context.Context, streams []*domainlibrary.M
 	// selected, and then rides every child URL. A judgement about ANOTHER
 	// track - the master advertises every rendition, each copied or re-encoded
 	// on its own merits - is a different question, and the pin has no answer
-	// to it. Two things went wrong while it was applied anyway (prod,
-	// 2026-09-19, a 4K remux: one TrueHD track beside three AC-3 ones):
+	// to it. Two things went wrong while it was applied anyway (a 4K remux
+	// with one TrueHD track beside three AC-3 ones):
 	//
 	//   - ad=copy made the resolver log "pinned audio copy decision no longer
 	//     serveable, session flips to transcoded audio mid-play" on every poll

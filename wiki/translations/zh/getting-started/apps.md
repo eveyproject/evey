@@ -1,5 +1,5 @@
 ---
-source_sha: 19a58f257c7925a42694296f89739751d4aa369febbecbabc2f268b6d406383f
+source_sha: f6f465ffe636c6e842ef744a39a77b3e6fd46b422c1155d344e35510fa29d296
 reviewed: true
 ---
 # 连接应用 { #connect-the-apps }
@@ -9,7 +9,7 @@ reviewed: true
 每个应用连接的都是您自己家里的 Evey 服务器。地址只需输入一次，然后登录，选择您的个人资料。看到哪里、看过什么、收藏了什么，都保存在服务器上，所以换一台设备也能继续使用。
 
 - **网页浏览器**：什么都不用装，打开服务器的地址就行。管理员的管理面板也在这里。
-- **Android**（手机、平板）和 **Android TV**：Evey 应用，将在 Google 对公开页面的审核通过后上架 [Google Play](https://play.google.com/store/apps/details?id=com.evey.app)（参见[已知限制](limitations.md)）。
+- **Android**（手机、平板）和 **Android TV**：Evey 应用，已上架 [Google Play](https://play.google.com/store/apps/details?id=com.evey.app)。两者共用一个应用页面：手机和电视各自安装为其打造的版本。
 - **电视的网页浏览器**（LG、三星等）：不需要安装。打开服务器地址，并在后面加上 `/tv`，参见[在电视的网页浏览器上](#on-a-televisions-web-browser)。
 - **Chromecast**：不需要应用。在 Chrome 的网页播放器里，或者在 Android 应用里投屏就行。
 
