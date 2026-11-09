@@ -1,5 +1,5 @@
 ---
-source_sha: 19a58f257c7925a42694296f89739751d4aa369febbecbabc2f268b6d406383f
+source_sha: f6f465ffe636c6e842ef744a39a77b3e6fd46b422c1155d344e35510fa29d296
 reviewed: true
 ---
 # ऐप कनेक्ट करें { #connect-the-apps }
@@ -14,10 +14,10 @@ reviewed: true
 
 - **वेब ब्राउज़र**: कुछ इंस्टॉल नहीं करना। सर्वर का पता खोलें। एडमिन के लिए
   एडमिन पैनल भी वहीं है।
-- **Android** (फ़ोन, टैबलेट) और **Android TV**: Evey के ऐप, जो
-  [Google Play](https://play.google.com/store/apps/details?id=com.evey.app) पर,
-  Google की सार्वजनिक लिस्टिंग की समीक्षा पास होते ही (देखें
-  [ज्ञात सीमाएँ](limitations.md))।
+- **Android** (फ़ोन, टैबलेट) और **Android TV**: Evey के ऐप,
+  [Google Play](https://play.google.com/store/apps/details?id=com.evey.app) पर।
+  दोनों के लिए एक ही लिस्टिंग: फ़ोन और TV अपने-अपने लिए बना संस्करण
+  इंस्टॉल करते हैं।
 - **किसी TV का वेब ब्राउज़र** (LG, Samsung और दूसरे): कुछ इंस्टॉल नहीं
   करना। सर्वर का पता और उसके बाद `/tv` खोलें: देखें
   [TV के वेब ब्राउज़र पर](#on-a-televisions-web-browser)।

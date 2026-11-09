@@ -1,5 +1,5 @@
 ---
-source_sha: 9ec00e9464587406ecdffdd125543fdaf6988a5989c62a715f8a88417d946b9f
+source_sha: 170f4b1278f7ac11da8c7b0df793fa1d04fddf774390b29e678f45a80d77a6da
 reviewed: true
 ---
 
@@ -13,16 +13,6 @@ noche en que quería ver una película. Cada punto dice qué usar en su lugar.
 Hay una app de Evey para teléfonos y tabletas Android, y otra para Android TV
 y Google TV. No hay ninguna para iPhone, iPad ni Apple TV. En esos
 dispositivos, abre la dirección del servidor en el navegador web.
-
-Más: [Conectar las aplicaciones](apps.md).
-
-## Las apps de Android esperan la revisión de Google { #the-android-apps-are-waiting-for-googles-review }
-
-Las apps de Android y Android TV se han enviado a Google Play. Hasta que la
-revisión se apruebe, la ficha pública no es visible y solo las cuentas
-invitadas a la prueba pueden instalarlas; el enlace de la página
-[Apps](apps.md) se activa en ese momento. La app web y la página `/tv` en el
-navegador de un televisor no necesitan instalación y funcionan para todos.
 
 Más: [Conectar las aplicaciones](apps.md).
 

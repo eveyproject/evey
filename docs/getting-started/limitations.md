@@ -11,16 +11,6 @@ open the server's address in the web browser.
 
 More: [Connect the apps](apps.md).
 
-## The Android apps are waiting for Google's review
-
-The Android and Android TV apps have been submitted to Google Play. Until
-the review passes, the public listing is not visible and only the accounts
-invited to the test can install them; the link on the [Apps](apps.md) page
-goes live at that moment. The web app and the `/tv` page in a television's
-browser need no installation and work for everyone.
-
-More: [Connect the apps](apps.md).
-
 ## Watching without a connection: Android app only
 
 Only the Android app keeps a copy of a film or an episode on the device
