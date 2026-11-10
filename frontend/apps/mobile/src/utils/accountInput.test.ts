@@ -18,5 +18,8 @@ describe("passwordTooLong", () => {
     expect(passwordTooLong("a".repeat(72))).toBe(false);
     expect(passwordTooLong(`  ${"a".repeat(72)}  `)).toBe(false);
     expect(passwordTooLong("é".repeat(37))).toBe(true);
+    expect(passwordTooLong("é".repeat(36))).toBe(false);
+    expect(passwordTooLong("😀".repeat(18))).toBe(false);
+    expect(passwordTooLong("😀".repeat(19))).toBe(true);
   });
 });

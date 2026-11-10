@@ -70,7 +70,9 @@ export default function SettingsScreen() {
   // it lands in caches and logs.
   const authHeaders = useAuthHeaders();
 
-  const updateUser = useUserServiceUpdateUser();
+  // Errors are named by handleSaveAccount; the global net's generic toast
+  // would only stack a second one on top.
+  const updateUser = useUserServiceUpdateUser({ mutation: { meta: { silentError: true } } });
 
   const qcSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -129,6 +131,10 @@ export default function SettingsScreen() {
       apiErrorMessage(err as Error, t, t("auth.settings.account.updateFailed", "Update failed"));
     const errors: string[] = [];
     let changed = false;
+    // A refused current password (403) or a lockout (429) refuses the second
+    // request too: sending it would only spend another attempt of the login
+    // lockout and repeat the same message.
+    let stop = false;
     // The password travels alone: it never depends on the e-mail or username,
     // so a refused one of those must not block it. Identity goes first, while
     // the current password still verifies (a password change revokes it).
@@ -141,10 +147,12 @@ export default function SettingsScreen() {
           changed = true;
         } catch (err) {
           errors.push(failed(err));
+          const status = (err as { httpStatus?: number }).httpStatus;
+          stop = status === 403 || status === 429;
         }
       }
     }
-    if (newPassword) {
+    if (newPassword && !stop) {
       try {
         await updateUser.mutateAsync({ id: user.id, data: { password: newPassword, currentPassword } });
         changed = true;

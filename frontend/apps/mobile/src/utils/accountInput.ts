@@ -12,5 +12,10 @@ export function isPlainEmail(value: string): boolean {
 export const PASSWORD_MAX_BYTES = 72;
 
 export function passwordTooLong(value: string): boolean {
-  return new TextEncoder().encode(value.trim()).length > PASSWORD_MAX_BYTES;
+  let bytes = 0;
+  for (const ch of value.trim()) {
+    const cp = ch.codePointAt(0) ?? 0;
+    bytes += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+  }
+  return bytes > PASSWORD_MAX_BYTES;
 }
