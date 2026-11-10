@@ -154,6 +154,14 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		md := int(*req.MaxDevicesPerProfile)
 		u.MaxDevicesPerProfile = &md
 	}
+	// The password rule runs before any write: refused after UpdateUser, it
+	// left the e-mail or username of the same request applied without it.
+	if req.Password != nil && *req.Password != "" {
+		if err := appuser.ValidateNewPassword(*req.Password); err != nil {
+			span.SetStatus(otelcodes.Error, "password too short")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
+		}
+	}
 	if err := h.userSvc.UpdateUser(ctx, u); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -168,10 +176,27 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		// left the client with a generic "update failed" that never named the
 		// field to fix.
 		if errors.Is(err, user.ErrEmailInvalid) {
+			// The shape of the refused value, never the value: enough to tell
+			// a login autofilled into the e-mail field from a typo.
+			slog.WarnContext(ctx, "update user: e-mail refused",
+				slog.Int("len", len(u.Email)),
+				slog.Int("at_signs", strings.Count(u.Email, "@")),
+				slog.Bool("equals_username", strings.EqualFold(u.Email, u.Username)),
+				slog.Bool("has_space", strings.ContainsAny(u.Email, " \t")),
+				slog.Bool("trailing_dot", strings.HasSuffix(u.Email, ".")))
 			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.email_invalid")
 		}
-		if strings.TrimSpace(u.Username) == "" {
-			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_required")
+		if errors.Is(err, user.ErrUsernameInvalid) {
+			if strings.TrimSpace(u.Username) == "" {
+				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_required")
+			}
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_invalid")
+		}
+		if errors.Is(err, user.ErrEmailTaken) {
+			return nil, h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.user.email_taken")
+		}
+		if errors.Is(err, user.ErrUsernameTaken) {
+			return nil, h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.user.username_taken")
 		}
 		slog.ErrorContext(ctx, "update user", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")

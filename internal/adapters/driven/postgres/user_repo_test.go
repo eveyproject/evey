@@ -444,3 +444,27 @@ func TestUserRepo_GetByUsername_CaseInsensitive_AndUniqueUnderLower(t *testing.T
 	require.Error(t, err, "a second account differing only by case must be refused")
 	assert.ErrorIs(t, err, shared.ErrConflict)
 }
+
+// An edit onto another account's e-mail or (case-folded) username is a
+// conflict naming the field, not an opaque failure answered as a 500.
+func TestUserRepo_Update_UniqueConflictNamesField(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+	require.NoError(t, repo.Create(ctx, newTestUser("u1")))
+	require.NoError(t, repo.Create(ctx, newTestUser("u2")))
+
+	dupMail := newTestUser("u2")
+	dupMail.Email = "u1@example.com"
+	err := repo.Update(ctx, dupMail)
+	assert.ErrorIs(t, err, shared.ErrConflict)
+	assert.ErrorIs(t, err, user.ErrEmailTaken)
+
+	dupName := newTestUser("u2")
+	dupName.Username = "USER_U1"
+	err = repo.Update(ctx, dupName)
+	assert.ErrorIs(t, err, shared.ErrConflict)
+	assert.ErrorIs(t, err, user.ErrUsernameTaken)
+}

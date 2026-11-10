@@ -307,7 +307,7 @@ func ValidateUsername(name string) error {
 
 func (u *User) Validate() error {
 	if err := ValidateUsername(u.Username); err != nil {
-		return err
+		return usernameError{err}
 	}
 	// Surrounding whitespace is tolerated: rows written before this check
 	// tightened may carry it, and refusing them would block the account's
@@ -321,6 +321,23 @@ func (u *User) Validate() error {
 // ErrEmailInvalid is what Validate returns for an address IsPlainAddress
 // refuses: a caller's input error, not a server fault.
 var ErrEmailInvalid = errors.New("email is invalid")
+
+// ErrUsernameInvalid matches (errors.Is) any username Validate refuses; the
+// error text stays ValidateUsername's own reason.
+var ErrUsernameInvalid = errors.New("username is invalid")
+
+// ErrEmailTaken and ErrUsernameTaken are a write refused by the uniqueness
+// of the address or of the case-folded name.
+var (
+	ErrEmailTaken    = errors.New("email is already used by another account")
+	ErrUsernameTaken = errors.New("username is already used by another account")
+)
+
+type usernameError struct{ err error }
+
+func (e usernameError) Error() string        { return e.err.Error() }
+func (e usernameError) Unwrap() error        { return e.err }
+func (e usernameError) Is(target error) bool { return target == ErrUsernameInvalid }
 
 // IsPlainAddress accepts one bare RFC 5322 address (no display name, no list,
 // no folding): what the SMTP sender puts in a To: header verbatim.

@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -211,6 +212,29 @@ func TestUpdateUser_EmptyUsername_InvalidArgument(t *testing.T) {
 	empty, good := "   ", "oldpassword"
 	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
 		Id: "usr-1", Username: &empty, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+}
+
+// A password the length rule refuses is refused before anything is written:
+// the e-mail sent in the same request must not land without it.
+func TestUpdateUser_ShortPassword_WritesNothing(t *testing.T) {
+	env := seedSelf(t)
+	mail, short, good := "new@example.com", "  1234567  ", "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Email: &mail, Password: &short, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+	if got := storedUser(t, env, "usr-1"); got.Email != "a@b.com" {
+		t.Fatalf("e-mail written despite the refused password: %q", got.Email)
+	}
+}
+
+func TestUpdateUser_InvalidUsername_InvalidArgument(t *testing.T) {
+	env := seedSelf(t)
+	long, good := strings.Repeat("a", user.UsernameMaxRunes+1), "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Username: &long, CurrentPassword: &good,
 	})
 	assertCode(t, err, codes.InvalidArgument)
 }

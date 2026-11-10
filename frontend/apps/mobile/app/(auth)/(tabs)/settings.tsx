@@ -20,9 +20,7 @@ import { wikiUrl } from "@evey/client";
 import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
-
-// A bare address: one "@", no space, no display name or list separator.
-const PLAIN_EMAIL = /^[^\s@<>()[\],;:"\\]+@[^\s@<>()[\],;:"\\]+$/;
+import { isPlainEmail } from "../../../src/utils/plainEmail";
 
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
@@ -119,7 +117,7 @@ export default function SettingsScreen() {
     if (editEmail.trim() !== (user.email ?? "")) {
       // Same refusal the server makes, named before the round trip: a vague
       // "update failed" never said the e-mail field was the one to fix.
-      if (editEmail.trim() !== "" && !PLAIN_EMAIL.test(editEmail.trim())) {
+      if (editEmail.trim() !== "" && !isPlainEmail(editEmail.trim())) {
         Alert.alert(t("errors.user.email_invalid"));
         return;
       }
@@ -130,7 +128,7 @@ export default function SettingsScreen() {
         Alert.alert(t("auth.settings.account.passwordMismatch"));
         return;
       }
-      if (newPassword.length < 8) {
+      if (newPassword.trim().length < 8) {
         Alert.alert(t("auth.settings.account.passwordMin"));
         return;
       }
@@ -310,8 +308,8 @@ export default function SettingsScreen() {
               value={editUsername}
               onChangeText={setEditUsername}
               autoCapitalize="none"
-              autoComplete="username"
-              textContentType="username"
+              autoComplete="off"
+              importantForAutofill="no"
               style={s.editInput}
             />
             <TextInput
@@ -321,11 +319,11 @@ export default function SettingsScreen() {
               onChangeText={setEditEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              // Without a hint, Android autofill can take this field, the
-              // nearest text input above the passwords, for the login and put
-              // the saved username in it while filling the current password.
-              autoComplete="email"
-              textContentType="emailAddress"
+              // Kept out of autofill: filling the current password below could
+              // otherwise put the saved login in the nearest text field above,
+              // this one, and send it as the new e-mail.
+              autoComplete="off"
+              importantForAutofill="no"
               style={s.editInput}
             />
             <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.sm, marginTop: theme.spacing.xs }}>
