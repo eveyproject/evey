@@ -20,7 +20,7 @@ import { wikiUrl } from "@evey/client";
 import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
-import { isPlainEmail } from "../../../src/utils/plainEmail";
+import { isPlainEmail, passwordTooLong } from "../../../src/utils/accountInput";
 
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
@@ -70,21 +70,7 @@ export default function SettingsScreen() {
   // it lands in caches and logs.
   const authHeaders = useAuthHeaders();
 
-  const updateUser = useUserServiceUpdateUser({
-    mutation: {
-      onSuccess: () => {
-        setNewPassword("");
-        setConfirmPassword("");
-        setCurrentPassword("");
-        setEditingAccount(false);
-        toast.success(t("auth.settings.account.profileUpdated") || "Profile updated");
-        qc.invalidateQueries({ queryKey: ["/api/v1/users/me"] });
-      },
-      onError: (err: Error) => {
-        toast.error(apiErrorMessage(err, t, t("auth.settings.account.updateFailed", "Update failed")));
-      },
-    },
-  });
+  const updateUser = useUserServiceUpdateUser();
 
   const qcSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -112,17 +98,9 @@ export default function SettingsScreen() {
 
   const handleSaveAccount = useCallback(async () => {
     if (!user?.id) return;
-    const data: Record<string, string> = {};
-    if (editUsername.trim() !== user.username) data.username = editUsername.trim();
-    if (editEmail.trim() !== (user.email ?? "")) {
-      // Same refusal the server makes, named before the round trip: a vague
-      // "update failed" never said the e-mail field was the one to fix.
-      if (editEmail.trim() !== "" && !isPlainEmail(editEmail.trim())) {
-        Alert.alert(t("errors.user.email_invalid"));
-        return;
-      }
-      data.email = editEmail.trim();
-    }
+    const identity: Record<string, string> = {};
+    if (editUsername.trim() !== user.username) identity.username = editUsername.trim();
+    if (editEmail.trim() !== (user.email ?? "")) identity.email = editEmail.trim();
     if (newPassword) {
       if (newPassword !== confirmPassword) {
         Alert.alert(t("auth.settings.account.passwordMismatch"));
@@ -132,9 +110,13 @@ export default function SettingsScreen() {
         Alert.alert(t("auth.settings.account.passwordMin"));
         return;
       }
-      data.password = newPassword;
+      if (passwordTooLong(newPassword)) {
+        Alert.alert(t("errors.auth.password_too_long"));
+        return;
+      }
     }
-    if (Object.keys(data).length === 0) {
+    const hasIdentity = Object.keys(identity).length > 0;
+    if (!hasIdentity && !newPassword) {
       setEditingAccount(false);
       return;
     }
@@ -143,9 +125,45 @@ export default function SettingsScreen() {
       Alert.alert(t("errors.user.current_password_required"));
       return;
     }
-    // The mutation's onError already shows the toast.
-    updateUser.mutate({ id: user.id, data: { ...data, currentPassword } });
-  }, [user, editUsername, editEmail, newPassword, confirmPassword, currentPassword, updateUser, t]);
+    const failed = (err: unknown) =>
+      apiErrorMessage(err as Error, t, t("auth.settings.account.updateFailed", "Update failed"));
+    const errors: string[] = [];
+    let changed = false;
+    // The password travels alone: it never depends on the e-mail or username,
+    // so a refused one of those must not block it. Identity goes first, while
+    // the current password still verifies (a password change revokes it).
+    if (hasIdentity) {
+      if (identity.email && !isPlainEmail(identity.email)) {
+        errors.push(t("errors.user.email_invalid"));
+      } else {
+        try {
+          await updateUser.mutateAsync({ id: user.id, data: { ...identity, currentPassword } });
+          changed = true;
+        } catch (err) {
+          errors.push(failed(err));
+        }
+      }
+    }
+    if (newPassword) {
+      try {
+        await updateUser.mutateAsync({ id: user.id, data: { password: newPassword, currentPassword } });
+        changed = true;
+        setNewPassword("");
+        setConfirmPassword("");
+        setCurrentPassword("");
+      } catch (err) {
+        errors.push(failed(err));
+      }
+    }
+    if (changed) qc.invalidateQueries({ queryKey: ["/api/v1/users/me"] });
+    if (errors.length > 0) {
+      toast.error(errors.join("\n"));
+      return;
+    }
+    setCurrentPassword("");
+    setEditingAccount(false);
+    toast.success(t("auth.settings.account.profileUpdated") || "Profile updated");
+  }, [user, editUsername, editEmail, newPassword, confirmPassword, currentPassword, updateUser, qc, t]);
 
   // An avatar upload can take seconds on a phone link, and nothing on screen
   // said one was in flight: repeated taps fired concurrent POSTs on the same

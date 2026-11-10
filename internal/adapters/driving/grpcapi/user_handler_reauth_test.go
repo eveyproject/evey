@@ -238,3 +238,40 @@ func TestUpdateUser_InvalidUsername_InvalidArgument(t *testing.T) {
 	})
 	assertCode(t, err, codes.InvalidArgument)
 }
+
+// A password change does not depend on the e-mail: an address stored before
+// today's rules (or none at all) must not block it.
+func TestUpdateUser_PasswordOnly_IgnoresStoredEmail(t *testing.T) {
+	for _, stored := range []string{"", "Bob <bob@example.com>"} {
+		t.Run(stored, func(t *testing.T) {
+			env := setupUserHandler()
+			seedAdultProfile(t, env, "prf-1", "usr-1")
+			seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: stored}, "oldpassword")
+			newPass, good := "brandnewpass1", "oldpassword"
+			_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+				Id: "usr-1", Password: &newPass, CurrentPassword: &good,
+			})
+			if err != nil {
+				t.Fatalf("UpdateUser: %v", err)
+			}
+			got := storedUser(t, env, "usr-1")
+			if got.PasswordHash != "hashed:"+newPass || got.Email != stored {
+				t.Fatalf("hash=%q email=%q", got.PasswordHash, got.Email)
+			}
+		})
+	}
+}
+
+// Past bcrypt's 72 bytes the password is the caller's input: refused before
+// anything is written, never a hashing failure answered as a 500.
+func TestUpdateUser_LongPassword_WritesNothing(t *testing.T) {
+	env := seedSelf(t)
+	mail, long, good := "new@example.com", strings.Repeat("é", 37), "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Email: &mail, Password: &long, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+	if got := storedUser(t, env, "usr-1"); got.Email != "a@b.com" || got.PasswordHash != "hashed:oldpassword" {
+		t.Fatalf("account changed despite the refused password: email=%q hash=%q", got.Email, got.PasswordHash)
+	}
+}

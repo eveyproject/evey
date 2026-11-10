@@ -24,7 +24,7 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { ProfileManagerList } from "../profile/ProfileManagerList";
 import { CreateProfileDialog } from "../profile/CreateProfileDialog";
-import { isPlainEmail } from "../../utils/plainEmail";
+import { isPlainEmail, passwordTooLong } from "../../utils/accountInput";
 import { FONT_SIZE } from "@evey/theme";
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_.-]{1,64}$/;
@@ -105,6 +105,10 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
     }
     if (password && password.trim().length < 8) {
       setError(t("errors.auth.password_too_short"));
+      return false;
+    }
+    if (password && passwordTooLong(password)) {
+      setError(t("errors.auth.password_too_long"));
       return false;
     }
     const mp = Number(maxProfiles);

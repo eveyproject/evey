@@ -7,3 +7,10 @@ export function isPlainEmail(value: string): boolean {
   if (!PLAIN_EMAIL.test(value)) return false;
   return value.split("@").every((part) => !part.startsWith(".") && !part.endsWith(".") && !part.includes(".."));
 }
+
+// bcrypt's input limit, in UTF-8 bytes, as the server counts it after trimming.
+export const PASSWORD_MAX_BYTES = 72;
+
+export function passwordTooLong(value: string): boolean {
+  return new TextEncoder().encode(value.trim()).length > PASSWORD_MAX_BYTES;
+}

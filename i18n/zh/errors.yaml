@@ -5,6 +5,7 @@ auth:
   invalid_token: "令牌无效或已过期"
   too_many_attempts: "尝试次数过多"
   password_too_short: "密码至少需要8个字符"
+  password_too_long: "密码最多 72 字节（一个中文字符占 3 字节）"
   missing_authorization: "缺少授权头"
   missing_metadata: "缺少请求元数据"
   admin_access_required: "需要管理员权限"

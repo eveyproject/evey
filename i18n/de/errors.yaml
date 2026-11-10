@@ -5,6 +5,7 @@ auth:
   invalid_token: "Ungültiges oder abgelaufenes Token"
   too_many_attempts: "Zu viele Versuche"
   password_too_short: "Passwort muss mindestens 8 Zeichen lang sein"
+  password_too_long: "Das Passwort darf höchstens 72 Byte lang sein (ein Umlaut zählt doppelt)"
   missing_authorization: "Autorisierungs-Header fehlt"
   missing_metadata: "Anfrage-Metadaten fehlen"
   admin_access_required: "Administratorzugriff erforderlich"

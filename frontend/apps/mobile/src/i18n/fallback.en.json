@@ -2627,6 +2627,7 @@
   "errors.auth.missing_key": "API key is missing",
   "errors.auth.missing_metadata": "Missing request metadata",
   "errors.auth.parental_needs_non_kids": "Switch to a non-kids profile to change parental settings",
+  "errors.auth.password_too_long": "Password must be at most 72 bytes (an accented letter counts as two)",
   "errors.auth.password_too_short": "Password must be at least 8 characters",
   "errors.auth.pin_must_be_4_digits": "PIN must be 4 digits",
   "errors.auth.pin_required": "Parental PIN required to switch to this profile",

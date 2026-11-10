@@ -278,11 +278,24 @@ func (s *UserService) SetUserBitrateLimit(ctx context.Context, userID string, ma
 // account edit writes anything, so a refused password never leaves the e-mail
 // or username of the same request applied without it.
 func ValidateNewPassword(p string) error {
-	if len(normalizePassword(p)) < 8 {
+	n := len(normalizePassword(p))
+	if n < 8 {
 		return ErrPasswordTooShort
+	}
+	// bcrypt refuses past 72 bytes: caught here it is the caller's input, not
+	// a hashing failure answered as a 500.
+	if n > PasswordMaxBytes {
+		return ErrPasswordTooLong
 	}
 	return nil
 }
+
+// PasswordMaxBytes is bcrypt's input limit, in bytes (an accented letter
+// counts two).
+const PasswordMaxBytes = 72
+
+// ErrPasswordTooLong is a new password past PasswordMaxBytes.
+var ErrPasswordTooLong = errors.New("password is longer than 72 bytes")
 
 func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.ChangePassword")

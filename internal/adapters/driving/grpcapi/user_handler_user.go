@@ -158,48 +158,17 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 	// left the e-mail or username of the same request applied without it.
 	if req.Password != nil && *req.Password != "" {
 		if err := appuser.ValidateNewPassword(*req.Password); err != nil {
-			span.SetStatus(otelcodes.Error, "password too short")
-			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, passwordRuleKey(err))
 		}
 	}
-	if err := h.userSvc.UpdateUser(ctx, u); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		// Promoting a user who already owns a kids profile to admin is a parental
-		// business-rule refusal (the admin/kids invariant), not a server fault:
-		// map it to FailedPrecondition with a clear reason, like CreateProfile,
-		// rather than a generic 500 logged at ERROR (which reads as an alert).
-		if errors.Is(err, appuser.ErrAdminCannotBeKids) {
-			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.admin_cannot_be_kids")
+	// A password-only request never runs the account write: the password does
+	// not depend on the e-mail or username, so a stored value that today's
+	// rules refuse must not block it (ChangePassword below writes the hash).
+	if editsAccountFields(req) {
+		if err := h.updateAccountFields(ctx, span, u); err != nil {
+			return nil, err
 		}
-		// A refused e-mail or username is the caller's input: answering 500
-		// left the client with a generic "update failed" that never named the
-		// field to fix.
-		if errors.Is(err, user.ErrEmailInvalid) {
-			// The shape of the refused value, never the value: enough to tell
-			// a login autofilled into the e-mail field from a typo.
-			slog.WarnContext(ctx, "update user: e-mail refused",
-				slog.Int("len", len(u.Email)),
-				slog.Int("at_signs", strings.Count(u.Email, "@")),
-				slog.Bool("equals_username", strings.EqualFold(u.Email, u.Username)),
-				slog.Bool("has_space", strings.ContainsAny(u.Email, " \t")),
-				slog.Bool("trailing_dot", strings.HasSuffix(u.Email, ".")))
-			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.email_invalid")
-		}
-		if errors.Is(err, user.ErrUsernameInvalid) {
-			if strings.TrimSpace(u.Username) == "" {
-				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_required")
-			}
-			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_invalid")
-		}
-		if errors.Is(err, user.ErrEmailTaken) {
-			return nil, h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.user.email_taken")
-		}
-		if errors.Is(err, user.ErrUsernameTaken) {
-			return nil, h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.user.username_taken")
-		}
-		slog.ErrorContext(ctx, "update user", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	// Password change: routed through ChangePassword so it is hashed, length-
 	// validated, and accompanied by refresh-token deletion + token_epoch bump
@@ -208,9 +177,9 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 	// ("leave blank to keep current").
 	if req.Password != nil && *req.Password != "" {
 		if err := h.userSvc.ChangePassword(ctx, req.Id, *req.Password); err != nil {
-			if errors.Is(err, appuser.ErrPasswordTooShort) {
-				span.SetStatus(otelcodes.Error, "password too short")
-				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
+			if errors.Is(err, appuser.ErrPasswordTooShort) || errors.Is(err, appuser.ErrPasswordTooLong) {
+				span.SetStatus(otelcodes.Error, err.Error())
+				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, passwordRuleKey(err))
 			}
 			slog.ErrorContext(ctx, "update user password", slog.Any("err", err))
 			span.RecordError(err)
@@ -389,4 +358,64 @@ func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest)
 		resp.Users = append(resp.Users, userToProto(u))
 	}
 	return resp, nil
+}
+
+// editsAccountFields reports whether req changes anything stored on the
+// account row besides the password hash.
+func editsAccountFields(req *eveyv1.UpdateUserRequest) bool {
+	return req.Username != nil || req.Email != nil || req.IsAdmin != nil ||
+		req.MaxStreams != nil || req.MaxProfiles != nil || req.MaxDevicesPerProfile != nil
+}
+
+// updateAccountFields writes u and maps an input refusal to a status naming
+// the field, so the client can say which one to fix.
+func (h *userHandler) updateAccountFields(ctx context.Context, span trace.Span, u *user.User) error {
+	if err := h.userSvc.UpdateUser(ctx, u); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		// Promoting a user who already owns a kids profile to admin is a parental
+		// business-rule refusal (the admin/kids invariant), not a server fault:
+		// map it to FailedPrecondition with a clear reason, like CreateProfile,
+		// rather than a generic 500 logged at ERROR (which reads as an alert).
+		if errors.Is(err, appuser.ErrAdminCannotBeKids) {
+			return h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.admin_cannot_be_kids")
+		}
+		// A refused e-mail or username is the caller's input: answering 500
+		// left the client with a generic "update failed" that never named the
+		// field to fix.
+		if errors.Is(err, user.ErrEmailInvalid) {
+			// The shape of the refused value, never the value: enough to tell
+			// a login autofilled into the e-mail field from a typo.
+			slog.WarnContext(ctx, "update user: e-mail refused",
+				slog.Int("len", len(u.Email)),
+				slog.Int("at_signs", strings.Count(u.Email, "@")),
+				slog.Bool("equals_username", strings.EqualFold(u.Email, u.Username)),
+				slog.Bool("has_space", strings.ContainsAny(u.Email, " \t")),
+				slog.Bool("trailing_dot", strings.HasSuffix(u.Email, ".")))
+			return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.email_invalid")
+		}
+		if errors.Is(err, user.ErrUsernameInvalid) {
+			if strings.TrimSpace(u.Username) == "" {
+				return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_required")
+			}
+			return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_invalid")
+		}
+		if errors.Is(err, user.ErrEmailTaken) {
+			return h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.user.email_taken")
+		}
+		if errors.Is(err, user.ErrUsernameTaken) {
+			return h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.user.username_taken")
+		}
+		slog.ErrorContext(ctx, "update user", slog.Any("err", err))
+		return status.Errorf(codes.Internal, "internal error")
+	}
+	return nil
+}
+
+// passwordRuleKey names the length rule a new password broke.
+func passwordRuleKey(err error) string {
+	if errors.Is(err, appuser.ErrPasswordTooLong) {
+		return "errors.auth.password_too_long"
+	}
+	return "errors.auth.password_too_short"
 }

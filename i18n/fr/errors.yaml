@@ -5,6 +5,7 @@ auth:
   too_many_attempts: "Trop de tentatives"
   pin_required: "Code PIN parental requis pour basculer sur ce profil"
   password_too_short: "Le mot de passe doit contenir au moins 8 caractères"
+  password_too_long: "Le mot de passe doit faire au plus 72 octets (une lettre accentuée compte double)"
   missing_authorization: "En-tête d'autorisation manquant"
   missing_metadata: "Métadonnées de requête manquantes"
   admin_access_required: "Accès administrateur requis"

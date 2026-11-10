@@ -5,6 +5,7 @@ auth:
   invalid_token: "अमान्य या समय-सीमा समाप्त टोकन"
   too_many_attempts: "बहुत अधिक प्रयास"
   password_too_short: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
+  password_too_long: "पासवर्ड अधिकतम 72 बाइट का होना चाहिए (गैर-ASCII अक्षर एक से अधिक बाइट लेते हैं)"
   missing_authorization: "प्राधिकरण हेडर अनुपलब्ध"
   missing_metadata: "अनुरोध मेटाडेटा अनुपलब्ध"
   admin_access_required: "एडमिन एक्सेस आवश्यक है"

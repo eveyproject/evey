@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPlainEmail } from "./plainEmail";
+import { isPlainEmail, passwordTooLong } from "./accountInput";
 
 describe("isPlainEmail", () => {
   it.each(["a@b.com", "first.last+tag@example.org", "x@x"])("accepts %s", (v) => {
@@ -11,4 +11,12 @@ describe("isPlainEmail", () => {
       expect(isPlainEmail(v)).toBe(false);
     },
   );
+});
+
+describe("passwordTooLong", () => {
+  it("counts UTF-8 bytes after trimming, as the server does", () => {
+    expect(passwordTooLong("a".repeat(72))).toBe(false);
+    expect(passwordTooLong(`  ${"a".repeat(72)}  `)).toBe(false);
+    expect(passwordTooLong("é".repeat(37))).toBe(true);
+  });
 });
