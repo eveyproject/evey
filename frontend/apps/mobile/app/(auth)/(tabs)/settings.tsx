@@ -21,6 +21,9 @@ import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 
+// A bare address: one "@", no space, no display name or list separator.
+const PLAIN_EMAIL = /^[^\s@<>()[\],;:"\\]+@[^\s@<>()[\],;:"\\]+$/;
+
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
 }
@@ -113,7 +116,15 @@ export default function SettingsScreen() {
     if (!user?.id) return;
     const data: Record<string, string> = {};
     if (editUsername.trim() !== user.username) data.username = editUsername.trim();
-    if (editEmail.trim() !== (user.email ?? "")) data.email = editEmail.trim();
+    if (editEmail.trim() !== (user.email ?? "")) {
+      // Same refusal the server makes, named before the round trip: a vague
+      // "update failed" never said the e-mail field was the one to fix.
+      if (editEmail.trim() !== "" && !PLAIN_EMAIL.test(editEmail.trim())) {
+        Alert.alert(t("errors.user.email_invalid"));
+        return;
+      }
+      data.email = editEmail.trim();
+    }
     if (newPassword) {
       if (newPassword !== confirmPassword) {
         Alert.alert(t("auth.settings.account.passwordMismatch"));
@@ -134,11 +145,8 @@ export default function SettingsScreen() {
       Alert.alert(t("errors.user.current_password_required"));
       return;
     }
-    try {
-      await updateUser.mutateAsync({ id: user.id, data: { ...data, currentPassword } });
-    } catch (err) {
-      toast.error(apiErrorMessage(err as Error, t, t("auth.settings.account.updateFailed", "Update failed")));
-    }
+    // The mutation's onError already shows the toast.
+    updateUser.mutate({ id: user.id, data: { ...data, currentPassword } });
   }, [user, editUsername, editEmail, newPassword, confirmPassword, currentPassword, updateUser, t]);
 
   // An avatar upload can take seconds on a phone link, and nothing on screen

@@ -185,3 +185,32 @@ func TestUpdateUser_SelfSSOAccount_NoLocalPassword(t *testing.T) {
 		t.Fatalf("admin sets a password on the SSO account: %v", err)
 	}
 }
+
+// A refused e-mail is the caller's input, not a server fault: InvalidArgument
+// naming the field, and the password sent alongside stays unchanged.
+func TestUpdateUser_SelfInvalidEmail_InvalidArgument(t *testing.T) {
+	newPass, good := "brandnewpass1", "oldpassword"
+	for _, bad := range []string{"Bob <bob@example.com>", "bob@", "bob.@example.com"} {
+		t.Run(bad, func(t *testing.T) {
+			env := seedSelf(t)
+			mail := bad
+			_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+				Id: "usr-1", Email: &mail, Password: &newPass, CurrentPassword: &good,
+			})
+			assertCode(t, err, codes.InvalidArgument)
+			got := storedUser(t, env, "usr-1")
+			if got.Email != "a@b.com" || got.PasswordHash != "hashed:oldpassword" {
+				t.Fatalf("account changed despite refusal: email=%q hash=%q", got.Email, got.PasswordHash)
+			}
+		})
+	}
+}
+
+func TestUpdateUser_EmptyUsername_InvalidArgument(t *testing.T) {
+	env := seedSelf(t)
+	empty, good := "   ", "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Username: &empty, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+}

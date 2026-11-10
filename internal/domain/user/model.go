@@ -313,10 +313,14 @@ func (u *User) Validate() error {
 	// tightened may carry it, and refusing them would block the account's
 	// next update until the operator notices a space.
 	if e := strings.TrimSpace(u.Email); e != "" && !IsPlainAddress(e) {
-		return errors.New("email is invalid")
+		return ErrEmailInvalid
 	}
 	return nil
 }
+
+// ErrEmailInvalid is what Validate returns for an address IsPlainAddress
+// refuses: a caller's input error, not a server fault.
+var ErrEmailInvalid = errors.New("email is invalid")
 
 // IsPlainAddress accepts one bare RFC 5322 address (no display name, no list,
 // no folding): what the SMTP sender puts in a To: header verbatim.

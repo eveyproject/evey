@@ -164,6 +164,15 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		if errors.Is(err, appuser.ErrAdminCannotBeKids) {
 			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.admin_cannot_be_kids")
 		}
+		// A refused e-mail or username is the caller's input: answering 500
+		// left the client with a generic "update failed" that never named the
+		// field to fix.
+		if errors.Is(err, user.ErrEmailInvalid) {
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.email_invalid")
+		}
+		if strings.TrimSpace(u.Username) == "" {
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_required")
+		}
 		slog.ErrorContext(ctx, "update user", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
