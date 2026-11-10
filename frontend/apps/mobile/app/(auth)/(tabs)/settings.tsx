@@ -310,6 +310,8 @@ export default function SettingsScreen() {
               value={editUsername}
               onChangeText={setEditUsername}
               autoCapitalize="none"
+              autoComplete="username"
+              textContentType="username"
               style={s.editInput}
             />
             <TextInput
@@ -319,6 +321,11 @@ export default function SettingsScreen() {
               onChangeText={setEditEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              // Without a hint, Android autofill can take this field, the
+              // nearest text input above the passwords, for the login and put
+              // the saved username in it while filling the current password.
+              autoComplete="email"
+              textContentType="emailAddress"
               style={s.editInput}
             />
             <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.sm, marginTop: theme.spacing.xs }}>
@@ -331,6 +338,8 @@ export default function SettingsScreen() {
                 value={newPassword}
                 onChangeText={setNewPassword}
                 secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
                 style={s.editInput}
               />
               <View style={{ height: theme.spacing.sm }} />
@@ -340,6 +349,8 @@ export default function SettingsScreen() {
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
                 style={s.editInput}
               />
             </View>
