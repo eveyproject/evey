@@ -7,6 +7,22 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-10
+
+Hotfix on top of 0.1.4. Server image `eveyproject/evey:0.1.5` (also `0.1`
+and `latest`).
+
+### Fixed
+- Browser playback of an AC-3 or E-AC-3 track through the in-browser decoder
+  spun for ever since 0.1.4: the video-only master stamped an audio re-encode
+  pin on its variant URLs, the variant request then resolved another plan
+  than the one the master sealed and every variant answered 410, so the
+  player reloaded the master in a loop. A playback on the in-browser decoder
+  no longer carries that pin. A player already open when the server is
+  upgraded takes one last 410 and starts again on clean URLs.
+- Android: the barcode scanner screen no longer locks the phone to portrait,
+  which Google Play flagged for large screens. Ships with the next app build.
+
 ## [0.1.4] - 2026-11-08
 
 Server image `eveyproject/evey:0.1.4` (also `0.1` and `latest`). The
