@@ -353,6 +353,10 @@ func (r *WatchProgressRepository) GetByProfileCursor(ctx context.Context, profil
 //     finish. A film is its own group.
 //   - A next-episode card carries no position: what it offers is the episode,
 //     not a stray few seconds of it.
+//   - A finished title played again resumes like an unfinished one while its
+//     position is short of the completion point (9/10 of the file): the flag
+//     is sticky and stays set, the title page already offers that resume, and
+//     the rail answers the same.
 func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetResumeItems")
 	defer span.End()
@@ -362,10 +366,14 @@ func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`WITH activity AS (
 		   SELECT wp.id, wp.media_item_id, wp.position_ms, wp.completed, wp.play_count,
-		          wp.last_played_at, sea.parent_id AS series_id
+		          wp.last_played_at, sea.parent_id AS series_id,
+		          (wp.completed AND NOT (wp.position_ms >= $3
+		             AND COALESCE(mf.duration_ms, 0) > 0
+		             AND wp.position_ms * $5 < mf.duration_ms * $4)) AS finished
 		   FROM watch_progress wp
 		   INNER JOIN media_items mi ON mi.id = wp.media_item_id
 		   LEFT JOIN media_items sea ON mi.type = 'episode' AND sea.id = mi.parent_id AND sea.type = 'season'
+		   LEFT JOIN media_files mf ON mf.media_item_id = wp.media_item_id
 		   WHERE wp.profile_id = $1
 		     AND (wp.completed OR wp.position_ms >= $3)
 		 ),
@@ -376,7 +384,7 @@ func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID 
 		 ),
 		 resume AS (
 		   SELECT id, media_item_id, position_ms, completed, play_count, last_played_at
-		   FROM latest WHERE NOT completed
+		   FROM latest WHERE NOT finished
 		 ),
 		 series_eps AS (
 		   SELECT l.series_id, l.media_item_id AS latest_id, l.last_played_at,
@@ -387,7 +395,7 @@ func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID 
 		   FROM latest l
 		   INNER JOIN media_items sea ON sea.parent_id = l.series_id AND sea.type = 'season'
 		   INNER JOIN media_items mi ON mi.parent_id = sea.id AND mi.type = 'episode'
-		   WHERE l.completed AND l.series_id IS NOT NULL
+		   WHERE l.finished AND l.series_id IS NOT NULL
 		 ),
 		 next_up AS (
 		   SELECT DISTINCT ON (e.series_id)
@@ -403,7 +411,8 @@ func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID 
 		 SELECT id, $1, media_item_id, position_ms, completed, play_count, last_played_at
 		 FROM (SELECT * FROM resume UNION ALL SELECT * FROM next_up) rail
 		 ORDER BY last_played_at DESC, media_item_id
-		 LIMIT $2`, profileID, limit, playback.MinResumeRailPosition.Milliseconds())
+		 LIMIT $2`, profileID, limit, playback.MinResumeRailPosition.Milliseconds(),
+		playback.CompletedThresholdNumerator, playback.CompletedThresholdDenominator)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
