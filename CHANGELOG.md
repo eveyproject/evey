@@ -22,6 +22,9 @@ and `latest`).
   upgraded takes one last 410 and starts again on clean URLs.
 - Android: the barcode scanner screen no longer locks the phone to portrait,
   which Google Play flagged for large screens. Ships with the next app build.
+- mkvgo 0.66.2: a second metadata edit of a file whose first edit had
+  outgrown the header padding was written but not seen by a full read; an
+  encrypted text subtitle track is no longer listed as a WebVTT rendition.
 
 ## [0.1.4] - 2026-11-08
 
