@@ -459,12 +459,12 @@ func TestUserRepo_Update_UniqueConflictNamesField(t *testing.T) {
 	dupMail := newTestUser("u2")
 	dupMail.Email = "u1@example.com"
 	err := repo.Update(ctx, dupMail)
-	assert.ErrorIs(t, err, shared.ErrConflict)
-	assert.ErrorIs(t, err, user.ErrEmailTaken)
+	require.ErrorIs(t, err, shared.ErrConflict)
+	require.ErrorIs(t, err, user.ErrEmailTaken)
 
 	dupName := newTestUser("u2")
 	dupName.Username = "USER_U1"
 	err = repo.Update(ctx, dupName)
-	assert.ErrorIs(t, err, shared.ErrConflict)
-	assert.ErrorIs(t, err, user.ErrUsernameTaken)
+	require.ErrorIs(t, err, shared.ErrConflict)
+	require.ErrorIs(t, err, user.ErrUsernameTaken)
 }
