@@ -34,12 +34,10 @@ type MediaItemDurationGetter interface {
 	GetMediaItemDurationMs(ctx context.Context, mediaItemID string) (int64, error)
 }
 
-// CompletedThresholdNumerator/Denominator define the watched fraction at
-// which a media item flips to completed=true. 9/10 = 90%, the de-facto
-// standard threshold and the watch_history analyzer's existing assumption.
+// The completion point lives in the domain: the resume rail reads it too.
 const (
-	CompletedThresholdNumerator   = 9
-	CompletedThresholdDenominator = 10
+	CompletedThresholdNumerator   = playback.CompletedThresholdNumerator
+	CompletedThresholdDenominator = playback.CompletedThresholdDenominator
 )
 
 // MinAutoResumeDurationMs is the floor below which a mid-stream progress
