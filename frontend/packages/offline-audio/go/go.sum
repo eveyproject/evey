@@ -10,6 +10,8 @@ github.com/gravity-zero/mkvgo v0.65.1 h1:KUG19a4zWGLEcRF2UaFT8+jY1GlfcRiRcNYa6g1
 github.com/gravity-zero/mkvgo v0.65.1/go.mod h1:rphKNzUAierDb4q6GBBA5WkCJjs/CDr/W+MMh8jIaeg=
 github.com/gravity-zero/mkvgo v0.66.1 h1:8gQEQoohORjxaiZR/UT7GikEWGECGYiEGbF6Ypu63V8=
 github.com/gravity-zero/mkvgo v0.66.1/go.mod h1:rphKNzUAierDb4q6GBBA5WkCJjs/CDr/W+MMh8jIaeg=
+github.com/gravity-zero/mkvgo v0.66.2 h1:IhF3Nln5bwp5oTO3je76UL8g+gCMx19LNoT9A3qO0BI=
+github.com/gravity-zero/mkvgo v0.66.2/go.mod h1:rphKNzUAierDb4q6GBBA5WkCJjs/CDr/W+MMh8jIaeg=
 golang.org/x/mobile v0.0.0-20260730202154-c700fe717e6e h1:v5PGTbI7uer7FhpDeGryGytfbI8t7CDWkKukozvIsNU=
 golang.org/x/mobile v0.0.0-20260730202154-c700fe717e6e/go.mod h1:YX+n47s+53POxN3dx9cIGxG3hGUm/lD64hvrRJFbcSA=
 golang.org/x/mod v0.38.0 h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=
