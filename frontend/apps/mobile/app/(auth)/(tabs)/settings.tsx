@@ -21,6 +21,7 @@ import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { isPlainEmail, passwordTooLong } from "../../../src/utils/accountInput";
+import { PasswordInput } from "../../../src/components/PasswordInput";
 
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
@@ -335,23 +336,21 @@ export default function SettingsScreen() {
               <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: theme.spacing.sm }}>
                 {t("auth.settings.account.changePasswordDesc")}
               </Text>
-              <TextInput
+              <PasswordInput
                 placeholder={t("auth.settings.account.newPassword")}
                 placeholderTextColor={theme.colors.textMuted}
                 value={newPassword}
                 onChangeText={setNewPassword}
-                secureTextEntry
                 autoComplete="new-password"
                 textContentType="newPassword"
                 style={s.editInput}
               />
               <View style={{ height: theme.spacing.sm }} />
-              <TextInput
+              <PasswordInput
                 placeholder={t("auth.settings.account.confirmPassword")}
                 placeholderTextColor={theme.colors.textMuted}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                secureTextEntry
                 autoComplete="new-password"
                 textContentType="newPassword"
                 style={s.editInput}
@@ -361,12 +360,11 @@ export default function SettingsScreen() {
               <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: theme.spacing.sm }}>
                 {t("auth.settings.account.currentPasswordHint")}
               </Text>
-              <TextInput
+              <PasswordInput
                 placeholder={t("auth.settings.account.currentPassword")}
                 placeholderTextColor={theme.colors.textMuted}
                 value={currentPassword}
                 onChangeText={setCurrentPassword}
-                secureTextEntry
                 autoComplete="current-password"
                 textContentType="password"
                 accessibilityLabel={t("auth.settings.account.currentPassword")}
