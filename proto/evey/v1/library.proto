@@ -280,6 +280,10 @@ message MediaStream {
   bool is_hearing_impaired = 25;
   bool is_visual_impaired = 26;
   bool is_original = 27;
+  // source_track_id: the number the file itself gives the track (Matroska
+  // TrackNumber, MP4 track_ID), the id a native player names the track by.
+  // Unset when the probe did not report it.
+  optional int32 source_track_id = 28;
 }
 
 enum MediaStreamType {

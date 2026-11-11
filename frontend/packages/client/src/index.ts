@@ -48,6 +48,7 @@ export * from "./lib/authRefreshCore";
 export * from "./lib/fetcherSetup";
 export * from "./lib/errorClassification";
 export * from "./lib/shed";
+export * from "./lib/audioCodec";
 export * from "./lib/servedVariant";
 export * from "./lib/musicRemoteCommands";
 export * from "./lib/mutationErrorMessage";

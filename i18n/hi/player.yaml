@@ -194,6 +194,8 @@ streamInfo:
     client_line_exceeded: क्लाइंट द्वारा मापी गई लाइन कॉपी नहीं ले सकती
     abr_floor_requested: प्लेयर द्वारा अनुरोधित न्यूनतम स्तर
     file_needs_remux: "फ़ाइल एक-ट्रैक ब्लॉकों में संग्रहीत है (मरम्मत आवश्यक)"
+    sibling_audio_undecodable: "फ़ाइल का एक अन्य ऑडियो ट्रैक इस डिवाइस पर नहीं चल सकता"
+    audio_layout_unknown: "ऑडियो चैनल व्यवस्था अज्ञात, डिवाइस के लिए फिर से एन्कोड किया गया"
     audio_passthrough_unsupported: "ऑडियो ट्रैक स्ट्रीम में बिना बदले नहीं भेजा जा सकता"
     preferred_video_codec: "पसंदीदा वीडियो कोडेक (प्रोफ़ाइल सेटिंग)"
     preferred_audio_codec: "पसंदीदा ऑडियो कोडेक (प्रोफ़ाइल सेटिंग)"

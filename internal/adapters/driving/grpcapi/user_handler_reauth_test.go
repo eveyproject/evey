@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -183,5 +184,106 @@ func TestUpdateUser_SelfSSOAccount_NoLocalPassword(t *testing.T) {
 	seedUser(t, env, &user.User{ID: "user-1", Username: "admin", Email: "r@b.com", IsAdmin: true}, "adminpassword")
 	if _, err := env.handler.UpdateUser(adminCtx(), &eveyv1.UpdateUserRequest{Id: "usr-1", Password: &pw}); err != nil {
 		t.Fatalf("admin sets a password on the SSO account: %v", err)
+	}
+}
+
+// A refused e-mail is the caller's input, not a server fault: InvalidArgument
+// naming the field, and the password sent alongside stays unchanged.
+func TestUpdateUser_SelfInvalidEmail_InvalidArgument(t *testing.T) {
+	newPass, good := "brandnewpass1", "oldpassword"
+	for _, bad := range []string{"Bob <bob@example.com>", "bob@", "bob.@example.com"} {
+		t.Run(bad, func(t *testing.T) {
+			env := seedSelf(t)
+			mail := bad
+			_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+				Id: "usr-1", Email: &mail, Password: &newPass, CurrentPassword: &good,
+			})
+			assertCode(t, err, codes.InvalidArgument)
+			got := storedUser(t, env, "usr-1")
+			if got.Email != "a@b.com" || got.PasswordHash != "hashed:oldpassword" {
+				t.Fatalf("account changed despite refusal: email=%q hash=%q", got.Email, got.PasswordHash)
+			}
+		})
+	}
+}
+
+func TestUpdateUser_EmptyUsername_InvalidArgument(t *testing.T) {
+	env := seedSelf(t)
+	empty, good := "   ", "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Username: &empty, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+}
+
+// A password the length rule refuses is refused before anything is written:
+// the e-mail sent in the same request must not land without it.
+func TestUpdateUser_ShortPassword_WritesNothing(t *testing.T) {
+	env := seedSelf(t)
+	mail, short, good := "new@example.com", "  1234567  ", "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Email: &mail, Password: &short, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+	if got := storedUser(t, env, "usr-1"); got.Email != "a@b.com" {
+		t.Fatalf("e-mail written despite the refused password: %q", got.Email)
+	}
+}
+
+func TestUpdateUser_InvalidUsername_InvalidArgument(t *testing.T) {
+	env := seedSelf(t)
+	long, good := strings.Repeat("a", user.UsernameMaxRunes+1), "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Username: &long, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+}
+
+// A password change does not depend on the e-mail: an address stored before
+// today's rules (or none at all) must not block it.
+func TestUpdateUser_PasswordOnly_IgnoresStoredEmail(t *testing.T) {
+	for _, stored := range []string{"", "Bob <bob@example.com>"} {
+		t.Run(stored, func(t *testing.T) {
+			env := setupUserHandler()
+			seedAdultProfile(t, env, "prf-1", "usr-1")
+			seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: stored}, "oldpassword")
+			newPass, good := "brandnewpass1", "oldpassword"
+			_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+				Id: "usr-1", Password: &newPass, CurrentPassword: &good,
+			})
+			if err != nil {
+				t.Fatalf("UpdateUser: %v", err)
+			}
+			got := storedUser(t, env, "usr-1")
+			if got.PasswordHash != "hashed:"+newPass || got.Email != stored {
+				t.Fatalf("hash=%q email=%q", got.PasswordHash, got.Email)
+			}
+		})
+	}
+}
+
+// Past bcrypt's 72 bytes the password is the caller's input: refused before
+// anything is written, never a hashing failure answered as a 500.
+func TestUpdateUser_LongPassword_WritesNothing(t *testing.T) {
+	env := seedSelf(t)
+	mail, long, good := "new@example.com", strings.Repeat("é", 37), "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Email: &mail, Password: &long, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+	if got := storedUser(t, env, "usr-1"); got.Email != "a@b.com" || got.PasswordHash != "hashed:oldpassword" {
+		t.Fatalf("account changed despite the refused password: email=%q hash=%q", got.Email, got.PasswordHash)
+	}
+}
+
+func TestUpdateUser_InvalidEmail_WritesNoPassword(t *testing.T) {
+	env := seedSelf(t)
+	mail, next, good := "not-an-address", "newpassword1", "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Email: &mail, Password: &next, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+	if got := storedUser(t, env, "usr-1"); got.Email != "a@b.com" || got.PasswordHash != "hashed:oldpassword" {
+		t.Fatalf("account changed despite the refused e-mail: email=%q hash=%q", got.Email, got.PasswordHash)
 	}
 }

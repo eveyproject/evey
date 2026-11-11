@@ -25,6 +25,12 @@ func TestWithoutBrokenPlayerCodecs(t *testing.T) {
 		{"EveyTV/0.1.8 (Android TV 14; Chromecast HD)", declared},
 		{"EveyTV/0.1.11 (Android TV 14; Chromecast HD)", declared},
 		{"EveyTV/0.1.100 (Android TV 14; Chromecast HD)", declared},
+		// A phone reaching the version numbers of those TV builds has a working
+		// decoder: neither its API calls nor its player's requests lose eac3.
+		{"EveyMobile/0.1.9 (Android 17; Pixel 6a)", declared},
+		{"EveyMobile/0.1.10 (Android 17; Pixel 6a)", declared},
+		{"Evey/0.1.9 (Linux;Android 17) AndroidXMedia3/1.8.0", declared},
+		{"Evey/0.1.10 (Linux;Android 17) AndroidXMedia3/1.8.0", declared},
 		{"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0", declared},
 		{"", declared},
 	}
@@ -36,5 +42,18 @@ func TestWithoutBrokenPlayerCodecs(t *testing.T) {
 	}
 	if !slices.Equal(declared, []string{"aac", "mp3", "ac3", "eac3", "opus"}) {
 		t.Fatalf("the declared slice was modified: %v", declared)
+	}
+}
+
+// A drop catches every spelling of the codec, not only the canonical one: the
+// decision folds e-ac-3, ec-3, dca and mlp back into the codec they name.
+func TestWithoutBrokenPlayerCodecs_DropsAliases(t *testing.T) {
+	got := WithoutBrokenPlayerCodecs("EveyMobile/0.0.1-beta.68 (Android 13; Phone)", []string{"aac", "ec-3", "E-AC-3", "eac3"})
+	if !slices.Equal(got, []string{"aac"}) {
+		t.Errorf("silent E-AC-3 build: got %v, want [aac]", got)
+	}
+	got = WithoutBrokenPlayerCodecs("EveyMobile/0.0.1-beta.70 (Android 14; Phone)", []string{"aac", "dca", "mlp", "dts", "truehd", "DTS-HD"})
+	if !slices.Equal(got, []string{"aac"}) {
+		t.Errorf("pre-sink-gate build: got %v, want [aac]", got)
 	}
 }

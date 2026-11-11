@@ -28,8 +28,11 @@ describe("pickedAudioStream", () => {
     expect(pickedAudioStream(noDefault, undefined)?.index).toBe(1);
   });
 
-  it("is nothing for a picked index the file does not have", () => {
-    expect(pickedAudioStream(info, 9)).toBeUndefined();
+  // The server serves its default for a selection naming nothing (and the
+  // screens start from 0 before the streams are known, which names the video).
+  it("is the default track for a picked index the file has no audio at", () => {
+    expect(pickedAudioStream(info, 9)?.index).toBe(2);
+    expect(pickedAudioStream(info, 0)?.index).toBe(2);
   });
 
   // The server's implicit pick skips a commentary track whatever the container
@@ -43,5 +46,24 @@ describe("pickedAudioStream", () => {
     };
     expect(pickedAudioStream(commentary, undefined)?.index).toBe(2);
     expect(pickedAudioStream(commentary, 1)?.index).toBe(1);
+  });
+});
+
+describe("pickedAudioStream on a file that stores its audio first", () => {
+  const audioFirst: V1StreamInfo = {
+    mediaStreams: [
+      { index: 0, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "dts" },
+      { index: 1, type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264" },
+      { index: 2, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", isDefault: true },
+    ],
+  };
+
+  it("names stream 0 when it is the one picked", () => {
+    expect(pickedAudioStream(audioFirst, 0)?.index).toBe(0);
+  });
+
+  it("reads the track the server judged before the file's flags", () => {
+    expect(pickedAudioStream({ ...audioFirst, audioStreamIndex: 0 }, undefined)?.index).toBe(0);
+    expect(pickedAudioStream(audioFirst, undefined)?.index).toBe(2);
   });
 });

@@ -194,6 +194,8 @@ streamInfo:
     client_line_exceeded: Le débit mesuré par le client ne peut pas porter la copie
     abr_floor_requested: Palier de survie demandé par le lecteur
     file_needs_remux: "Fichier rangé par blocs mono-piste (réparation nécessaire)"
+    sibling_audio_undecodable: "Une autre piste audio du fichier n'est pas lisible sur cet appareil"
+    audio_layout_unknown: "Disposition des canaux audio inconnue, réencodée pour l'appareil"
     audio_passthrough_unsupported: "Piste audio non transmissible telle quelle dans le flux"
     preferred_video_codec: "Codec vidéo préféré (réglage du profil)"
     preferred_audio_codec: "Codec audio préféré (réglage du profil)"

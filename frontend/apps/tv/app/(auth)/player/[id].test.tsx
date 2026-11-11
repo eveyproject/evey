@@ -251,6 +251,14 @@ vi.mock("../../../src/components/AudioTrackPicker", () => ({
   },
 }));
 let lastSubtitlePickerProps: { currentIndex: number | null; onSelect: (i: number | null) => void } | null = null;
+// What the screen tells the device declaration when the player fails on an
+// audio codec; true is "the codec was declared, so asking again helps".
+const refuseAudioCodecMock = vi.hoisted(() => vi.fn((_codec: string) => true));
+vi.mock("../../../src/lib/deviceCodecs", () => ({
+  getDeviceAudioCodecs: () => ["aac", "mp3", "opus", "ac3", "eac3"],
+  refuseAudioCodec: refuseAudioCodecMock,
+}));
+
 vi.mock("../../../src/components/SubtitlePicker", () => ({
   SubtitlePicker: (p: { currentIndex: number | null; onSelect: (i: number | null) => void }) => {
     lastSubtitlePickerProps = p;
@@ -561,6 +569,62 @@ describe("native player errors (TV)", () => {
       playerListeners.get("statusChange")?.({ status: "readyToPlay", oldStatus: "loading" });
     });
     expect(screen.queryByText("Failed to load stream")).toBeNull();
+  });
+});
+
+// The player opened an audio track it cannot decode (a direct-played film's
+// DTS beside its AC-3). Asking again with the same declaration gets the same
+// file: the codec leaves the declaration and the session is asked again once.
+describe("audio decoder failure (TV)", () => {
+  const DTS_FAILURE =
+    "A playback exception has occurred: MediaCodecAudioRenderer error, index=2, format=Format(2, DTS 1509 Kbps, video/x-matroska, audio/vnd.dts, null, -1, en, [-1, -1, -1.0, null], [6, 48000]), format_supported=NO_UNSUPPORTED_TYPE Decoder init failed: [-49999]";
+
+  it("stops declaring the codec and asks the server again instead of showing the error", () => {
+    refuseAudioCodecMock.mockClear().mockReturnValue(true);
+    restartWithTracksMock.mockClear();
+    render(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: DTS_FAILURE } });
+    });
+    expect(refuseAudioCodecMock).toHaveBeenCalledWith("dts");
+    expect(restartWithTracksMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Failed to load stream")).toBeNull();
+  });
+
+  it("shows the error when the renegotiated stream fails the same way", () => {
+    refuseAudioCodecMock.mockClear().mockReturnValue(true);
+    restartWithTracksMock.mockClear();
+    render(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: DTS_FAILURE } });
+    });
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: DTS_FAILURE } });
+    });
+    expect(restartWithTracksMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Failed to load stream")).toBeTruthy();
+  });
+
+  it("shows the error at once when the codec was never declared", () => {
+    refuseAudioCodecMock.mockClear().mockReturnValue(false);
+    restartWithTracksMock.mockClear();
+    render(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: DTS_FAILURE } });
+    });
+    expect(restartWithTracksMock).not.toHaveBeenCalled();
+    expect(screen.getByText("Failed to load stream")).toBeTruthy();
+  });
+
+  it("leaves a video decoder failure to the error screen", () => {
+    refuseAudioCodecMock.mockClear().mockReturnValue(true);
+    restartWithTracksMock.mockClear();
+    render(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: DTS_FAILURE.replace("MediaCodecAudioRenderer", "MediaCodecVideoRenderer") } });
+    });
+    expect(refuseAudioCodecMock).not.toHaveBeenCalled();
+    expect(screen.getByText("Failed to load stream")).toBeTruthy();
   });
 });
 

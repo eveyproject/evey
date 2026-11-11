@@ -20,6 +20,7 @@ import { wikiUrl } from "@evey/client";
 import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { isPlainEmail, passwordTooLong } from "../../../src/utils/accountInput";
 
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
@@ -69,21 +70,9 @@ export default function SettingsScreen() {
   // it lands in caches and logs.
   const authHeaders = useAuthHeaders();
 
-  const updateUser = useUserServiceUpdateUser({
-    mutation: {
-      onSuccess: () => {
-        setNewPassword("");
-        setConfirmPassword("");
-        setCurrentPassword("");
-        setEditingAccount(false);
-        toast.success(t("auth.settings.account.profileUpdated") || "Profile updated");
-        qc.invalidateQueries({ queryKey: ["/api/v1/users/me"] });
-      },
-      onError: (err: Error) => {
-        toast.error(apiErrorMessage(err, t, t("auth.settings.account.updateFailed", "Update failed")));
-      },
-    },
-  });
+  // Errors are named by handleSaveAccount; the global net's generic toast
+  // would only stack a second one on top.
+  const updateUser = useUserServiceUpdateUser({ mutation: { meta: { silentError: true } } });
 
   const qcSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -105,27 +94,33 @@ export default function SettingsScreen() {
   const startEditAccount = useCallback(() => {
     setEditUsername(user?.username ?? "");
     setEditEmail(user?.email ?? "");
+    setNewPassword("");
+    setConfirmPassword("");
     setCurrentPassword("");
     setEditingAccount(true);
   }, [user]);
 
   const handleSaveAccount = useCallback(async () => {
     if (!user?.id) return;
-    const data: Record<string, string> = {};
-    if (editUsername.trim() !== user.username) data.username = editUsername.trim();
-    if (editEmail.trim() !== (user.email ?? "")) data.email = editEmail.trim();
+    const identity: Record<string, string> = {};
+    if (editUsername.trim() !== user.username) identity.username = editUsername.trim();
+    if (editEmail.trim() !== (user.email ?? "")) identity.email = editEmail.trim();
     if (newPassword) {
       if (newPassword !== confirmPassword) {
         Alert.alert(t("auth.settings.account.passwordMismatch"));
         return;
       }
-      if (newPassword.length < 8) {
+      if (newPassword.trim().length < 8) {
         Alert.alert(t("auth.settings.account.passwordMin"));
         return;
       }
-      data.password = newPassword;
+      if (passwordTooLong(newPassword)) {
+        Alert.alert(t("errors.auth.password_too_long"));
+        return;
+      }
     }
-    if (Object.keys(data).length === 0) {
+    const hasIdentity = Object.keys(identity).length > 0;
+    if (!hasIdentity && !newPassword) {
       setEditingAccount(false);
       return;
     }
@@ -134,12 +129,28 @@ export default function SettingsScreen() {
       Alert.alert(t("errors.user.current_password_required"));
       return;
     }
+    // All or nothing: a refused field saves none of the others. One request,
+    // which the server validates in full before writing anything (a password
+    // left out is never touched, so a stored e-mail cannot block it).
+    if (identity.email && !isPlainEmail(identity.email)) {
+      toast.error(t("errors.user.email_invalid"));
+      return;
+    }
+    const data: Record<string, string> = { ...identity, currentPassword };
+    if (newPassword) data.password = newPassword;
     try {
-      await updateUser.mutateAsync({ id: user.id, data: { ...data, currentPassword } });
+      await updateUser.mutateAsync({ id: user.id, data });
     } catch (err) {
       toast.error(apiErrorMessage(err as Error, t, t("auth.settings.account.updateFailed", "Update failed")));
+      return;
     }
-  }, [user, editUsername, editEmail, newPassword, confirmPassword, currentPassword, updateUser, t]);
+    qc.invalidateQueries({ queryKey: ["/api/v1/users/me"] });
+    setNewPassword("");
+    setConfirmPassword("");
+    setCurrentPassword("");
+    setEditingAccount(false);
+    toast.success(t("auth.settings.account.profileUpdated") || "Profile updated");
+  }, [user, editUsername, editEmail, newPassword, confirmPassword, currentPassword, updateUser, qc, t]);
 
   // An avatar upload can take seconds on a phone link, and nothing on screen
   // said one was in flight: repeated taps fired concurrent POSTs on the same
@@ -302,6 +313,8 @@ export default function SettingsScreen() {
               value={editUsername}
               onChangeText={setEditUsername}
               autoCapitalize="none"
+              autoComplete="off"
+              importantForAutofill="no"
               style={s.editInput}
             />
             <TextInput
@@ -311,6 +324,11 @@ export default function SettingsScreen() {
               onChangeText={setEditEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              // Kept out of autofill: filling the current password below could
+              // otherwise put the saved login in the nearest text field above,
+              // this one, and send it as the new e-mail.
+              autoComplete="off"
+              importantForAutofill="no"
               style={s.editInput}
             />
             <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.sm, marginTop: theme.spacing.xs }}>
@@ -323,6 +341,8 @@ export default function SettingsScreen() {
                 value={newPassword}
                 onChangeText={setNewPassword}
                 secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
                 style={s.editInput}
               />
               <View style={{ height: theme.spacing.sm }} />
@@ -332,6 +352,8 @@ export default function SettingsScreen() {
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
                 style={s.editInput}
               />
             </View>

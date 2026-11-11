@@ -15,7 +15,9 @@ func TestEmptyStreams_DirectPlay(t *testing.T) {
 	assert.Empty(t, d.TranscodeReasons)
 }
 
-func TestNonDefaultAudio_Ignored(t *testing.T) {
+// The unselected DTS track does not make the selected AAC a re-encode, but it
+// keeps the raw file away from a player that could open it.
+func TestNonDefaultAudio_KeepsCopyButLeavesDirectPlay(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
 		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: false},
@@ -23,6 +25,9 @@ func TestNonDefaultAudio_Ignored(t *testing.T) {
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 	assert.Equal(t, "copy", d.AudioDecision)
+	assert.Equal(t, "copy", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "sibling_audio_undecodable")
+	assert.NotEqual(t, "direct_play", d.PlayMethod)
 }
 
 func TestUserBitrateLowerThanClient(t *testing.T) {

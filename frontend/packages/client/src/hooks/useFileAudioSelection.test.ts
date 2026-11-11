@@ -105,3 +105,63 @@ describe("useFileAudioSelection", () => {
     expect(player.audioTrack?.label).toBe("VFF");
   });
 });
+
+// The film a phone crashed on: an English DTS first, the French AC-3 flagged
+// default second. The player lists the AC-3 first (its ac3go renderer comes
+// ahead of MediaCodec), so the French stream's file position names the DTS.
+describe("useFileAudioSelection on a file with a track the device cannot decode", () => {
+  const film: PlayerAudioStream[] = [
+    { index: 1, trackIndex: 0, language: "eng", title: "DTS 1509 Kbps", codec: "dts" },
+    { index: 4, trackIndex: 1, language: "fre", title: "Ac3 640 Kbps Truefrench", codec: "ac3", isDefault: true },
+  ];
+  const native: NativeAudioTrack[] = [
+    { id: "5", language: "fr", name: "Ac3 640 Kbps Truefrench" },
+    { id: "2", language: "en", name: "DTS 1509 Kbps" },
+  ];
+  const phone = ["aac", "mp3", "opus", "flac", "vorbis", "ac3", "eac3"];
+
+  it("puts the French AC-3 on the player, never the DTS at its file position", () => {
+    const player = fakePlayer();
+    renderHook(() => useFileAudioSelection(player, { enabled: true, audioStreams: film, selectedAudioIndex: 4, declaredAudioCodecs: phone }));
+    act(() => player.publish(native));
+    expect(player.audioTrack?.id).toBe("5");
+  });
+
+  it("never forces the DTS track, even when it is the one selected", () => {
+    const player = fakePlayer();
+    renderHook(() => useFileAudioSelection(player, { enabled: true, audioStreams: film, selectedAudioIndex: 1, declaredAudioCodecs: phone }));
+    act(() => player.publish(native));
+    // The player stays on the track it opened by itself, one it decodes.
+    expect(player.audioTrack?.id).toBe("5");
+  });
+
+  it("forces the DTS track on a device that declares it", () => {
+    const player = fakePlayer();
+    renderHook(() => useFileAudioSelection(player, { enabled: true, audioStreams: film, selectedAudioIndex: 1, declaredAudioCodecs: ["dts", ...phone] }));
+    act(() => player.publish(native));
+    expect(player.audioTrack?.id).toBe("2");
+  });
+});
+
+// The player reads a language from the old Matroska element only and calls
+// every other track "en": the file's own track number still names the track.
+describe("nativeTrackToApply by the file's track number", () => {
+  const film: PlayerAudioStream[] = [
+    { index: 1, trackIndex: 0, language: "eng", codec: "eac3", sourceTrackId: 2 },
+    { index: 4, trackIndex: 1, language: "fre", codec: "ac3", sourceTrackId: 5, isDefault: true },
+  ];
+  const allEnglish: NativeAudioTrack[] = [
+    { id: "5", language: "en" },
+    { id: "2", language: "en" },
+  ];
+
+  it("plays the French track the player believes is English", () => {
+    expect(nativeTrackToApply(allEnglish, null, film[1], film)?.id).toBe("5");
+    expect(nativeTrackToApply(allEnglish, null, film[0], film)?.id).toBe("2");
+  });
+
+  it("falls back to the language when the server has no track number", () => {
+    const noIds = film.map((s) => ({ ...s, sourceTrackId: undefined }));
+    expect(nativeTrackToApply([{ id: "a", language: "fr" }, { id: "b", language: "en" }], null, noIds[1], noIds)?.id).toBe("a");
+  });
+});

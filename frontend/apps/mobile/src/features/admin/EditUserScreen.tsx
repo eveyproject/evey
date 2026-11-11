@@ -24,6 +24,7 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { ProfileManagerList } from "../profile/ProfileManagerList";
 import { CreateProfileDialog } from "../profile/CreateProfileDialog";
+import { isPlainEmail, passwordTooLong } from "../../utils/accountInput";
 import { FONT_SIZE } from "@evey/theme";
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_.-]{1,64}$/;
@@ -98,6 +99,18 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
       );
       return false;
     }
+    if (email.trim() !== "" && email.trim() !== (user.email ?? "") && !isPlainEmail(email.trim())) {
+      setError(t("errors.user.email_invalid"));
+      return false;
+    }
+    if (password && password.trim().length < 8) {
+      setError(t("errors.auth.password_too_short"));
+      return false;
+    }
+    if (password && passwordTooLong(password)) {
+      setError(t("errors.auth.password_too_long"));
+      return false;
+    }
     const mp = Number(maxProfiles);
     if (!Number.isFinite(mp) || mp < 0 || !Number.isInteger(mp)) {
       setError(t("admin.users.maxProfilesInvalid", "Max profiles must be a whole number >= 0"));
@@ -167,6 +180,8 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
             onChangeText={setUsername}
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="off"
+            importantForAutofill="no"
             placeholderTextColor={theme.colors.textMuted}
             style={[
               s.input,
@@ -191,6 +206,10 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            // Kept out of autofill: filling the current password could put
+            // the saved login here and send it as the new e-mail.
+            autoComplete="off"
+            importantForAutofill="no"
             placeholderTextColor={theme.colors.textMuted}
             style={[
               s.input,
@@ -214,6 +233,7 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            autoComplete="new-password"
             placeholder={t("admin.users.leaveBlank", "Leave blank to keep current")}
             placeholderTextColor={theme.colors.textMuted}
             style={[

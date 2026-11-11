@@ -1,6 +1,8 @@
 package user_test
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -973,5 +975,17 @@ func TestNewUser_TrimsSurroundingWhitespace(t *testing.T) {
 	}
 	if _, err := user.NewUser("   ", "", "hash"); err == nil {
 		t.Fatal("a whitespace-only username is not a username")
+	}
+}
+
+func TestUser_Validate_Sentinels(t *testing.T) {
+	t.Parallel()
+	for _, u := range []user.User{{Username: ""}, {Username: strings.Repeat("a", user.UsernameMaxRunes+1)}} {
+		if err := u.Validate(); !errors.Is(err, user.ErrUsernameInvalid) {
+			t.Errorf("Validate(%q) = %v, want ErrUsernameInvalid", u.Username, err)
+		}
+	}
+	if err := (&user.User{Username: "alice", Email: "alice"}).Validate(); !errors.Is(err, user.ErrEmailInvalid) {
+		t.Errorf("Validate(login as e-mail) = %v, want ErrEmailInvalid", err)
 	}
 }

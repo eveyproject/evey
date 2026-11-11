@@ -1,3 +1,4 @@
+import { streamSelectionParams } from "../lib/streamSelectionParams";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   eveyFetch,
@@ -63,7 +64,7 @@ function typeRelativeIndex(
   type: "MEDIA_STREAM_TYPE_AUDIO" | "MEDIA_STREAM_TYPE_SUBTITLE",
   absoluteIndex: number | undefined,
 ): number | undefined {
-  if (absoluteIndex == null || absoluteIndex <= 0) return undefined;
+  if (absoluteIndex == null || absoluteIndex < 0) return undefined;
   const ofType = (info.mediaStreams ?? []).filter((s) => s.type === type);
   const pos = ofType.findIndex((s) => (s.index ?? -1) === absoluteIndex);
   return pos >= 0 ? pos : undefined;
@@ -140,8 +141,7 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
           // The same output ceiling appendCodecParams puts on the master URL,
           // so the verdict describes the audio the segments will carry.
           maxAudioChannels: tighterCeiling(getMaxOutputChannels(), saver?.maxAudioChannels),
-          audioStreamIndex,
-          subtitleStreamIndex,
+          ...streamSelectionParams(audioStreamIndex, subtitleStreamIndex),
           ...dataSaverStreamInfoParams(saver),
           maxHeight: ceilingHeight,
         }),
