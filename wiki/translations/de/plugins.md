@@ -1,5 +1,5 @@
 ---
-source_sha: 50ea71b7cf2c7500eebf6f37e45406179dd0abfa4c204cbd4c67c2bf539455ff
+source_sha: 80334abe63c67481f81bd04e5cfd89edf7cbe49fcf3168a2fa949fff7a391cc6
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -59,7 +59,7 @@ Servers gehören: Das Standard-Image bringt Python, Node.js, PHP, Ruby und Lua m
 `-nodejs` behält Python und Node.js und das Image `-lean` nur Python.
 
 !!! tip "Signierte Plugins"
-    Ein Plugin-Autor kann das ZIP mit [cosign](https://docs.sigstore.dev/cosign/installation/)
+    Ein Plugin-Autor kann das ZIP mit [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
     signieren; sein öffentlicher Schlüssel reist im Paket. Evey prüft die
     Signatur selbst (kein `cosign`-Programm) und zeigt **Signiert von
     <Herausgeber>**, wenn der Schlüssel in Ihrer Liste der **Vertrauenswürdigen

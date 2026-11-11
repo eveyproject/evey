@@ -51,7 +51,7 @@ Python, Node.js, PHP, Ruby and Lua; the `-nodejs` image keeps Python and
 Node.js and the `-lean` image keeps Python only.
 
 !!! tip "Signed plugins"
-    A plugin author can sign the ZIP with [cosign](https://docs.sigstore.dev/cosign/installation/);
+    A plugin author can sign the ZIP with [cosign](https://docs.sigstore.dev/cosign/system_config/installation/);
     the author's public key travels inside the package. Evey checks the
     signature on its own (no `cosign` binary) and tells you **Signed by
     <publisher>** when the key is in your **Trusted publishers** list,

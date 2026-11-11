@@ -1,5 +1,5 @@
 ---
-source_sha: 1e6be4bdc8510a8b0c1800890163c1a4e4ea299813c8c76bf54414e018055047
+source_sha: 122a45d14ca6b9f66d0c85768a14922820d0755dcfafd6f138baa4f642b13416
 reviewed: true
 ---
 # प्लगइन लिखना { #writing-a-plugin }
@@ -38,7 +38,7 @@ gRPC सर्विस देता है और दूसरे socket पर
 |---|---|
 | Go 1.27, pnpm के साथ Node.js 22, Compose के साथ Docker | डेवलपमेंट स्टैक (`make dev`) सर्वर और वेब ऐप बनाता है। |
 | `bubblewrap` (`bwrap`) | सिर्फ़ `bubblewrap` और `strict` सैंडबॉक्स मोड के लिए। डिफ़ॉल्ट `auto` मोड Landlock इस्तेमाल करता है और kernel 5.13 या नए पर उसे कुछ नहीं चाहिए। |
-| [cosign](https://docs.sigstore.dev/cosign/installation/) | पैकेज बाँटने से पहले उस पर सिग्नेचर करने के लिए ([सेक्शन 7](#7-sign-your-plugin))। डेवलपमेंट के लिए ज़रूरी नहीं। |
+| [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) | पैकेज बाँटने से पहले उस पर सिग्नेचर करने के लिए ([सेक्शन 7](#7-sign-your-plugin))। डेवलपमेंट के लिए ज़रूरी नहीं। |
 
 अपने प्लगइन की भाषा उन runtime में से चुनें जिन्हें सर्वर शुरू कर सकता है:
 `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` और `sh` को इमेज में अपना
@@ -234,7 +234,7 @@ broker `http` और `https`, `GET` और `HEAD` स्वीकार कर�
     `cosign sign-blob --key` बनाता है): सर्वर पर न `cosign` binary, न नेटवर्क, न
     transparency log।
 
-[cosign](https://docs.sigstore.dev/cosign/installation/) सिर्फ़ आपकी मशीन पर
+[cosign](https://docs.sigstore.dev/cosign/system_config/installation/) सिर्फ़ आपकी मशीन पर
 चाहिए।
 
 1. **एक बार: कुंजी का जोड़ा बनाएँ।**

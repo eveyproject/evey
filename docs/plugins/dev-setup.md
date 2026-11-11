@@ -33,7 +33,7 @@ only through the server, to the hosts it declared.
 |---|---|
 | Go 1.27, Node.js 22 with pnpm, Docker with Compose | The dev stack (`make dev`) builds the server and the web app. |
 | `bubblewrap` (`bwrap`) | Only for the `bubblewrap` and `strict` sandbox modes. The default `auto` mode uses Landlock and needs nothing on a kernel 5.13 or later. |
-| [cosign](https://docs.sigstore.dev/cosign/installation/) | To sign your package before distributing it ([section 7](#7-sign-your-plugin)). Not needed to develop. |
+| [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) | To sign your package before distributing it ([section 7](#7-sign-your-plugin)). Not needed to develop. |
 
 Pick the language of your plugin from the runtimes the server can start:
 `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` and `sh` need their
@@ -232,7 +232,7 @@ rules are in [Permissions and slots](security-model.md#external-fetch-rules).
     sign-blob --key` produces): no `cosign` binary on the server, no network,
     no transparency log.
 
-You need [cosign](https://docs.sigstore.dev/cosign/installation/) on your
+You need [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) on your
 machine only.
 
 1. **Once: generate a key pair.**
