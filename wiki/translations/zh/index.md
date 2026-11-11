@@ -1,5 +1,5 @@
 ---
-source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
+source_sha: 59bcc3e9f3711296c6f1a612c4b161e7d6db4b6f45f2f3a8cd4b7bb292c1de82
 reviewed: true
 hide:
 - navigation
@@ -20,7 +20,7 @@ Evey 是一个在您家中运行的媒体服务器。它存放您的电影、剧
 </p>
 
 <p class="evey-platforms">
-<strong>您需要：</strong>一台装了 Docker 的 x86-64 电脑或 NAS，以及一个放着您媒体文件的文件夹。安装只要一个文件和一条命令。<br>
+<strong>您需要：</strong>一台装了 Docker 的电脑或 NAS（x86-64，或树莓派这类 ARM64：<a href="operations/advanced-deployments/#arm-hosts">ARM 主机</a>），以及一个放着您媒体文件的文件夹。安装只要一个文件和一条命令。<br>
 <strong>观看方式：</strong>网页浏览器、Android 手机和平板、Android TV、电视的网页浏览器，以及 Chromecast。Android 和 Android TV 应用已上架 [Google Play](https://play.google.com/store/apps/details?id=com.evey.app)；网页应用随服务器一起提供，电视浏览器版应用位于 `/tv`。
 </p>
 
@@ -116,7 +116,7 @@ Evey 是一个在您家中运行的媒体服务器。它存放您的电影、剧
 
 ## 插件隔离运行，权限受控 { #plugins-run-isolated-and-controlled }
 
-插件可以添加元数据来源、通知渠道、首页栏目和播放器上的叠加内容。主题用来改变外观。安装插件之前，管理员能看到系统检查出它会做哪些事，以及它申请了哪些权限；新的权限必须明确同意才行。每个插件作为独立的进程运行，使用单独的系统用户，没有直接的网络访问；一旦超出内存、进程数或磁盘的限制，就会被停止。它的文件访问受到多严格的限制，取决于这台机器，**安全仪表板**会显示当前使用的模式。插件的小组件会显示在网页、Android 和电视上；在电视上只能看，不能操作。
+插件可以添加元数据来源、通知渠道、首页栏目和播放器上的叠加内容。主题用来改变外观。安装插件之前，管理员能看到系统检查出它会做哪些事，以及它申请了哪些权限；新的权限必须明确同意才行。每个插件作为独立的进程运行，由 Landlock 或 bubblewrap 限制（机器只支持基础沙箱时，使用单独的系统用户），没有直接的网络访问；一旦超出内存、进程数或磁盘的限制，就会被停止。它的文件访问受到多严格的限制，取决于这台机器，**安全仪表板**会显示当前使用的模式。插件的小组件会显示在网页、Android 和电视上；在电视上只能看，不能操作。
 [插件](plugins.md) ·
 [安全模型与插件沙箱](SECURITY.md#sandbox-modes)
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 3ef56ca6884cb437782bd60a1bb1314f62db8602db661c29fca9d5f8cab4b4de
+source_sha: 50ea71b7cf2c7500eebf6f37e45406179dd0abfa4c204cbd4c67c2bf539455ff
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -114,8 +114,9 @@ legt sie fest, solange im Verwaltungsbereich noch nie gespeichert wurde.
 | **Sandbox-Modus** | `auto` | `EVEY_PLUGINS_SANDBOX_MODE` |
 
 Arbeitsspeicher, Prozesse und Festplatte gelten beim nächsten Durchlauf der
-Überwachung, die ein Plugin stoppt, das sie überschreitet. CPU-Priorität und
-Sandbox-Modus gelten für danach gestartete Plugins. `0` stellt für
+Überwachung, die ein Plugin stoppt, das sie überschreitet. Die CPU-Priorität
+gilt für danach gestartete Plugins, und eine Änderung des Sandbox-Modus startet
+die laufenden Plugins sofort neu. `0` stellt für
 Arbeitsspeicher und Prozesse den Standardwert wieder her; nur die Festplattengrenze behandelt `0` als „aus“.
 
 Das **Sicherheits-Dashboard** hält pro Plugin die Befunde der Analyse, das

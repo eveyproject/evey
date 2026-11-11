@@ -73,7 +73,7 @@ make dev                        # postgres, meilisearch, the server (Air), the w
 
 Open `https://evey.test`. The setup wizard creates the administrator account
 on first launch, as described in [First setup](../getting-started/first-setup.md).
-Plugin files land in `./evey-data/plugins/<plugin-id>/`, mounted as
+In this dev stack, plugin files land in `./plugins/<plugin-id>/`, mounted as
 `/data/plugins` in the container.
 
 ## 3. Your first plugin, step by step
@@ -317,8 +317,9 @@ server log carries the detail.
    version must be higher, and any new permission, capability, slot or host
    stops the install here until the administrator approves the difference
    (`accept_permission_changes=true` on the upload route).
-3. **Signature and hash.** The signature is verified when a public key is
-   configured; a failure blocks only under `enforce`. The hash of the ZIP is
+3. **Signature and hash.** The signature is verified against the `cosign.pub`
+   the package carries, unless the policy is `off`; a failure blocks only
+   under `enforce`. The hash of the ZIP is
    recorded, and checked again when an update previewed earlier is applied.
 4. **Extraction** into a staging directory: at most 5,000 entries, 100 MB per
    file, 500 MB in total, a compression ratio of 100:1, no symbolic link, no
@@ -378,7 +379,7 @@ on a forge, your own site).
 | `manifest: frontend slot "admin.section" not allowed` | The slot is outside the allowed list. | Pick a slot from the [slot list](api-reference.md#slots); `admin.nav` is the only admin-area slot. |
 | `manifest: network permission requires non-empty external_fetch` | `network` declared without hosts. | Add the hosts, or drop the permission. |
 | `plugin already installed at version 1.0.0, new version must be higher` | The ZIP carries the installed version. | Bump `version`, or uninstall first. |
-| `signature does not match the plugin or the configured key` | The `.sig` was made with another key, or the ZIP changed after signing. | Re-sign the exact ZIP with the right key, or fix `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
+| `signature does not match the package and its signing key` | The `.sig` was made with another key, or the ZIP changed after signing. | Re-sign the exact ZIP with the private key matching the `cosign.pub` inside it. |
 | `plugin blocked: theme.js contains forbidden pattern` | The theme script scanner matched a banned API. | A theme may only call `evey.theme.*`: see [Themes](../themes.md#what-the-scanner-refuses). |
 | The log ends with `memory quota exceeded (... MB > ... MB)` | The monitor stopped the plugin past its memory limit. | Lower memory usage, or raise **Max memory (MiB)** in **Resource limits**. |
 | `bwrap: ... permission denied` | `bubblewrap` mode inside Docker, blocked by the container's seccomp or AppArmor profile. | Keep the default `auto` mode. Otherwise see [Plugin sandbox setup](sandbox-deployment.md). |

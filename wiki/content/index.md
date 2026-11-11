@@ -21,8 +21,9 @@ rest.
 </p>
 
 <p class="evey-platforms">
-<strong>What you need:</strong> an x86-64 computer or NAS with Docker, and a
-folder with your media. Installing is one file and one command.<br>
+<strong>What you need:</strong> a computer or NAS with Docker (x86-64, or ARM64 such
+as a Raspberry Pi: <a href="operations/advanced-deployments/#arm-hosts">ARM hosts</a>),
+and a folder with your media. Installing is one file and one command.<br>
 <strong>Watch</strong> in a web browser, on Android phones and tablets, on
 Android TV, in a television's web browser, and on a Chromecast. The Android and Android TV apps are on
 <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a>;
@@ -168,7 +169,8 @@ Plugins add metadata sources, notification channels, home sections and
 player overlays. Themes change the look. Before a plugin is installed, the
 administrator sees what it was found to do and the permissions it asks for;
 a new permission must be accepted explicitly. A plugin runs as its own
-process, under a separate user, with no direct network access, and is
+process, confined by Landlock or bubblewrap (under a separate user when the
+machine only supports the basic sandbox), with no direct network access, and is
 stopped when it goes over its memory, process or disk limit. How tightly its
 files are locked down depends on the machine, and the **Security Dashboard**
 shows the mode in use. A plugin's widget shows on the web, on Android and on

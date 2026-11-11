@@ -21,11 +21,11 @@ Introduce short-lived plugin-scoped JWTs:
 
 Only read-oriented, narrowly scoped capabilities are allowed: `library:read`, `media:read`, `metadata:read`, `playback:read`, `playback:control:self`, `favorite:read`, `playlist:read`, `notification:read`.
 
-### Forbidden scopes (hard-rejected at mint time)
+### Forbidden scopes (filtered out at mint time)
 
 `admin:*`, `auth:*`, `user:write`, `library:write`, `system:*`.
 
-Any token carrying a forbidden scope is rejected both at mint and at verification.
+A forbidden scope is filtered out of the token at mint (`FilterPluginScopes`); the interceptor's admin floor and per-method allowlist do the enforcement.
 
 ## Consequences
 

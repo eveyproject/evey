@@ -1,5 +1,5 @@
 ---
-source_sha: cbb77f7bf06443976e7bc56f600217600725f9387abe71900e4c95e24ef4519e
+source_sha: 2569fdb55d98747c9f775b9fcd594e860d79d895bec6e81a5a5bca919e08e1ee
 reviewed: true
 ---
 # Contribuir
@@ -40,14 +40,14 @@ de esas decisiones.
    [guardas de arquitectura](ARCHITECTURE.md#architecture-guards), higiene
    de los commits, búsqueda de secretos, comprobación de cambios
    incompatibles en los proto, una compilación desde una copia limpia, las
-   puertas de integración del repositorio y de la transcodificación, y la
-   auditoría de TV.
+   guardas del wiki, las puertas de integración del repositorio y de la
+   transcodificación, y la auditoría de TV.
    Un push a `dev` o a una rama de trabajo ejecuta `make pre-push-dev` en su
-   lugar: la misma puerta de control sin las suites largas que la CI de la
-   pull request vuelve a ejecutar sobre los mismos commits (análisis de
-   vulnerabilidades, tests y compilación del frontend, suite del
-   repositorio, auditoría de TV); un push a `master` ejecuta la puerta
-   completa.
+   lugar: tests unitarios solo de los paquetes modificados, tests del
+   frontend y suite del repositorio solo cuando la rama los toca, y ni
+   análisis de vulnerabilidades, ni compilación del frontend, ni auditoría de
+   TV (la CI de la pull request los ejecuta); un push a `master` ejecuta la
+   puerta completa.
 2. Añade tests para cada comportamiento nuevo y para cada corrección de un
    error.
 3. Si contribuyes desde fuera, acepta una vez el

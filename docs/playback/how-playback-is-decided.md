@@ -51,8 +51,12 @@ The reasons fall into four groups:
 | A consequence for the picture or the sound | HDR converted to SDR (tone-mapping) · Subtitles burned into the picture · Audio resync requested |
 | A setting or a decision already taken | Preferred video codec (profile setting) · Choice pinned for this session |
 
-Only the audio track being played is judged. A file whose unselected
-commentary track is in DTS is not transcoded because of it.
+Only the audio track being played decides whether the sound is re-encoded.
+But when another audio track of the file is in a codec the device cannot
+decode (a DTS commentary, for example), the file is repackaged (Remux) rather
+than sent as is, because a raw file would let the player switch to that track
+itself. Stream info then says **Another audio track of the file cannot be
+played on this device**.
 
 A file that none of the methods can serve on this device is refused before
 playback starts, with **This server isn't powerful enough for this file**:
@@ -124,10 +128,12 @@ track keeps up to 5.1 channels, never more: see [Audio](audio.md).
 
 ## Constraints the server applies itself
 
-A few limits are not reported by players today and are applied by the server
-as a conservative compatibility rule, the same for every player: 10-bit
-H.264, and any video in 4:2:2, 4:4:4 or 12-bit, are re-encoded, while HEVC,
-VP9 and AV1 up to 10-bit 4:2:0 are left to the player's codec support. Dolby
+The Android and Android TV apps report which pixel formats their decoders
+take (8-bit 4:2:0 per codec, 10-bit where the decoder supports it), and the
+server judges the source against that list. For a player that reports none
+(the web app, cast), it applies a conservative rule: 10-bit H.264, and any
+video in 4:2:2, 4:4:4 or 12-bit, are re-encoded, while HEVC, VP9 and AV1 up
+to 10-bit 4:2:0 are left to the player's codec support. Dolby
 Vision is kept only in a form the player can display correctly: see
 [HDR and Dolby Vision](hdr.md).
 

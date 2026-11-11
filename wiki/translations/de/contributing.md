@@ -1,5 +1,5 @@
 ---
-source_sha: cbb77f7bf06443976e7bc56f600217600725f9387abe71900e4c95e24ef4519e
+source_sha: 2569fdb55d98747c9f775b9fcd594e860d79d895bec6e81a5a5bca919e08e1ee
 reviewed: true
 ---
 # Mitwirken
@@ -40,12 +40,13 @@ sie zuerst, bevor Sie vorschlagen, eine dieser Entscheidungen zu ändern.
    [Architekturwächter](ARCHITECTURE.md#architecture-guards),
    Commit-Hygiene, Suche nach Geheimnissen, Prüfung auf inkompatible
    Proto-Änderungen, ein Build aus einem sauberen Checkout, die
-   Integrationsprüfungen für Repository und Transkodierung und das TV-Audit.
+   Wiki-Wächter, die Integrationsprüfungen für Repository und Transkodierung
+   und das TV-Audit.
    Ein Push nach `dev` oder auf einen Arbeitszweig führt stattdessen
-   `make pre-push-dev` aus: dieselbe Prüfschranke ohne die langen Suiten,
-   die die CI des Pull Requests auf denselben Commits erneut ausführt (Suche
-   nach Schwachstellen, Frontend-Tests und -Build, Repository-Suite,
-   TV-Audit); ein Push nach `master` führt die vollständige Prüfschranke
+   `make pre-push-dev` aus: Unit-Tests nur für die geänderten Pakete,
+   Frontend-Tests und Repository-Suite nur, wenn der Zweig sie berührt, und
+   keine Suche nach Schwachstellen, kein Frontend-Build und kein TV-Audit (die
+   CI des Pull Requests führt sie aus); ein Push nach `master` führt die vollständige Prüfschranke
    aus.
 2. Schreiben Sie Tests für neues Verhalten und für jede Fehlerbehebung.
 3. Bei einem externen Beitrag akzeptieren Sie einmal die

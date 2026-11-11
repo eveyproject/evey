@@ -26,7 +26,7 @@ Add a dedicated, **deny-by-default** authorization path for plugin-token request
 - **`public`** → `GetPublicMediaItem` / `ListPublicMediaItems` only. A safe projection (`PublicMediaItem`) with **no `file_path`**, reusing the existing access/parental gates.
 - **`prefs`** → `PluginUserDataService` (`GetPref` / `SetPref` / `DeletePref` / `ListPrefs`) only. Strictly the calling plugin's own key/value rows for the calling user; both `plugin_id` and `user_id` come from the token, never the request.
 
-**Hard-locked (never grantable, never bypassable).** Scopes use **dot notation** (`media.read`, `library.write`, …), not colons. Any scope under the prefixes `admin.`, `auth.`, `system.` (prefix-matched in `pkg/auth.forbiddenPrefix`), plus the exact scopes `user.write` and `library.write`, is hard-locked: requested in a manifest ⇒ install rejected; present in a token ⇒ rejected at mint, and the admin method floor (step 1) rejects admin RPCs independently of any scope.
+**Hard-locked (never grantable, never bypassable).** Scopes use **dot notation** (`media.read`, `library.write`, …), not colons. Any scope under the prefixes `admin.`, `auth.`, `system.` (prefix-matched in `pkg/auth.forbiddenPrefix`), plus the exact scopes `user.write` and `library.write`, is hard-locked: requested in a manifest ⇒ install rejected; filtered out of the token at mint (`FilterPluginScopes`), and the admin method floor (step 1) rejects admin RPCs independently of any scope.
 
 **Bridge model - the token never enters the sandbox.** The iframe (and the mobile WebView) never hold a plugin token:
 
@@ -46,7 +46,7 @@ Add a dedicated, **deny-by-default** authorization path for plugin-token request
 - `internal/adapters/driving/grpcapi/interceptors/auth.go` - `authorizePluginToken` (enforcement)
 - `internal/adapters/driving/grpcapi/interceptors/rbac.go` - `PluginMethodScopes` allowlist + admin `MethodRoles` floor
 - `internal/adapters/driving/grpcapi/plugin_prefs_handler.go` - `PluginUserDataService` (plugin+user from token)
-- `internal/adapters/driving/grpcapi/library_handler.go` - `GetPublicMediaItem` / `ListPublicMediaItems` (no `file_path`)
+- `internal/adapters/driving/grpcapi/library_handler_public.go` - `GetPublicMediaItem` / `ListPublicMediaItems` (no `file_path`)
 - `internal/pkg/auth/plugin_jwt.go` - `AllowedPluginScopes` (`public`, `prefs`)
 - `internal/adapters/driven/pluginrunner/capabilities.go` - `KnownPermissions`
 - `frontend/apps/web/src/features/plugins/{front-bridge.ts,PluginIframe.tsx}` - token-proxy bridge

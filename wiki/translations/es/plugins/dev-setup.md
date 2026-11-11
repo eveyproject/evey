@@ -1,5 +1,5 @@
 ---
-source_sha: 1228995cc2e68d60fc487b1964ca10ac8b4d40ada5f82047cdbcf9d42528c0f6
+source_sha: 1e6be4bdc8510a8b0c1800890163c1a4e4ea299813c8c76bf54414e018055047
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -78,8 +78,8 @@ make dev                        # postgres, meilisearch, el servidor (Air), la a
 
 Abre `https://evey.test`. El asistente de configuración crea la cuenta de
 administrador en el primer arranque, como se explica en
-[Primera configuración](../getting-started/first-setup.md). Los archivos de
-los plugins van a `./evey-data/plugins/<plugin-id>/`, montado como
+[Primera configuración](../getting-started/first-setup.md). En esta pila de
+desarrollo, los archivos de los plugins van a `./plugins/<plugin-id>/`, montado como
 `/data/plugins` en el contenedor.
 
 ## 3. Tu primer plugin, paso a paso { #3-your-first-plugin-step-by-step }
@@ -335,8 +335,9 @@ registro del servidor tiene el detalle.
    versión nueva tiene que ser mayor, y cualquier permiso, capacidad, slot o
    host nuevo detiene la instalación aquí hasta que el administrador aprueba
    la diferencia (`accept_permission_changes=true` en la ruta de subida).
-3. **Firma y hash.** La firma se verifica cuando hay una clave pública
-   configurada; un fallo solo bloquea con `enforce`. El hash del ZIP se
+3. **Firma y hash.** La firma se verifica con el `cosign.pub` que lleva el
+   paquete, salvo si la política es `off`; un fallo solo bloquea con
+   `enforce`. El hash del ZIP se
    guarda, y se vuelve a comprobar cuando se aplica una actualización
    revisada antes en la vista previa.
 4. **Extracción** a una carpeta temporal: como mucho 5.000 entradas, 100 MB
@@ -399,7 +400,7 @@ versión en una forja, tu propia web).
 | `manifest: frontend slot "admin.section" not allowed` | El slot no está en la lista permitida. | Elige un slot de la [lista de slots](api-reference.md#slots); `admin.nav` es el único slot de la zona de administración. |
 | `manifest: network permission requires non-empty external_fetch` | Se ha declarado `network` sin hosts. | Añade los hosts, o quita el permiso. |
 | `plugin already installed at version 1.0.0, new version must be higher` | El ZIP lleva la versión ya instalada. | Sube `version`, o desinstala primero. |
-| `signature does not match the plugin or the configured key` | El `.sig` se hizo con otra clave, o el ZIP cambió después de firmarlo. | Vuelve a firmar exactamente ese ZIP con la clave correcta, o corrige `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
+| `signature does not match the package and its signing key` | El `.sig` se hizo con otra clave, o el ZIP cambió después de firmarlo. | Vuelve a firmar exactamente ese ZIP con la clave privada que corresponde al `cosign.pub` que contiene. |
 | `plugin blocked: theme.js contains forbidden pattern` | El analizador de scripts de temas ha encontrado una API prohibida. | Un tema solo puede llamar a `evey.theme.*`: consulta [Temas](../themes.md#what-the-scanner-refuses). |
 | El registro termina con `memory quota exceeded (... MB > ... MB)` | El vigilante detuvo el plugin al pasar su límite de memoria. | Reduce el uso de memoria, o sube **Memoria máx. (MiB)** en **Límites de recursos**. |
 | `bwrap: ... permission denied` | Modo `bubblewrap` dentro de Docker, bloqueado por el perfil seccomp o AppArmor del contenedor. | Quédate con el modo por defecto, `auto`. Si no, consulta [Configurar el sandbox de plugins](sandbox-deployment.md). |

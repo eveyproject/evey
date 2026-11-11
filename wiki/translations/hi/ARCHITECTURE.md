@@ -1,5 +1,5 @@
 ---
-source_sha: 2aa3f137eb7403f9ad58369e4f8f4eb6ea411a331f295395267794f1472f7153
+source_sha: 3d80d298e1b4ec097f2917fc6380f0639be2154565258bb434179a0dd155b17d
 reviewed: true
 ---
 # आर्किटेक्चर
@@ -47,8 +47,8 @@ sub-package आता है।
 
 ## Bounded context
 
-बत्तीस context package `internal/domain/` और `internal/app/` के नीचे हैं: 19
-दोनों परतों में हैं, 2 सिर्फ़ domain में (`ratings`, `shared`), 11 सिर्फ़ app में। ये
+तैंतीस context package `internal/domain/` और `internal/app/` के नीचे हैं: 19
+दोनों परतों में हैं, 2 सिर्फ़ domain में (`ratings`, `shared`), 12 सिर्फ़ app में। ये
 कुछ हद तक एक साझा bus पर domain event के ज़रिए साथ काम करते हैं; app परत पड़ोसी
 context का domain package सीधे भी पढ़ती है (देखें [संबंध](#relations))।
 
@@ -81,6 +81,7 @@ context का domain package सीधे भी पढ़ती है (दे
 | `dlna` (सिर्फ़ app) | SSDP से खोज और UPnP AVTransport नियंत्रण |
 | `loadtest` (सिर्फ़ app) | सर्वर के अपने HTTP स्टैक पर दर्शकों की नकल करता है: HLS, या कच्ची फ़ाइल, जब क्लाइंट का फ़ैसला direct play हो |
 | `maintenance` (सिर्फ़ app) | एडमिन के शुरू किए मीडिया रखरखाव: सीक इंडेक्स फिर से बनाना, मरम्मत का जर्नल, वापस लेना, ऑडियो की अखंडता |
+| `prunehold` (सिर्फ़ app) | किसी स्कैन में गायब फ़ाइलों को एक साथ हटाना तब तक रोके रखता है जब तक कोई एडमिन उसकी पुष्टि न करे (`library.prune.suspended`) |
 | `presence` (सिर्फ़ app) | मेमोरी में रहने वाला, न सहेजा जाने वाला रजिस्टर कि अभी कौन जुड़ा है |
 | `qoe` (सिर्फ़ app) | CMCD (CTA-5004) प्लेबैक telemetry लेना और जोड़ना |
 | `demo` (सिर्फ़ app) | सार्वजनिक डेमो सर्वर (`EVEY_DEMO=1`): अपने खाते, लाइब्रेरी और मुफ़्त लाइसेंस वाला मीडिया प्रोडक्ट की अपनी सर्विस से भरता है, और खुद को रीसेट करता है |
@@ -93,7 +94,7 @@ context का domain package सीधे भी पढ़ती है (दे
 | --- | --- | --- |
 | `library` | `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` | `media.item.added`: `notification`, `metadata` (अपने-आप जानकारी जोड़ना), `library` खुद (trickplay worker + इंट्रो की पहचान), `feed` (genre cache अमान्य करना) |
 | `playback` | `PlaybackStarted` / `PlaybackStopped` | आज कोई अलग subscriber नहीं; सिर्फ़ `webhook` का `"*"` catch-all subscriber इन्हें पाता है |
-| `user` | `UserCreated`, `user.password.reset_requested` | पहले का कोई subscriber नहीं; दूसरे को `email` driven adapter लेता है |
+| `user` | `UserCreated`, `user.password.reset_requested`, `user.login.succeeded` / `user.login.failed` | `UserCreated` का कोई subscriber नहीं; रीसेट के अनुरोध को `email` driven adapter लेता है; लॉगिन वाले events को `activity` (लॉगिन इतिहास) |
 | `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` अपने सुरक्षा डैशबोर्ड के लिए, `notification` एडमिन के लिए |
 | `shared` | `ServerConfigChanged` | वे सर्विस जो एडमिन पैनल में सहेजी गई सेटिंग बिना restart के लागू करती हैं (SMTP, समय-क्षेत्र, CPU बजट, ...) |
 
@@ -113,7 +114,7 @@ context का domain package सीधे भी पढ़ती है (दे
 ## आम डेटा का रास्ता - "उपयोगकर्ता एक मीडिया चलाता है"
 
 1. मोबाइल/वेब क्लाइंट `POST /api/v1/playback/start` कॉल करता है (grpc-gateway route)।
-2. `internal/adapters/driving/http` अपना auth middleware चलाता है (`auth_middleware.go`, `httpAuthMiddleware`), सेशन निकालता है।
+2. `internal/adapters/driving/http` अनुरोध grpc-gateway को सौंपता है (rate limit, cache headers); gRPC `AuthInterceptor` (`grpcapi/interceptors/auth.go`) token की पुष्टि करता है और RBAC लागू करता है।
 3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) proto जाँचता है, `app/playback.CommandService.StartStream` कॉल करता है (command/query का बँटवारा, देखें [ADR-0009](adr/0009-cqrs-repo-split.md))।
 4. `app/playback.CommandService` domain port कॉल करता है: `user.UserRepository`, `playback.SessionQueryRepo` (idempotency + डिवाइस की सीमा), `playback.SessionCommandRepo`, फिर `shared.EventBus.Publish(PlaybackStarted)`।
 5. driven adapter काम करते हैं: `postgres` सेशन को एक `shared.TransactionalUnit.Do` दायरे के अंदर सहेजता है; प्रोसेस के अंदर का bus (`internal/pkg/eventbus`) asynchronous रूप से आगे भेजता है।
@@ -126,7 +127,7 @@ context का domain package सीधे भी पढ़ती है (दे
 ## आर्किटेक्चर की जाँचें
 
 ऊपर के नियम सिर्फ़ दस्तावेज़ में नहीं हैं। `internal/contractguard/` में 30 फ़ाइलों में
-58 static टेस्ट हैं, जो कोड के इनसे हटने पर build फ़ेल कर देते हैं।
+63 static टेस्ट हैं, जो कोड के इनसे हटने पर build फ़ेल कर देते हैं।
 
 hexagonal नियम खुद `TestDomainContextsDoNotImportEachOther` (ADR-0001) है,
 `domain_imports_test.go` में। यह `internal/domain` की सारी फ़ाइलें जाँचता है और ठीक यही लागू करता
@@ -278,7 +279,7 @@ flowchart LR
         a_photo[photo]
         a_user[user]
         a_upd[updatecheck]
-        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, prunehold, qoe, loadtest,<br/>demo]
     end
 
     subgraph domain[Domain केंद्र - internal/domain]

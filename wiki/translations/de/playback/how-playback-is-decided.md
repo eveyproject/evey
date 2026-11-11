@@ -1,5 +1,5 @@
 ---
-source_sha: 1dc44f90f440f0e01525a6cb083acd57f77c55b0e0b61641670b2d12d9bd36a5
+source_sha: 67e86050df10dfd4a034cb857958ca84465398b13e09796335afd0ab8b1156e3
 reviewed: true
 ---
 # Wie Evey die Wiedergabeart wählt { #how-playback-is-decided }
@@ -59,8 +59,12 @@ Die Gründe fallen in vier Gruppen:
 | Eine Folge für Bild oder Ton | HDR nach SDR konvertiert (Tone-Mapping) · Untertitel ins Bild eingebrannt · Audio-Resynchronisation angefordert |
 | Eine Einstellung oder eine bereits getroffene Entscheidung | Bevorzugter Video-Codec (Profileinstellung) · Auswahl für diese Sitzung fixiert |
 
-Beurteilt wird nur die Tonspur, die gerade läuft. Hat eine Datei eine nicht
-gewählte Kommentarspur in DTS, wird sie deswegen nicht transkodiert.
+Nur die Tonspur, die gerade läuft, entscheidet, ob der Ton neu kodiert wird.
+Liegt aber eine andere Tonspur der Datei in einem Codec vor, den das Gerät
+nicht dekodieren kann (etwa ein DTS-Kommentar), wird die Datei umverpackt
+(Remux) statt unverändert gesendet, denn mit der Rohdatei könnte der Player
+selbst zu dieser Spur wechseln. Stream-Info zeigt dann **Eine andere Audiospur
+der Datei kann auf diesem Gerät nicht abgespielt werden**.
 
 Eine Datei, die keine der Methoden auf diesem Gerät liefern kann, wird vor dem
 Start der Wiedergabe abgelehnt, mit **Dieser Server ist für diese Datei nicht
@@ -138,8 +142,10 @@ Eine neu kodierte Spur behält bis zu 5.1 Kanäle, nie mehr: siehe
 
 ## Einschränkungen, die der Server selbst anwendet { #constraints-the-server-applies-itself }
 
-Einige Grenzen melden die Player heute nicht. Der Server wendet sie als
-vorsichtige Regel für die Kompatibilität an, gleich für jeden Player: H.264
+Die Apps für Android und Android TV melden, welche Pixelformate ihre Decoder
+annehmen (8 Bit 4:2:0 pro Codec, 10 Bit, wo der Decoder es unterstützt), und
+der Server beurteilt die Quelle anhand dieser Liste. Für einen Player, der
+nichts meldet (die Web-App, Cast), wendet er eine vorsichtige Regel an: H.264
 mit 10 Bit und jedes Video in 4:2:2, 4:4:4 oder 12 Bit werden neu kodiert.
 HEVC, VP9 und AV1 bis 10 Bit 4:2:0 hängen dagegen davon ab, welche Codecs der
 Player unterstützt. Dolby Vision bleibt nur in einer Form erhalten, die der

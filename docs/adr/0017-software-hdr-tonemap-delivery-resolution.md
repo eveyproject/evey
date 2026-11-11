@@ -108,3 +108,14 @@ rung. On a decode-bound box, single-variant re-decodes the 4K source for each
 rung and thrashes down to the 360p floor, so it is exactly the wrong default
 there. The tone-map-at-delivery-resolution decision itself (the core of this
 ADR) is unchanged; only the ladder-mode default flipped.
+
+## Second update
+
+The default was reversed again: `SingleVariant` defaults to **true**
+(`envBool("EVEY_TRANSCODING_SINGLE_VARIANT", true)` in
+`internal/config/config.go`), so the server encodes only the rung the client
+asked for; `EVEY_TRANSCODING_SINGLE_VARIANT=0` restores the shared decode
+across every rung. Several names above have also moved on: the ladder cap now
+lives in the ladder engine and the app-layer `PlanResolver` (ADR-0030), the
+calibration bench is `BenchmarkRunner` (`internal/adapters/driven/ffmpeg/benchmark.go`)
+and the decode gate is `HWCanDecodeSource`.

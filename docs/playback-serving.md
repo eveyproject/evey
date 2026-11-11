@@ -84,8 +84,9 @@ Open these in sequence to trace a single playback request end to end:
    brain. The resolver layers on the request-time pins (`vd=` / `ad=`), the
    audio-resync override, etc.
 4. **Q3 - Capability** - `internal/app/transcoding/calibration_service.go`:
-   `Current()` returns `domain/transcoding.Derive(report, policy)`
-   (`derive.go`), the host's ceilings derived from the last calibration.
+   `Current()` returns the host's ceilings: the capability snapshot derived
+   from the last calibration (`domain/transcoding.Derive`, `derive.go`), with
+   the operator's ceiling overrides applied.
 5. **Ladder and admission** - the resolver shapes the ladder (complexity
    class, producer profiles, source/capability caps, CMCD/AV1 caps, admission
    route and ceiling), then **freezes it** on the admission pin

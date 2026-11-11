@@ -1,5 +1,5 @@
 ---
-source_sha: af8c6f06737bb877d02dbe562e2082f8b62c725fa10bcf0c4a668855a5f42c87
+source_sha: d18575178717c35ca8643b0eead448a6b422a10bbfee57b8fcc255d843d35d40
 reviewed: true
 ---
 # Servir une vidéo : le chemin de lecture HLS
@@ -93,8 +93,9 @@ Ouvrez ces fichiers dans l'ordre pour suivre une requête de lecture de bout en 
    par piste. Le résolveur y superpose les valeurs imposées par la requête (`vd=` /
    `ad=`), la surcharge de resynchronisation audio, etc.
 4. **Q3 : capacité** : `internal/app/transcoding/calibration_service.go` :
-   `Current()` renvoie `domain/transcoding.Derive(report, policy)`
-   (`derive.go`), les plafonds de l'hôte dérivés de la dernière calibration.
+   `Current()` renvoie les plafonds de l'hôte : l'instantané de capacité dérivé
+   de la dernière calibration (`domain/transcoding.Derive`, `derive.go`), avec
+   les plafonds imposés par l'opérateur appliqués.
 5. **Échelle et admission** : le résolveur met l'échelle en forme (classe de
    complexité, profils de producteur, plafonds de la source et de la
    capacité, plafonds CMCD/AV1, route et plafond d'admission), puis la

@@ -1,5 +1,5 @@
 ---
-source_sha: c6c0a67f7b17b0139429ba630a95b355b5cc39888b5eb6a2bfd603d38ca8cead
+source_sha: ed2800347644b7f29af5ff78967016d21d06afa3fd5b38856a393e93da5cb5bf
 reviewed: true
 ---
 # Bibliotheken und Metadaten { #libraries-and-metadata }
@@ -133,10 +133,10 @@ nutzen Sie die Zeile der Bibliothek:
       Testdatei in den Ordner. Eine Bibliothek, bei der das nachweislich
       funktioniert, wird nur noch einmal pro Stunde gelesen statt alle
       2 Minuten.
-    - Bibliotheken, die im Web-Verwaltungsbereich angelegt wurden, nutzen die
-      Dateiüberwachung nicht: Die Durchgänge alle 2 Minuten finden ihre
-      Dateien. Das Verwaltungsformular der Handy-App hat für eine Bibliothek
-      einen Schalter **Echtzeit-Überwachung**.
+    - Die Bibliotheksformulare im Web und in der Handy-App haben beide einen
+      Schalter **Echtzeit-Überwachung**, der bei einer neuen Bibliothek
+      eingeschaltet ist; ist er aus, finden die Durchgänge alle 2 Minuten die
+      Dateien.
 
 !!! note "Netzwerkfreigaben"
     Auf einer NFS- oder SMB-Freigabe schickt eine Datei, die ein anderer
@@ -225,7 +225,7 @@ Die Player zeigen standardmäßig die Schaltflächen **Intro überspringen**,
 standardmäßig aus) lässt jeden Player sie von selbst überspringen.
 
 <!-- sources
-add library: frontend/apps/web/src/features/admin/LibraryForm.tsx (name, type, paths only - no realtime/scan-on-startup toggles) ; i18n admin.libraries.addLibrary, tvShows, paths, enterCustomPath, addPath, createLibrary ; internal/domain/library/model.go NewLibrary (RealtimeMonitoring false by default) ; grpcapi/library_handler.go CreateLibrary (no scan trigger ; only watcher + feed subscribe library.created)
+add library: frontend/apps/web/src/features/admin/LibraryForm.tsx (name, type, paths, realtime monitoring on by default) ; i18n admin.libraries.addLibrary, tvShows, paths, enterCustomPath, addPath, createLibrary ; internal/domain/library/model.go NewLibrary (RealtimeMonitoring false by default) ; grpcapi/library_handler.go CreateLibrary (no scan trigger ; only watcher + feed subscribe library.created)
 types: i18n admin.libraries.types.* ; internal/adapters/driven/metadata/musicbrainz_provider.go ; internal/app/music/album_art_chain.go
 parser: internal/adapters/driven/filesystem/parser.go (reEditionSuffix, knownQualities, SetExtraParserTokens) ; internal/app/library/parser_config.go ApplyParserConfig ; i18n admin.serverConfig.parserTokens*
 fix a title: frontend/apps/web/src/features/library/MediaDetailEdit.tsx (save, refresh, reset, rematch, identify) ; IdentifyMetadataModal.tsx ; http/admin_handler_media.go (identify search) ; internal/app/metadata/command_service_overrides.go SetOverride, ResetItemMetadata (overrides, artwork, persons, Catalog=nil, children) ; command_service_refresh.go RefreshItemMetadata ; i18n media.detail.editMetadata, identify.*, tmdbId, imdbId, idChangedWarning, refreshMetadata, resetMetadata, rematchMetadata, rematchConfirm

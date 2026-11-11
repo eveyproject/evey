@@ -1,5 +1,5 @@
 ---
-source_sha: 5d6e1c496b373ae579e3de32d6359d6c1c9712b93ef8c17806d17afca066d8f8
+source_sha: 22ea0e89f67cb148b89d7ee356857285ae9ca1beab97f10adb964703ca29c453
 reviewed: true
 ---
 # API del servidor
@@ -27,7 +27,7 @@ Tres tipos de credencial llegan a la API, todos en la cabecera `Authorization`:
 |---|---|---|
 | Token de sesión | Una persona conectada desde una aplicación | `Bearer <token>`, se obtiene al iniciar sesión y la aplicación lo renueva. |
 | Clave de API | Un script, en nombre del administrador que la creó | `Bearer evey_...` (el prefijo `Bearer` es opcional). Con alcances y revocable: [Webhooks y claves de API](../webhooks-api-keys.md). |
-| Token de plugin | La interfaz de un plugin, a través de la página anfitriona | Se emite por cinco minutos para un plugin y un usuario, y solo lleva los alcances `public` y `prefs` que se concedieron al plugin; todos los demás métodos lo rechazan. El marco nunca lo tiene: la página anfitriona hace de intermediaria en las llamadas. |
+| Token de plugin | La interfaz de un plugin, a través de la página anfitriona | Se emite por cinco minutos para un plugin y un usuario, y puede llevar otros alcances concedidos al plugin, pero solo lo aceptan los métodos asociados a `public` y `prefs`; todos los demás métodos lo rechazan. El marco nunca lo tiene: la página anfitriona hace de intermediaria en las llamadas. |
 
 Un token de plugin nunca puede llegar a un método de administración, tenga
 los alcances que tenga

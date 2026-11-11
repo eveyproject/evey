@@ -1,5 +1,5 @@
 ---
-source_sha: 1dc44f90f440f0e01525a6cb083acd57f77c55b0e0b61641670b2d12d9bd36a5
+source_sha: 67e86050df10dfd4a034cb857958ca84465398b13e09796335afd0ab8b1156e3
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture { #how-playback-is-decided }
@@ -58,8 +58,12 @@ Les raisons se répartissent en quatre catégories :
 | Une conséquence sur l'image ou le son | HDR converti en SDR (tone-mapping) · Sous-titres incrustés dans l'image · Resynchronisation audio demandée |
 | Un réglage, ou une décision déjà prise | Codec vidéo préféré (réglage du profil) · Choix figé pour cette session |
 
-Seule la piste audio écoutée est prise en compte : un fichier dont la piste de
-commentaire, non sélectionnée, est en DTS ne sera pas transcodé pour autant.
+Seule la piste audio écoutée décide si le son est réencodé. Mais quand une
+autre piste audio du fichier est dans un codec que l'appareil ne sait pas
+décoder (un commentaire en DTS, par exemple), le fichier est réempaqueté
+(Remux) plutôt qu'envoyé tel quel, car un fichier brut laisserait le lecteur
+basculer lui-même sur cette piste. Les Infos du flux affichent alors **Une
+autre piste audio du fichier n'est pas lisible sur cet appareil**.
 
 Un fichier qu'aucune des méthodes ne peut servir sur cet appareil est refusé
 avant le début de la lecture, avec **Ce serveur n'est pas assez puissant pour
@@ -137,9 +141,11 @@ réencodée garde au plus 5.1 canaux, jamais davantage : voir [Audio](audio.md).
 
 ## Les contraintes que le serveur applique lui-même { #constraints-the-server-applies-itself }
 
-Certaines limites ne sont pas encore déclarées par les lecteurs. Le serveur
-les applique alors comme une règle de compatibilité prudente, identique pour
-tous : le H.264 en 10 bits, et toute vidéo en 4:2:2, en 4:4:4 ou en 12 bits,
+Les applications Android et Android TV déclarent les formats de pixels que
+leurs décodeurs acceptent (8 bits en 4:2:0 pour chaque codec, 10 bits quand le
+décodeur le permet), et le serveur juge la source d'après cette liste. Pour un
+lecteur qui n'en déclare aucun (l'application web, la diffusion), il applique
+une règle de compatibilité prudente : le H.264 en 10 bits, et toute vidéo en 4:2:2, en 4:4:4 ou en 12 bits,
 sont réencodés, alors que le HEVC, le VP9 et l'AV1 jusqu'à 10 bits en 4:2:0
 dépendent de la prise en charge du codec par le lecteur. Le Dolby Vision n'est
 conservé que sous une forme que le lecteur affiche correctement : voir

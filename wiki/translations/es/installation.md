@@ -1,5 +1,5 @@
 ---
-source_sha: 24e90e68dbbd60f7111af4c4e2e50bf061e8c287d2c22f38fa970231c0d48959
+source_sha: d79dc0926b3cccaf395cc08d77b10dd374b052ab566b42de9e7a26ebea4fbff2
 reviewed: true
 ---
 # Instalación { #install }
@@ -29,8 +29,13 @@ escribir y ningún ajuste de memoria o de procesador.
 ## Qué necesitas { #what-you-need }
 
 - **Un ordenador o un NAS que esté siempre encendido**, con un procesador
-  x86-64 (Intel o AMD). Las máquinas ARM64 necesitan una etiqueta de versión,
-  que todavía no existe: consulta
+  x86-64 (Intel o AMD) o ARM64. Las imágenes de versión (etiquetas `vX.Y.Z`)
+  son multiarquitectura (`linux/amd64` y `linux/arm64`) y Docker elige la
+  correcta; las builds de rama son solo amd64, así que en ARM fija una
+  etiqueta de versión. La transcodificación por hardware en ARM se limita a
+  Rockchip RKMPP (sin garantías, aún no validada en hardware real); una
+  Raspberry Pi o un NAS ARM Realtek reproduce en directo y transcodifica por
+  software. Consulta
   [Máquinas ARM](operations/advanced-deployments.md#arm-hosts).
 - **Docker con Compose v2.** El comando es `docker compose`, con un espacio,
   y no el antiguo `docker-compose`.
@@ -184,7 +189,7 @@ tarjeta: consulta [Aceleración por hardware](administration/hardware-accelerati
 | `eveyproject/evey:0.1` | el arreglo más reciente de esa línea menor (0.1.0, 0.1.1, ...), nunca una versión menor nueva |
 | `eveyproject/evey:0.1.0` | exactamente esa versión, hasta que cambies la línea |
 | `eveyproject/evey:sha-<commit>` | una compilación exacta, la única etiqueta que nunca se mueve |
-| `eveyproject/evey:master` | la rama de desarrollo, reconstruida en cada push: para probar, no para un servidor del que dependes |
+| `eveyproject/evey:master` | la rama de integración, reconstruida en cada merge: para probar, no para un servidor del que dependes |
 
 Los números de versión siguen el [versionado semántico](https://semver.org/) y empiezan en
 `0.1.0`; la línea 0.x es la beta pública. Para cambiar de versión, edita la
