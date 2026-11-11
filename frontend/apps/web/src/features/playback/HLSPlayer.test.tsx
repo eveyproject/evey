@@ -579,8 +579,8 @@ describe("HLSPlayer: transcode rung pinning", () => {
 // the title between the file and the HLS master.
 describe("HLSPlayer: audio track verdict", () => {
   const AUDIO = [
-    { index: 1, trackIndex: 0, codec: "aac", language: "fre", isDefault: true },
-    { index: 2, trackIndex: 1, codec: "dts", language: "eng" },
+    { index: 1, trackIndex: 0, codec: "aac", language: "fre", isDefault: true, sourceTrackId: 2 },
+    { index: 2, trackIndex: 1, codec: "dts", language: "eng", sourceTrackId: 3 },
   ];
   const MEDIA_STREAMS = [
     { index: 0, type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264" },
@@ -661,6 +661,18 @@ describe("HLSPlayer: audio track verdict", () => {
     expect(url).toContain("/api/v1/media/media-1/hls/master.m3u8");
     expect(url).toContain("audioTrack=1");
     expect(url).toContain("startSec=30");
+  });
+
+  // Safari switches a file's audio itself, and names its tracks by the file's
+  // own numbers: the server's stream index 2 is the file's track 3 here, and
+  // the file's track 2 is the other one.
+  it("switches the browser's own audio track by the file's track number", () => {
+    const { video } = mount(DIRECT);
+    const tracks = [{ id: "2", enabled: true }, { id: "3", enabled: false }];
+    Object.defineProperty(video, "audioTracks", { value: Object.assign(tracks, { length: 2 }), configurable: true });
+    act(() => { lastControlsProps?.onAudioChange?.(2); });
+    expect(tracks.map((t) => t.enabled)).toEqual([false, true]);
+    expect(lastHlsInstance).toBeNull();
   });
 
   it("keeps the file when the pick is the track it already plays", () => {

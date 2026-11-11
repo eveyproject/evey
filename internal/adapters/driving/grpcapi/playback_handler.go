@@ -234,21 +234,23 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 	// container default instead, the verdict called a copy what the master
 	// re-encodes.
 	selected := false
-	if idx := int(req.AudioStreamIndex); idx > 0 {
+	if idx, ok := requestedStreamIndex(req.SelectedAudioStreamIndex, req.AudioStreamIndex); ok {
 		if rel, ok := typeRelativeIndex(streams, library.StreamTypeAudio, idx); ok {
 			prefs.AudioTrack = rel
 			selected = true
 		}
 	}
 	if !selected {
-		serverLang := ""
+		// The HLS master defaults to English when no server language is
+		// wired; the verdict must pick the same track it will serve.
+		serverLang := "en"
 		if h.serverLang != nil {
 			serverLang = h.serverLang()
 		}
 		prefs.AudioTrack = apptranscoding.DefaultAudioTrack(streams,
 			apptranscoding.PreferredAudioLanguages(prefs.AudioLanguages, prefs.Locale, serverLang))
 	}
-	if idx := int(req.SubtitleStreamIndex); idx > 0 {
+	if idx, ok := requestedStreamIndex(req.SelectedSubtitleStreamIndex, req.SubtitleStreamIndex); ok {
 		if rel, ok := typeRelativeIndex(streams, library.StreamTypeSubtitle, idx); ok {
 			prefs.SubtitleBurnInTrack = rel
 		}
@@ -413,6 +415,9 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	// (VideoBitrate == 0) also falls back to source - video dominates the total.
 	resp.Bitrate = servedBitrateBps(decision.PlayMethod, decision.VideoBitrate, decision.AudioBitrate, sourceBitrateBps(item))
 	resp.AudioBitrate = servedAudioBitrateBps(decision, streams, prefs.AudioTrack)
+	if abs, ok := absoluteStreamIndex(streams, library.StreamTypeAudio, prefs.AudioTrack); ok {
+		resp.AudioStreamIndex = &abs
+	}
 	// A copied video with a re-encoded audio track still carries the source
 	// video but not the source audio: swap the one rate for the other in the
 	// total, when both are known. Quoting the whole source counted a DTS track
@@ -580,6 +585,32 @@ func logPlaybackDecision(ctx context.Context, mediaID, userAgent string, client 
 // carries - MediaStream.StreamIndex as exposed to clients) into the
 // type-relative ordinal the decision prefs consume (ffmpeg's 0:a:N / 0:s:N).
 // Returns ok=false when no stream of that type has this absolute index.
+// requestedStreamIndex reads a track selection: the field with presence when
+// the client sent it (it can name stream 0), else the older field, whose 0
+// means "none".
+func requestedStreamIndex(selected *int32, legacy int32) (int, bool) {
+	if selected != nil {
+		return int(*selected), *selected >= 0
+	}
+	return int(legacy), legacy > 0
+}
+
+// absoluteStreamIndex is typeRelativeIndex's inverse: the stream index of the
+// rel-th stream of the type.
+func absoluteStreamIndex(streams []*library.MediaStream, streamType library.StreamType, rel int) (int32, bool) {
+	n := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != streamType {
+			continue
+		}
+		if n == rel {
+			return int32(s.StreamIndex), true //nolint:gosec // a container's stream count fits an int32
+		}
+		n++
+	}
+	return 0, false
+}
+
 func typeRelativeIndex(streams []*library.MediaStream, streamType library.StreamType, absIdx int) (int, bool) {
 	rel := 0
 	for _, s := range streams {

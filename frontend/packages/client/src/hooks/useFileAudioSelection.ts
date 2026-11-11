@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { normalizeLangCode, type PlayerAudioStream } from "@evey/api";
+import { declaresAudioCodec } from "../lib/audioCodec";
 
 export interface NativeAudioTrack {
   id?: string;
@@ -23,6 +24,14 @@ export function pickNativeAudioTrack(
   streams: PlayerAudioStream[],
 ): NativeAudioTrack | null {
   if (!nativeTracks || nativeTracks.length === 0) return null;
+  // The file's own track number is the id the player names the track by
+  // (Media3's Format.id): an exact key where the language may not be - a
+  // track whose language is only in the newer Matroska element reads "en"
+  // in the player whatever the server read.
+  if (stream.sourceTrackId != null) {
+    const byId = nativeTracks.find((t) => t.id === String(stream.sourceTrackId));
+    if (byId) return byId;
+  }
   const want = normalizeLangCode(stream.language);
   const sameLang = want ? nativeTracks.filter((t) => normalizeLangCode(t.language) === want) : [];
   if (sameLang.length === 1) return sameLang[0];
@@ -74,7 +83,13 @@ export interface AudioTrackPlayer {
  */
 export function useFileAudioSelection(
   player: AudioTrackPlayer | null | undefined,
-  { enabled, audioStreams, selectedAudioIndex }: { enabled: boolean; audioStreams: PlayerAudioStream[]; selectedAudioIndex: number },
+  { enabled, audioStreams, selectedAudioIndex, declaredAudioCodecs }: {
+    enabled: boolean;
+    audioStreams: PlayerAudioStream[];
+    selectedAudioIndex: number;
+    /** What the device declares it decodes; a track outside it is never forced on the player. */
+    declaredAudioCodecs?: readonly string[];
+  },
 ): void {
   const [nativeTracks, setNativeTracks] = useState<NativeAudioTrack[]>([]);
 
@@ -92,9 +107,13 @@ export function useFileAudioSelection(
     if (!player || !enabled) return;
     const stream = audioStreams.find((s) => s.index === selectedAudioIndex);
     if (!stream) return;
+    // An override skips the player's own check of what it can decode: forced
+    // onto a track it cannot play, it fails at the first frame. Left alone, it
+    // opens a track it decodes.
+    if (declaredAudioCodecs && stream.codec && !declaresAudioCodec(declaredAudioCodecs, stream.codec)) return;
     try {
       const track = nativeTrackToApply(nativeTracks, player.audioTrack, stream, audioStreams);
       if (track) player.audioTrack = track;
     } catch { /* released */ }
-  }, [player, enabled, nativeTracks, audioStreams, selectedAudioIndex]);
+  }, [player, enabled, nativeTracks, audioStreams, selectedAudioIndex, declaredAudioCodecs]);
 }

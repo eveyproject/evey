@@ -38,7 +38,7 @@ import {
   preferLocalProgress,
   type OfflineProgress,
 } from "../../../src/lib/offlineProgress";
-import { getDeviceAudioCodecs } from "../../../src/lib/deviceCodecs";
+import { getDeviceAudioCodecs, refuseAudioCodec } from "../../../src/lib/deviceCodecs";
 import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
 import { ICON_SIZE } from "@evey/theme";
@@ -62,7 +62,7 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
-import { diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
+import { audioDecoderFailureCodec, diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
 import { subscribePlayerStatus } from "@evey/client/native/playerStatus";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -76,7 +76,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
-import { compareEpisodeIndex, noteViewerActivity, resolveStartPositionMs, isTitleGone, servedVariant, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock, type AudioTrackPlayer } from "@evey/client";
+import { compareEpisodeIndex, declaresAudioCodec, noteViewerActivity, resolveStartPositionMs, isTitleGone, servedVariant, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -331,6 +331,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // One recovery per media: a dead stream token is worth one silent retry, a
   // second identical failure is a real one and must be shown.
   const authRetriedRef = useRef(false);
+  // One renegotiation per media after the player failed to decode an audio
+  // track: the codec leaves the declaration and the server is asked again.
+  const audioFallbackTriedRef = useRef(false);
   // When the last reload on a 404 or 410 was made (see playbackReloadRetry).
   const reloadRetryAtRef = useRef<number | null>(null);
   // The status listener is installed before restartWithTracks exists in its
@@ -422,6 +425,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     audioLangs: profileAudioLangs,
     subtitleLangs: profileSubtitleLangs,
     restartWithTracks,
+    judgedAudioIndex: streamInfo?.audioStreamIndex,
   });
 
   // Keep the recovery path pointing at the CURRENT selection, so a retry after
@@ -724,6 +728,23 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
             details: ev.error?.message ?? "",
             fatal: false,
             posSec: Math.round(currentTimeRef.current),
+          });
+          restartWithTracksRef.current?.();
+          return;
+        }
+        // The player opened an audio track it cannot decode. Asking for the
+        // same stream again gets the same failure: stop declaring the codec
+        // and ask again, so the server re-encodes that track. A downloaded
+        // copy has no server to ask.
+        const refusedCodec = audioDecoderFailureCodec(ev.error?.message ?? "");
+        if (refusedCodec && !audioFallbackTriedRef.current && playMethodRef.current !== "offline" && refuseAudioCodec(refusedCodec)) {
+          audioFallbackTriedRef.current = true;
+          reportPlayerEvent({
+            type: "native_audio_codec_refused",
+            details: ev.error?.message ?? "",
+            fatal: false,
+            posSec: Math.round(currentTimeRef.current),
+            diag: diagnoseNativePlayerError(ev.error?.message ?? "", playMethodRef.current),
           });
           restartWithTracksRef.current?.();
           return;
@@ -1351,7 +1372,10 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       const nativeTrack = stream
         ? pickNativeAudioTrack(nativeAudioTracks, stream, audioStreams)
         : null;
-      if (nativeTrack && player) {
+      // A track this device cannot decode is never switched to in the player:
+      // the restart asks the server, which re-encodes it.
+      const decodable = !stream?.codec || declaresAudioCodec(getDeviceAudioCodecs(), stream.codec);
+      if (nativeTrack && player && decodable) {
         try {
           (player as unknown as { audioTrack: unknown }).audioTrack = nativeTrack;
           // The server judged the track the stream was negotiated for: ask
@@ -1382,6 +1406,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     enabled: useLocalSource || streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY",
     audioStreams,
     selectedAudioIndex,
+    declaredAudioCodecs: getDeviceAudioCodecs(),
   });
 
   // Restarts the transcode when entering/leaving a burn-in (PGS/VobSub)

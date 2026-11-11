@@ -44,6 +44,13 @@ class Ac3goAudioRenderer(
 
   override fun supportsFormatInternal(format: Format): Int {
     if (format.sampleMimeType !in MIME_TYPES) return C.FORMAT_UNSUPPORTED_TYPE
+    // Blocked (too slow, or a run that died decoding): the app no longer
+    // declares ac3/eac3, so the server re-encodes them and a download is
+    // rewritten to AAC. A track that still arrives must not reach ac3go.
+    Ac3goGuard.blockedBy()?.let {
+      Log.i(TAG, "${format.sampleMimeType}: ac3go blocked ($it) -> device")
+      return C.FORMAT_UNSUPPORTED_SUBTYPE
+    }
     val bitstream = getSinkFormatSupport(format)
     val rate = if (format.sampleRate == Format.NO_VALUE) 48_000 else format.sampleRate
     val pcm = sinkSupportsFormat(Util.getPcmFormat(C.ENCODING_PCM_16BIT, 2, rate))

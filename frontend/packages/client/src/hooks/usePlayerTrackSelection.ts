@@ -36,6 +36,7 @@ export function usePlayerTrackSelection({
   audioLangs,
   subtitleLangs,
   restartWithTracks,
+  judgedAudioIndex,
 }: {
   mediaId: string;
   pick: { audio?: number; subtitle?: number | "off" };
@@ -44,6 +45,12 @@ export function usePlayerTrackSelection({
   audioLangs: string[];
   subtitleLangs: string[];
   restartWithTracks: (audio?: number, subtitle?: number, quality?: number) => void;
+  /**
+   * The audio track the server judged (StreamInfo.audioStreamIndex): it also
+   * weighs the profile's locale and the server's language, so a player that
+   * follows it plays the track the verdict was made on.
+   */
+  judgedAudioIndex?: number;
 }) {
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(pick.audio ?? 0);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(
@@ -68,8 +75,9 @@ export function usePlayerTrackSelection({
 
   useEffect(() => {
     if (userPickedAudioRef.current || audioStreams.length === 0) return;
-    setSelectedAudioIndex(pickDefaultAudioIndex(audioStreams, audioLangs) ?? audioStreams[0].index);
-  }, [audioStreams, audioLangs]);
+    const judged = judgedAudioIndex != null && audioStreams.some((s) => s.index === judgedAudioIndex) ? judgedAudioIndex : null;
+    setSelectedAudioIndex(judged ?? pickDefaultAudioIndex(audioStreams, audioLangs) ?? audioStreams[0].index);
+  }, [audioStreams, audioLangs, judgedAudioIndex]);
 
   useEffect(() => {
     if (userPickedSubtitleRef.current) {

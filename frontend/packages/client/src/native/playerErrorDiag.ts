@@ -64,6 +64,37 @@ export function diagnoseNativePlayerError(message: string, playMethod: string): 
   };
 }
 
+// The sample mime ExoPlayer names in a Format, as the server names the codec.
+const AUDIO_MIME_CODEC: Record<string, string> = {
+  "audio/vnd.dts": "dts",
+  "audio/vnd.dts.hd": "dts",
+  "audio/vnd.dts.hd;profile=lbr": "dts",
+  "audio/vnd.dts.uhd;profile=p2": "dts",
+  "audio/true-hd": "truehd",
+  "audio/ac3": "ac3",
+  "audio/eac3": "eac3",
+  "audio/eac3-joc": "eac3",
+  "audio/ac4": "ac4",
+  "audio/mp4a-latm": "aac",
+  "audio/mpeg": "mp3",
+  "audio/opus": "opus",
+  "audio/flac": "flac",
+  "audio/vorbis": "vorbis",
+  "audio/mpeg-l2": "mp2",
+};
+
+/**
+ * The codec of the audio track the player failed to decode, or null when the
+ * error is not an audio decoder failure. The player opened a track this
+ * device cannot play; declaring that codec again would get the same file and
+ * the same failure, so the caller stops declaring it and asks again.
+ */
+export function audioDecoderFailureCodec(message: string): string | null {
+  const diag = diagnoseNativePlayerError(message, "");
+  if (diag.renderer !== "audio" || !diag.formatSupported || !diag.mime) return null;
+  return AUDIO_MIME_CODEC[diag.mime.toLowerCase()] ?? null;
+}
+
 /** The stream info's PLAY_METHOD_* as the log names it; "offline" for a downloaded file. */
 export function playMethodName(playMethod: string | undefined, offline = false): string {
   if (offline) return "offline";

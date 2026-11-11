@@ -1,3 +1,4 @@
+import { streamSelectionParams } from "../lib/streamSelectionParams";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Platform } from "react-native";
 import {
@@ -11,7 +12,7 @@ import { currentDataSaverLimits, tighterCeiling } from "@evey/store";
 import { firstStartMs } from "../lib/resumePosition";
 import { goneReasonFromError, isShedCode, type ShedReason } from "../lib/shed";
 import { pickedAudioStream } from "../lib/pickedAudioStream";
-import { getDeviceAudioCodecs, getDeviceMaxH264Level, getDeviceVideoLimits, getFmp4AudioPassthrough, getPlayerAudioCodecs } from "./deviceCodecs";
+import { getDeviceAudioCodecs, getDeviceMaxH264Level, getDeviceVideoLimits, getFmp4AudioPassthrough, getPlayerAudioCodecs, refreshAudioSink } from "./deviceCodecs";
 import { decoderMaxHeight, decoderMaxWidth, devicePixelFormats, tighterOf } from "./videoLimits";
 
 // The play session of the two native players (phone and television). They
@@ -196,7 +197,7 @@ export function typeRelativeIndex(
   type: "MEDIA_STREAM_TYPE_AUDIO" | "MEDIA_STREAM_TYPE_SUBTITLE",
   absoluteIndex: number | undefined,
 ): number | undefined {
-  if (absoluteIndex == null || absoluteIndex <= 0) return undefined;
+  if (absoluteIndex == null || absoluteIndex < 0) return undefined;
   const ofType = (streamInfo?.mediaStreams ?? []).filter((s) => s.type === type);
   const pos = ofType.findIndex((s) => (s.index ?? -1) === absoluteIndex);
   return pos >= 0 ? pos : undefined;
@@ -384,6 +385,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           dev.probeMaxOutputChannels(),
           dev.probeHdr(),
           dev.networkType?.(),
+          refreshAudioSink(),
         ]);
 
         const verdictParams = {
@@ -398,8 +400,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           maxHeight: verdictMaxHeight,
           ...(verdictMaxWidth ? { maxWidth: verdictMaxWidth } : {}),
           ...(supportedPixelFormats ? { supportedPixelFormats } : {}),
-          audioStreamIndex,
-          subtitleStreamIndex,
+          ...streamSelectionParams(audioStreamIndex, subtitleStreamIndex),
           ...(networkType ? { networkType } : {}),
           // bit/s here, kbit/s on the master URL: GetStreamInfo's own unit.
           ...(saver ? { maxBitrate: String(saver.maxBitrateKbps * 1000) } : {}),
@@ -562,13 +563,13 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
     async (audioStreamIndex: number): Promise<AudioSwitchOutcome> => {
       const pick = ++audioPickRef.current;
       const live = liveVerdictRef.current;
-      if (!live || audioStreamIndex <= 0) return "kept";
+      if (!live || audioStreamIndex < 0) return "kept";
       if (pickedAudioStream(live.info, live.params.audioStreamIndex)?.index === audioStreamIndex) return "kept";
       const superseded = () => pick !== audioPickRef.current || stoppedRef.current;
       try {
         // Same two-step ask as the negotiation, against the ceiling the master
         // URL already carries: the segments hold the track under that one.
-        const params = { ...live.params, audioStreamIndex };
+        const params = { ...live.params, ...streamSelectionParams(audioStreamIndex, live.params.subtitleStreamIndex) };
         let info = await playbackServiceGetStreamInfo(mediaId, params);
         if (ceilingChangesVerdict(info, audioStreamIndex, live.ceiling)) {
           info = await playbackServiceGetStreamInfo(mediaId, { ...params, maxAudioChannels: live.ceiling });

@@ -194,6 +194,8 @@ streamInfo:
     client_line_exceeded: Die vom Client gemessene Leitung trägt die Kopie nicht
     abr_floor_requested: Vom Player angeforderte Notfallstufe
     file_needs_remux: "Datei in Ein-Spur-Blöcken gespeichert (Reparatur nötig)"
+    sibling_audio_undecodable: "Eine andere Audiospur der Datei kann auf diesem Gerät nicht abgespielt werden"
+    audio_layout_unknown: "Audio-Kanalanordnung unbekannt, für das Gerät neu kodiert"
     audio_passthrough_unsupported: "Audiospur kann im Stream nicht unverändert übertragen werden"
     preferred_video_codec: "Bevorzugter Video-Codec (Profileinstellung)"
     preferred_audio_codec: "Bevorzugter Audio-Codec (Profileinstellung)"

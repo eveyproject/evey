@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { diagnoseNativePlayerError, playMethodName } from "./playerErrorDiag";
+import { audioDecoderFailureCodec, diagnoseNativePlayerError, playMethodName } from "./playerErrorDiag";
 
 // The message expo-video builds from an ExoPlayer PlaybackException: its own
 // message (renderer, format, format_supported) then its first cause's.
@@ -55,6 +55,33 @@ describe("diagnoseNativePlayerError", () => {
       expect(d.renderer === "" || d.renderer === "video").toBe(true);
       expect(Number.isFinite(d.width)).toBe(true);
     }
+  });
+});
+
+// The message expo-video handed JS when a phone opened the DTS track of a
+// film it played directly.
+const DTS_FAILURE =
+  "A playback exception has occurred: MediaCodecAudioRenderer error, index=2, format=Format(2, DTS 1509 Kbps, video/x-matroska, audio/vnd.dts, null, -1, en, [-1, -1, -1.0, null], [6, 48000]), format_supported=NO_UNSUPPORTED_TYPE Decoder init failed: [-49999], Format(2, DTS 1509 Kbps, video/x-matroska, audio/vnd.dts, null, -1, en, [-1, -1, -1.0, null], [6, 48000])";
+
+describe("audioDecoderFailureCodec", () => {
+  it("names the codec of an audio track the player could not decode", () => {
+    expect(audioDecoderFailureCodec(DTS_FAILURE)).toBe("dts");
+  });
+
+  it("names the Dolby and lossless codecs by the server's names", () => {
+    const of = (mime: string) =>
+      audioDecoderFailureCodec(`A playback exception has occurred: MediaCodecAudioRenderer error, index=1, format=Format(1, null, video/x-matroska, ${mime}, null, -1, fr, [-1, -1, -1.0, null], [6, 48000]), format_supported=YES Decoder init failed`);
+    expect(of("audio/true-hd")).toBe("truehd");
+    expect(of("audio/eac3-joc")).toBe("eac3");
+    expect(of("audio/ac3")).toBe("ac3");
+    expect(of("audio/vnd.dts.hd")).toBe("dts");
+  });
+
+  it("ignores a video decoder failure, a source error and an unknown mime", () => {
+    expect(audioDecoderFailureCodec(DTS_FAILURE.replace("MediaCodecAudioRenderer", "MediaCodecVideoRenderer"))).toBeNull();
+    expect(audioDecoderFailureCodec("A playback exception has occurred: Source error ERROR_CODE_IO_BAD_HTTP_STATUS Response code: 410")).toBeNull();
+    expect(audioDecoderFailureCodec(DTS_FAILURE.replaceAll("audio/vnd.dts", "audio/x-unknown"))).toBeNull();
+    expect(audioDecoderFailureCodec("")).toBeNull();
   });
 });
 

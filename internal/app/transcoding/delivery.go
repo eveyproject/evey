@@ -127,7 +127,7 @@ func (pr *PlanResolver) resolveDelivery(ctx context.Context, req PlaybackRequest
 	d.Video = EngineMkvgo
 	d.AudioTrimmed = pr.OnDemandTrackTrim
 	switch {
-	case pr.audioAllCarriable(ctx, decision, req.Streams):
+	case pr.audioAllCarriable(ctx, decision, req.Streams, req.Client):
 		d.Audio = EngineMkvgo
 	case pr.audioTrimUnlocksCopy(ctx, decision, req):
 		d.Audio, d.AudioTrimmed = EngineMkvgo, true
@@ -142,14 +142,18 @@ func (pr *PlanResolver) resolveDelivery(ctx context.Context, req PlaybackRequest
 }
 
 // audioAllCarriable: the decision copies the audio, no loudnorm re-encodes,
-// and EVERY audio track is CMAF-carriable - the packager demuxes them all
-// into renditions, so one it cannot carry would strand a client selecting it.
-func (pr *PlanResolver) audioAllCarriable(ctx context.Context, decision transcoding.PlaybackDecision, streams []*library.MediaStream) bool {
+// and EVERY audio track is CMAF-carriable and decodable by this client - the
+// packager demuxes them all into renditions, so one it cannot carry, or one
+// the client cannot decode, would strand a client selecting it.
+func (pr *PlanResolver) audioAllCarriable(ctx context.Context, decision transcoding.PlaybackDecision, streams []*library.MediaStream, client transcoding.ClientProfile) bool {
 	if decision.AudioDecision != "copy" || pr.audioNormalizes(ctx) {
 		return false
 	}
 	for _, s := range streams {
-		if s != nil && s.StreamType == library.StreamTypeAudio && !audioTrackPackagedVerbatim(s) {
+		if s == nil || s.StreamType != library.StreamTypeAudio {
+			continue
+		}
+		if !audioTrackPackagedVerbatim(s) || !audioCodecSupported(client.AudioCodecs, s.Codec) {
 			return false
 		}
 	}

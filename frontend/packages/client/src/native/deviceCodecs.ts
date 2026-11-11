@@ -2,6 +2,7 @@ import { NativeModules, Platform } from "react-native";
 import type { VideoCapsReport } from "./videoCapsReport";
 import { checkPlaybackDecoder, declarableAudioCodecs, displaySupportsHdr, getAudioProbe, getDisplayHdrTypes, getMaxH264Level, getPlayerAudioDecoders, getVideoDecoderLimits, type AudioProbe, type DecoderCheck, type VideoDecoderLimits } from "@evey/media-caps";
 import { clientLogger } from "../log";
+import { canonicalAudioCodec } from "../lib/audioCodec";
 
 const log = clientLogger("deviceCodecs");
 
@@ -43,6 +44,10 @@ const native: MediaCapsNative | undefined =
     : undefined;
 
 let current: string[] = BASELINE;
+// Codecs the player itself failed to decode in this run of the app, whatever
+// the probe said: kept out of every later declaration so the server re-encodes
+// them instead of handing them over again.
+const refused = new Set<string>();
 let playerCodecs: string[] = [];
 // What the declaration was resolved from, kept to resolve it again without
 // the player's decoders.
@@ -90,7 +95,23 @@ export function dropPlayerAudioCodecs(): void {
  * direct-played.
  */
 export function getDeviceAudioCodecs(): string[] {
-  return current;
+  if (refused.size === 0) return current;
+  return current.filter((c) => !refused.has(canonicalAudioCodec(c)));
+}
+
+/**
+ * Stops declaring a codec the player could not decode, for the rest of this
+ * run. True when the declaration changed - asking the server again is only
+ * worth it then: a codec never declared got the same stream for another
+ * reason.
+ */
+export function refuseAudioCodec(codec: string): boolean {
+  const c = canonicalAudioCodec(codec);
+  if (!c || refused.has(c)) return false;
+  const wasDeclared = current.some((d) => canonicalAudioCodec(d) === c);
+  refused.add(c);
+  log.warn(`player could not decode ${c}, declared=${getDeviceAudioCodecs().join(",")}`);
+  return wasDeclared;
 }
 
 /**
@@ -110,7 +131,7 @@ export function getPlayerAudioCodecs(): string[] {
 // declare nothing and keep the server-side AAC re-encode.
 //
 // Why it is worth asking for: re-encoding an already-lossy track cascades.
-// Measured on a 128 kbps MP3 DVD rip (2026-09-06), coding noise under the
+// Measured on a 128 kbps MP3 DVD rip, coding noise under the
 // signal at the server's 192k rendition was 30.6 dB on dialogue but only
 // 20.3 dB on dense music - which is what "the background is not on the same
 // plane as the voices" sounds like. A passthrough adds none of it.
@@ -139,7 +160,7 @@ export type AudioProbeOutcome =
  * goes through untouched (Apple keeps its Dolby, Android has none).
  *
  * For the Dolby/DTS family the SINK decides, not the decoder: a decoder that
- * renders choppy (measured on a tablet, 2026-08-31) must not be declared, and
+ * renders choppy (measured on a tablet) must not be declared, and
  * a passthrough box without any decoder must be - ExoPlayer hands the
  * bitstream to the receiver. See declarableAudioCodecs in @evey/media-caps.
  * playerDecoders (ac3go in the phone's player) are declared in every case.
@@ -259,3 +280,23 @@ async function probe(): Promise<void> {
 }
 
 void probe();
+
+/**
+ * Asks the audio sink again before a negotiation: the Dolby/DTS family is
+ * declared on the sink's say-so, and the sink changes under a running app (an
+ * HDMI cable pulled, a receiver switched off). The launch answer would keep
+ * declaring a DTS the device can no longer pass through. Settles whatever
+ * happens: a failed probe keeps the previous declaration.
+ */
+export async function refreshAudioSink(): Promise<void> {
+  if (Platform.OS !== "android" || !resolvedFrom) return;
+  try {
+    const sink = await getAudioProbe();
+    resolvedFrom = { outcome: resolvedFrom.outcome, sink };
+    const next = resolveAudioCodecs(BASELINE, resolvedFrom.outcome, sink, playerCodecs);
+    if (next.join(",") !== current.join(",")) log.info(`audio sink changed, declared=${next.join(",")}`);
+    current = next;
+  } catch {
+    /* keep the previous declaration */
+  }
+}
