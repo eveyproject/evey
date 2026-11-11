@@ -1,5 +1,5 @@
 ---
-source_sha: 5d6e1c496b373ae579e3de32d6359d6c1c9712b93ef8c17806d17afca066d8f8
+source_sha: 22ea0e89f67cb148b89d7ee356857285ae9ca1beab97f10adb964703ca29c453
 reviewed: true
 ---
 # Server-API
@@ -28,7 +28,7 @@ Drei Arten von Zugangsdaten erreichen die API, alle im Header
 |---|---|---|
 | Sitzungstoken | Eine Person, die über eine App angemeldet ist | `Bearer <token>`, erhalten bei der Anmeldung und von der App erneuert. |
 | API-Schlüssel | Ein Skript, im Namen des Administrators, der ihn erstellt hat | `Bearer evey_...` (das Präfix `Bearer` ist optional). Mit Bereichen, widerrufbar: [Webhooks und API-Schlüssel](../webhooks-api-keys.md). |
-| Plugin-Token | Die Oberfläche eines Plugins, über die Hostseite | Für fünf Minuten ausgestellt, für ein Plugin und einen Benutzer. Er trägt nur die Bereiche `public` und `prefs`, die dem Plugin gewährt wurden. Jede andere Methode lehnt ihn ab. Der Frame erhält ihn nie: Die Hostseite leitet die Aufrufe weiter. |
+| Plugin-Token | Die Oberfläche eines Plugins, über die Hostseite | Für fünf Minuten ausgestellt, für ein Plugin und einen Benutzer. Er kann weitere Bereiche tragen, die dem Plugin gewährt wurden, aber nur die Methoden, die `public` und `prefs` zugeordnet sind, nehmen ihn an; jede andere Methode lehnt ihn ab. Der Frame erhält ihn nie: Die Hostseite leitet die Aufrufe weiter. |
 
 Ein Plugin-Token erreicht nie eine Verwaltungsmethode, egal welche Bereiche er
 hat ([ADR-0003](../adr/0003-plugin-scoped-tokens.md),

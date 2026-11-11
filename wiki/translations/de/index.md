@@ -1,5 +1,5 @@
 ---
-source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
+source_sha: 59bcc3e9f3711296c6f1a612c4b161e7d6db4b6f45f2f3a8cd4b7bb292c1de82
 reviewed: true
 hide:
 - navigation
@@ -23,8 +23,9 @@ Rest erledigt Evey.
 </p>
 
 <p class="evey-platforms">
-<strong>Was Sie brauchen:</strong> einen x86-64-Computer oder ein NAS mit
-Docker, und einen Ordner mit Ihren Medien. Die Installation besteht aus einer
+<strong>Was Sie brauchen:</strong> einen Computer oder ein NAS mit Docker
+(x86-64, oder ARM64 wie ein Raspberry Pi: <a href="operations/advanced-deployments/#arm-hosts">ARM-Rechner</a>),
+und einen Ordner mit Ihren Medien. Die Installation besteht aus einer
 Datei und einem Befehl.<br>
 <strong>Schauen</strong> Sie im Webbrowser, auf Android-Handys und -Tablets,
 auf Android TV, im Webbrowser eines Fernsehers und auf einem Chromecast. Die Apps für Android und Android TV
@@ -180,7 +181,8 @@ Bereiche auf der Startseite und Einblendungen im Player hinzu. Themes ändern
 das Aussehen. Bevor ein Plugin installiert wird, sieht der Administrator, was
 die Prüfung des Plugins gefunden hat und welche Berechtigungen es verlangt.
 Eine neue Berechtigung muss ausdrücklich angenommen werden. Ein Plugin läuft
-als eigener Prozess, unter einem eigenen Benutzer, ohne direkten
+als eigener Prozess, eingeschränkt durch Landlock oder bubblewrap (unter einem eigenen Benutzer,
+wenn die Maschine nur die einfache Sandbox kann), ohne direkten
 Netzwerkzugang. Es wird gestoppt, wenn es seine Grenze für Arbeitsspeicher,
 Prozesse oder Speicherplatz überschreitet. Wie streng sein Dateizugriff
 eingeschränkt ist, hängt vom Rechner ab, und das **Sicherheits-Dashboard**

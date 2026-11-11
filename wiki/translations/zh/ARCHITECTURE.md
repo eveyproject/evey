@@ -1,5 +1,5 @@
 ---
-source_sha: 2aa3f137eb7403f9ad58369e4f8f4eb6ea411a331f295395267794f1472f7153
+source_sha: 3d80d298e1b4ec097f2917fc6380f0639be2154565258bb434179a0dd155b17d
 reviewed: true
 ---
 # 架构
@@ -39,7 +39,7 @@ flowchart LR
 
 ## 限界上下文
 
-`internal/domain/` 和 `internal/app/` 下共有三十二个上下文包：19 个在两层都有，2 个只在领域层（`ratings`、`shared`），11 个只在应用层。
+`internal/domain/` 和 `internal/app/` 下共有三十三个上下文包：19 个在两层都有，2 个只在领域层（`ratings`、`shared`），12 个只在应用层。
 它们部分通过共享总线上的领域事件协作；应用层也会直接读取相邻上下文的领域包（见[关系](#relations)）。
 
 | 上下文 | 职责 |
@@ -71,6 +71,7 @@ flowchart LR
 | `dlna`（仅应用层） | SSDP 发现和 UPnP AVTransport 控制 |
 | `loadtest`（仅应用层） | 模拟观众访问服务器自己的 HTTP 栈：HLS，或者在客户端判定为直接播放时访问原始文件 |
 | `maintenance`（仅应用层） | 由管理员触发的媒体维护：重建跳转索引、修复日志、撤销、音频完整性 |
+| `prunehold`（仅应用层） | 扫描要大批删除缺失文件时先暂停，直到管理员确认（`library.prune.suspended`） |
 | `presence`（仅应用层） | 内存里、不持久化的“此刻谁在线”登记表 |
 | `qoe`（仅应用层） | 接收并汇总 CMCD（CTA-5004）播放遥测数据 |
 | `demo`（仅应用层） | 公开演示实例（`EVEY_DEMO=1`）：通过产品自己的服务预置账户、媒体库和自由许可的媒体，并能自我重置 |
@@ -83,7 +84,7 @@ flowchart LR
 | --- | --- | --- |
 | `library` | `LibraryCreated` / `LibraryDeleted`、`LibraryScanStarted` / `LibraryScanCompleted`、`MediaItemAdded`、`MediaItemRemoved`、`TrickplayGenerated` | `media.item.added`：`notification`、`metadata`（自动补全）、`library` 自己（trickplay 工作器 + 片头检测）、`feed`（使流派缓存失效） |
 | `playback` | `PlaybackStarted` / `PlaybackStopped` | 目前没有专门的订阅者；只有 `webhook` 的 `"*"` 通配订阅会收到 |
-| `user` | `UserCreated`、`user.password.reset_requested` | 前者没有订阅者；后者由 `email` 被驱动适配器消费 |
+| `user` | `UserCreated`、`user.password.reset_requested`、`user.login.succeeded` / `user.login.failed` | `UserCreated` 没有订阅者；重置请求由 `email` 被驱动适配器消费；登录事件由 `activity`（登录历史）消费 |
 | `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` 用于它的安全仪表板，`notification` 用于通知管理员 |
 | `shared` | `ServerConfigChanged` | 那些无需重启就能应用管理面板中已保存设置的服务（SMTP、时区、CPU 预算……） |
 
@@ -98,7 +99,7 @@ flowchart LR
 ## 典型的数据流：“用户播放一个媒体”
 
 1. 移动或网页客户端调用 `POST /api/v1/playback/start`（grpc-gateway 路由）。
-2. `internal/adapters/driving/http` 运行它的身份验证中间件（`auth_middleware.go`，`httpAuthMiddleware`），取出会话。
+2. `internal/adapters/driving/http` 把请求交给 grpc-gateway（限流、缓存头）；gRPC 的 `AuthInterceptor`（`grpcapi/interceptors/auth.go`）验证令牌并执行 RBAC。
 3. `internal/adapters/driving/grpcapi`（`playback_handler.go`）校验 proto，调用 `app/playback.CommandService.StartStream`（命令和查询分离，见 [ADR-0009](adr/0009-cqrs-repo-split.md)）。
 4. `app/playback.CommandService` 调用领域端口：`user.UserRepository`、`playback.SessionQueryRepo`（幂等 + 设备数量上限）、`playback.SessionCommandRepo`，然后 `shared.EventBus.Publish(PlaybackStarted)`。
 5. 被驱动适配器执行：`postgres` 在一个 `shared.TransactionalUnit.Do` 范围内保存会话；进程内的总线（`internal/pkg/eventbus`）异步分发事件。
@@ -109,7 +110,7 @@ flowchart LR
 
 ## 架构检查
 
-上面这些规则不只是写在文档里。`internal/contractguard/` 里有分布在 30 个文件中的 58 个静态测试，代码一旦偏离这些规则，构建就会失败。
+上面这些规则不只是写在文档里。`internal/contractguard/` 里有分布在 30 个文件中的 63 个静态测试，代码一旦偏离这些规则，构建就会失败。
 
 六边形规则本身是 `domain_imports_test.go` 里的 `TestDomainContextsDoNotImportEachOther`（ADR-0001）。它遍历 `internal/domain`，
 严格执行这一点：一个上下文可以导入 `internal/domain/shared` 和它自己的包树，`internal/domain` 里的其他内容一律不能导入，
@@ -247,7 +248,7 @@ flowchart LR
         a_photo[photo]
         a_user[user]
         a_upd[updatecheck]
-        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, prunehold, qoe, loadtest,<br/>demo]
     end
 
     subgraph domain[领域核心 - internal/domain]

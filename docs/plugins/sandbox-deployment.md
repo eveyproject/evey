@@ -86,8 +86,8 @@ full virtual machine.
   declared;
 - dangerous system actions are still blocked at the kernel;
 - but with no per-folder file restriction, a malicious plugin could read ordinary, non-secret
-  files, list running processes and, because plugins share one account,
-  read or disturb another plugin's files.
+  files, list running processes and, because plugins share the server's group,
+  read another plugin's group-readable files.
 
 Only install plugins you trust on such a host, or move to a modern kernel
 for the full file restriction.
@@ -142,8 +142,8 @@ an unprivileged container) shows up as errored: switch back.
 # the launcher carries the capability used for uid separation
 docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
-# which user a running plugin runs as (evey = shared with the server,
-# evey-plugin = separated); the image has ps, so `docker exec evey-server ps` also works
+# which user a running plugin runs as (evey = shared with the server, a
+# numeric uid in 40000-59999 = separated, one per plugin); the image has ps, so `docker exec evey-server ps` also works
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 

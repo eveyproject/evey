@@ -33,12 +33,13 @@ start before proposing to change one of those choices.
    frontend (typecheck, lint, unit tests), security scan, lint,
    [architecture guards](ARCHITECTURE.md#architecture-guards), commit
    hygiene, secret scan, proto breaking-change check, a build from a clean
-   checkout, the repository and transcoding integration gates, and the TV
-   audit.
-   A push to `dev` or to a work branch runs `make pre-push-dev` instead: the
-   same gate without the long suites that the pull request's CI runs again
-   on the same commits (vulnerability scan, frontend tests and build, the
-   repository suite, the TV audit); a push to `master` runs the full gate.
+   checkout, the wiki guards, the repository and transcoding integration
+   gates, and the TV audit.
+   A push to `dev` or to a work branch runs `make pre-push-dev` instead: unit
+   tests only for the changed packages, frontend tests and the repository
+   suite only when the branch touches them, and no vulnerability scan,
+   frontend build or TV audit (the pull request's CI runs them); a push to
+   `master` runs the full gate.
 2. Add tests for new behaviour and for every bug fix.
 3. For an external contribution, accept the
    [contributor licence agreement](../CLA.md) once: Evey is AGPL-3.0-or-later

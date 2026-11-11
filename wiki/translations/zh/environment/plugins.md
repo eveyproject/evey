@@ -1,5 +1,5 @@
 ---
-source_sha: 25ed5f4a742c5f5e2457ec15cbc7d5d59bfd30c52c88a5fc2548a86553d13fb5
+source_sha: c99cc1b66de151e0e27b786bbc03a5bbf4ecf4e6c64681fc28cf588a10e0cdfa
 reviewed: true
 ---
 # 插件与沙箱
@@ -30,8 +30,8 @@ reviewed: true
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`、`warn` 或 `enforce`：签名检查失败时怎么办。设为 `enforce` 却没有密钥，服务器拒绝启动。 | 无 |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | 空 | 用来核对签名的 PEM 公钥的路径。设为 `warn` 又没有密钥时，什么都不验证，服务器启动时给出警告。 | 无 |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`、`warn` 或 `enforce`：签名检查失败时怎么办。签名会根据每个插件包自带的密钥和受信任发布者列表来核对，所以不需要配置密钥。 | 无 |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | 空 | 可选：您自己的发布者 PEM 公钥的路径，每次启动时加入受信任发布者列表。 | 无 |
 
 ## 日志
 

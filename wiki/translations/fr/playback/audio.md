@@ -1,5 +1,5 @@
 ---
-source_sha: 318633ab461ab7429280d1503d8bccfc464413f5ccc3377a7588c10f3d316c75
+source_sha: 86d73602259fc01a31ea67027a45a760df02e2c94c6d15b7dcdd926a80846d62
 reviewed: true
 ---
 # Audio { #audio }
@@ -44,8 +44,9 @@ profil, puis la piste que le fichier marque par défaut, puis la première. Une
 piste marquée comme commentaire est écartée au profit d'une piste normale
 quand le fichier contient les deux.
 
-Seule la piste écoutée est évaluée : une piste DTS que vous n'écoutez pas ne
-provoque jamais de transcodage.
+Seule la piste écoutée peut être réencodée : une piste DTS que vous n'écoutez
+pas ne provoque jamais de transcodage, mais sur un appareil qui ne sait pas la
+décoder, elle transforme une lecture directe en Remux.
 
 ## Copiée ou réencodée { #copied-or-re-encoded }
 
@@ -63,8 +64,9 @@ elle est réencodée en AAC :
 
 Une piste copiée à l'intérieur d'un flux transcodé ou remuxé doit aussi être
 dans un format que le lecteur accepte au sein des segments du flux. L'AAC,
-l'AC-3 et l'E-AC-3 le sont toujours ; les autres codecs seulement si le
-lecteur l'indique. Sinon, la piste est réencodée et les Infos du flux
+l'AC-3 et l'E-AC-3 le sont toujours ; le MP3 et l'Opus seulement si le
+lecteur indique les accepter dans un flux ; tout autre codec est réencodé.
+Sinon, la piste est réencodée et les Infos du flux
 affichent **Piste audio non transmissible telle quelle dans le flux** : un
 lecteur peut décoder du MP3 dans un fichier et le refuser malgré tout dans un
 flux.

@@ -52,8 +52,8 @@ Two points of the decision no longer describe the product:
   without it a cast gets transcoded AAC, or AC-3/E-AC-3 passthrough when the
   receiver reports native Dolby support (`CastWasmAudioEnabled`,
   `internal/config/config.go`).
-- **Two senders, not three.** The web and mobile apps cast; the TV app does
-  not, and ships no Cast SDK.
+- **Two senders, not three.** The web and mobile apps cast; the TV app is
+  not a sender, but it is a Cast Connect receiver (`@evey/cast-tv`).
 
 The rest stands: the server drives the session, and the custom receiver
 (`D36A449B`) is the one surface that reports the device's capabilities.

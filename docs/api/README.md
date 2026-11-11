@@ -22,7 +22,7 @@ Three kinds of credential reach the API, all in the `Authorization` header:
 |---|---|---|
 | Session token | A person signed in through an app | `Bearer <token>`, obtained by signing in and renewed by the app. |
 | API key | A script, on behalf of the administrator who created it | `Bearer evey_...` (the `Bearer` prefix is optional). Scoped, revocable: [Webhooks and API keys](../webhooks-api-keys.md). |
-| Plugin token | A plugin's interface, through the host page | Minted for five minutes for one plugin and one user, carrying only the `public` and `prefs` scopes the plugin was granted; every other method refuses it. The frame never holds it: the host page proxies the calls. |
+| Plugin token | A plugin's interface, through the host page | Minted for five minutes for one plugin and one user, it may carry other scopes the plugin was granted, but only the methods mapped to `public` and `prefs` accept it; every other method refuses it. The frame never holds it: the host page proxies the calls. |
 
 A plugin token can never reach an administration method, whatever its scopes
 ([ADR-0003](../adr/0003-plugin-scoped-tokens.md),

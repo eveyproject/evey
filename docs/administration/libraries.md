@@ -115,9 +115,9 @@ To force it, or to add a regular full scan, use the library's row:
       works, it writes a small test file into the folder for a few seconds.
       A library where this is proven to work is read once an hour instead of
       every 2 minutes.
-    - Libraries created from the web panel do not use the file watcher: the
-      reads every 2 minutes pick up their files. The phone app's admin form
-      for a library has a **Realtime monitoring** switch.
+    - The web and phone library forms both have a **Realtime monitoring**
+      switch, on by default for a new library; with it off, the reads every
+      2 minutes pick up the files.
 
 !!! note "Network shares"
     On an NFS or SMB share, a file written by another machine sends no
@@ -194,7 +194,7 @@ default. **Auto-skip intros** (**Admin → Server Config → Libraries**, off
 by default) makes every player skip them on its own.
 
 <!-- sources
-add library: frontend/apps/web/src/features/admin/LibraryForm.tsx (name, type, paths only - no realtime/scan-on-startup toggles) ; i18n admin.libraries.addLibrary, tvShows, paths, enterCustomPath, addPath, createLibrary ; internal/domain/library/model.go NewLibrary (RealtimeMonitoring false by default) ; grpcapi/library_handler.go CreateLibrary (no scan trigger ; only watcher + feed subscribe library.created)
+add library: frontend/apps/web/src/features/admin/LibraryForm.tsx (name, type, paths, realtime monitoring on by default) ; i18n admin.libraries.addLibrary, tvShows, paths, enterCustomPath, addPath, createLibrary ; internal/domain/library/model.go NewLibrary (RealtimeMonitoring false by default) ; grpcapi/library_handler.go CreateLibrary (no scan trigger ; only watcher + feed subscribe library.created)
 types: i18n admin.libraries.types.* ; internal/adapters/driven/metadata/musicbrainz_provider.go ; internal/app/music/album_art_chain.go
 parser: internal/adapters/driven/filesystem/parser.go (reEditionSuffix, knownQualities, SetExtraParserTokens) ; internal/app/library/parser_config.go ApplyParserConfig ; i18n admin.serverConfig.parserTokens*
 fix a title: frontend/apps/web/src/features/library/MediaDetailEdit.tsx (save, refresh, reset, rematch, identify) ; IdentifyMetadataModal.tsx ; http/admin_handler_media.go (identify search) ; internal/app/metadata/command_service_overrides.go SetOverride, ResetItemMetadata (overrides, artwork, persons, Catalog=nil, children) ; command_service_refresh.go RefreshItemMetadata ; i18n media.detail.editMetadata, identify.*, tmdbId, imdbId, idChangedWarning, refreshMetadata, resetMetadata, rematchMetadata, rematchConfirm

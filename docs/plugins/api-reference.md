@@ -20,7 +20,7 @@ entrypoint: node index.js    # required for a plugin; the command line the serve
 
 description: "..."           # optional
 author: "..."                # optional
-min_evey_version: "1.0.0"    # optional; accepted and ignored
+min_evey_version: "1.0.0"    # optional; install/update refused when above the server version
 
 permissions:                 # what the backend and the interface may call
   - network

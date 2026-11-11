@@ -1,5 +1,5 @@
 ---
-source_sha: 1228995cc2e68d60fc487b1964ca10ac8b4d40ada5f82047cdbcf9d42528c0f6
+source_sha: 1e6be4bdc8510a8b0c1800890163c1a4e4ea299813c8c76bf54414e018055047
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -63,7 +63,7 @@ make dev                        # postgres、meilisearch、服务器（Air）、
 ```
 
 打开 `https://evey.test`。第一次启动时，设置向导会创建管理员账户，见[首次设置](../getting-started/first-setup.md)。
-插件文件放在 `./evey-data/plugins/<plugin-id>/`，在容器里挂载为 `/data/plugins`。
+在这个开发环境里，插件文件放在 `./plugins/<plugin-id>/`，在容器里挂载为 `/data/plugins`。
 
 ## 3. 一步步写出第一个插件 { #3-your-first-plugin-step-by-step }
 
@@ -242,7 +242,7 @@ external_fetch:
    `external_fetch` 的条目是纯主机名、声明了 `frontend` 时有 `web_root`。声明的 `language` 必须是镜像里有的运行时。
 2. **版本和权限升级。** 对于已经安装的插件，新版本必须更高；任何新增的权限、能力、插槽或主机，都会让安装停在这一步，
    直到管理员批准这些差异（上传路由上的 `accept_permission_changes=true`）。
-3. **签名和哈希。** 配置了公钥时会验证签名；只有在 `enforce` 下，验证失败才会阻止安装。ZIP 包的哈希会被记录下来，
+3. **签名和哈希。** 除非策略为 `off`，签名会根据插件包自带的 `cosign.pub` 来验证；只有在 `enforce` 下，验证失败才会阻止安装。ZIP 包的哈希会被记录下来，
    之前预览过的更新在应用时会再核对一次。
 4. **解压**到一个临时目录：最多 5,000 个条目，单个文件最大 100 MB，总共最多 500 MB，压缩比不超过 100:1，
    不允许符号链接，不允许超出压缩包范围的路径。在后面每一步都通过之前，更新绝不会改动正在运行的版本。
@@ -280,7 +280,7 @@ external_fetch:
 | `manifest: frontend slot "admin.section" not allowed` | 这个插槽不在允许列表里。 | 从[插槽列表](api-reference.md#slots)里选一个；`admin.nav` 是管理区域里唯一的插槽。 |
 | `manifest: network permission requires non-empty external_fetch` | 声明了 `network` 却没有主机。 | 加上主机，或者去掉这个权限。 |
 | `plugin already installed at version 1.0.0, new version must be higher` | ZIP 包的版本和已安装的相同。 | 调高 `version`，或者先卸载。 |
-| `signature does not match the plugin or the configured key` | `.sig` 是用另一个密钥生成的，或者 ZIP 包在签名之后被改过。 | 用正确的密钥给这个 ZIP 包重新签名，或者修正 `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`。 |
+| `signature does not match the package and its signing key` | `.sig` 是用另一个密钥生成的，或者 ZIP 包在签名之后被改过。 | 用与包内 `cosign.pub` 对应的私钥给这个 ZIP 包重新签名。 |
 | `plugin blocked: theme.js contains forbidden pattern` | 主题脚本扫描器匹配到了被禁止的 API。 | 主题只能调用 `evey.theme.*`：见[主题](../themes.md#what-the-scanner-refuses)。 |
 | 日志最后一行是 `memory quota exceeded (... MB > ... MB)` | 插件超出内存上限，被监控程序停止。 | 降低内存用量，或者在**资源限制**里调高**最大内存（MiB）**。 |
 | `bwrap: ... permission denied` | 在 Docker 里使用 `bubblewrap` 模式，被容器的 seccomp 或 AppArmor 配置阻止。 | 保持默认的 `auto` 模式。否则请看[插件沙箱设置](sandbox-deployment.md)。 |

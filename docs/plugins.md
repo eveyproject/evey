@@ -103,8 +103,8 @@ the panel has never been saved.
 | **Sandbox mode** | `auto` | `EVEY_PLUGINS_SANDBOX_MODE` |
 
 Memory, processes and disk apply at the next sweep of the monitor, which stops
-a plugin that exceeds them; the CPU priority and the sandbox mode apply to
-plugins started afterwards. `0` restores the default for memory and processes; only the disk limit treats
+a plugin that exceeds them; the CPU priority applies to plugins started
+afterwards, and a sandbox-mode change restarts the running plugins at once. `0` restores the default for memory and processes; only the disk limit treats
 `0` as off.
 
 The **Security Dashboard** keeps, per plugin, the findings of the analysis, the

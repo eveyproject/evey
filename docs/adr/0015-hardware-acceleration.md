@@ -40,3 +40,10 @@ software tier without any manifest change.
 - VAAPI and QSV do not work under WSL2. The admin panel detects it and greys
   them rather than pretending; the documented ffmpeg workarounds were tried and
   still crash. WSL means NVENC or software.
+
+## Amendment
+
+The init-segment watchdog is now ten seconds by default
+(`EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT`), and one missed init no longer
+demotes the GPU: it takes a second miss within ten minutes
+(`hwInitStrikeWindow`, `internal/app/transcoding/calibration_service.go`).

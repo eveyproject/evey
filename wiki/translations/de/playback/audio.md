@@ -1,5 +1,5 @@
 ---
-source_sha: 318633ab461ab7429280d1503d8bccfc464413f5ccc3377a7588c10f3d316c75
+source_sha: 86d73602259fc01a31ea67027a45a760df02e2c94c6d15b7dcdd926a80846d62
 reviewed: true
 ---
 # Audio { #audio }
@@ -45,8 +45,9 @@ Profils, dann der Spur, die die Datei als Standard markiert, dann der ersten.
 Hat die Datei eine Kommentarspur und eine normale Spur, wird die
 Kommentarspur übersprungen.
 
-Beurteilt wird nur die Spur, die gerade läuft: Eine DTS-Spur, die Sie nicht
-hören, löst nie eine Transkodierung aus.
+Neu kodiert werden kann nur die Spur, die gerade läuft: Eine DTS-Spur, die Sie
+nicht hören, löst nie eine Transkodierung aus, macht aber auf einem Gerät, das
+sie nicht dekodieren kann, aus einer Direktwiedergabe einen Remux.
 
 ## Kopiert oder neu kodiert { #copied-or-re-encoded }
 
@@ -64,8 +65,9 @@ wird sie in AAC neu kodiert:
 
 Eine kopierte Spur in einem transkodierten oder umverpackten Stream muss
 außerdem ein Format haben, das der Player in den Segmenten des Streams
-annimmt. AAC, AC-3 und E-AC-3 gehen immer; andere Codecs nur, wenn der Player
-es meldet. Sonst wird die Spur neu kodiert, und Stream-Info zeigt
+annimmt. AAC, AC-3 und E-AC-3 gehen immer; MP3 und Opus nur, wenn der Player
+meldet, dass er sie in einem Stream annimmt; jeder andere Codec wird neu
+kodiert. Sonst wird die Spur neu kodiert, und Stream-Info zeigt
 **Audiospur kann im Stream nicht unverändert übertragen werden**: Ein Player
 kann MP3 in einer Datei dekodieren und es in einem Stream trotzdem ablehnen.
 

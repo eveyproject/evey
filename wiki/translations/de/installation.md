@@ -1,5 +1,5 @@
 ---
-source_sha: 24e90e68dbbd60f7111af4c4e2e50bf061e8c287d2c22f38fa970231c0d48959
+source_sha: d79dc0926b3cccaf395cc08d77b10dd374b052ab566b42de9e7a26ebea4fbff2
 reviewed: true
 ---
 # Installation { #install }
@@ -30,8 +30,13 @@ einstellen.
 ## Was Sie brauchen { #what-you-need }
 
 - **Einen Computer oder ein NAS, das eingeschaltet bleibt**, mit einem
-  x86-64-Prozessor (Intel oder AMD). ARM64-Geräte brauchen ein
-  Versions-Tag, das es noch nicht gibt: siehe
+  x86-64-Prozessor (Intel oder AMD) oder einem ARM64-Prozessor.
+  Release-Images (Tags `vX.Y.Z`) sind Multi-Arch (`linux/amd64` und
+  `linux/arm64`), Docker wählt das passende; Branch-Builds gibt es nur für
+  amd64, auf ARM also ein Release-Tag festlegen. Hardware-Transkodierung auf
+  ARM gibt es nur mit Rockchip RKMPP (ohne Gewähr, noch nicht auf echter
+  Hardware geprüft); ein Raspberry Pi oder ein ARM-NAS mit Realtek-Chip spielt
+  direkt ab und transkodiert in Software. Siehe
   [ARM-Rechner](operations/advanced-deployments.md#arm-hosts).
 - **Docker mit Compose v2.** Der Befehl heißt `docker compose`, mit
   Leerzeichen, nicht das ältere `docker-compose`.
@@ -183,7 +188,7 @@ auf die Karte: siehe [Hardwarebeschleunigung](administration/hardware-accelerati
 | `eveyproject/evey:0.1` | den neuesten Fix dieser Minor-Linie (0.1.0, 0.1.1, ...), nie eine neue Minor-Version |
 | `eveyproject/evey:0.1.0` | genau diese Version, bis Sie die Zeile ändern |
 | `eveyproject/evey:sha-<commit>` | ein einzelner exakter Build, das einzige Tag, das sich nie bewegt |
-| `eveyproject/evey:master` | der Entwicklungszweig, bei jedem Push neu gebaut: zum Testen, nicht für einen Server, auf den Sie sich verlassen |
+| `eveyproject/evey:master` | der Integrationszweig, bei jedem Merge neu gebaut: zum Testen, nicht für einen Server, auf den Sie sich verlassen |
 
 Versionsnummern folgen [Semantic Versioning](https://semver.org/) und beginnen bei
 `0.1.0`; die 0.x-Linie ist die öffentliche Beta. Um die Version zu wechseln,

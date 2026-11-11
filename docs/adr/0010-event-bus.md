@@ -13,11 +13,14 @@ packages it has no business knowing about, and the hexagonal rule forbids it.
 
 Cross-context coordination goes through `shared.EventBus`, and events are typed
 structs owned by the domain that emits them, not string names with opaque
-payloads. The interface is two methods, `Publish` and `Subscribe`.
+payloads. The interface is `Publish`, `Subscribe` and `Unsubscribe`.
 
-The implementation is in-process, one goroutine per subscriber, wired once in
-the composition root. A slow consumer therefore never blocks a publisher, and
-the bus opens no transaction of its own - that is the handler's job.
+The implementation is in-process, wired once in the composition root: a shared
+pool of workers (`NumCPU*2`) drains one bounded queue (`workers*256`), retries
+a failed delivery with backoff, and drops an event when the queue is full
+(`internal/pkg/eventbus/eventbus.go`). A slow consumer therefore never blocks a
+publisher, but it shares the workers with every other subscriber. The bus opens
+no transaction of its own - that is the handler's job.
 
 A struct rather than a map means a subscriber that mistypes a field fails to
 compile, and the fields an event carries are discoverable next to the model that

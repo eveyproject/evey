@@ -22,8 +22,13 @@ memory or CPU setting.
 
 ## What you need
 
-- **A computer or NAS that stays on**, with an x86-64 processor (Intel or
-  AMD). ARM64 machines need a release tag, which does not exist yet: see
+- **A computer or NAS that stays on**, with an x86-64 (Intel or AMD) or an
+  ARM64 processor. Release images (`vX.Y.Z` tags) are multi-arch
+  (`linux/amd64` and `linux/arm64`) and Docker picks the right one; branch
+  builds are amd64 only, so pin a release tag on ARM. Hardware transcoding on
+  ARM is Rockchip RKMPP only (best-effort, not yet validated on real
+  hardware); a Raspberry Pi or a Realtek-based ARM NAS plays direct and
+  transcodes in software. See
   [ARM hosts](operations/advanced-deployments.md#arm-hosts).
 - **Docker with Compose v2.** The command is `docker compose`, with a space,
   not the older `docker-compose`.
@@ -167,7 +172,7 @@ card: see [Hardware acceleration](administration/hardware-acceleration.md).
 | `eveyproject/evey:0.1` | the newest fix of that minor line (0.1.0, 0.1.1, ...), never a new minor |
 | `eveyproject/evey:0.1.0` | exactly that release, until you change the line |
 | `eveyproject/evey:sha-<commit>` | one exact build, the only tag that never moves |
-| `eveyproject/evey:master` | the development branch, rebuilt at every push: for testing, not for a server you rely on |
+| `eveyproject/evey:master` | the integration branch, rebuilt at every merge: for testing, not for a server you rely on |
 
 Release numbers follow [semantic versioning](https://semver.org/) and start
 at `0.1.0`; the 0.x line is the public beta. To change version, edit the
@@ -222,7 +227,7 @@ writes into media folders: internal/app/subtitle/service.go (.subtitles) ; inter
 delete = library only: internal/app/library/command_service.go - DeleteMediaItem ; internal/app/music/command_service.go - DeleteTrack
 remote access inference: docs/adr/0026-remote-access-inferred-from-a-published-url.md
 calibration at first quiet moment: internal/app/transcoding/calibration_service.go
-ARM needs a release tag, none exists yet: docs/operations/advanced-deployments.md (ARM hosts) ; git tag (none)
+ARM: release tags are multi-arch, branch builds amd64 only: docs/operations/advanced-deployments.md (ARM hosts) ; .github/workflows/ci.yml (Resolve build platforms)
 probe file removed right after: internal/app/library/watcher_probe.go - probeOnce
 apps link label: docs/getting-started/apps.md (Connect the apps)
 -->

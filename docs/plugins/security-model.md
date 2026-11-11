@@ -61,10 +61,10 @@ install. Receiving webhooks (`webhook.receiver`) and providing metadata
 | `native-binary` | The package may ship `.so`, `.dll`, `.exe`, `.wasm`, `.jar`, embedded archives or native code the analysis cannot read. The administrator sees and must accept opaque code. Required for a `go` plugin. |
 | `filesystem` | Declared intent to touch the filesystem beyond the plugin's directory. Recorded and shown to the administrator; the sandbox grants no file access outside the plugin's directory whatever is declared. |
 | `media.read` | `GetMediaItem` and `ListMediaItems` on the host: the full media record. |
-| `media.write` | Reserved for the metadata write calls, not served today. |
+| `media.write` | `UpdateMetadata` on the host, for a plugin that also declares the `metadata.provider` capability. |
 | `api.library` | The same media read calls as `media.read`. |
 | `api.user` | Reserved for `GetUserPreferences`, not served today. |
-| `api.metadata` | Reserved for `UpdateMetadata`, not served today. |
+| `api.metadata` | The same `UpdateMetadata` call as `media.write`, under the same capability condition. |
 | `notification.sender` | Reserved for `SendNotification`, not served today. |
 | `public` | The interface may read a safe projection of media items (id, title, type, year, overview, poster), never paths or streams. See [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `prefs` | The interface may read and write the current user's preferences in the plugin's own namespace. See [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |

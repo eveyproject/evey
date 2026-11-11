@@ -1,5 +1,5 @@
 ---
-source_sha: af8c6f06737bb877d02dbe562e2082f8b62c725fa10bcf0c4a668855a5f42c87
+source_sha: d18575178717c35ca8643b0eead448a6b422a10bbfee57b8fcc255d843d35d40
 reviewed: true
 ---
 # 提供视频：HLS 播放路径
@@ -69,7 +69,7 @@ ffmpeg 的分段是指纹目录下的一个文件，写一次，之后从那里�
    `MakePlaybackDecisionWithPrefs`（纯函数）是按轨道决定复制还是转码的核心逻辑。解析器在它之上叠加请求时的固定参数（`vd=` / `ad=`）、
    音频重新同步的覆盖设置等。
 4. **Q3 - 能力** - `internal/app/transcoding/calibration_service.go`：
-   `Current()` 返回 `domain/transcoding.Derive(report, policy)`（`derive.go`），也就是根据最近一次校准推算出的这台机器的上限。
+   `Current()` 返回这台机器的上限：根据最近一次校准推算出的能力快照（`domain/transcoding.Derive`，`derive.go`），并套用运营者设置的上限覆盖。
 5. **阶梯和准入** - 解析器调整阶梯（复杂度类别、生产者配置、源文件和能力的上限、CMCD/AV1 上限、准入路径和上限），
    然后把它**冻结**在准入记录上（`admission_shaper.go`，`FreezeLadder`），之后每次调用都原样读取：
    缓存哈希的不变量由结构来保证。`video_session_limiter.go` 占用容量名额；名额满了，处理路径就从硬件转到软件。

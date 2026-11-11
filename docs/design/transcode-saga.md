@@ -1,6 +1,10 @@
 # Saga / process manager for the transcode lifecycle - design proposal
 
-Status: **Proposal. No code has been written against it.**
+Status: **Obsolete. Never implemented.** The HLS lifecycle it targets
+(`HLSManager` / `HLSSession` in `hls.go`, `TranscodeThrottle`, the progressive
+`/transcode` pipe) was removed and replaced by the segment orchestrator, so
+sections 1 and 2 describe code that no longer exists, and migration number
+`000085` is taken. Kept as design history only.
 
 > A design document, not an architecture decision record: it describes a shape
 > the transcoding stack does not have. It earns an ADR the day it ships, and

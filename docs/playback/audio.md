@@ -38,8 +38,9 @@ Otherwise the players follow the profile's **Default Audio Language**, then the
 track the file marks as default, then the first one. A track flagged as
 commentary is skipped in favour of a regular one when the file has both.
 
-Only the track being played is judged: a DTS track you are not listening to
-never causes a transcode.
+Only the track being played can be re-encoded: a DTS track you are not
+listening to never causes a transcode, but on a device that cannot decode it,
+it turns a Direct Play into a Remux.
 
 ## Copied or re-encoded
 
@@ -57,7 +58,8 @@ to AAC:
 
 A copied track inside a transcoded or remuxed stream must also be a format the
 player accepts inside the stream's segments. AAC, AC-3 and E-AC-3 always are;
-other codecs only when the player says so. When it is not the case, the track
+MP3 and Opus only when the player says it accepts them in a stream; any other
+codec is re-encoded. When it is not the case, the track
 is re-encoded and Stream info says **Audio track cannot be passed through
 unchanged in the stream**: a player may decode MP3 in a file and still refuse
 it inside a stream.

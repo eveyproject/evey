@@ -29,8 +29,8 @@ Resource limits** apply to every plugin and win over them.
 
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` or `enforce`: what a failed signature check does. `enforce` without a key refuses to start. | none |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | empty | Path to the PEM public key signatures are checked against. With `warn` and no key, nothing is verified and the server warns at startup. | none |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` or `enforce`: what a failed signature check does. Signatures are checked against the key each package carries and the trusted-publisher list, so no key is needed. | none |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | empty | Optional path to your own publisher's PEM public key, added to the trusted publishers at every start. | none |
 
 ## Logs
 

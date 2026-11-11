@@ -1,5 +1,5 @@
 ---
-source_sha: 9c17a56bd4379a8c15fd8d637fe0c4914e9b9cf848503ddd72e806f574506caa
+source_sha: 0b4b5e075d84b1e97c225d26bec7ed373195a8931fa80b07503f018fefd35f5b
 reviewed: true
 ---
 # Configurar el sandbox de plugins { #plugin-sandbox-setup }
@@ -96,7 +96,7 @@ que vale para cualquier sandbox que no sea una máquina virtual completa.
 - las acciones peligrosas del sistema siguen bloqueadas en el kernel;
 - pero sin restricción de archivos por carpeta, un plugin malicioso podría leer archivos corrientes
   que no son secretos, ver la lista de procesos en marcha y, como los plugins
-  comparten una misma cuenta, leer o alterar los archivos de otro plugin.
+  comparten el grupo del servidor, leer los archivos de otro plugin legibles por el grupo.
 
 En un equipo así, instala solo plugins de confianza, o pasa a un kernel
 moderno para tener la restricción de archivos completa.
@@ -152,8 +152,8 @@ aparece con error: vuelve al modo anterior.
 # el lanzador lleva la capacidad que usa la separación de uid
 docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
-# con qué usuario se ejecuta un plugin en marcha (evey = compartido con el servidor,
-# evey-plugin = separado); la imagen tiene ps, así que `docker exec evey-server ps` también funciona
+# con qué usuario se ejecuta un plugin en marcha (evey = compartido con el servidor, un
+# uid numérico entre 40000 y 59999 = separado, uno por plugin); la imagen tiene ps, así que `docker exec evey-server ps` también funciona
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 

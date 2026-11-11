@@ -1,5 +1,5 @@
 ---
-source_sha: 9c17a56bd4379a8c15fd8d637fe0c4914e9b9cf848503ddd72e806f574506caa
+source_sha: 0b4b5e075d84b1e97c225d26bec7ed373195a8931fa80b07503f018fefd35f5b
 reviewed: true
 ---
 # Plugin-Sandbox einrichten { #plugin-sandbox-setup }
@@ -97,8 +97,8 @@ die keine vollständige virtuelle Maschine ist.
 - gefährliche Systemaktionen bleiben im Kernel blockiert;
 - aber ohne Dateibeschränkung pro Ordner könnte ein bösartiges Plugin gewöhnliche, nicht
   geheime Dateien lesen, laufende Prozesse auflisten und, weil sich die
-  Plugins ein Konto teilen, die Dateien eines anderen Plugins lesen oder
-  stören.
+  Plugins die Gruppe des Servers teilen, die für die Gruppe lesbaren Dateien
+  eines anderen Plugins lesen.
 
 Installieren Sie auf einem solchen Host nur Plugins, denen Sie vertrauen, oder
 wechseln Sie auf einen modernen Kernel, um die vollständige Dateibeschränkung zu erhalten.
@@ -154,8 +154,8 @@ fehlerhaft: Stellen Sie den Modus zurück.
 # der Launcher trägt die Capability für die UID-Trennung
 docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
-# unter welchem Benutzer ein laufendes Plugin läuft (evey = mit dem Server geteilt,
-# evey-plugin = getrennt); das Image hat ps, also funktioniert auch `docker exec evey-server ps`
+# unter welchem Benutzer ein laufendes Plugin läuft (evey = mit dem Server geteilt, eine
+# numerische UID in 40000-59999 = getrennt, eine pro Plugin); das Image hat ps, also funktioniert auch `docker exec evey-server ps`
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 

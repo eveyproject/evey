@@ -1,5 +1,5 @@
 ---
-source_sha: 2aa3f137eb7403f9ad58369e4f8f4eb6ea411a331f295395267794f1472f7153
+source_sha: 3d80d298e1b4ec097f2917fc6380f0639be2154565258bb434179a0dd155b17d
 reviewed: true
 ---
 # Arquitectura
@@ -50,9 +50,9 @@ subpaquete `fakes/`.
 
 ## Contextos delimitados
 
-Treinta y dos paquetes de contexto están en `internal/domain/` e
+Treinta y tres paquetes de contexto están en `internal/domain/` e
 `internal/app/`: 19 existen en las dos capas, 2 solo en el dominio
-(`ratings`, `shared`) y 11 solo en la aplicación. Colaboran en parte mediante
+(`ratings`, `shared`) y 12 solo en la aplicación. Colaboran en parte mediante
 eventos de dominio en un bus compartido; la capa de aplicación también lee
 directamente el paquete de dominio de un contexto vecino (consulta
 [Relaciones](#relations)).
@@ -86,6 +86,7 @@ directamente el paquete de dominio de un contexto vecino (consulta
 | `dlna` (solo aplicación) | descubrimiento SSDP y control UPnP AVTransport |
 | `loadtest` (solo aplicación) | simula espectadores contra la propia pila HTTP del servidor: HLS, o el archivo tal cual cuando el veredicto de un cliente es una lectura directa |
 | `maintenance` (solo aplicación) | mantenimiento de medios lanzado por el administrador: reconstrucción del índice de posicionamiento, diario de reparaciones, deshacer, integridad del audio |
+| `prunehold` (solo aplicación) | retiene el borrado masivo de archivos ausentes de un escaneo hasta que un administrador lo confirma (`library.prune.suspended`) |
 | `presence` (solo aplicación) | registro en memoria, no guardado, de quién está conectado ahora mismo |
 | `qoe` (solo aplicación) | recepción y agregación de la telemetría de reproducción CMCD (CTA-5004) |
 | `demo` (solo aplicación) | la instancia pública de demostración (`EVEY_DEMO=1`): crea sus cuentas, sus bibliotecas y sus medios de licencia libre con los propios servicios del producto, y se reinicia sola |
@@ -98,7 +99,7 @@ directamente el paquete de dominio de un contexto vecino (consulta
 | --- | --- | --- |
 | `library` | `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` | `media.item.added`: `notification`, `metadata` (enriquecimiento automático), el propio `library` (trabajador de trickplay + detección de intros), `feed` (invalidación de la caché de géneros) |
 | `playback` | `PlaybackStarted` / `PlaybackStopped` | hoy ningún suscriptor específico; solo los recibe el comodín `"*"` de `webhook` |
-| `user` | `UserCreated`, `user.password.reset_requested` | el primero no tiene suscriptor; el segundo lo consume el adaptador de salida `email` |
+| `user` | `UserCreated`, `user.password.reset_requested`, `user.login.succeeded` / `user.login.failed` | `UserCreated` no tiene suscriptor; la solicitud de restablecimiento la consume el adaptador de salida `email`; los eventos de inicio de sesión, `activity` (historial de inicios de sesión) |
 | `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` para su panel de seguridad, `notification` para el administrador |
 | `shared` | `ServerConfigChanged` | los servicios que aplican sin reiniciar un ajuste guardado en el panel de administración (SMTP, zona horaria, presupuesto de CPU, ...) |
 
@@ -120,7 +121,7 @@ paquete de dominio de un contexto vecino.
 ## Flujo de datos típico - "un usuario reproduce un medio"
 
 1. El cliente móvil o web llama a `POST /api/v1/playback/start` (ruta de grpc-gateway).
-2. `internal/adapters/driving/http` ejecuta su middleware de autenticación (`auth_middleware.go`, `httpAuthMiddleware`) y extrae la sesión.
+2. `internal/adapters/driving/http` pasa la petición a grpc-gateway (límite de peticiones, cabeceras de caché); el `AuthInterceptor` de gRPC (`grpcapi/interceptors/auth.go`) autentica el token y aplica el RBAC.
 3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) valida el proto y llama a `app/playback.CommandService.StartStream` (separación entre órdenes y consultas, consulta [ADR-0009](adr/0009-cqrs-repo-split.md)).
 4. `app/playback.CommandService` llama a los puertos del dominio: `user.UserRepository`, `playback.SessionQueryRepo` (idempotencia + límite de dispositivos), `playback.SessionCommandRepo`, y después `shared.EventBus.Publish(PlaybackStarted)`.
 5. Los adaptadores de salida hacen el trabajo: `postgres` guarda la sesión dentro de un ámbito `shared.TransactionalUnit.Do`; el bus interno del proceso (`internal/pkg/eventbus`) reparte de forma asíncrona.
@@ -133,7 +134,7 @@ tema de [Servir un vídeo - el camino de reproducción HLS](playback-serving.md)
 ## Guardas de arquitectura
 
 Las reglas de arriba no son solo documentación. `internal/contractguard/`
-contiene 58 tests estáticos repartidos en 30 archivos que hacen fallar la
+contiene 63 tests estáticos repartidos en 30 archivos que hacen fallar la
 compilación cuando el código se aparta de ellas.
 
 La regla hexagonal en sí es `TestDomainContextsDoNotImportEachOther`
@@ -292,7 +293,7 @@ flowchart LR
         a_photo[photo]
         a_user[user]
         a_upd[updatecheck]
-        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, prunehold, qoe, loadtest,<br/>demo]
     end
 
     subgraph domain[Núcleo del dominio - internal/domain]

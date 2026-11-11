@@ -43,7 +43,7 @@ to.
 | [0019](0019-token-epoch-revocation.md) | Token-epoch revocation for stateless JWTs | Accepted |
 | [0020](0020-hls-native-audio-rendition.md) | HLS-native audio rendition (EXT-X-MEDIA) for multi-language switching | Accepted |
 | [0021](0021-plugins-on-tv.md) | Plugins on TV: WebView portage now, native SDUI renderer later | Accepted |
-| [0022](0022-hls-decision-pinning-and-av-resync.md) | HLS decision pinning (vd=/ad=) and A/V resync (source-delay cancel + user offset) | Accepted |
+| [0022](0022-hls-decision-pinning-and-av-resync.md) | HLS decision pinning (vd=/ad=) and A/V resync (source-delay cancel + user offset) | Accepted, amended |
 | [0023](0023-refresh-rotation-grace.md) | Refresh-token rotation grace window (sibling sessions for multi-tab race losers) | Accepted |
 | [0024](0024-playback-plan-resolver.md) | App-layer PlaybackPlan resolver (one resolution per request) | Accepted |
 | [0025](0025-server-driven-cast.md) | Server-driven cast with a custom Web Receiver (app ID D36A449B) | Accepted, amended |

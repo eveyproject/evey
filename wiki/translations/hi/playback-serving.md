@@ -1,5 +1,5 @@
 ---
-source_sha: af8c6f06737bb877d02dbe562e2082f8b62c725fa10bcf0c4a668855a5f42c87
+source_sha: d18575178717c35ca8643b0eead448a6b422a10bbfee57b8fcc255d843d35d40
 reviewed: true
 ---
 # एक वीडियो भेजना - HLS प्लेबैक का रास्ता
@@ -86,8 +86,9 @@ flowchart LR
    का फ़ैसला करने वाला मुख्य function है। resolver इसके ऊपर request के समय की पिन (`vd=` / `ad=`), ऑडियो
    resync वाला override, वगैरह जोड़ता है।
 4. **Q3 - क्षमता** - `internal/app/transcoding/calibration_service.go`:
-   `Current()` `domain/transcoding.Derive(report, policy)` (`derive.go`) लौटाता है,
-   यानी होस्ट की ऊपरी सीमाएँ, जो आख़िरी calibration से निकाली गई हैं।
+   `Current()` होस्ट की ऊपरी सीमाएँ लौटाता है: आख़िरी calibration से निकाला गया
+   क्षमता snapshot (`domain/transcoding.Derive`, `derive.go`), ऑपरेटर की ऊपरी
+   सीमाओं के override लागू करके।
 5. **Ladder और प्रवेश** - resolver ladder को ढालता है (जटिलता की श्रेणी, producer की
    प्रोफ़ाइल, स्रोत/क्षमता की सीमाएँ, CMCD/AV1 की सीमाएँ, प्रवेश का रास्ता और ऊपरी
    सीमा), फिर उसे प्रवेश की पिन पर **स्थिर (freeze) कर देता है** (`admission_shaper.go`,

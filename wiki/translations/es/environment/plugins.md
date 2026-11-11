@@ -1,5 +1,5 @@
 ---
-source_sha: 25ed5f4a742c5f5e2457ec15cbc7d5d59bfd30c52c88a5fc2548a86553d13fb5
+source_sha: c99cc1b66de151e0e27b786bbc03a5bbf4ecf4e6c64681fc28cf588a10e0cdfa
 reviewed: true
 ---
 # Plugins y sandbox
@@ -36,8 +36,8 @@ prioridad sobre ellos.
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` o `enforce`: qué pasa cuando falla la comprobación de una firma. `enforce` sin clave impide el arranque. | ninguno |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | vacío | Ruta de la clave pública PEM con la que se comprueban las firmas. Con `warn` y sin clave, no se verifica nada y el servidor avisa al arrancar. | ninguno |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` o `enforce`: qué pasa cuando falla la comprobación de una firma. Las firmas se comprueban con la clave que lleva cada paquete y con la lista de editores de confianza, así que no hace falta ninguna clave. | ninguno |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | vacío | Ruta opcional a la clave pública PEM de tu propio editor, añadida a los editores de confianza en cada arranque. | ninguno |
 
 ## Registros
 

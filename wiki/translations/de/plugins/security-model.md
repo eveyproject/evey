@@ -1,5 +1,5 @@
 ---
-source_sha: e10872a44bc7a4594b78350969813e3dffa0a11bd28a8acc97dcfb617e5b019b
+source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
 reviewed: true
 ---
 # Berechtigungen und Slots { #permissions-and-slots }
@@ -73,10 +73,10 @@ unter `capabilities` angegeben: siehe
 | `native-binary` | Das Paket darf `.so`, `.dll`, `.exe`, `.wasm`, `.jar`, eingebettete Archive oder nativen Code enthalten, den die Analyse nicht lesen kann. Der Administrator sieht Code, den die Analyse nicht prüfen kann, und muss ihn akzeptieren. Pflicht für ein `go`-Plugin. |
 | `filesystem` | Angekündigte Absicht, das Dateisystem über das Verzeichnis des Plugins hinaus zu nutzen. Wird festgehalten und dem Administrator angezeigt; die Sandbox gewährt keinen Dateizugriff außerhalb des Plugin-Verzeichnisses, egal was angegeben ist. |
 | `media.read` | `GetMediaItem` und `ListMediaItems` auf dem Host: der vollständige Datensatz des Mediums. |
-| `media.write` | Für die Aufrufe zum Schreiben von Metadaten reserviert, heute nicht bedient. |
+| `media.write` | `UpdateMetadata` auf dem Host, für ein Plugin, das auch die Fähigkeit `metadata.provider` deklariert. |
 | `api.library` | Dieselben Leseaufrufe für Medien wie `media.read`. |
 | `api.user` | Für `GetUserPreferences` reserviert, heute nicht bedient. |
-| `api.metadata` | Für `UpdateMetadata` reserviert, heute nicht bedient. |
+| `api.metadata` | Derselbe Aufruf `UpdateMetadata` wie bei `media.write`, unter derselben Bedingung an die Fähigkeit. |
 | `notification.sender` | Für `SendNotification` reserviert, heute nicht bedient. |
 | `public` | Die Oberfläche darf eine sichere Projektion der Medien lesen (id, Titel, Typ, Jahr, Inhaltsangabe, Poster), nie Pfade oder Streams. Siehe [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `prefs` | Die Oberfläche darf die Einstellungen des aktuellen Benutzers im eigenen Namensraum des Plugins lesen und schreiben. Siehe [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |

@@ -1,5 +1,5 @@
 ---
-source_sha: af8c6f06737bb877d02dbe562e2082f8b62c725fa10bcf0c4a668855a5f42c87
+source_sha: d18575178717c35ca8643b0eead448a6b422a10bbfee57b8fcc255d843d35d40
 reviewed: true
 ---
 # Ein Video ausliefern - der HLS-Wiedergabeweg
@@ -99,9 +99,10 @@ von Anfang bis Ende zu verfolgen:
    Festlegungen aus der Anfrage darüber (`vd=` / `ad=`), die Übersteuerung
    für die Audio-Neusynchronisierung usw.
 4. **F3 - Fähigkeit** - `internal/app/transcoding/calibration_service.go`:
-   `Current()` liefert `domain/transcoding.Derive(report, policy)`
-   (`derive.go`), die Obergrenzen des Hosts, abgeleitet aus der letzten
-   Kalibrierung.
+   `Current()` liefert die Obergrenzen des Hosts: den aus der letzten
+   Kalibrierung abgeleiteten Snapshot der Fähigkeiten
+   (`domain/transcoding.Derive`, `derive.go`), mit den Obergrenzen-Overrides
+   des Betreibers angewendet.
 5. **Leiter und Zulassung** - der Resolver schneidet die Leiter zu
    (Komplexitätsklasse, Profile der Produzenten, Grenzen aus Quelle und
    Fähigkeit, CMCD/AV1-Grenzen, Zulassungsroute und Obergrenze) und
