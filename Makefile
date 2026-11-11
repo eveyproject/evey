@@ -109,7 +109,7 @@ verify-deploy:
 # In CI/Docker the `wasmbuild` stage does the same. Runs in the evey-server
 # container (Go toolchain + module cache).
 # Standard go, NOT TinyGo: TinyGo never runs finalizers, so its js bridge
-# leaks every crossing value (+6.75 MB/segment measured 2026-07-28). Builds
+# leaks every crossing value (+6.75 MB/segment measured). Builds
 # from the sibling ../ac3go checkout; ship wasm_exec.js from the same
 # compiler as the module.
 wasm-decoder:
@@ -239,7 +239,7 @@ sec-scan:
 PKG ?= ./internal/pkg/ratelimit/
 MUTATION_SRC := $(CURDIR)/.mutation-src
 MUTATION_REPORT := $(CURDIR)/.mutation-report.txt
-# A mutant can loop and allocate until its cap: on 2026-10-18 three webhook
+# A mutant can loop and allocate until its cap: once, three webhook
 # runs whose `docker run` client had died kept their containers, each pinned
 # at 6 GiB, and with the other sessions' work WSL ran out of memory. So: one
 # fixed name (a leftover run is removed before a new one, and two never run at
@@ -270,7 +270,7 @@ mutation-test:
 	@# imports the generated protobuf code compiles. gremlins buckets a test
 	@# command that fails to BUILD as KILLED, so the run then reports a perfect
 	@# 100% efficacy with zero survivors instead of erroring: a silently wrong
-	@# result. Proven on ./internal/adapters/driving/http (2026-07-30): 1647
+	@# result. Proven on ./internal/adapters/driving/http: 1647
 	@# "killed" in 7.6s, and a mutant it called KILLED survives a real test run.
 	@# Copy the generated tree in rather than trusting the archive.
 	@test -d gen || { echo "gen/ missing - run 'make proto-gen' first"; exit 1; }
@@ -286,7 +286,7 @@ mutation-test:
 	  | tee $(MUTATION_REPORT)
 	@# A run cut short (the 2 h bound, a killed container) prints no summary,
 	@# and tee hides gremlins' exit: without this an interrupted run passed for
-	@# a finished one (grpcapi, 2026-10-18: 41 of 68 files, exit 0).
+	@# a finished one (grpcapi: 41 of 68 files, exit 0).
 	@$(if $(DRY),true,grep -q '^Killed:' $(MUTATION_REPORT)) || { \
 	  echo ""; echo "INCOMPLETE RUN: no summary line - gremlins stopped before the end, the counts above are partial."; \
 	  rm -rf $(MUTATION_SRC) $(MUTATION_REPORT); exit 1; }
@@ -364,7 +364,7 @@ ci-fast-build:
 # Runs in a THROWAWAY golang container as the host user, NOT in evey-server:
 # that one is root and mounts the real /cache volume, so a test writing to a
 # hardcoded "/cache/<id>" passed here and failed on the GitHub runner
-# ("mkdir /cache: permission denied", 2026-09-03). The CI runner is non-root
+# ("mkdir /cache: permission denied"). The CI runner is non-root
 # with nothing but the checkout; this mirrors it. Only the module cache and a
 # build cache under ~/.cache are shared, so the second run is as fast as before.
 # The package patterns name the tracked Go trees explicitly: `./...` trips on
@@ -417,7 +417,7 @@ ci-fast-unit-changed:
 # evey-web (the host's pnpm/turbo hit root-owned .turbo dirs). Turbo caches, so
 # an unchanged push is ~1s; a cold frontend build is ~16s.
 #
-# The `test` step was missing until 2026-07-23: 269 test files and ~33k lines
+# The `test` step was missing at first: 269 test files and ~33k lines
 # of frontend tests existed but no gate anywhere - not turbo, not CI, not this
 # target - ever ran them, so they could have been red for weeks unnoticed. The
 # root `vitest run` covers every project at once (web, mobile, tv, store, api)
@@ -427,6 +427,19 @@ ci-fast-frontend-static:
 	@docker exec -w /app evey-web sh -c 'pnpm run typecheck'
 	@echo "→ frontend lint (oxlint, warnings are errors)"
 	@docker exec -w /app evey-web sh -c 'pnpm run lint'
+
+# ci-fast-frontend-test-gate: the vitest suite, on a branch that touches
+# frontend/ or i18n/ since its fork point with dev. FRONTEND_TEST=1 forces it.
+FRONTEND_TEST_PATHS := frontend i18n
+
+ci-fast-frontend-test-gate:
+	@base=$$(git merge-base origin/dev HEAD 2>/dev/null || git merge-base origin/master HEAD 2>/dev/null || git rev-parse HEAD~1); \
+	if [ "$(FRONTEND_TEST)" = "1" ] || ! git diff --quiet $$base -- $(FRONTEND_TEST_PATHS); then \
+	  echo "→ frontend unit tests (vitest, all projects)"; \
+	  docker exec -w /app evey-web sh -c 'pnpm run test'; \
+	else \
+	  echo "→ frontend unit tests skipped (no frontend/ or i18n/ change since $$base)"; \
+	fi
 
 ci-fast-frontend: ci-fast-frontend-static
 	@echo "→ frontend unit tests (vitest, all projects)"
@@ -486,19 +499,19 @@ perf:
 	@echo "→ web bundle budget"
 	@sh scripts/bundle-budget.sh frontend/apps/web/dist || echo "   (build the web app first: docker exec evey-web pnpm --filter web build)"
 
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout repo-itest-gate transcode-itest-gate tv-audit
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + repo suite + transcode contract + audit TV)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate tv-audit
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite + transcode contract + audit TV)."
 
 # pre-push-dev: the gate for a push to dev or to a work branch (the hook picks it
 # from the destination). Everything above except what the pull request's CI
 # reruns on the exact same commits and costs minutes here: govulncheck, the
-# frontend tests and build, the Postgres suite, the TV audit - and the unit tests
-# of packages the branch does not change (ci-fast-unit-changed). dev merges only
-# on a green "CI passed", so those still stand between a branch and the merge;
-# this target catches a red push in minutes instead of an hour.
+# frontend build, the TV audit - and the unit tests of packages the branch does
+# not change (ci-fast-unit-changed). The frontend tests and the Postgres suite
+# run only when the branch touches what they cover: left to CI, they were the
+# usual first red run of a pull request.
 pre-push-dev: TRANSCODE_ITEST_SKIP = TestCodecStringIntegration
-pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit-changed ci-fast-frontend-static ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout transcode-itest-gate
-	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race on changed packages + frontend typecheck/lint + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + transcode contract). The pull request's CI runs the rest."
+pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit-changed ci-fast-frontend-static ci-fast-frontend-test-gate ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate
+	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race on changed packages + frontend typecheck/lint + frontend tests if touched + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite if touched + transcode contract). The pull request's CI runs the rest."
 
 # ci-hygiene: the house rules a regex can decide - plain dashes, no AI attribution
 # trailer, no conflict marker, no elision placeholder, no .claude/ in
@@ -553,7 +566,7 @@ verify-commit:
 
 # ci-clean-checkout: a committed file pointing at an uncommitted one is invisible
 # to every other check here (the frontend steps run in evey-web, where the
-# untracked package is already on disk). Twice on 2026-09-19 it passed the full
+# untracked package is already on disk). Twice in one day it passed the full
 # gate and killed `docker build`. Host-side: it reads HEAD, not the working tree.
 ci-clean-checkout:
 	@echo "→ clean-checkout guard (HEAD declares nothing HEAD does not contain)"
@@ -562,7 +575,7 @@ ci-clean-checkout:
 # ci-proto-breaking: `buf breaking` against the published tip.
 #
 # This check lived ONLY in .github/workflows/ci.yml, and CI has been switched
-# off since 2026-07-29 (Actions quota). A push triggers nothing, so from that
+# off (Actions quota). A push triggers nothing, so from that
 # day a breaking proto change - a removed field, a renumbered tag, a changed
 # type - would have shipped unnoticed, and the clients that consume these protos
 # are ALREADY DEPLOYED (a beta APK is on a tester's phone). A wire break there

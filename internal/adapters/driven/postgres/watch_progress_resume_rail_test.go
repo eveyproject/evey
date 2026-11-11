@@ -118,3 +118,66 @@ func TestWatchProgressRepo_GetResumeItems_Rail(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, other)
 }
+
+// A finished title played again: the completed flag is sticky, but a second
+// viewing left short of the completion point is something to resume, on the
+// rail as on the title page. Past that point, below the rail floor, or with no
+// known length, the title stays finished.
+func TestWatchProgressRepo_GetResumeItems_Rewatch(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("rw-u")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("rw-p", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("rwlib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	wpRepo := postgres.NewWatchProgressRepository(db)
+
+	twoHours := 2 * time.Hour
+	for _, id := range []string{"rw-film-mid", "rw-film-late", "rw-film-zap"} {
+		it := newTestMediaItem(id, lib.ID)
+		it.File = &library.MediaFile{Path: "/media/" + id + ".mkv", Duration: mustWPDuration(t, twoHours.Milliseconds())}
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	// No file, so no known length.
+	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("rw-film-nolen", lib.ID)))
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	finishedAt := now.Add(-48 * time.Hour)
+	rewatch := func(id string, pos time.Duration, at time.Time) {
+		seedProgress(t, db, "rw-p", id, twoHours, true, finishedAt)
+		seedProgress(t, db, "rw-p", id, pos, false, at)
+	}
+	// Seen, then played again to 40 minutes: back on the rail.
+	rewatch("rw-film-mid", 40*time.Minute, now.Add(-time.Hour))
+	// Played again past the completion point: finished again.
+	rewatch("rw-film-late", 110*time.Minute, now.Add(-2*time.Minute))
+	// Played again for a minute: a zap, not a second viewing.
+	rewatch("rw-film-zap", time.Minute, now.Add(-3*time.Minute))
+	// No length to measure the position against: stays finished.
+	rewatch("rw-film-nolen", 40*time.Minute, now.Add(-4*time.Minute))
+
+	// Series: E1 seen, then E1 played again to 15 minutes. The card resumes
+	// E1, not the next episode.
+	_, eps := seedSeries(t, itemRepo, lib.ID, "rwS", 1, 3, 40*time.Minute)
+	seedProgress(t, db, "rw-p", eps[0], 40*time.Minute, true, finishedAt)
+	seedProgress(t, db, "rw-p", eps[0], 15*time.Minute, false, now.Add(-30*time.Minute))
+
+	got, err := wpRepo.GetResumeItems(ctx, string(p.ID), 20)
+	require.NoError(t, err)
+	ids := make([]string, 0, len(got))
+	byID := map[string]*playback.WatchProgress{}
+	for _, wp := range got {
+		ids = append(ids, string(wp.MediaItemID))
+		byID[string(wp.MediaItemID)] = wp
+	}
+	assert.Equal(t, []string{eps[0], "rw-film-mid"}, ids)
+	require.Contains(t, byID, "rw-film-mid")
+	require.Contains(t, byID, eps[0])
+	assert.Equal(t, (40 * time.Minute).Milliseconds(), byID["rw-film-mid"].Position.Milliseconds())
+	assert.True(t, byID["rw-film-mid"].Completed, "the flag stays what it is: the title was seen")
+	assert.Equal(t, (15 * time.Minute).Milliseconds(), byID[eps[0]].Position.Milliseconds())
+}

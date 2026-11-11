@@ -29,6 +29,14 @@ func (m PlayMethod) IsValid() bool {
 // zap through a library - is not something the viewer means to come back to.
 const MinResumeRailPosition = 3 * time.Minute
 
+// CompletedThresholdNumerator/Denominator define the watched fraction at
+// which a media item flips to completed=true. 9/10 = 90%, the de-facto
+// standard threshold and the watch_history analyzer's existing assumption.
+const (
+	CompletedThresholdNumerator   = 9
+	CompletedThresholdDenominator = 10
+)
+
 type WatchProgress struct {
 	ID           string
 	ProfileID    shared.ProfileID
