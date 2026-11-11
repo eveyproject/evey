@@ -24,8 +24,7 @@ func (e *KeyedError) GRPCStatus() *status.Status { return e.st }
 // ErrorKey returns the message key behind err, or "" when err did not come
 // from TranslatedError.
 func ErrorKey(err error) string {
-	var ke *KeyedError
-	if errors.As(err, &ke) {
+	if ke, ok := errors.AsType[*KeyedError](err); ok {
 		return ke.Key
 	}
 	return ""

@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"maps"
 	"sort"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -120,9 +121,7 @@ func recordAccountAudit(ctx context.Context, svc *appactivity.CommandService, sp
 	} else {
 		details["outcome"] = "success"
 		if spec.details != nil {
-			for k, v := range spec.details(resp) {
-				details[k] = v
-			}
+			maps.Copy(details, spec.details(resp))
 		}
 	}
 	var resourceID *string
