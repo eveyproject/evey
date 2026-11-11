@@ -71,7 +71,7 @@ or EXECUTES the plan.
    receives and `Hash()` already excludes: device, features, GPU tone-map,
    software decode, overlay, deinterlace, transfer, quality targets) and the
    admission inputs (from the snapshot). `DecisionFingerprint` survives as
-   the persisted, tested struct, assembled by `FingerprintOf(plan)`; its
+   the persisted, tested struct, assembled by `PlanResolver.fingerprintFor`; its
    `Hash()` is byte-identical.
 
 6. **The builder validates, never falls back** - `RouteExpressibility` is a
@@ -102,7 +102,7 @@ ADR-0029's steady-state pricing).
 
 1. One derivation: outside the route resolution no code calls
    `EffectiveVideoCodec`, `pickBackend` or the `*Wanted` gates.
-2. Total projection: `FingerprintOf(plan)` is a pure function of the plan;
+2. Total projection: the fingerprint (`PlanResolver.fingerprintFor`) is a pure function of the plan;
    the class and the route key read off the fingerprint equal
    `plan.Route.Class()` and `plan.Route.CostKey()` for every valid topology.
 3. Legal topologies only: the constructor refuses the rest; the calibration
@@ -170,8 +170,8 @@ entry points (`EffectiveVideoCodec`, `ResolveHW`, `HWRouteUsable`,
 `LadderClassFor`, `ShapeLadder`, `PinKey`, `ProducerFor`, `Fingerprint`, the
 `*Wanted` gates) and the adapter's aliases moved to test-only files, and the
 adapter's resolver tests moved to the app package; `*PlanResolver` exports
-`Resolve`, `Decide`, `IsCopy`, `ProducerForPlan`, `QualityPolicy` and nothing
-else. `internal/contractguard/playback_plan_guard_test.go` pins that surface
+`Resolve`, `Decide`, `IsCopy`, `ProducerForPlan`, `QualityPolicy`,
+`ResolvePicture`, `Reported` and nothing else. `internal/contractguard/playback_plan_guard_test.go` pins that surface
 and refuses any production caller outside the package that names a
 sub-derivation.
 
@@ -185,7 +185,7 @@ pin does instead is DETECT the move: `VideoAdmissionShaper.NoteRoute` counts
 identity (codec/backend/topology), logs it, and adopts the new route.
 
 **Probe generations out of the planner.** A capability row is
-published in one vocabulary: `EncodeCapability.Normalized`, applied once by
+published in one vocabulary: `EncodeCapability.normalized`, applied once by
 the calibration service on every store (persisted, benched, demoted),
 upgrades a pre-class row (`ProbeVersion` < 5, where "hevc" covered Main10) to
 the decode-class list; the decode gate (`HWCanDecodeSource`,

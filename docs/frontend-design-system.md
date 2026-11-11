@@ -1,6 +1,6 @@
 # Frontend design system
 
-The rules that keep the three clients (web, mobile, TV) coherent and fast -
+The rules that keep the four clients (web, mobile, Android TV, TV web) coherent and fast -
 and stop one-off patches from accumulating. When a UI bug tempts you to add a
 special case, check here first: most classes of bugs already have a canonical
 answer, and the fix belongs in the convention (or its utility), not at the
@@ -80,7 +80,7 @@ reintroduces jank that is very hard to bisect later:
 | Modals | `components/ui/Modal` (scroll cap + safe-area handled there) |
 | Errors in views | `isError` branch with `EmptyState` + `common.errorBoundary.*` keys - never fall through to the empty-state copy |
 | Mutations | optimistic updates come with rollback + `onError` toast |
-| Watched-state invalidation | `lib/invalidateWatchedState.ts` - add new watched-sensitive feeds there, nowhere else |
+| Watched-state invalidation | `invalidateWatchedState` in `@evey/client` (`packages/client/src/lib/invalidateWatchedState.ts`) - add new watched-sensitive feeds there, nowhere else |
 | Tokens in URLs | never the account JWT. Media streaming/download uses media-scoped stream tokens (mint via `useStreamToken` / `mintToken` on DownloadButton); admin streams send the Bearer via fetch-streamed SSE |
 | Logic shared by two or more clients | `@evey/client` (`packages/client`) - see below |
 
@@ -92,7 +92,7 @@ react-native, expo or the DOM: what depends on the platform is passed in (a
 logger through `setClientLogger`, the parental unlock policy through
 `configureParentalUnlock`, a flag such as the phone's token-in-query image
 mode) and the app wires it at startup. What does NOT belong there: screens,
-UI components (React Native and the DOM share no primitives) and the three
+UI components (React Native and the DOM share no primitives) and the four
 players, which are deliberately separate implementations.
 
 Each app keeps a one-line module at the old path (`apps/*/src/hooks/useX.ts`

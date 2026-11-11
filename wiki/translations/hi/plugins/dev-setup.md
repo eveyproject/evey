@@ -1,5 +1,5 @@
 ---
-source_sha: 1228995cc2e68d60fc487b1964ca10ac8b4d40ada5f82047cdbcf9d42528c0f6
+source_sha: 1e6be4bdc8510a8b0c1800890163c1a4e4ea299813c8c76bf54414e018055047
 reviewed: true
 ---
 # प्लगइन लिखना { #writing-a-plugin }
@@ -75,8 +75,8 @@ make dev                        # postgres, meilisearch, सर्वर (Air), 
 ```
 
 `https://evey.test` खोलें। पहली बार चलाने पर सेटअप विज़ार्ड एडमिन खाता बनाता है,
-जैसा [पहला सेटअप](../getting-started/first-setup.md) में बताया गया है। प्लगइन की
-फ़ाइलें `./evey-data/plugins/<plugin-id>/` में जाती हैं, जो कंटेनर में
+जैसा [पहला सेटअप](../getting-started/first-setup.md) में बताया गया है। इस dev stack
+में प्लगइन की फ़ाइलें `./plugins/<plugin-id>/` में जाती हैं, जो कंटेनर में
 `/data/plugins` के रूप में mount होता है।
 
 ## 3. आपका पहला प्लगइन, कदम-दर-कदम { #3-your-first-plugin-step-by-step }
@@ -317,8 +317,8 @@ broker `http` और `https`, `GET` और `HEAD` स्वीकार कर�
    चाहिए, और कोई भी नई अनुमति, क्षमता, स्लॉट या होस्ट इंस्टॉल को यहीं रोक देता है,
    जब तक एडमिन फ़र्क को मंज़ूरी न दे (अपलोड route पर
    `accept_permission_changes=true`)।
-3. **सिग्नेचर और hash।** public key सेट हो, तो सिग्नेचर जाँचा जाता है; फ़ेल होने
-   पर रोक सिर्फ़ `enforce` में लगती है। ZIP का hash दर्ज किया जाता है, और पहले
+3. **सिग्नेचर और hash।** सिग्नेचर उस `cosign.pub` से जाँचा जाता है जो पैकेज के
+   अंदर है, जब तक नीति `off` न हो; फ़ेल होने पर रोक सिर्फ़ `enforce` में लगती है। ZIP का hash दर्ज किया जाता है, और पहले
    देखा गया अपडेट लागू करते समय फिर से जाँचा जाता है।
 4. **Extraction**, एक अस्थायी फ़ोल्डर में: ज़्यादा से ज़्यादा 5,000 एंट्री, हर
    फ़ाइल 100 MB, कुल 500 MB, compression ratio 100:1, कोई symbolic link नहीं, कोई
@@ -375,7 +375,7 @@ broker `http` और `https`, `GET` और `HEAD` स्वीकार कर�
 | `manifest: frontend slot "admin.section" not allowed` | स्लॉट अनुमति वाली सूची से बाहर है। | [स्लॉट की सूची](api-reference.md#slots) से एक स्लॉट चुनें; एडमिन वाले हिस्से में `admin.nav` ही अकेला स्लॉट है। |
 | `manifest: network permission requires non-empty external_fetch` | `network` बताया गया, पर होस्ट नहीं। | होस्ट जोड़ें, या अनुमति हटा दें। |
 | `plugin already installed at version 1.0.0, new version must be higher` | ZIP में वही वर्ज़न है जो इंस्टॉल है। | `version` बढ़ाएँ, या पहले अनइंस्टॉल करें। |
-| `signature does not match the plugin or the configured key` | `.sig` किसी और कुंजी से बनी, या साइन करने के बाद ZIP बदला। | ठीक उसी ZIP को सही कुंजी से फिर से साइन करें, या `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` ठीक करें। |
+| `signature does not match the package and its signing key` | `.sig` किसी और कुंजी से बनी, या साइन करने के बाद ZIP बदला। | ठीक उसी ZIP को उस private key से फिर से साइन करें जो उसके अंदर वाली `cosign.pub` से मेल खाती है। |
 | `plugin blocked: theme.js contains forbidden pattern` | थीम script की जाँच ने एक मना की गई API पकड़ी। | थीम सिर्फ़ `evey.theme.*` कॉल कर सकती है: देखें [थीम](../themes.md#what-the-scanner-refuses)। |
 | लॉग `memory quota exceeded (... MB > ... MB)` पर ख़त्म होता है | निगरानी ने मेमोरी की सीमा पार होने पर प्लगइन रोक दिया। | मेमोरी का इस्तेमाल घटाएँ, या **संसाधन सीमाएँ** में **अधिकतम मेमोरी (MiB)** बढ़ाएँ। |
 | `bwrap: ... permission denied` | Docker के अंदर `bubblewrap` मोड, जिसे कंटेनर की seccomp या AppArmor प्रोफ़ाइल रोकती है। | डिफ़ॉल्ट `auto` मोड रहने दें। वरना देखें [प्लगइन सैंडबॉक्स सेटअप](sandbox-deployment.md)। |

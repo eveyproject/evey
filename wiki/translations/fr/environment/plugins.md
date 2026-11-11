@@ -1,5 +1,5 @@
 ---
-source_sha: 25ed5f4a742c5f5e2457ec15cbc7d5d59bfd30c52c88a5fc2548a86553d13fb5
+source_sha: c99cc1b66de151e0e27b786bbc03a5bbf4ecf4e6c64681fc28cf588a10e0cdfa
 reviewed: true
 ---
 # Plugins et sandbox
@@ -35,8 +35,8 @@ Limites de ressources** s'appliquent à tous les plugins et l'emportent.
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` ou `enforce` : l'effet d'une vérification de signature qui échoue. `enforce` sans clé refuse de démarrer. | aucun |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | vide | Chemin de la clé publique PEM avec laquelle les signatures sont vérifiées. Avec `warn` et sans clé, rien n'est vérifié et le serveur l'indique au démarrage. | aucun |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` ou `enforce` : l'effet d'une vérification de signature qui échoue. Les signatures sont vérifiées avec la clé que porte chaque paquet et la liste des éditeurs de confiance, aucune clé n'est donc nécessaire. | aucun |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | vide | Chemin facultatif vers la clé publique PEM de votre propre éditeur, ajoutée aux éditeurs de confiance à chaque démarrage. | aucun |
 
 ## Logs
 

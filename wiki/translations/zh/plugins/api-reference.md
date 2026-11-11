@@ -1,5 +1,5 @@
 ---
-source_sha: e016d46cbfda306ec5cb1c9dbbdef535ee12acea8711452911a11d22e66d34b1
+source_sha: 5797e8e708fd3052602387a0a521f26c0b6a67d9aec080995e9b282571510369
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -21,7 +21,7 @@ entrypoint: node index.js    # 插件必填；服务器执行的命令行
 
 description: "..."           # 可选
 author: "..."                # 可选
-min_evey_version: "1.0.0"    # 可选；会被接受但被忽略
+min_evey_version: "1.0.0"    # 可选；高于服务器版本时，拒绝安装或更新
 
 permissions:                 # 后端和界面可以调用什么
   - network

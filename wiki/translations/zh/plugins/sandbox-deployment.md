@@ -1,5 +1,5 @@
 ---
-source_sha: 9c17a56bd4379a8c15fd8d637fe0c4914e9b9cf848503ddd72e806f574506caa
+source_sha: 0b4b5e075d84b1e97c225d26bec7ed373195a8931fa80b07503f018fefd35f5b
 reviewed: true
 ---
 # 插件沙箱设置 { #plugin-sandbox-setup }
@@ -65,7 +65,7 @@ uid 分离只是一层冗余的额外防护。
 - 插件不能直接上网；获准上网的插件也只能访问它声明过的主机；
 - 危险的系统操作仍然在内核层面被阻止；
 - 但由于没有按文件夹的文件限制，恶意插件可以读取普通的、非机密的文件，列出正在运行的进程，
-  而且因为所有插件共用一个账户，它还能读取或干扰另一个插件的文件。
+  而且因为所有插件和服务器同属一个用户组，它还能读取另一个插件中组可读的文件。
 
 在这样的主机上，请只安装您信任的插件，或者换用较新的内核，以获得完整的文件限制。
 
@@ -116,7 +116,7 @@ EVEY_PLUGINS_CPU_NICE=10                # 调度优先级 0-19（越大越谦让
 docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
 # 正在运行的插件以哪个用户运行（evey = 和服务器共用，
-# evey-plugin = 已分离）；镜像里有 ps，所以 `docker exec evey-server ps` 也可以
+# 40000-59999 之间的数字 uid = 已分离，每个插件一个）；镜像里有 ps，所以 `docker exec evey-server ps` 也可以
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 

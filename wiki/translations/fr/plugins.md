@@ -1,5 +1,5 @@
 ---
-source_sha: 3ef56ca6884cb437782bd60a1bb1314f62db8602db661c29fca9d5f8cab4b4de
+source_sha: 50ea71b7cf2c7500eebf6f37e45406179dd0abfa4c204cbd4c67c2bf539455ff
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -111,8 +111,9 @@ les fixe tant que le panneau n'a jamais été enregistré.
 | **Mode sandbox** | `auto` | `EVEY_PLUGINS_SANDBOX_MODE` |
 
 La mémoire, les processus et le disque s'appliquent au prochain balayage du
-moniteur, qui arrête un plugin qui les dépasse ; la priorité processeur et le
-mode sandbox s'appliquent aux plugins démarrés ensuite. `0` rétablit la
+moniteur, qui arrête un plugin qui les dépasse ; la priorité processeur s'applique aux
+plugins démarrés ensuite, et un changement de mode sandbox redémarre aussitôt
+les plugins en cours. `0` rétablit la
 valeur par défaut pour la mémoire et les processus ; seule la limite de disque traite `0` comme « désactivée ».
 
 Le **Tableau de bord sécurité** conserve, par plugin, les constats de

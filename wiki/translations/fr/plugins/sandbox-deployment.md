@@ -1,5 +1,5 @@
 ---
-source_sha: 9c17a56bd4379a8c15fd8d637fe0c4914e9b9cf848503ddd72e806f574506caa
+source_sha: 0b4b5e075d84b1e97c225d26bec7ed373195a8931fa80b07503f018fefd35f5b
 reviewed: true
 ---
 # Sandbox des plugins { #plugin-sandbox-setup }
@@ -98,8 +98,8 @@ machine virtuelle complète.
 - les actions système dangereuses restent bloquées au niveau du noyau ;
 - mais sans restriction d'accès par dossier, un plugin malveillant pourrait lire des
   fichiers ordinaires non secrets, lister les processus en cours et, parce
-  que les plugins partagent un compte, lire ou perturber les fichiers d'un
-  autre plugin.
+  que les plugins partagent le groupe du serveur, lire les fichiers d'un autre
+  plugin lisibles par ce groupe.
 
 N'installez que des plugins de confiance sur un tel hôte, ou passez à un
 noyau moderne pour avoir la restriction d'accès complète.
@@ -155,8 +155,8 @@ erreur : rétablissez le mode précédent.
 # le launcher porte la capability utilisée pour la séparation d'uid
 docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
-# sous quel utilisateur tourne un plugin (evey = partagé avec le serveur,
-# evey-plugin = séparé) ; l'image a ps, donc `docker exec evey-server ps` fonctionne aussi
+# sous quel utilisateur tourne un plugin (evey = partagé avec le serveur, un
+# uid numérique entre 40000 et 59999 = séparé, un par plugin) ; l'image a ps, donc `docker exec evey-server ps` fonctionne aussi
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 

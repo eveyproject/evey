@@ -1,5 +1,5 @@
 ---
-source_sha: e10872a44bc7a4594b78350969813e3dffa0a11bd28a8acc97dcfb617e5b019b
+source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -70,10 +70,10 @@ metadatos (`metadata.provider`) son capacidades, que se declaran en
 | `native-binary` | El paquete puede incluir `.so`, `.dll`, `.exe`, `.wasm`, `.jar`, archivos comprimidos incrustados o código nativo que el análisis no puede leer. El administrador ve ese código opaco y tiene que aceptarlo. Obligatorio para un plugin `go`. |
 | `filesystem` | Intención declarada de tocar el sistema de archivos fuera de la carpeta del plugin. Se registra y se muestra al administrador; el sandbox no da acceso a ningún archivo fuera de la carpeta del plugin, se declare lo que se declare. |
 | `media.read` | `GetMediaItem` y `ListMediaItems` en el servidor: la ficha completa del medio. |
-| `media.write` | Reservado para las llamadas de escritura de metadatos, que hoy no se sirven. |
+| `media.write` | `UpdateMetadata` en el servidor, para un plugin que también declara la capacidad `metadata.provider`. |
 | `api.library` | Las mismas llamadas de lectura de medios que `media.read`. |
 | `api.user` | Reservado para `GetUserPreferences`, que hoy no se sirve. |
-| `api.metadata` | Reservado para `UpdateMetadata`, que hoy no se sirve. |
+| `api.metadata` | La misma llamada `UpdateMetadata` que `media.write`, con la misma condición de capacidad. |
 | `notification.sender` | Reservado para `SendNotification`, que hoy no se sirve. |
 | `public` | La interfaz puede leer una versión segura de los elementos multimedia (id, título, tipo, año, resumen, póster), nunca rutas ni flujos. Consulta [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `prefs` | La interfaz puede leer y escribir las preferencias del usuario actual en el espacio de nombres propio del plugin. Consulta [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |

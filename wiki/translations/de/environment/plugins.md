@@ -1,5 +1,5 @@
 ---
-source_sha: 25ed5f4a742c5f5e2457ec15cbc7d5d59bfd30c52c88a5fc2548a86553d13fb5
+source_sha: c99cc1b66de151e0e27b786bbc03a5bbf4ecf4e6c64681fc28cf588a10e0cdfa
 reviewed: true
 ---
 # Plugins und Sandbox
@@ -36,8 +36,8 @@ Vorrang vor ihnen.
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` oder `enforce`: was eine fehlgeschlagene Signaturprüfung bewirkt. `enforce` ohne Schlüssel verhindert den Start. | keine |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | leer | Pfad zum öffentlichen PEM-Schlüssel, gegen den Signaturen geprüft werden. Mit `warn` und ohne Schlüssel wird nichts geprüft, und der Server warnt beim Start. | keine |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` oder `enforce`: was eine fehlgeschlagene Signaturprüfung bewirkt. Signaturen werden gegen den Schlüssel geprüft, den jedes Paket mitbringt, und gegen die Liste vertrauenswürdiger Herausgeber; ein Schlüssel ist also nicht nötig. | keine |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | leer | Optionaler Pfad zum öffentlichen PEM-Schlüssel Ihres eigenen Herausgebers, der bei jedem Start zu den vertrauenswürdigen Herausgebern hinzugefügt wird. | keine |
 
 ## Protokolle
 

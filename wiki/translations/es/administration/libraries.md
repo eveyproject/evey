@@ -1,5 +1,5 @@
 ---
-source_sha: c6c0a67f7b17b0139429ba630a95b355b5cc39888b5eb6a2bfd603d38ca8cead
+source_sha: ed2800347644b7f29af5ff78967016d21d06afa3fd5b38856a393e93da5cb5bf
 reviewed: true
 ---
 # Bibliotecas y metadatos { #libraries-and-metadata }
@@ -129,10 +129,10 @@ biblioteca:
       sigue funcionando, escribe un pequeño archivo de prueba en la carpeta
       durante unos segundos. Una biblioteca en la que se ha comprobado que
       funciona se lee una vez por hora en lugar de cada 2 minutos.
-    - Las bibliotecas creadas desde el panel web no usan el monitor de archivos:
-      las lecturas cada 2 minutos encuentran sus archivos. El formulario de
-      administración de la app del teléfono tiene, para una biblioteca, un
-      interruptor **Monitoreo en tiempo real**.
+    - Los formularios de biblioteca de la web y de la app del teléfono tienen
+      ambos un interruptor **Monitoreo en tiempo real**, activado por defecto
+      en una biblioteca nueva; si está desactivado, las lecturas cada 2 minutos
+      encuentran los archivos.
 
 !!! note "Carpetas compartidas en red"
     En una carpeta compartida NFS o SMB, un archivo escrito por otra máquina
@@ -218,7 +218,7 @@ Los reproductores muestran por defecto los botones **Saltar intro**,
 salten solos.
 
 <!-- sources
-add library: frontend/apps/web/src/features/admin/LibraryForm.tsx (name, type, paths only - no realtime/scan-on-startup toggles) ; i18n admin.libraries.addLibrary, tvShows, paths, enterCustomPath, addPath, createLibrary ; internal/domain/library/model.go NewLibrary (RealtimeMonitoring false by default) ; grpcapi/library_handler.go CreateLibrary (no scan trigger ; only watcher + feed subscribe library.created)
+add library: frontend/apps/web/src/features/admin/LibraryForm.tsx (name, type, paths, realtime monitoring on by default) ; i18n admin.libraries.addLibrary, tvShows, paths, enterCustomPath, addPath, createLibrary ; internal/domain/library/model.go NewLibrary (RealtimeMonitoring false by default) ; grpcapi/library_handler.go CreateLibrary (no scan trigger ; only watcher + feed subscribe library.created)
 types: i18n admin.libraries.types.* ; internal/adapters/driven/metadata/musicbrainz_provider.go ; internal/app/music/album_art_chain.go
 parser: internal/adapters/driven/filesystem/parser.go (reEditionSuffix, knownQualities, SetExtraParserTokens) ; internal/app/library/parser_config.go ApplyParserConfig ; i18n admin.serverConfig.parserTokens*
 fix a title: frontend/apps/web/src/features/library/MediaDetailEdit.tsx (save, refresh, reset, rematch, identify) ; IdentifyMetadataModal.tsx ; http/admin_handler_media.go (identify search) ; internal/app/metadata/command_service_overrides.go SetOverride, ResetItemMetadata (overrides, artwork, persons, Catalog=nil, children) ; command_service_refresh.go RefreshItemMetadata ; i18n media.detail.editMetadata, identify.*, tmdbId, imdbId, idChangedWarning, refreshMetadata, resetMetadata, rematchMetadata, rematchConfirm
