@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes as builtInThemes } from "@evey/theme";
-import { pluginThemeKey, wikiUrl } from "@evey/client";
+import { pluginThemeKey, pluginThemeLabel, wikiUrl } from "@evey/client";
 import { usePluginThemes } from "../../../src/hooks/usePluginThemes";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -437,6 +437,7 @@ export default function SettingsScreen() {
         ))}
         {(pluginThemes ?? []).map((pt) => {
           const key = pluginThemeKey(pt.name);
+          const label = pluginThemeLabel(pt, i18n.language);
           return (
             <Pressable
               key={key}
@@ -445,12 +446,12 @@ export default function SettingsScreen() {
               onFocus={() => setFocusedItem(`theme-${key}`)}
               onBlur={() => setFocusedItem(null)}
               accessible={true}
-              accessibilityLabel={t("mobile.settings.themeOptionA11y", "{{name}} theme", { name: pt.name })}
+              accessibilityLabel={t("mobile.settings.themeOptionA11y", "{{name}} theme", { name: label })}
               accessibilityRole="button"
             >
               <View style={styles.themeLabelRow}>
                 <View style={[styles.themeSwatch, { backgroundColor: pt.tokens?.["--accent"] ?? theme.colors.accent, borderColor: theme.colors.border }]} />
-                <Text style={[styles.label, { color: theme.colors.text }]}>{pt.name}</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
               </View>
               {currentTheme === key && (
                 <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{"✓"}</Text>

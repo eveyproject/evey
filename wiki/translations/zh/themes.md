@@ -1,5 +1,5 @@
 ---
-source_sha: 53779971ebd8b5f41b11b97d89f9f1102e0d283c08d999b9cc028f3b92f630ca
+source_sha: c9ba18045bcbe3d08d580a1cbe44e2e75fa72e4dfd7da439e4833b40fb13734a
 reviewed: true
 ---
 # 主题
@@ -11,15 +11,21 @@ reviewed: true
 ## 清单
 
 ```yaml title="plugin.yaml"
-name: aurora               # 必填；给人看的名称
+name: aurora               # 必填；唯一，kebab-case 格式
 version: 1.0.0             # 必填；semver 版本号
 kind: theme                # 必填
 
+display_name:              # 可选；主题选择器里显示的名称
+  en: Aurora
+  fr: Aurore
 description: "..."         # 可选
 author: "..."              # 可选
 
 # 不要写 language、entrypoint、permissions 或 capabilities：写了安装就会被拒绝
 ```
+
+主题选择器用界面语言的 `display_name` 标注主题，没有则用英文，清单里没有声明时显示 `name`。
+只写一个字符串（`display_name: Aurora`）即适用于所有语言。
 
 ZIP 包的根目录里，在清单旁边放 `theme.css` 和/或 `theme.js`。两个都没有的包也能安装，但没有可见效果。
 `examples/plugins/theme-dark-blue`（一个只覆盖颜色变量的简短 `theme.css`）和 `examples/plugins/open-workshop`（一套完整的外观重设计）

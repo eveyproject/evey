@@ -1,5 +1,5 @@
 ---
-source_sha: 53779971ebd8b5f41b11b97d89f9f1102e0d283c08d999b9cc028f3b92f630ca
+source_sha: c9ba18045bcbe3d08d580a1cbe44e2e75fa72e4dfd7da439e4833b40fb13734a
 reviewed: true
 ---
 # Temas
@@ -15,15 +15,22 @@ instalador reescribe o rechaza. Los temas se instalan como los plugins, desde
 ## Manifiesto
 
 ```yaml title="plugin.yaml"
-name: aurora               # obligatorio; nombre legible
+name: aurora               # obligatorio; único, en kebab-case
 version: 1.0.0             # obligatorio; semver
 kind: theme                # obligatorio
 
+display_name:              # opcional; la etiqueta del selector de temas
+  en: Aurora
+  fr: Aurore
 description: "..."         # opcional
 author: "..."              # opcional
 
 # sin language, entrypoint, permissions ni capabilities: si no, se rechaza la instalación
 ```
+
+El selector de temas muestra `display_name` en el idioma de la interfaz,
+si no en inglés, y `name` cuando el manifiesto no declara ninguno. Una sola
+cadena (`display_name: Aurora`) vale para todos los idiomas.
 
 El ZIP lleva `theme.css` y/o `theme.js` en su raíz, junto al manifiesto. Un
 paquete sin ninguno de los dos se acepta y no tiene ningún efecto visible.

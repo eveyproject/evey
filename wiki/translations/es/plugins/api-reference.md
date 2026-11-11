@@ -1,5 +1,5 @@
 ---
-source_sha: 5797e8e708fd3052602387a0a521f26c0b6a67d9aec080995e9b282571510369
+source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -23,6 +23,7 @@ kind: plugin                 # obligatorio; "plugin" o "theme"
 language: nodejs             # obligatorio para un plugin; un runtime de la imagen
 entrypoint: node index.js    # obligatorio para un plugin; la línea de comandos que ejecuta el servidor
 
+display_name: My Plugin      # opcional; una cadena, o un mapa {en: ..., fr: ...}
 description: "..."           # opcional
 author: "..."                # opcional
 min_evey_version: "1.0.0"    # opcional; instalación/actualización rechazada si es superior a la versión del servidor
@@ -54,6 +55,7 @@ config_schema:               # los campos del panel Config de la tarjeta del plu
 | Campo | Regla |
 |---|---|
 | `name`, `version`, `kind` | Obligatorios. `version` tiene que seguir `X.Y.Z` o `X.Y.Z-label`; una actualización tiene que llevar una versión mayor que la instalada. |
+| `display_name` | El nombre que ve la gente; `name` sigue siendo el identificador con el que se asocia una actualización. Una sola cadena cuenta como inglés y vale para todos los idiomas; un mapa va indexado por código de idioma (`en`, `fr`, `pt-BR`). Cada valor tiene de 1 a 40 caracteres, sin espacios alrededor ni caracteres de control. Hoy lo muestra el selector de temas. |
 | `language` | Obligatorio para `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` o `go`. Elige la comprobación del runtime y los stubs que se copian junto al entrypoint; no lanza nada. |
 | `entrypoint` | Obligatorio para `kind: plugin`. La primera palabra es el intérprete (o el binario, con `native-binary`) y el resto son sus argumentos; el proceso se ejecuta en la carpeta del plugin. |
 | `permissions` | Cada valor tiene que estar en el [catálogo de permisos](security-model.md#permissions-catalog). `network` exige un `external_fetch` no vacío. |

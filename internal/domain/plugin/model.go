@@ -38,6 +38,7 @@ type Plugin struct {
 	ID          string
 	Kind        PluginKind
 	Name        string
+	DisplayName DisplayName
 	Version     string
 	Description string
 	Author      string
@@ -169,6 +170,7 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		ID:            id,
 		Kind:          manifest.Kind,
 		Name:          manifest.Name,
+		DisplayName:   manifest.DisplayName,
 		Version:       manifest.Version,
 		Description:   manifest.Description,
 		Author:        manifest.Author,
@@ -253,6 +255,9 @@ func (m *PluginManifest) Validate() error {
 	if m.Version == "" {
 		return errors.New("manifest requires a version")
 	}
+	if err := m.DisplayName.Validate(); err != nil {
+		return err
+	}
 	switch m.Kind {
 	case KindTheme:
 		if m.Language != "" {
@@ -331,6 +336,7 @@ type FrontModule struct {
 
 type PluginManifest struct {
 	Name           string         `yaml:"name"`
+	DisplayName    DisplayName    `yaml:"display_name"`
 	Kind           PluginKind     `yaml:"kind"`
 	Version        string         `yaml:"version"`
 	Description    string         `yaml:"description"`

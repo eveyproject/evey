@@ -356,6 +356,49 @@ func TestListThemes_OK(t *testing.T) {
 	}
 }
 
+// The theme picker labels a plugin theme with its display name; the API hands
+// the whole map over and leaves the language choice to the client.
+func TestListThemes_DisplayName(t *testing.T) {
+	mux, token, repo, _ := setupPluginAssetTest(t)
+	_ = repo.Create(context.Background(), &plugin.Plugin{
+		ID: "theme2", Name: "dark-blue", Kind: plugin.KindTheme, Enabled: true,
+		DisplayName: plugin.DisplayName{"en": "Dark Blue", "fr": "Bleu sombre"},
+	})
+	_ = repo.Create(context.Background(), &plugin.Plugin{
+		ID: "theme3", Name: "bare", Kind: plugin.KindTheme, Enabled: true,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/themes", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Themes []struct {
+			Name        string            `json:"name"`
+			DisplayName map[string]string `json:"displayName"`
+		} `json:"themes"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]map[string]string{}
+	for _, th := range body.Themes {
+		got[th.Name] = th.DisplayName
+	}
+	if got["dark-blue"]["fr"] != "Bleu sombre" || got["dark-blue"]["en"] != "Dark Blue" {
+		t.Errorf("dark-blue display name = %v", got["dark-blue"])
+	}
+	if dn, ok := got["bare"]; !ok || dn != nil {
+		t.Errorf("a theme without display name omits the field, got %v (present=%v)", dn, ok)
+	}
+	if strings.Contains(w.Body.String(), `"displayName":{}`) {
+		t.Error("an empty display name must be omitted, not sent as {}")
+	}
+}
+
 func TestParseRootCSSVars(t *testing.T) {
 	cases := []struct {
 		name string

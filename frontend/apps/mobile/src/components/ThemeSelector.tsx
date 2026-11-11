@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useThemeStore, useAuthStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes, FONT_SIZE } from "@evey/theme";
-import { pluginThemeKey, usePluginThemes } from "@evey/client";
+import { pluginThemeKey, pluginThemeLabel, usePluginThemes } from "@evey/client";
 import { useTheme } from "../providers/ThemeProvider";
 
 const builtInLabels: Record<string, string> = {
@@ -32,7 +32,7 @@ interface Pill {
 }
 
 function ThemeSelectorImpl() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const tk = useTheme();
   const themeName = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
@@ -91,7 +91,7 @@ function ThemeSelectorImpl() {
   for (const pt of pluginThemes ?? []) {
     pills.push({
       key: pluginThemeKey(pt.name),
-      label: pt.name,
+      label: pluginThemeLabel(pt, i18n.language),
       swatch: tk.colors.accent,
       pluginId: pt.id,
     });

@@ -1,5 +1,5 @@
 ---
-source_sha: 5797e8e708fd3052602387a0a521f26c0b6a67d9aec080995e9b282571510369
+source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -22,6 +22,7 @@ kind: plugin                 # ज़रूरी; "plugin" या "theme"
 language: nodejs             # प्लगइन के लिए ज़रूरी; इमेज का कोई runtime
 entrypoint: node index.js    # प्लगइन के लिए ज़रूरी; वह कमांड लाइन जो सर्वर चलाता है
 
+display_name: My Plugin      # वैकल्पिक; एक स्ट्रिंग, या एक map {en: ..., fr: ...}
 description: "..."           # वैकल्पिक
 author: "..."                # वैकल्पिक
 min_evey_version: "1.0.0"    # वैकल्पिक; सर्वर के वर्शन से ऊपर हो तो इंस्टॉल/अपडेट मना
@@ -53,6 +54,7 @@ config_schema:               # प्लगइन के कार्ड पर 
 | फ़ील्ड | नियम |
 |---|---|
 | `name`, `version`, `kind` | ज़रूरी। `version` `X.Y.Z` या `X.Y.Z-label` जैसा होना चाहिए; अपडेट का वर्ज़न इंस्टॉल किए गए वर्ज़न से ऊँचा होना चाहिए। |
+| `display_name` | वह नाम जो लोग देखते हैं; `name` वही पहचान रहता है जिससे अपडेट को उसके plugin से जोड़ा जाता है। एक अकेली स्ट्रिंग अंग्रेज़ी मानी जाती है और सभी भाषाओं के लिए चलती है; map की keys भाषा के कोड होते हैं (`en`, `fr`, `pt-BR`)। हर मान 1 से 40 अक्षरों का होता है, आगे-पीछे खाली जगह या control अक्षरों के बिना। अभी इसे थीम चुनने वाली जगह दिखाती है। |
 | `language` | `kind: plugin` के लिए ज़रूरी: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` या `go`। इससे तय होता है कि कौन सा runtime जाँचा जाए और कौन से stub entrypoint के बगल में कॉपी हों; यह कुछ शुरू नहीं करता। |
 | `entrypoint` | `kind: plugin` के लिए ज़रूरी। पहला शब्द interpreter है (या `native-binary` के साथ binary), बाकी उसके arguments; प्रोसेस प्लगइन के फ़ोल्डर में चलता है। |
 | `permissions` | हर मान [अनुमतियों की सूची](security-model.md#permissions-catalog) में होना चाहिए। `network` के लिए `external_fetch` खाली नहीं होना चाहिए। |

@@ -1,5 +1,5 @@
 ---
-source_sha: 53779971ebd8b5f41b11b97d89f9f1102e0d283c08d999b9cc028f3b92f630ca
+source_sha: c9ba18045bcbe3d08d580a1cbe44e2e75fa72e4dfd7da439e4833b40fb13734a
 reviewed: true
 ---
 # Themes
@@ -15,15 +15,23 @@ eines unter **Einstellungen → Darstellung → Design**.
 ## Manifest
 
 ```yaml title="plugin.yaml"
-name: aurora               # Pflicht; lesbarer Name
+name: aurora               # Pflicht; eindeutig, kebab-case
 version: 1.0.0             # Pflicht; semver
 kind: theme                # Pflicht
 
+display_name:              # optional; die Beschriftung in der Theme-Auswahl
+  en: Aurora
+  fr: Aurore
 description: "..."         # optional
 author: "..."              # optional
 
 # kein language, entrypoint, permissions oder capabilities: sonst wird die Installation abgelehnt
 ```
+
+Die Theme-Auswahl beschriftet das Theme mit `display_name` in der Sprache
+der Oberfläche, sonst auf Englisch, und mit `name`, wenn das Manifest keinen
+angibt. Eine einzelne Zeichenkette (`display_name: Aurora`) gilt für alle
+Sprachen.
 
 Das ZIP enthält `theme.css` und/oder `theme.js` auf oberster Ebene, neben
 dem Manifest. Ein Paket ohne beide wird angenommen und bewirkt sichtbar
