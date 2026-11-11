@@ -1,5 +1,5 @@
 ---
-source_sha: 50ea71b7cf2c7500eebf6f37e45406179dd0abfa4c204cbd4c67c2bf539455ff
+source_sha: 80334abe63c67481f81bd04e5cfd89edf7cbe49fcf3168a2fa949fff7a391cc6
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -58,7 +58,7 @@ Python, Node.js, PHP, Ruby et Lua ; l'image `-nodejs` garde Python et
 Node.js et l'image `-lean` ne garde que Python.
 
 !!! tip "Plugins signés"
-    L'auteur d'un plugin peut signer le ZIP avec [cosign](https://docs.sigstore.dev/cosign/installation/) ;
+    L'auteur d'un plugin peut signer le ZIP avec [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) ;
     sa clé publique voyage dans le paquet. Evey vérifie la signature seul (pas
     de binaire `cosign`) et affiche **Signé par <éditeur>** quand la clé est
     dans votre liste d'**Éditeurs de confiance**, **Signé, clé inconnue** avec

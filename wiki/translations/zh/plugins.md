@@ -1,5 +1,5 @@
 ---
-source_sha: 50ea71b7cf2c7500eebf6f37e45406179dd0abfa4c204cbd4c67c2bf539455ff
+source_sha: 80334abe63c67481f81bd04e5cfd89edf7cbe49fcf3168a2fa949fff7a391cc6
 reviewed: true
 ---
 # 插件 { #plugins }
@@ -44,7 +44,7 @@ reviewed: true
 `-lean` 镜像只保留 Python。
 
 !!! tip "签名的插件"
-    插件作者可以用 [cosign](https://docs.sigstore.dev/cosign/installation/) 给 ZIP 签名，
+    插件作者可以用 [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) 给 ZIP 签名，
     作者的公钥随包一起分发。Evey 自己检查签名（不需要 `cosign` 程序）：密钥在您的**受信任的发布者**列表里时显示**由 <发布者> 签名**，否则显示**已签名，未知密钥**和它的指纹（点一下即可信任），或者**未签名**、**无效**。
     更换密钥或去掉签名的更新，要等您明确接受。其余由策略决定：
 
