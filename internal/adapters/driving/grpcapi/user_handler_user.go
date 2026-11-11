@@ -70,8 +70,6 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 			return nil, internalError(ctx, "create user", err)
 		}
 	}
-	uidStr := string(u.ID)
-	h.audit(ctx, claims.UserID, "create_user", "user", &uidStr, map[string]any{"username": u.Username, "is_admin": u.IsAdmin})
 	return userToProto(u), nil
 }
 
@@ -244,12 +242,6 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 			return nil, internalError(ctx, "delete user", err)
 		}
 	}
-	claims := interceptors.ClaimsFromContext(ctx)
-	callerID := req.Id
-	if claims != nil {
-		callerID = claims.UserID
-	}
-	h.audit(ctx, callerID, "delete_user", "user", &req.Id, map[string]any{"target_user_id": req.Id})
 	return &eveyv1.DeleteUserResponse{}, nil
 }
 
@@ -285,12 +277,6 @@ func (h *userHandler) ImpersonateUser(ctx context.Context, req *eveyv1.Impersona
 			return nil, internalError(ctx, "impersonate user", err)
 		}
 	}
-	// Trace WHO acted as WHOM in the admin audit log - impersonation is god-mode
-	// with multiple admins, so it must never be silent.
-	h.audit(ctx, claims.UserID, "impersonate_user", "user", &req.UserId, map[string]any{
-		"target_user_id":    req.UserId,
-		"target_profile_id": req.ProfileId,
-	})
 	return &eveyv1.AuthResponse{AccessToken: access}, nil
 }
 
@@ -328,13 +314,8 @@ func (h *userHandler) EnableUser(ctx context.Context, req *eveyv1.EnableUserRequ
 	return h.afterEnableToggle(ctx, req.Id, "enable_user", true), nil
 }
 
-// afterEnableToggle audits the change and returns the reloaded user.
+// afterEnableToggle returns the reloaded user (AccountAuditUnary audits the change).
 func (h *userHandler) afterEnableToggle(ctx context.Context, id, op string, enabled bool) *eveyv1.User {
-	callerID := id
-	if claims := interceptors.ClaimsFromContext(ctx); claims != nil {
-		callerID = claims.UserID
-	}
-	h.audit(ctx, callerID, op, "user", &id, map[string]any{"target_user_id": id})
 	u, err := h.query.GetUserByID(ctx, id)
 	if err != nil {
 		slog.WarnContext(ctx, op+": could not reload user", slog.String("user_id", id), slog.Any("err", err))

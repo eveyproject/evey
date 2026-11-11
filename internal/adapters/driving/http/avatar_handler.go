@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
+	appactivity "github.com/eveyproject/evey/internal/app/activity"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
@@ -25,9 +26,10 @@ func registerAvatarRoutes(
 	profileRepo domainuser.ProfileRepository,
 	tokenGen domainuser.TokenGenerator,
 	dataDir string,
+	audit *appactivity.CommandService,
 ) {
 	authMw := httpAuthMiddleware(tokenGen)
-	mux.HandleFunc("POST /api/v1/profiles/{profileId}/avatar", authMw(avatarUploadHandler(profileRepo, dataDir)))
+	mux.HandleFunc("POST /api/v1/profiles/{profileId}/avatar", authMw(auditedRoute(audit, "upload_profile_avatar", "profile", "profileId", avatarUploadHandler(profileRepo, dataDir))))
 	// Avatars are public (non-sensitive): no auth required for serving.
 	mux.HandleFunc("GET /api/v1/profiles/{profileId}/avatar", avatarServeHandler(profileRepo, dataDir))
 }

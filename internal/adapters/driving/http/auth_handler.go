@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 
+	appactivity "github.com/eveyproject/evey/internal/app/activity"
 	appuser "github.com/eveyproject/evey/internal/app/user"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -358,6 +359,8 @@ type parentalHandler struct {
 	// reauth proves the account password with the login lockout, trimming and
 	// SSO-only handling; nil only where the composition root has not wired it.
 	reauth passwordReauthenticator
+	// audit records every parental and schedule change; nil records nothing.
+	audit *appactivity.CommandService
 }
 
 // passwordReauthenticator is the user service's re-authentication check.
@@ -366,6 +369,11 @@ type passwordReauthenticator interface {
 }
 
 type parentalOption func(*parentalHandler)
+
+// withProfileAudit records the parental and schedule routes in svc's audit log.
+func withProfileAudit(svc *appactivity.CommandService) parentalOption {
+	return func(h *parentalHandler) { h.audit = svc }
+}
 
 // withPasswordReauth routes the account-password proofs through svc.
 func withPasswordReauth(svc passwordReauthenticator) parentalOption {
@@ -977,9 +985,9 @@ func registerParentalRoutes(
 		opt(h)
 	}
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
-	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))
-	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/verify-pin", authMw(h.verifyPIN))
-	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/reset-lockout", authMw(h.resetLockout))
+	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(auditedRoute(h.audit, "update_parental_settings", "profile", "id", h.updateSettings)))
+	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/verify-pin", authMw(auditedRoute(h.audit, "verify_profile_pin", "profile", "id", h.verifyPIN)))
+	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/reset-lockout", authMw(auditedRoute(h.audit, "reset_pin_lockout", "profile", "id", h.resetLockout)))
 	return h
 }
 
