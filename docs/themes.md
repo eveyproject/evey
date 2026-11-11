@@ -10,15 +10,22 @@ like plugins, from **Admin → Plugins**, and each user picks one under
 ## Manifest
 
 ```yaml title="plugin.yaml"
-name: aurora               # required; human-readable name
+name: aurora               # required; unique, kebab-case
 version: 1.0.0             # required; semver
 kind: theme                # required
 
+display_name:              # optional; the label of the theme picker
+  en: Aurora
+  fr: Aurore
 description: "..."         # optional
 author: "..."              # optional
 
 # no language, entrypoint, permissions or capabilities: the install is refused
 ```
+
+The theme picker labels the theme with `display_name` in the interface
+language, then in English, and with `name` when the manifest declares none.
+One string (`display_name: Aurora`) stands for every language.
 
 The ZIP holds `theme.css` and/or `theme.js` at its root, next to the
 manifest. A package with neither is accepted and has no visible effect.
@@ -156,7 +163,8 @@ Any of these patterns:
 
 <!-- sources
 manifest rules: internal/adapters/driven/pluginrunner/manifest.go - validateManifest (KindTheme)
-theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n common.appearance, common.theme ; GET /api/v1/plugins/themes
+theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ;
+display_name: internal/domain/plugin/display_name.go - DisplayName.Validate ; frontend/packages/client/src/lib/pluginTheme.ts - pluginThemeLabel ; i18n common.appearance, common.theme ; GET /api/v1/plugins/themes
 routes, auth: internal/adapters/driving/http/theme_asset_handler.go (theme.css open, theme.js authMw)
 link injection, hidden iframe, connect-src none: frontend/apps/web/src/features/themes/ThemeLoader.tsx
 sanitizer: internal/adapters/driven/pluginrunner/css_sanitizer.go - SanitizeCSS, reImport, reURLExternal, reURLExternalUnterminated, reImageSetCandidateExternal, reCustomPropExternalURL, reURLJavascript, reExpression, reMozBinding, reBehavior, reSensitiveSelector, overlaySignals.isOverlay, stripPointerEventsOnInteractive, reZIndex ; written back at install: internal/app/plugin/install.go - validateStagedPlugin

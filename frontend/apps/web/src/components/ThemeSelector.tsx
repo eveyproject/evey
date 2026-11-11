@@ -6,7 +6,7 @@ import { useUserServiceUpdateProfile } from "@evey/api";
 import { pluginThemeName } from "./theme-utils";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { useDemoMode } from "@/hooks/useDemoMode";
-import { usePluginThemes } from "@evey/client";
+import { pluginThemeLabel, usePluginThemes } from "@evey/client";
 
 const builtInLabels: Record<ThemeName, string> = {
   default: "Dark",
@@ -20,7 +20,7 @@ const builtInLabels: Record<ThemeName, string> = {
 // the phone and the televisions read).
 
 export function ThemeSelector() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { theme, setTheme } = useThemeStore();
   const applyFromPreferences = useThemeStore((s) => s.applyFromPreferences);
   const { data: pluginThemes } = usePluginThemes();
@@ -87,7 +87,7 @@ export function ThemeSelector() {
                   : "bg-[var(--surface-raised)] text-[var(--text-muted)] hover:text-[var(--text)]"
               }`}
             >
-              {pt.name}
+              {pluginThemeLabel(pt, i18n.language)}
             </button>
           );
         })}

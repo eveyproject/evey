@@ -1,5 +1,5 @@
 ---
-source_sha: 5797e8e708fd3052602387a0a521f26c0b6a67d9aec080995e9b282571510369
+source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -19,6 +19,7 @@ kind: plugin                 # 必填；"plugin" 或 "theme"
 language: nodejs             # 插件必填；镜像里的一个运行时
 entrypoint: node index.js    # 插件必填；服务器执行的命令行
 
+display_name: My Plugin      # 可选；一个字符串，或一个映射 {en: ..., fr: ...}
 description: "..."           # 可选
 author: "..."                # 可选
 min_evey_version: "1.0.0"    # 可选；高于服务器版本时，拒绝安装或更新
@@ -50,6 +51,7 @@ config_schema:               # 插件卡片上“配置”面板里的字段
 | 字段 | 规则 |
 |---|---|
 | `name`、`version`、`kind` | 必填。`version` 必须符合 `X.Y.Z` 或 `X.Y.Z-label`；更新包的版本必须高于已安装的版本。 |
+| `display_name` | 给人看的名称；`name` 仍是更新时用来对应插件的标识。只写一个字符串时算作英文，适用于所有语言；映射以语言代码为键（`en`、`fr`、`pt-BR`）。每个值 1 到 40 个字符，前后不能有空格，也不能含控制字符。目前由主题选择器显示。 |
 | `language` | `kind: plugin` 必填：`python`、`nodejs`、`php`、`ruby`、`lua`、`bash`、`sh` 或 `go`。它决定检查哪个运行时、把哪些存根复制到入口旁边；它本身不启动任何东西。 |
 | `entrypoint` | `kind: plugin` 必填。第一个词是解释器（声明了 `native-binary` 时是二进制文件），其余是它的参数；进程在插件的目录里运行。 |
 | `permissions` | 每个值都必须在[权限目录](security-model.md#permissions-catalog)里。`network` 要求 `external_fetch` 不为空。 |

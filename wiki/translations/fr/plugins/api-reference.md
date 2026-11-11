@@ -1,5 +1,5 @@
 ---
-source_sha: 5797e8e708fd3052602387a0a521f26c0b6a67d9aec080995e9b282571510369
+source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -23,6 +23,7 @@ kind: plugin                 # obligatoire ; "plugin" ou "theme"
 language: nodejs             # obligatoire pour un plugin ; un environnement de l'image
 entrypoint: node index.js    # obligatoire pour un plugin ; la ligne de commande que le serveur lance
 
+display_name: My Plugin      # facultatif ; une chaîne, ou une table {en: ..., fr: ...}
 description: "..."           # facultatif
 author: "..."                # facultatif
 min_evey_version: "1.0.0"    # facultatif ; installation/mise à jour refusée s'il dépasse la version du serveur
@@ -54,6 +55,7 @@ config_schema:               # les champs du panneau Config sur la carte du plug
 | Champ | Règle |
 |---|---|
 | `name`, `version`, `kind` | Obligatoires. `version` doit suivre `X.Y.Z` ou `X.Y.Z-label` ; une mise à jour doit porter une version supérieure à celle installée. |
+| `display_name` | Le nom que voient les gens ; `name` reste l'identifiant qui relie une mise à jour à son plugin. Une chaîne seule compte comme de l'anglais et vaut pour toutes les langues ; une table est indexée par code de langue (`en`, `fr`, `pt-BR`). Chaque valeur fait de 1 à 40 caractères, sans espace autour ni caractère de contrôle. Aujourd'hui, c'est le sélecteur de thème qui l'affiche. |
 | `language` | Obligatoire pour `kind: plugin` : `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` ou `go`. Il détermine la vérification de l'environnement et les stubs copiés à côté du point d'entrée ; il ne lance rien. |
 | `entrypoint` | Obligatoire pour `kind: plugin`. Le premier mot est l'interpréteur (ou le binaire, avec `native-binary`), le reste ses arguments ; le processus tourne dans le dossier du plugin. |
 | `permissions` | Chaque valeur doit figurer dans le [catalogue des permissions](security-model.md#permissions-catalog). `network` exige un `external_fetch` non vide. |

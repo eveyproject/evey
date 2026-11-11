@@ -7,7 +7,26 @@ export const PLUGIN_THEME_PREFIX = "plugin:";
 export interface PluginThemeInfo {
   id: string;
   name: string;
+  // The manifest's display_name, keyed by language tag. Absent on a plugin
+  // that declares none (or was installed before the field existed).
+  displayName?: Record<string, string>;
   tokens?: Record<string, string>;
+}
+
+/**
+ * The label a theme picker shows for a plugin theme: the display name in the
+ * interface language, then in its base language ("pt" for "pt-BR"), then in
+ * English, and the plugin's name when the manifest declares none.
+ */
+export function pluginThemeLabel(
+  theme: Pick<PluginThemeInfo, "name" | "displayName">,
+  language: string | undefined,
+): string {
+  const names = theme.displayName;
+  if (!names) return theme.name;
+  const byLang = new Map(Object.entries(names).map(([k, v]) => [k.toLowerCase(), v]));
+  const lang = (language ?? "").toLowerCase();
+  return byLang.get(lang) ?? byLang.get(lang.split("-")[0]) ?? byLang.get("en") ?? theme.name;
 }
 
 export function isPluginThemeName(themeName: string): boolean {
