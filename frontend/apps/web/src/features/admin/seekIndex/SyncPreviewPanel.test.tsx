@@ -135,12 +135,15 @@ describe("SyncPreviewPanel", () => {
     expect(screen.getByTestId("sync-preview-stale")).toBeInTheDocument();
   });
 
-  it("applies the offset the ear settled on to the chosen track", () => {
+  // The apply names the track the way the preview does - its rank among the
+  // audio tracks - and the server finds its Matroska number. "rank + 1" is
+  // not that number on a file whose subtitles sit between two audio tracks.
+  it("applies the offset the ear settled on to the audio track the preview played", () => {
     renderPanel();
     fireEvent.change(screen.getByTestId("sync-preview-shift"), { target: { value: "-2.4" } });
     fireEvent.change(screen.getByTestId("sync-preview-track"), { target: { value: "1" } });
     fireEvent.click(screen.getByTestId("sync-preview-apply"));
-    expect(applyMutate).toHaveBeenCalledWith({ mediaId: "m-1", data: { track: "2", shiftSec: -2.4 } });
+    expect(applyMutate).toHaveBeenCalledWith({ mediaId: "m-1", data: { audioIndex: 1, shiftSec: -2.4 } });
   });
 
   it("falls back to a number field and numbered tracks when the file is not described", () => {

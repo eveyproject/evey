@@ -479,7 +479,7 @@ export function SyncPreviewPanel({
               className="text-xs"
               disabled={shift === 0}
               loading={applyShift.isPending}
-              onClick={() => applyShift.mutate({ mediaId, data: { track: String(track + 1), shiftSec: shift } })}
+              onClick={() => applyShift.mutate({ mediaId, data: { audioIndex: track, shiftSec: shift } })}
               data-testid="sync-preview-apply"
             >
               {t("admin.syncPreview.apply", { shift: signed(shift) })}

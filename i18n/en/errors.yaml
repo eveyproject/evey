@@ -85,6 +85,7 @@ admin:
   loadtest_streams_active: "Playback sessions are active - a load test never runs over real viewers"
   loadtest_already_running: "A load test is already running"
   sync_shift_out_of_range: "This tool does not move a track by more than {max} s"
+  sync_audio_track_missing: "This file has no such audio track"
   repair_undo_none: "No repair is recorded for this file"
   repair_not_reversible: "The last repair on this file cannot be undone in software"
   repair_journal_newer: "This repair was recorded by a newer version and cannot be read safely"
