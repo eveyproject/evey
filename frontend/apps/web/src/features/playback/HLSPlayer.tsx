@@ -1321,13 +1321,16 @@ export function HLSPlayer({
       const video = videoRef.current as (HTMLVideoElement & { audioTracks?: { length: number; [i: number]: { id: string; enabled: boolean } } }) | null;
       if (!video) return;
       const tracks = video.audioTracks;
+      // The browser names a file's tracks by the file's own numbers (an MP4
+      // track_ID), not by the server's stream index: only that number lines up.
+      const want = stream?.sourceTrackId != null ? String(stream.sourceTrackId) : null;
       let switchable = false;
-      for (let i = 0; tracks && i < tracks.length; i++) {
-        if (tracks[i].id === String(index)) switchable = true;
+      for (let i = 0; want && tracks && i < tracks.length; i++) {
+        if (tracks[i].id === want) switchable = true;
       }
       if (tracks && switchable) {
         for (let i = 0; i < tracks.length; i++) {
-          tracks[i].enabled = tracks[i].id === String(index);
+          tracks[i].enabled = tracks[i].id === want;
         }
         return;
       }

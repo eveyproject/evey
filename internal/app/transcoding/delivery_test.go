@@ -31,6 +31,9 @@ func deliveryResolver(packager, trim, audioPipeline bool) *PlanResolver {
 	}
 }
 
+// decodesAll declares every codec the table's files carry.
+var decodesAll = transcoding.ClientProfile{AudioCodecs: []string{"aac", "ac3", "eac3", "dts", "truehd"}}
+
 var (
 	copyBoth  = transcoding.PlaybackDecision{VideoDecision: "copy", AudioDecision: "copy"}
 	copyVideo = transcoding.PlaybackDecision{VideoDecision: "copy", AudioDecision: "transcode", AudioCodec: "aac"}
@@ -55,7 +58,11 @@ func TestResolveDelivery_Table(t *testing.T) {
 			PlaybackRequest{Streams: deliveryStreams("aac")}, transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", AudioDecision: "copy"},
 			DeliveryStrategy{Video: EngineFFmpeg, Audio: EngineFFmpeg}},
 		{"copy + every track carriable: the whole presentation on the packager", deliveryResolver(true, false, true),
-			PlaybackRequest{Streams: deliveryStreams("aac", "ac3")}, copyBoth, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}},
+			PlaybackRequest{Streams: deliveryStreams("aac", "ac3"), Client: decodesAll}, copyBoth, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}},
+		{"a carriable track the client cannot decode: trimmed to the selected one", deliveryResolver(true, false, true),
+			PlaybackRequest{Streams: deliveryStreams("aac", "ac3"), Client: transcoding.DefaultWebProfile}, copyBoth, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo, AudioTrimmed: true}},
+		{"an undecodable DTS beside the selected AC-3: trimmed to the AC-3", deliveryResolver(true, false, true),
+			PlaybackRequest{Streams: deliveryStreams("dts", "ac3"), AudioTrack: 1, Client: transcoding.ClientProfile{AudioCodecs: []string{"aac", "ac3", "eac3"}}}, copyBoth, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo, AudioTrimmed: true}},
 		{"copy, no audio track: video-only on the packager", deliveryResolver(true, false, true),
 			PlaybackRequest{Streams: deliveryStreams()}, copyBoth, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}},
 		{"the operator trims to the selected track", deliveryResolver(true, true, true),
@@ -74,7 +81,7 @@ func TestResolveDelivery_Table(t *testing.T) {
 			PlaybackRequest{Streams: deliveryStreams("eac3"), WasmAudio: true, Prefs: DefaultTranscodingPreferences()}, transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", AudioDecision: "copy"},
 			DeliveryStrategy{Video: EngineFFmpeg, Audio: EngineClient}},
 		{"wasm asked on an AAC track: nothing for the decoder, the ordinary paths", deliveryResolver(true, false, true),
-			PlaybackRequest{Streams: deliveryStreams("aac"), WasmAudio: true, Prefs: DefaultTranscodingPreferences()}, copyBoth, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}},
+			PlaybackRequest{Streams: deliveryStreams("aac"), WasmAudio: true, Prefs: DefaultTranscodingPreferences(), Client: decodesAll}, copyBoth, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

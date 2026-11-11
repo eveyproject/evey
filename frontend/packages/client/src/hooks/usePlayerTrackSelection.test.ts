@@ -71,4 +71,17 @@ describe("usePlayerTrackSelection", () => {
     expect(result.current.selectedAudioIndex).toBe(2);
     expect(result.current.userPickedAudioRef.current).toBe(false);
   });
+
+  // The server also weighs the profile's locale and its own language: a
+  // player following the file's flags alone played another track than the
+  // one the verdict was made on.
+  it("follows the track the server judged when the viewer picked none", () => {
+    expect(setup({ judgedAudioIndex: 2 }).result.current.selectedAudioIndex).toBe(2);
+    // A judged index naming nothing in this file is ignored.
+    expect(setup({ judgedAudioIndex: 9 }).result.current.selectedAudioIndex).toBe(1);
+  });
+
+  it("keeps the viewer's pick over the judged track", () => {
+    expect(setup({ pick: { audio: 1 }, judgedAudioIndex: 2 }).result.current.selectedAudioIndex).toBe(1);
+  });
 });

@@ -194,6 +194,8 @@ streamInfo:
     client_line_exceeded: The line the client measured cannot carry the copy
     abr_floor_requested: Survival rung asked for by the player
     file_needs_remux: "File stored in one-track blocks (needs a repair)"
+    sibling_audio_undecodable: "Another audio track of the file cannot be played on this device"
+    audio_layout_unknown: "Audio channel layout unknown, re-encoded to fit the device"
     audio_passthrough_unsupported: "Audio track cannot be passed through unchanged in the stream"
     preferred_video_codec: "Preferred video codec (profile setting)"
     preferred_audio_codec: "Preferred audio codec (profile setting)"

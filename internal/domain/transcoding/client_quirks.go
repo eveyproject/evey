@@ -11,9 +11,11 @@ import (
 // E-AC-3 was never computed (ac3go before 0756b36). Mobile 0.0.1-beta.68/69
 // and TV 0.1.9/0.1.10 declare eac3 whatever the device decodes, so a 5.1
 // E-AC-3 track was direct-played or copied to a phone that played the
-// picture without a sound (2026-09-27). The API calls carry EveyMobile/ or
-// EveyTV/, the player's segment and file requests Evey/ with the same version.
-var silentEAC3Builds = regexp.MustCompile(`\bEvey(?:Mobile|TV)?/(?:0\.0\.1-beta\.(?:68|69)|0\.1\.(?:9|10))\b`)
+// picture without a sound. The API calls carry EveyMobile/ or EveyTV/, the
+// player's segment and file requests Evey/ with the same version. The TV
+// versions are matched on EveyTV/ alone: Evey/0.1.9 is also what a phone of
+// that version sends, and the phone's own 0.1.9 has a working decoder.
+var silentEAC3Builds = regexp.MustCompile(`\b(?:Evey(?:Mobile)?/0\.0\.1-beta\.(?:68|69)|EveyTV/0\.1\.(?:9|10))\b`)
 
 // mobileBuild captures the beta number of a phone/tablet build's user agent
 // (EveyMobile/ on the API calls, Evey/ on the player's own requests; the TV
@@ -50,10 +52,24 @@ func WithoutBrokenPlayerCodecs(userAgent string, codecs []string) []string {
 	}
 	out := make([]string, 0, len(codecs))
 	for _, c := range codecs {
-		if drop[strings.ToLower(strings.TrimSpace(c))] {
+		if drop[canonicalQuirkCodec(c)] {
 			continue
 		}
 		out = append(out, c)
 	}
 	return out
+}
+
+// canonicalQuirkCodec folds the spellings a client may declare a codec under,
+// the same way the decision does, so a drop catches every one of them.
+func canonicalQuirkCodec(c string) string {
+	switch c = strings.ToLower(strings.TrimSpace(c)); c {
+	case "e-ac-3", "ec-3", "ec3":
+		return "eac3"
+	case "dca", "dts-hd", "dtshd", "dts_hd":
+		return "dts"
+	case "mlp":
+		return "truehd"
+	}
+	return c
 }

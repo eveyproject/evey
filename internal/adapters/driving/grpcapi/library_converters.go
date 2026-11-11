@@ -219,6 +219,10 @@ func mediaStreamToProto(s *library.MediaStream, includePaths bool) *eveyv1.Media
 		IsVisualImpaired:  s.VisualImpaired,
 		IsOriginal:        s.Original,
 	}
+	if s.SourceTrackID != nil {
+		id := int32(*s.SourceTrackID) //nolint:gosec // a container's track number fits an int32
+		pb.SourceTrackId = &id
+	}
 	if s.Width != nil {
 		pb.Width = int32(*s.Width)
 	}

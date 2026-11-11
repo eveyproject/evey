@@ -14,6 +14,8 @@ export interface PlayerAudioStream {
   /** Source codec (ac3/eac3/aac...): drives the web's wasm-audio path. */
   codec?: string;
   channels?: number;
+  /** The number the file gives the track: the id a native player plays it under. */
+  sourceTrackId?: number;
   /** Director/cast commentary: never the automatic pick while a main track exists. */
   isCommentary?: boolean;
   isHearingImpaired?: boolean;
@@ -55,6 +57,7 @@ export function playerAudioStreams(streams: V1MediaStream[] | undefined): Player
       isDefault: s.isDefault,
       codec: s.codec,
       channels: s.channels,
+      sourceTrackId: s.sourceTrackId,
       isCommentary: s.isCommentary,
       isHearingImpaired: s.isHearingImpaired,
       isVisualImpaired: s.isVisualImpaired,

@@ -1,3 +1,4 @@
+import { streamSelectionParams } from "../lib/streamSelectionParams";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getBaseURL,
@@ -180,7 +181,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
       // (undefined) when the browser cannot probe its output, like the URL.
       maxAudioChannels: tighterCeiling(getMaxOutputChannels(), saver?.maxAudioChannels),
       // Asked without it, the server judged the default track, not this one.
-      audioStreamIndex: initialAudio && initialAudio > 0 ? initialAudio : undefined,
+      ...streamSelectionParams(initialAudio, undefined),
       // The device's data saver, the same ceilings appendCodecParams puts on
       // the master URL. An explicit ceiling, unlike the screen size above.
       ...dataSaverStreamInfoParams(saver),
@@ -208,11 +209,11 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
 
   const selectAudioStream = useCallback((audioStreamIndex: number) => {
     const generation = ++generationRef.current;
-    if (!verdict || audioStreamIndex <= 0) return;
+    if (!verdict || audioStreamIndex < 0) return;
     // Back on the track the verdict was asked for: nothing to ask, and the
     // generation bump above already dropped any answer still in flight.
     if (pickedAudioStream(verdict, verdictAudioIndex)?.index === audioStreamIndex) return;
-    playbackServiceGetStreamInfo(mediaId, { ...streamInfoParams, audioStreamIndex })
+    playbackServiceGetStreamInfo(mediaId, { ...streamInfoParams, ...streamSelectionParams(audioStreamIndex, undefined) })
       .then((info) => {
         if (generation !== generationRef.current) return;
         setTrackVerdict({ mediaId, audioStreamIndex, info });

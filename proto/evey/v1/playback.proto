@@ -127,6 +127,12 @@ message StreamInfo {
   // but on a transcode we know it exactly: it is what we ask the encoder for.
   // 0 when unknown (audio copied from a source that declares no bitrate).
   int64 audio_bitrate = 14;
+  // audio_stream_index: the absolute index of the audio track this verdict
+  // judged - the one the request selected, else the one the profile's
+  // languages and the file's default flag pick. A player that plays the
+  // file itself puts this track on, so what plays is what was judged.
+  // Unset when the title has no audio.
+  optional int32 audio_stream_index = 15;
 }
 
 message WatchProgress {
@@ -223,6 +229,13 @@ message GetStreamInfoRequest {
   // clients) keeps the built-in browser rule: 8-bit 4:2:0 H.264, up to 10-bit
   // 4:2:0 HEVC/VP9/AV1.
   repeated string supported_pixel_formats = 18;
+  // selected_audio_stream_index / selected_subtitle_stream_index: the same
+  // absolute stream indexes as audio_stream_index / subtitle_stream_index,
+  // with presence. Those two cannot name stream 0 (proto3 reads 0 as unset),
+  // and an audio track is stream 0 in files that store it before the
+  // picture. When set they win over the older fields.
+  optional int32 selected_audio_stream_index = 19;
+  optional int32 selected_subtitle_stream_index = 20;
 }
 
 message StartStreamRequest {

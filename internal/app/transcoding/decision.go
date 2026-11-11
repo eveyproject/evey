@@ -63,7 +63,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 		// A cover-art track (PNG/MJPEG "video" next to the real picture) is not
 		// something the client has to decode: judging it as video flagged
 		// "video_codec_unsupported" and transcoded a copyable H.264 film
-		// (prod, 2026-09-04). Older scans still store such tracks, so the
+		// (prod). Older scans still store such tracks, so the
 		// decision filters them itself rather than trusting the prober.
 		if library.IsCoverArtStream(s, hasRealVideo) {
 			continue
@@ -343,11 +343,12 @@ func MakePlaybackDecisionWithPrefs(
 	checkContainer(d, containerFormat, specs, client, firstOrEmpty(sourcePath))
 	applyCodecPreferences(d, specs, client, prefs)
 	applyAudioChannelTarget(d, specs, client, prefs)
+	applySiblingAudioUndecodable(d, specs, client, prefs)
+	applyNeedsRemux(d, prefs)
 	// Last word on the audio verdict, and it must stay last: it reads the
 	// reasons every pass above may have added to tell a direct play (raw file,
 	// no packaging) from a segmented session (fMP4, passthrough set applies).
 	applyPackagedAudioPassthrough(d, specs, client, prefs)
-	applyNeedsRemux(d, prefs)
 	resolvePlayMethod(d, client)
 	applyDefaultBitrates(d)
 
@@ -566,6 +567,19 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 			d.AudioCodec = transcoding.DefaultAudioCodec
 		}
 	}
+	// A layout the prober never measured cannot be held to the client's
+	// channel ceiling: a 7.1 track would reach it untouched. The re-encode
+	// sets the layout.
+	if s.Channels == nil && (client.MaxAudioChannels > 0 || prefs.MaxAudioChannels > 0) {
+		addReasonOnce(d, "audio_layout_unknown")
+		d.AudioDecision = "transcode"
+		if d.AudioCodec == "" {
+			d.AudioCodec = transcoding.DefaultAudioCodec
+		}
+		if d.MaxAudioChannels == 0 && client.MaxAudioChannels > 0 {
+			d.MaxAudioChannels = client.MaxAudioChannels
+		}
+	}
 	// Per-profile cap on audio channels (user pref).
 	if s.Channels != nil && prefs.MaxAudioChannels > 0 && *s.Channels > prefs.MaxAudioChannels {
 		addReasonOnce(d, "audio_channels_exceeded")
@@ -639,6 +653,30 @@ func applyAudioChannelTarget(d *transcoding.PlaybackDecision, specs []StreamSpec
 	}
 }
 
+// applySiblingAudioUndecodable keeps a file off the raw-file paths when it
+// carries an audio track the client cannot decode beside the selected one. A
+// direct play hands the player every track and the player picks its own: a
+// phone opened an undecodable DTS track next to the AC-3 the verdict had
+// judged, and failed at the first frame. The segmented session serves the
+// selected track alone, so the reason only routes; the copy verdicts stay.
+func applySiblingAudioUndecodable(d *transcoding.PlaybackDecision, specs []StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
+	// Already segmented: the session serves the selected track alone.
+	if len(d.TranscodeReasons) > 0 && !onlyContainerIssue(d.TranscodeReasons) {
+		return
+	}
+	sel := selectedAudioSpec(specs, prefs)
+	for i := range specs {
+		s := &specs[i]
+		if s.Type != "audio" || s == sel {
+			continue
+		}
+		if !audioCodecSupported(client.AudioCodecs, s.Codec) {
+			addReasonOnce(d, "sibling_audio_undecodable")
+			return
+		}
+	}
+}
+
 // applyPackagedAudioPassthrough demotes a "copy" audio verdict to "transcode"
 // when this session will be SEGMENTED and the selected source codec cannot ride
 // a raw passthrough in our fMP4 segments for this client.
@@ -646,7 +684,7 @@ func applyAudioChannelTarget(d *transcoding.PlaybackDecision, specs []StreamSpec
 // Without it the decision advertised a copy the packager then silently refused:
 // AudioCopyEligible dropped the track to the AAC encoder while the decision
 // still said "copy" with an empty AudioCodec. Measured in prod on a 128 kbps
-// MP3 DVD rip (2026-09-06): the mobile stream panel showed "Audio [copy] - MP3
+// MP3 DVD rip: the mobile stream panel showed "Audio [copy] - MP3
 // - 128 kbps" while the segments carried AAC-LC at 195 kb/s, and `hls: ffmpeg
 // start` logged `audio_codec:""` where every other session logs "aac". Nobody
 // could see, from either the UI or the logs, that the track was being
@@ -706,9 +744,9 @@ func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *Stream
 		}
 		audIdx++
 	}
-	if prefs.AudioTrack >= 0 {
-		return nil // explicit selection out of range: judge nothing extra
-	}
+	// An explicit selection out of range names nothing: the request entry
+	// points fall back to the default track for it (explicitAudioTrack), and
+	// judging nothing would wave a DTS default through as a copy.
 	// If the default track exists and is NOT commentary, return it unchanged.
 	if def != nil && !def.Commentary {
 		return def
@@ -843,7 +881,7 @@ func webmShaped(specs []StreamSpec) bool {
 // checkContainer judges the container against what the client declared. The
 // Matroska family needs care: the probers name both MKV and WebM "matroska",
 // but a browser only plays the raw file when it is served as WebM - Firefox
-// refuses `video/x-matroska` outright (measured 2026-09-29: the player looped
+// refuses `video/x-matroska` outright (measured: the player looped
 // on a .mkv it could not open), and the Content-Type follows the extension.
 // So a "webm" client takes a Matroska only when the file IS a .webm and every
 // track is a WebM codec; an "mkv" client (native players) takes any Matroska.
@@ -1004,10 +1042,15 @@ func normalizeAudioCodec(c string) string {
 		return "aac"
 	case "mp3", "mp3float":
 		return "mp3"
-	case "dts", "dca":
+	case "dts", "dca", "dts-hd", "dtshd", "dts_hd":
 		return "dts"
 	case "truehd", "mlp":
 		return "truehd"
+	}
+	// Every PCM sample layout the prober names (pcm_s16le, pcm_s24le,
+	// pcm_bluray...) is the one codec a client declares as "pcm".
+	if l := strings.ToLower(c); strings.HasPrefix(l, "pcm_") || l == "lpcm" {
+		return "pcm"
 	}
 	return strings.ToLower(c)
 }

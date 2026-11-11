@@ -108,8 +108,10 @@ func TestCommand_ProbeAndNoNiceAndNoMemCap(t *testing.T) {
 // A measured working set above the class cap raises both the address-space
 // cap and the admission reservation: the process is admitted for what it will
 // really hold, not for the decoder-sized paper cap it would die under.
+//
+// Not parallel: it reads the process-wide Reserved() counter, which the
+// parallel tests forking through Command move while it measures.
 func TestCommand_MinMemRaisesTheCapAndTheReservation(t *testing.T) {
-	t.Parallel()
 	need := RSSCap(Production, memBudget()) + gib
 	before := Reserved()
 	cmd, finish, err := Command(context.Background(), Options{Class: Production, Site: "t", MinMemBytes: need}, "ffmpeg", "-i", "f")

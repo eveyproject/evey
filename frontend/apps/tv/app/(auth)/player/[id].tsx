@@ -25,7 +25,8 @@ import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
-import { diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
+import { audioDecoderFailureCodec, diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
+import { getDeviceAudioCodecs, refuseAudioCodec } from "../../../src/lib/deviceCodecs";
 import { subscribePlayerStatus } from "@evey/client/native/playerStatus";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -248,6 +249,11 @@ export default function PlayerScreen() {
   useEffect(() => { setNativeError(null); }, [mediaId]);
   // When the last reload on a 404 or 410 was made (see playbackReloadRetry).
   const reloadRetryAtRef = useRef<number | null>(null);
+  // One renegotiation per media after the player failed to decode an audio
+  // track (see the status listener), through a ref: the listener is installed
+  // once, restartWithTracks changes with the selection.
+  const audioFallbackTriedRef = useRef(false);
+  const restartWithTracksRef = useRef<(() => void) | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
@@ -288,6 +294,7 @@ export default function PlayerScreen() {
     audioLangs: profileAudioLangs,
     subtitleLangs: profileSubtitleLangs,
     restartWithTracks,
+    judgedAudioIndex: streamInfo?.audioStreamIndex,
   });
 
 
@@ -504,6 +511,24 @@ export default function PlayerScreen() {
         reloadAtPlayhead(player, lastSourceRef.current, at).catch(() => {
           setNativeError(ev.error?.message ?? "playback error");
         });
+        return;
+      }
+      // The player opened an audio track it cannot decode: asking for the
+      // same stream again gets the same failure, so the codec leaves the
+      // declaration and the server, asked again, re-encodes that track.
+      const refusedCodec = ev.status === "error" ? audioDecoderFailureCodec(ev.error?.message ?? "") : null;
+      if (refusedCodec && !audioFallbackTriedRef.current && refuseAudioCodec(refusedCodec)) {
+        audioFallbackTriedRef.current = true;
+        let at = 0;
+        withPlayer((p) => { at = Math.round(p.currentTime || 0); });
+        reportPlayerEvent({
+          type: "native_audio_codec_refused",
+          details: ev.error?.message ?? "",
+          fatal: false,
+          posSec: at,
+          diag: diagnoseNativePlayerError(ev.error?.message ?? "", playMethodRef.current),
+        });
+        restartWithTracksRef.current?.();
         return;
       }
       if (ev.status === "error") {
@@ -754,7 +779,10 @@ export default function PlayerScreen() {
     enabled: streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY",
     audioStreams,
     selectedAudioIndex,
+    declaredAudioCodecs: getDeviceAudioCodecs(),
   });
+  restartWithTracksRef.current = () =>
+    restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
 
   const handleAudioSelect = useCallback(
     (index: number) => {

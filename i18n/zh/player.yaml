@@ -194,6 +194,8 @@ streamInfo:
     client_line_exceeded: 客户端测得的线路无法承载直拷
     abr_floor_requested: 播放器请求的保底档位
     file_needs_remux: "文件按单轨道分块存储（需要修复）"
+    sibling_audio_undecodable: "文件中的另一条音轨无法在此设备上播放"
+    audio_layout_unknown: "音频声道布局未知，已为此设备重新编码"
     audio_passthrough_unsupported: "音轨无法在流中原样传输"
     preferred_video_codec: "首选视频编码（个人资料设置）"
     preferred_audio_codec: "首选音频编码（个人资料设置）"

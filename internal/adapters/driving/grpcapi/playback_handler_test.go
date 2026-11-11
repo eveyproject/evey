@@ -1850,3 +1850,81 @@ func TestGetStreamInfo_SkipsACommentaryDefaultTrack(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "transcode", resp.AudioDecision, "the DTS main track the master serves is re-encoded, not the AAC commentary")
 }
+
+// A file that stores its audio before the picture: the track a viewer picks
+// is stream 0, which the older field cannot name (proto3 reads 0 as unset).
+func TestGetStreamInfo_SelectingAudioStreamZero(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-a0", Title: "Audio First", Type: "movie", File: &library.MediaFile{ContainerFormat: "mp4"}})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-a0", StreamIndex: 0, StreamType: "audio", Codec: "dts", Channels: new(6), SampleRate: new(48000)},
+		{MediaItemID: "mi-a0", StreamIndex: 1, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-a0", StreamIndex: 2, StreamType: "audio", Codec: "aac", Channels: new(2), SampleRate: new(48000), IsDefault: true},
+	})
+	zero := int32(0)
+
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-a0", SupportedAudioCodecs: []string{"aac"}, SelectedAudioStreamIndex: &zero})
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", resp.AudioDecision, "the DTS at stream 0 is the one judged")
+	require.NotNil(t, resp.AudioStreamIndex)
+	assert.Equal(t, int32(0), *resp.AudioStreamIndex)
+
+	// The older field's 0 still means "no selection": the default AAC.
+	resp, err = h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-a0", SupportedAudioCodecs: []string{"aac"}})
+	require.NoError(t, err)
+	require.NotNil(t, resp.AudioStreamIndex)
+	assert.Equal(t, int32(2), *resp.AudioStreamIndex)
+}
+
+// The verdict names the track it judged, so a player playing the file itself
+// puts that track on: the file's default here, the selection there.
+func TestGetStreamInfo_ReportsTheJudgedAudioTrack(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-judged", Title: "Two Languages", Type: "movie", File: &library.MediaFile{ContainerFormat: "matroska"}})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-judged", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-judged", StreamIndex: 1, StreamType: "audio", Codec: "eac3", Language: "ger", Channels: new(6), SampleRate: new(48000)},
+		{MediaItemID: "mi-judged", StreamIndex: 4, StreamType: "audio", Codec: "ac3", Language: "fre", Channels: new(6), SampleRate: new(48000), IsDefault: true},
+	})
+	codecs := []string{"aac", "ac3", "eac3"}
+
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-judged", SupportedAudioCodecs: codecs})
+	require.NoError(t, err)
+	require.NotNil(t, resp.AudioStreamIndex)
+	assert.Equal(t, int32(4), *resp.AudioStreamIndex)
+
+	resp, err = h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-judged", SupportedAudioCodecs: codecs, AudioStreamIndex: 1})
+	require.NoError(t, err)
+	require.NotNil(t, resp.AudioStreamIndex)
+	assert.Equal(t, int32(1), *resp.AudioStreamIndex)
+}
+
+// With no server language wired, the verdict picks the track the HLS master
+// serves: that default is English, ahead of the file's default flag.
+func TestGetStreamInfo_UnwiredServerLanguageMatchesTheMaster(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-lang", Title: "Two Languages", Type: "movie", File: &library.MediaFile{ContainerFormat: "matroska"}})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-lang", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-lang", StreamIndex: 1, StreamType: "audio", Codec: "dts", Language: "eng", Channels: new(6), SampleRate: new(48000)},
+		{MediaItemID: "mi-lang", StreamIndex: 2, StreamType: "audio", Codec: "ac3", Language: "fre", Channels: new(6), SampleRate: new(48000), IsDefault: true},
+	})
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-lang", SupportedAudioCodecs: []string{"aac", "ac3"}})
+	require.NoError(t, err)
+	require.NotNil(t, resp.AudioStreamIndex)
+	assert.Equal(t, int32(1), *resp.AudioStreamIndex)
+	assert.Equal(t, "transcode", resp.AudioDecision, "the master serves the English DTS, re-encoded")
+}
+
+// A native player names a file's tracks by the file's own numbers: the
+// stream info carries them so the player can be put on the judged one.
+func TestMediaStreamToProto_CarriesTheFileTrackNumber(t *testing.T) {
+	n := 5
+	pb := mediaStreamToProto(&library.MediaStream{StreamIndex: 4, StreamType: "audio", Codec: "ac3", SourceTrackID: &n}, false)
+	require.NotNil(t, pb.SourceTrackId)
+	assert.Equal(t, int32(5), *pb.SourceTrackId)
+	assert.Nil(t, mediaStreamToProto(&library.MediaStream{StreamIndex: 1, StreamType: "audio"}, false).SourceTrackId)
+}

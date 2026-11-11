@@ -108,6 +108,46 @@ describe("deviceCodecs", () => {
     expect(m.getPlayerAudioCodecs()).toEqual([]);
   });
 
+  // The player failed on a codec the probe vouched for: the next negotiation
+  // must not declare it, or the server hands the same track over again.
+  it("stops declaring a codec the player could not decode, aliases folded", async () => {
+    rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "opus"] };
+    caps.getAudioProbe.mockResolvedValue({ directPlayback: {}, directProfiles: [] });
+    caps.checkPlaybackDecoder.mockResolvedValue({ decoders: ["ac3", "eac3"], blockedBy: "", bench: null, abnormalExit: null });
+    const m = await load();
+    expect(m.refuseAudioCodec("AC-3")).toBe(true);
+    expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus", "eac3"]);
+    expect(m.refuseAudioCodec("ac3")).toBe(false);
+  });
+
+  // A codec never declared got the stream for another reason (a track beside
+  // the one negotiated): refusing it changes nothing and asks for no retry.
+  it("reports no change for a codec that was never declared", async () => {
+    rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "opus"] };
+    caps.getAudioProbe.mockResolvedValue({ directPlayback: {}, directProfiles: [] });
+    const m = await load();
+    expect(m.refuseAudioCodec("dts")).toBe(false);
+    expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus"]);
+  });
+
+  // A receiver switched off mid-run: the DTS it took must not be declared to
+  // the next negotiation, or the server hands the device a track it cannot play.
+  it("asks the sink again before a negotiation and follows its answer", async () => {
+    rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "opus"] };
+    // A phone on an HDMI receiver that takes the DTS bitstream.
+    caps.getAudioProbe.mockResolvedValue({ isTv: false, directPlayback: {}, directProfiles: [], hdmi: { plugState: 1, encodings: [7] } });
+    const m = await load();
+    expect(m.getDeviceAudioCodecs()).toContain("dts");
+    // The cable is pulled.
+    caps.getAudioProbe.mockResolvedValue({ isTv: false, directPlayback: {}, directProfiles: [], hdmi: { plugState: 0, encodings: [] } });
+    await m.refreshAudioSink();
+    expect(m.getDeviceAudioCodecs()).not.toContain("dts");
+    // A probe that fails keeps the last answer.
+    caps.getAudioProbe.mockRejectedValue(new Error("gone"));
+    await m.refreshAudioSink();
+    expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus"]);
+  });
+
   // The shared probe is the one the TV reads too; the legacy old-bridge module
   // is only the fallback for builds that predate it. It also wins outright, so
   // the two never have to agree.
