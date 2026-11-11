@@ -184,6 +184,16 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			switch pqErr.Constraint {
+			case "idx_users_email_unique":
+				return fmt.Errorf("update user: %w: %w", shared.ErrConflict, user.ErrEmailTaken)
+			case "idx_users_username_lower", "users_username_key":
+				return fmt.Errorf("update user: %w: %w", shared.ErrConflict, user.ErrUsernameTaken)
+			}
+			return fmt.Errorf("update user: %w: %s", shared.ErrConflict, pqErr.Message)
+		}
 		return fmt.Errorf("update user: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
