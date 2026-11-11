@@ -834,6 +834,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.UserAuthSvc != nil {
 		parentalOpts = append(parentalOpts, withPasswordReauth(s.UserAuthSvc))
 	}
+	parentalOpts = append(parentalOpts, withProfileAudit(s.ActivityCmdSvc))
 	parental := registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen, parentalOpts...)
 	registerScheduleRoutes(mux, parental, s.ProfileHours)
 	// The web + mobile admin panels both call GET/PATCH
@@ -843,7 +844,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// already uses just above, so this needs no new wiring.
 	registerUserBitrateRoutes(mux, s.UserQuerySvc, appuser.NewBitrateLimitSetter(s.UserRepo), s.TokenGen, s.AdminWriteRL)
 	if s.DataDir != "" {
-		registerAvatarRoutes(mux, s.ProfileRepo, s.TokenGen, s.DataDir)
+		registerAvatarRoutes(mux, s.ProfileRepo, s.TokenGen, s.DataDir, s.ActivityCmdSvc)
 	}
 	if s.MetadataCmdSvc != nil && s.MetadataQuerySvc != nil {
 		registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc)

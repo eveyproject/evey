@@ -252,6 +252,6 @@ func registerScheduleRoutes(mux *http.ServeMux, parental *parentalHandler, hours
 	authMw := httpAuthMiddleware(parental.tokenGen)
 	h := &scheduleHandler{parental: parental, hours: hours}
 	mux.HandleFunc("GET /api/v1/profiles/{id}/schedule", authMw(h.get))
-	mux.HandleFunc("PUT /api/v1/profiles/{id}/schedule", authMw(h.update))
-	mux.HandleFunc("POST /api/v1/profiles/{id}/schedule/unlock", authMw(h.unlock))
+	mux.HandleFunc("PUT /api/v1/profiles/{id}/schedule", authMw(auditedRoute(parental.audit, "update_profile_schedule", "profile", "id", h.update)))
+	mux.HandleFunc("POST /api/v1/profiles/{id}/schedule/unlock", authMw(auditedRoute(parental.audit, "unlock_profile_schedule", "profile", "id", h.unlock)))
 }
