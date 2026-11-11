@@ -1,5 +1,5 @@
 ---
-source_sha: 1e6be4bdc8510a8b0c1800890163c1a4e4ea299813c8c76bf54414e018055047
+source_sha: 122a45d14ca6b9f66d0c85768a14922820d0755dcfafd6f138baa4f642b13416
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -39,7 +39,7 @@ declaró.
 |---|---|
 | Go 1.27, Node.js 22 con pnpm, Docker con Compose | El entorno de desarrollo (`make dev`) compila el servidor y la aplicación web. |
 | `bubblewrap` (`bwrap`) | Solo para los modos de sandbox `bubblewrap` y `strict`. El modo por defecto, `auto`, usa Landlock y no necesita nada en un núcleo 5.13 o posterior. |
-| [cosign](https://docs.sigstore.dev/cosign/installation/) | Para firmar tu paquete antes de distribuirlo ([sección 7](#7-sign-your-plugin)). No hace falta para desarrollar. |
+| [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) | Para firmar tu paquete antes de distribuirlo ([sección 7](#7-sign-your-plugin)). No hace falta para desarrollar. |
 
 Elige el lenguaje de tu plugin entre los runtimes que el servidor puede
 arrancar: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` y `sh` necesitan
@@ -244,7 +244,7 @@ directamente a esos hosts por `https`. Las reglas están en
     que produce `cosign sign-blob --key`): sin binario `cosign` en el
     servidor, sin red, sin registro de transparencia.
 
-Solo necesitas [cosign](https://docs.sigstore.dev/cosign/installation/) en tu
+Solo necesitas [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) en tu
 máquina.
 
 1. **Una vez: genera un par de claves.**

@@ -1,5 +1,5 @@
 ---
-source_sha: 1e6be4bdc8510a8b0c1800890163c1a4e4ea299813c8c76bf54414e018055047
+source_sha: 122a45d14ca6b9f66d0c85768a14922820d0755dcfafd6f138baa4f642b13416
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -33,7 +33,7 @@ flowchart LR
 |---|---|
 | Go 1.27、带 pnpm 的 Node.js 22、带 Compose 的 Docker | 开发环境（`make dev`）要用它们构建服务器和网页应用。 |
 | `bubblewrap`（`bwrap`） | 只有 `bubblewrap` 和 `strict` 沙箱模式才需要。默认的 `auto` 模式使用 Landlock，在 5.13 或更新的内核上什么都不用装。 |
-| [cosign](https://docs.sigstore.dev/cosign/installation/) | 在分发之前给插件包签名（[第 7 节](#7-sign-your-plugin)）。开发时用不到。 |
+| [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) | 在分发之前给插件包签名（[第 7 节](#7-sign-your-plugin)）。开发时用不到。 |
 
 从服务器能启动的运行时里选择插件的语言：`python`、`nodejs`、`php`、`ruby`、`lua`、`bash` 和 `sh` 需要镜像里有对应的解释器；
 `go` 提供编译好的二进制文件，需要 `native-binary` 权限。默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua；`-nodejs` 镜像保留 Python 和 Node.js，`-lean` 镜像只保留 Python。
@@ -186,7 +186,7 @@ external_fetch:
     （对 ZIP 的 SHA-256 做 ECDSA P-256 签名，也就是 `cosign sign-blob --key` 生成的格式）：
     服务器上不需要 `cosign` 程序，不联网，也不用透明日志。
 
-只有您自己的机器上需要 [cosign](https://docs.sigstore.dev/cosign/installation/)。
+只有您自己的机器上需要 [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)。
 
 1. **只需一次：生成一对密钥。**
 
