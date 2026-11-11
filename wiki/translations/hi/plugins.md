@@ -1,5 +1,5 @@
 ---
-source_sha: 50ea71b7cf2c7500eebf6f37e45406179dd0abfa4c204cbd4c67c2bf539455ff
+source_sha: 80334abe63c67481f81bd04e5cfd89edf7cbe49fcf3168a2fa949fff7a391cc6
 reviewed: true
 ---
 # प्लगइन { #plugins }
@@ -56,7 +56,7 @@ Python, Node.js, PHP, Ruby और Lua हैं, `-nodejs` इमेज मे�
 और `-lean` इमेज में सिर्फ़ Python रहता है।
 
 !!! tip "सिग्नेचर वाले प्लगइन"
-    प्लगइन बनाने वाला ZIP पर [cosign](https://docs.sigstore.dev/cosign/installation/)
+    प्लगइन बनाने वाला ZIP पर [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
     से सिग्नेचर कर सकता है; उसकी public key पैकेज के अंदर चलती है। Evey सिग्नेचर
     खुद जाँचता है (`cosign` binary नहीं चाहिए) और जब कुंजी आपकी **भरोसेमंद
     प्रकाशक** सूची में हो तो **<प्रकाशक> द्वारा हस्ताक्षरित** दिखाता है, नहीं तो
