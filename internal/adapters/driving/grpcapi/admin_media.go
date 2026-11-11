@@ -276,6 +276,10 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 		return d.translator.TranslatedError(ctx, codes.NotFound, "errors.admin.seek_index_no_backup")
 	case errors.Is(err, shared.ErrNotFound):
 		return d.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
+	case errors.Is(err, appmaintenance.ErrAudioTrackMissing):
+		return d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.admin.sync_audio_track_missing")
+	case errors.Is(err, appmaintenance.ErrAudioTracksUnavailable):
+		return d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	case errors.Is(err, appmaintenance.ErrShiftOutOfRange):
 		return d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.admin.sync_shift_out_of_range", map[string]string{"max": strconv.FormatFloat(appmaintenance.SyncPreviewMaxShiftSec, 'f', 0, 64)})
 	default:
@@ -711,12 +715,25 @@ func (d *adminMediaHandler) ApplyAudioShift(ctx context.Context, req *eveyv1.App
 	if err := d.seekIndexConfigured(ctx, span); err != nil {
 		return nil, err
 	}
-	if err := d.seekIndex.ApplyOperatorShift(ctx, req.GetMediaId(), req.GetTrack(), req.GetShiftSec()); err != nil {
+	// The audio index is the preview's own way of naming the track, so it is
+	// the one a client should send: the server turns it into the Matroska
+	// number. A bare track number stays accepted for callers that read it
+	// from the file themselves.
+	var err error
+	detail := map[string]any{"shift_sec": req.GetShiftSec()}
+	if req.AudioIndex != nil {
+		detail["audio_index"] = req.GetAudioIndex()
+		err = d.seekIndex.ApplyOperatorShiftToAudio(ctx, req.GetMediaId(), int(req.GetAudioIndex()), req.GetShiftSec())
+	} else {
+		detail["track"] = req.GetTrack()
+		err = d.seekIndex.ApplyOperatorShift(ctx, req.GetMediaId(), req.GetTrack(), req.GetShiftSec())
+	}
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "apply audio shift", err)
 	}
-	d.audit(ctx, "apply_audio_shift", "media", req.GetMediaId(), map[string]any{"track": req.GetTrack(), "shift_sec": req.GetShiftSec()})
+	d.audit(ctx, "apply_audio_shift", "media", req.GetMediaId(), detail)
 	return &eveyv1.ApplyAudioShiftResponse{}, nil
 }
 

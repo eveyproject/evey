@@ -2612,6 +2612,7 @@
   "errors.admin.service_not_configured": "Service not configured",
   "errors.admin.session_command_required": "A session and a command are required",
   "errors.admin.setup_already_completed": "Setup already completed",
+  "errors.admin.sync_audio_track_missing": "This file has no such audio track",
   "errors.admin.sync_shift_out_of_range": "This tool does not move a track by more than {max} s",
   "errors.admin.tmdb_id_positive": "The TMDB id must be a positive number",
   "errors.admin.trusted_proxies_invalid": "Invalid trusted proxies: {reason}",

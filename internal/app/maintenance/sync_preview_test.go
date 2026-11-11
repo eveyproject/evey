@@ -249,3 +249,43 @@ func TestOperatorShift_RunsInTheJobSlot(t *testing.T) {
 	assert.Equal(t, 1, st.Last.Done)
 	assert.Equal(t, 0, st.Last.Failed)
 }
+
+type fakeAudioTracks struct{ numbers []uint64 }
+
+func (f fakeAudioTracks) AudioTrackNumbers(context.Context, string) ([]uint64, error) {
+	return f.numbers, nil
+}
+
+// The preview plays audio index N; the shift must move that same track. On a
+// dub laid out audio, subtitles, picture, audio, the second audio track is
+// Matroska track 5 - "index + 1" would have retimed a subtitle.
+func TestOperatorShiftToAudio_MovesTheTrackThePreviewPlayed(t *testing.T) {
+	r := &fakeRetimer{}
+	_, svc := previewService(t, nil, r, &fakeJournal{})
+	svc = svc.WithAudioTrackLister(fakeAudioTracks{numbers: []uint64{1, 5}})
+
+	require.NoError(t, svc.ApplyOperatorShiftToAudio(context.Background(), "m1", 1, 2.5))
+
+	require.Len(t, r.calls, 1)
+	assert.Equal(t, map[uint64]float64{5: 2.5}, r.calls[0])
+}
+
+func TestOperatorShiftToAudio_RefusesATrackTheFileDoesNotHave(t *testing.T) {
+	r := &fakeRetimer{}
+	j := &fakeJournal{}
+	_, svc := previewService(t, nil, r, j)
+	svc = svc.WithAudioTrackLister(fakeAudioTracks{numbers: []uint64{1, 5}})
+
+	require.ErrorIs(t, svc.ApplyOperatorShiftToAudio(context.Background(), "m1", 2, 2.5), appmaintenance.ErrAudioTrackMissing)
+	require.ErrorIs(t, svc.ApplyOperatorShiftToAudio(context.Background(), "m1", -1, 2.5), appmaintenance.ErrAudioTrackMissing)
+	assert.Empty(t, r.calls, "nothing may be written for a track that does not exist")
+	assert.Empty(t, j.all())
+}
+
+func TestOperatorShiftToAudio_WithoutALookupSaysSo(t *testing.T) {
+	r := &fakeRetimer{}
+	_, svc := previewService(t, nil, r, &fakeJournal{})
+
+	require.ErrorIs(t, svc.ApplyOperatorShiftToAudio(context.Background(), "m1", 0, 2.5), appmaintenance.ErrAudioTracksUnavailable)
+	assert.Empty(t, r.calls)
+}
