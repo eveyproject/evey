@@ -275,3 +275,15 @@ func TestUpdateUser_LongPassword_WritesNothing(t *testing.T) {
 		t.Fatalf("account changed despite the refused password: email=%q hash=%q", got.Email, got.PasswordHash)
 	}
 }
+
+func TestUpdateUser_InvalidEmail_WritesNoPassword(t *testing.T) {
+	env := seedSelf(t)
+	mail, next, good := "not-an-address", "newpassword1", "oldpassword"
+	_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Email: &mail, Password: &next, CurrentPassword: &good,
+	})
+	assertCode(t, err, codes.InvalidArgument)
+	if got := storedUser(t, env, "usr-1"); got.Email != "a@b.com" || got.PasswordHash != "hashed:oldpassword" {
+		t.Fatalf("account changed despite the refused e-mail: email=%q hash=%q", got.Email, got.PasswordHash)
+	}
+}

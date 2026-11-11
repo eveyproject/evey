@@ -94,6 +94,8 @@ export default function SettingsScreen() {
   const startEditAccount = useCallback(() => {
     setEditUsername(user?.username ?? "");
     setEditEmail(user?.email ?? "");
+    setNewPassword("");
+    setConfirmPassword("");
     setCurrentPassword("");
     setEditingAccount(true);
   }, [user]);
@@ -127,47 +129,24 @@ export default function SettingsScreen() {
       Alert.alert(t("errors.user.current_password_required"));
       return;
     }
-    const failed = (err: unknown) =>
-      apiErrorMessage(err as Error, t, t("auth.settings.account.updateFailed", "Update failed"));
-    const errors: string[] = [];
-    let changed = false;
-    // A refused current password (403) or a lockout (429) refuses the second
-    // request too: sending it would only spend another attempt of the login
-    // lockout and repeat the same message.
-    let stop = false;
-    // The password travels alone: it never depends on the e-mail or username,
-    // so a refused one of those must not block it. Identity goes first, while
-    // the current password still verifies (a password change revokes it).
-    if (hasIdentity) {
-      if (identity.email && !isPlainEmail(identity.email)) {
-        errors.push(t("errors.user.email_invalid"));
-      } else {
-        try {
-          await updateUser.mutateAsync({ id: user.id, data: { ...identity, currentPassword } });
-          changed = true;
-        } catch (err) {
-          errors.push(failed(err));
-          const status = (err as { httpStatus?: number }).httpStatus;
-          stop = status === 403 || status === 429;
-        }
-      }
-    }
-    if (newPassword && !stop) {
-      try {
-        await updateUser.mutateAsync({ id: user.id, data: { password: newPassword, currentPassword } });
-        changed = true;
-        setNewPassword("");
-        setConfirmPassword("");
-        setCurrentPassword("");
-      } catch (err) {
-        errors.push(failed(err));
-      }
-    }
-    if (changed) qc.invalidateQueries({ queryKey: ["/api/v1/users/me"] });
-    if (errors.length > 0) {
-      toast.error(errors.join("\n"));
+    // All or nothing: a refused field saves none of the others. One request,
+    // which the server validates in full before writing anything (a password
+    // left out is never touched, so a stored e-mail cannot block it).
+    if (identity.email && !isPlainEmail(identity.email)) {
+      toast.error(t("errors.user.email_invalid"));
       return;
     }
+    const data: Record<string, string> = { ...identity, currentPassword };
+    if (newPassword) data.password = newPassword;
+    try {
+      await updateUser.mutateAsync({ id: user.id, data });
+    } catch (err) {
+      toast.error(apiErrorMessage(err as Error, t, t("auth.settings.account.updateFailed", "Update failed")));
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["/api/v1/users/me"] });
+    setNewPassword("");
+    setConfirmPassword("");
     setCurrentPassword("");
     setEditingAccount(false);
     toast.success(t("auth.settings.account.profileUpdated") || "Profile updated");
