@@ -1,5 +1,5 @@
 ---
-source_sha: cbb77f7bf06443976e7bc56f600217600725f9387abe71900e4c95e24ef4519e
+source_sha: 2569fdb55d98747c9f775b9fcd594e860d79d895bec6e81a5a5bca919e08e1ee
 reviewed: true
 ---
 # 参与贡献
@@ -31,8 +31,8 @@ reviewed: true
 1. 运行 `make pre-push`：这是必须通过的检查，它会在本地按以下顺序运行 CI 的各项检查：vet、漏洞扫描、构建、
    带 `-race` 的单元测试、前端（类型检查、lint、单元测试）、安全扫描、lint、
    [架构检查](ARCHITECTURE.md#architecture-guards)、提交规范检查、密钥泄露扫描、proto 破坏性变更检查、
-   从干净检出的代码构建、仓库和转码的集成测试检查，以及电视应用审计。
-   推送到 `dev` 或工作分支时改为运行 `make pre-push-dev`：同样的检查，但不含 pull request 的 CI 会在相同提交上再次运行的耗时套件（漏洞扫描、前端测试与构建、仓库套件、电视应用审计）；推送到 `master` 则运行完整检查。
+   从干净检出的代码构建、wiki 检查、仓库和转码的集成测试检查，以及电视应用审计。
+   推送到 `dev` 或工作分支时改为运行 `make pre-push-dev`：只对改动过的包运行单元测试，只在分支涉及时才运行前端测试和仓库套件，不运行漏洞扫描、前端构建和电视应用审计（由 pull request 的 CI 运行）；推送到 `master` 则运行完整检查。
 2. 为新的行为和每一个缺陷修复补上测试。
 3. 外部贡献需要一次性接受[贡献者许可协议](../CLA.md)：Evey 采用 AGPL-3.0-or-later 许可，
    也可能以商业许可提供。您的作品版权仍归您所有。

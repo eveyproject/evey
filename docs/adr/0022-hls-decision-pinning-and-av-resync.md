@@ -91,7 +91,8 @@ copy-timeline tripwire caught.
 - `BuildFFmpegArgs` stays PURE (probes happen in `Start`); the second-input
   logic lives in `audioDelayCancelActive`/`audioNetShiftSec` and is shared by
   all builders, so `-map 1:a` never appears without its input.
-- The copy-timeline tripwire (`verifySegmentTimeline`, ±500 ms) is the
+- The copy-timeline tripwire (`timelineDriftReporter.verify` in `fmp4_rebase.go`,
+  `copyDriftToleranceMs` = 500 ms) is the
   runtime backstop: it logs ERROR + metric rather than corrupting playback if a
   copy session ever drifts.
 - **`make transcode-itest` is mandatory** on any change here: it decodes the

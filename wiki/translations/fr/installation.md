@@ -1,5 +1,5 @@
 ---
-source_sha: 24e90e68dbbd60f7111af4c4e2e50bf061e8c287d2c22f38fa970231c0d48959
+source_sha: d79dc0926b3cccaf395cc08d77b10dd374b052ab566b42de9e7a26ebea4fbff2
 reviewed: true
 ---
 # Installation { #install }
@@ -29,8 +29,13 @@ recherche sont dedans : il n'y a rien d'autre à installer, pas de fichier
 ## Ce qu'il vous faut { #what-you-need }
 
 - **Un ordinateur ou un NAS qui reste allumé**, avec un processeur x86-64
-  (Intel ou AMD). Les machines ARM64 ont besoin d'un tag de version, qui
-  n'existe pas encore : voir [Machines ARM](operations/advanced-deployments.md#arm-hosts).
+  (Intel ou AMD) ou ARM64. Les images de version (tags `vX.Y.Z`) sont
+  multi-architecture (`linux/amd64` et `linux/arm64`) et Docker choisit la
+  bonne ; les builds de branche sont amd64 seulement, donc sur ARM on épingle
+  un tag de version. Le transcodage matériel sur ARM se limite à Rockchip
+  RKMPP (au mieux, pas encore validé sur du vrai matériel) ; un Raspberry Pi
+  ou un NAS ARM Realtek fait de la lecture directe et du transcodage
+  logiciel. Voir [Machines ARM](operations/advanced-deployments.md#arm-hosts).
 - **Docker avec Compose v2.** La commande est `docker compose`, avec une
   espace, et non l'ancienne `docker-compose`.
 - **Votre dossier de médias** : là où sont vos films, séries, musique ou
@@ -184,7 +189,7 @@ seulement pour appliquer ce choix ; Evey lui-même ne tourne jamais en root.
 | `eveyproject/evey:0.1` | le dernier correctif de cette ligne mineure (0.1.0, 0.1.1, ...), jamais une nouvelle version mineure |
 | `eveyproject/evey:0.1.0` | exactement cette version, tant que vous ne changez pas la ligne |
 | `eveyproject/evey:sha-<commit>` | un build précis, le seul tag qui ne bouge jamais |
-| `eveyproject/evey:master` | la branche de développement, reconstruite à chaque push : pour tester, pas pour un serveur sur lequel vous comptez |
+| `eveyproject/evey:master` | la branche d'intégration, reconstruite à chaque merge : pour tester, pas pour un serveur sur lequel vous comptez |
 
 Les numéros de version suivent le [versionnage sémantique](https://semver.org/) et commencent à
 `0.1.0` ; la ligne 0.x est la bêta publique. Pour changer de version, modifiez la

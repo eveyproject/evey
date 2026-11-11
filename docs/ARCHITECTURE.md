@@ -44,8 +44,8 @@ adapters by injecting fakes that implement the same domain ports: 20 of the
 
 ## Bounded contexts
 
-Thirty-two context packages live under `internal/domain/` and `internal/app/`:
-19 exist in both layers, 2 are domain-only (`ratings`, `shared`), 11 are
+Thirty-three context packages live under `internal/domain/` and `internal/app/`:
+19 exist in both layers, 2 are domain-only (`ratings`, `shared`), 12 are
 app-only. They collaborate partly through domain events on a shared bus; the
 app layer also reads a neighbouring context's domain package directly (see
 [Relations](#relations)).
@@ -79,6 +79,7 @@ app layer also reads a neighbouring context's domain package directly (see
 | `dlna` (app only) | SSDP discovery and UPnP AVTransport control |
 | `loadtest` (app only) | simulates viewers against the server's own HTTP stack: HLS, or the raw file when a client's verdict is a direct play |
 | `maintenance` (app only) | admin-triggered media maintenance: seek-index rebuild, repair journal, undo, audio integrity |
+| `prunehold` (app only) | holds a scan's mass deletion of missing files until an administrator confirms it (`library.prune.suspended`) |
 | `presence` (app only) | in-memory, non-persisted registry of who is connected right now |
 | `qoe` (app only) | CMCD (CTA-5004) playback telemetry ingest and aggregation |
 | `demo` (app only) | the public demo instance (`EVEY_DEMO=1`): seeds its accounts, libraries and freely licensed media through the product's own services, and resets itself |
@@ -91,7 +92,7 @@ app layer also reads a neighbouring context's domain package directly (see
 | --- | --- | --- |
 | `library` | `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` | `media.item.added`: `notification`, `metadata` (auto-enrich), `library` itself (trickplay worker + intro detection), `feed` (genre-cache invalidation) |
 | `playback` | `PlaybackStarted` / `PlaybackStopped` | no dedicated subscriber today; only `webhook`'s `"*"` catch-all receives them |
-| `user` | `UserCreated`, `user.password.reset_requested` | the first has no subscriber; the second is consumed by the `email` driven adapter |
+| `user` | `UserCreated`, `user.password.reset_requested`, `user.login.succeeded` / `user.login.failed` | `UserCreated` has no subscriber; the reset request is consumed by the `email` driven adapter; the login events by `activity` (login history) |
 | `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` for its security dashboard, `notification` for the administrator |
 | `shared` | `ServerConfigChanged` | the services that apply a setting saved in the admin panel without a restart (SMTP, timezone, CPU budget, ...) |
 
@@ -110,7 +111,7 @@ it: 15 app packages import a neighbouring context's domain package today.
 ## Typical data flow - "user plays a media"
 
 1. Mobile/web client calls `POST /api/v1/playback/start` (grpc-gateway route).
-2. `internal/adapters/driving/http` runs its auth middleware (`auth_middleware.go`, `httpAuthMiddleware`), extracts session.
+2. `internal/adapters/driving/http` hands the request to grpc-gateway (rate limit, cache headers); the gRPC `AuthInterceptor` (`grpcapi/interceptors/auth.go`) authenticates the token and applies RBAC.
 3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) validates proto, calls `app/playback.CommandService.StartStream` (command/query split, see [ADR-0009](adr/0009-cqrs-repo-split.md)).
 4. `app/playback.CommandService` calls domain ports: `user.UserRepository`, `playback.SessionQueryRepo` (idempotency + device cap), `playback.SessionCommandRepo`, then `shared.EventBus.Publish(PlaybackStarted)`.
 5. Driven adapters execute: `postgres` persists the session inside a `shared.TransactionalUnit.Do` scope; the in-process bus (`internal/pkg/eventbus`) dispatches asynchronously.
@@ -123,7 +124,7 @@ subject of [Playback pipeline](playback-serving.md).
 ## Architecture guards
 
 The rules above are not documentation-only. `internal/contractguard/` holds
-58 static tests across 30 files that fail the build when the codebase drifts
+63 static tests across 30 files that fail the build when the codebase drifts
 from them.
 
 The hexagonal rule itself is `TestDomainContextsDoNotImportEachOther`
@@ -277,7 +278,7 @@ flowchart LR
         a_photo[photo]
         a_user[user]
         a_upd[updatecheck]
-        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, prunehold, qoe, loadtest,<br/>demo]
     end
 
     subgraph domain[Domain core - internal/domain]

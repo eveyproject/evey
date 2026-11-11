@@ -1,5 +1,5 @@
 ---
-source_sha: e10872a44bc7a4594b78350969813e3dffa0a11bd28a8acc97dcfb617e5b019b
+source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
 reviewed: true
 ---
 # 权限与插槽 { #permissions-and-slots }
@@ -49,10 +49,10 @@ reviewed: true
 | `native-binary` | 包里可以带 `.so`、`.dll`、`.exe`、`.wasm`、`.jar`、内嵌的压缩包，或分析无法读取的原生代码。管理员会看到这些不透明的代码，并且必须接受。`go` 插件必须声明它。 |
 | `filesystem` | 声明有意访问插件目录之外的文件系统。它会被记录下来并展示给管理员；但无论声明了什么，沙箱都不会给予插件目录之外的任何文件访问。 |
 | `media.read` | 宿主上的 `GetMediaItem` 和 `ListMediaItems`：完整的媒体记录。 |
-| `media.write` | 为写入元数据的调用预留，目前还没有提供。 |
+| `media.write` | 宿主上的 `UpdateMetadata`，用于同时声明了 `metadata.provider` 能力的插件。 |
 | `api.library` | 和 `media.read` 相同的媒体读取调用。 |
 | `api.user` | 为 `GetUserPreferences` 预留，目前还没有提供。 |
-| `api.metadata` | 为 `UpdateMetadata` 预留，目前还没有提供。 |
+| `api.metadata` | 与 `media.write` 相同的 `UpdateMetadata` 调用，能力条件也相同。 |
 | `notification.sender` | 为 `SendNotification` 预留，目前还没有提供。 |
 | `public` | 插件界面可以读取媒体条目的一个安全投影（id、标题、类型、年份、简介、海报），永远读不到路径或流。请看 [`evey.media.*`](api-reference.md#eveymedia-permission-public)。 |
 | `prefs` | 插件界面可以在插件自己的命名空间里读写当前用户的偏好。请看 [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs)。 |

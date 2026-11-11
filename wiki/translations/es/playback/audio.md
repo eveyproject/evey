@@ -1,5 +1,5 @@
 ---
-source_sha: 318633ab461ab7429280d1503d8bccfc464413f5ccc3377a7588c10f3d316c75
+source_sha: 86d73602259fc01a31ea67027a45a760df02e2c94c6d15b7dcdd926a80846d62
 reviewed: true
 ---
 # Audio { #audio }
@@ -44,8 +44,9 @@ por defecto** del perfil, después la pista que el archivo marca como
 predeterminada, y después la primera. Una pista marcada como comentario se
 salta en favor de una normal cuando el archivo tiene las dos.
 
-Solo cuenta la pista que se está reproduciendo: una pista DTS que no estás
-escuchando nunca provoca una transcodificación.
+Solo la pista que se está reproduciendo puede volver a codificarse: una pista
+DTS que no estás escuchando nunca provoca una transcodificación, pero en un
+dispositivo que no puede descodificarla, convierte un Direct Play en un Remux.
 
 ## Copiada o vuelta a codificar { #copied-or-re-encoded }
 
@@ -63,8 +64,9 @@ vuelve a codificar en AAC:
 
 Una pista copiada dentro de un flujo transcodificado o en remux también tiene
 que estar en un formato que el reproductor acepte dentro de los segmentos del
-flujo. AAC, AC-3 y E-AC-3 siempre lo están; los demás códecs, solo cuando el
-reproductor lo indica. Cuando no es así, la pista se vuelve a codificar e
+flujo. AAC, AC-3 y E-AC-3 siempre lo están; MP3 y Opus, solo cuando el
+reproductor indica que los acepta en un flujo; cualquier otro códec se vuelve
+a codificar. Cuando no es así, la pista se vuelve a codificar e
 Información del flujo dice **La pista de audio no puede transmitirse sin
 cambios en el stream**: un reproductor puede descodificar MP3 en un archivo y
 aun así rechazarlo dentro de un flujo.

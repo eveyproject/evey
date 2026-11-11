@@ -1,5 +1,5 @@
 ---
-source_sha: c6c0a67f7b17b0139429ba630a95b355b5cc39888b5eb6a2bfd603d38ca8cead
+source_sha: ed2800347644b7f29af5ff78967016d21d06afa3fd5b38856a393e93da5cb5bf
 reviewed: true
 ---
 # 媒体库与元数据 { #libraries-and-metadata }
@@ -82,7 +82,7 @@ reviewed: true
 
     - 服务器每次启动时都会读取所有媒体库，之后每 2 分钟读一次（**管理 → 服务器配置 → 媒体库 → 定期扫描间隔**，重启后生效）。有内容正在播放时，它每隔 15 分钟才读一次，以免拖慢播放。
     - 对于开启了实时监控的媒体库，系统也可以在文件变化时通知服务器（**管理 → 服务器配置 → 媒体库 → 媒体库文件监视**）。为了确认这项功能仍然有效，服务器会往文件夹里写入一个小测试文件，几秒后删除。已经证明这项功能有效的媒体库，改为每小时读一次，而不是每 2 分钟。
-    - 在网页管理面板里创建的媒体库不使用文件监视：每 2 分钟一次的读取会发现它们的文件。手机应用的管理表单里，媒体库有一个**实时监控**开关。
+    - 网页和手机的媒体库表单都有一个**实时监控**开关，新建媒体库时默认开启；关闭后，每 2 分钟一次的读取会发现这些文件。
 
 !!! note "网络共享"
     在 NFS 或 SMB 共享上，由另一台机器写入的文件不会给服务器发送任何信号。定期读取会发现它。
@@ -127,7 +127,7 @@ Evey 会找出剧集和电影的片头、前情提要和片尾，让播放器可
 播放器默认显示**跳过片头**、**跳过前情提要**和**跳过片尾**按钮。开启**自动跳过片头**（**管理 → 服务器配置 → 媒体库**，默认关闭）后，所有播放器都会自动跳过。
 
 <!-- sources
-add library: frontend/apps/web/src/features/admin/LibraryForm.tsx (name, type, paths only - no realtime/scan-on-startup toggles) ; i18n admin.libraries.addLibrary, tvShows, paths, enterCustomPath, addPath, createLibrary ; internal/domain/library/model.go NewLibrary (RealtimeMonitoring false by default) ; grpcapi/library_handler.go CreateLibrary (no scan trigger ; only watcher + feed subscribe library.created)
+add library: frontend/apps/web/src/features/admin/LibraryForm.tsx (name, type, paths, realtime monitoring on by default) ; i18n admin.libraries.addLibrary, tvShows, paths, enterCustomPath, addPath, createLibrary ; internal/domain/library/model.go NewLibrary (RealtimeMonitoring false by default) ; grpcapi/library_handler.go CreateLibrary (no scan trigger ; only watcher + feed subscribe library.created)
 types: i18n admin.libraries.types.* ; internal/adapters/driven/metadata/musicbrainz_provider.go ; internal/app/music/album_art_chain.go
 parser: internal/adapters/driven/filesystem/parser.go (reEditionSuffix, knownQualities, SetExtraParserTokens) ; internal/app/library/parser_config.go ApplyParserConfig ; i18n admin.serverConfig.parserTokens*
 fix a title: frontend/apps/web/src/features/library/MediaDetailEdit.tsx (save, refresh, reset, rematch, identify) ; IdentifyMetadataModal.tsx ; http/admin_handler_media.go (identify search) ; internal/app/metadata/command_service_overrides.go SetOverride, ResetItemMetadata (overrides, artwork, persons, Catalog=nil, children) ; command_service_refresh.go RefreshItemMetadata ; i18n media.detail.editMetadata, identify.*, tmdbId, imdbId, idChangedWarning, refreshMetadata, resetMetadata, rematchMetadata, rematchConfirm

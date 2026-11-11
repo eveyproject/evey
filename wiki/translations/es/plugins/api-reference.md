@@ -1,5 +1,5 @@
 ---
-source_sha: e016d46cbfda306ec5cb1c9dbbdef535ee12acea8711452911a11d22e66d34b1
+source_sha: 5797e8e708fd3052602387a0a521f26c0b6a67d9aec080995e9b282571510369
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -25,7 +25,7 @@ entrypoint: node index.js    # obligatorio para un plugin; la línea de comandos
 
 description: "..."           # opcional
 author: "..."                # opcional
-min_evey_version: "1.0.0"    # opcional; se acepta y se ignora
+min_evey_version: "1.0.0"    # opcional; instalación/actualización rechazada si es superior a la versión del servidor
 
 permissions:                 # lo que pueden llamar el backend y la interfaz
   - network

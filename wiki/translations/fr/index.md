@@ -1,5 +1,5 @@
 ---
-source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
+source_sha: 59bcc3e9f3711296c6f1a612c4b161e7d6db4b6f45f2f3a8cd4b7bb292c1de82
 reviewed: true
 hide:
 - navigation
@@ -23,8 +23,9 @@ appuyez sur lecture, Evey s'occupe du reste.
 </p>
 
 <p class="evey-platforms">
-<strong>Ce qu'il vous faut :</strong> un ordinateur ou un NAS x86-64 avec
-Docker, et un dossier avec vos médias. L'installation tient en un fichier et
+<strong>Ce qu'il vous faut :</strong> un ordinateur ou un NAS avec Docker
+(x86-64, ou ARM64 comme un Raspberry Pi : <a href="operations/advanced-deployments/#arm-hosts">machines ARM</a>),
+et un dossier avec vos médias. L'installation tient en un fichier et
 une commande.<br>
 <strong>Regardez</strong> dans un navigateur web, sur les téléphones et
 tablettes Android, sur Android TV, dans le navigateur web d'une télévision et sur un
@@ -180,7 +181,8 @@ notification, des sections sur l'accueil et des éléments par-dessus le
 lecteur. Les thèmes changent l'apparence. Avant d'installer un plugin,
 l'administrateur voit ce que l'analyse du plugin a trouvé et les permissions
 qu'il demande. Une nouvelle permission doit être acceptée clairement. Un plugin
-tourne dans son propre processus, sous un utilisateur à part, sans accès
+tourne dans son propre processus, confiné par Landlock ou bubblewrap (sous un utilisateur à part quand la
+machine ne permet que le bac à sable basique), sans accès
 direct au réseau. Il est arrêté s'il dépasse sa limite de mémoire, de
 processus ou de disque. Le niveau de restriction d'accès à ses fichiers
 dépend de la machine, et le **Tableau de bord sécurité** montre le mode utilisé. Le

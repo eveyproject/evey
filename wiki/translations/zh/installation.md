@@ -1,5 +1,5 @@
 ---
-source_sha: 24e90e68dbbd60f7111af4c4e2e50bf061e8c287d2c22f38fa970231c0d48959
+source_sha: d79dc0926b3cccaf395cc08d77b10dd374b052ab566b42de9e7a26ebea4fbff2
 reviewed: true
 ---
 # 安装 { #install }
@@ -20,7 +20,7 @@ Evey 只运行一个容器。数据库和搜索引擎都在容器里，所以不
 
 ## 您需要准备什么 { #what-you-need }
 
-- **一台持续开机的电脑或 NAS**，处理器是 x86-64 架构（Intel 或 AMD）。ARM64 机器需要正式发布的版本标签，目前还没有：见 [ARM 主机](operations/advanced-deployments.md#arm-hosts)。
+- **一台持续开机的电脑或 NAS**，处理器是 x86-64（Intel 或 AMD）或 ARM64 架构。正式发布的镜像（`vX.Y.Z` 标签）是多架构的（`linux/amd64` 和 `linux/arm64`），Docker 会自动选对；分支构建只有 amd64，所以在 ARM 上请固定一个发布标签。ARM 上的硬件转码只支持 Rockchip RKMPP（尽力而为，尚未在真实硬件上验证）；树莓派或 Realtek 芯片的 ARM NAS 走直接播放和软件转码。见 [ARM 主机](operations/advanced-deployments.md#arm-hosts)。
 - **带 Compose v2 的 Docker。** 命令是 `docker compose`（中间有空格），不是旧的 `docker-compose`。
 - **您的媒体文件夹**：放电影、剧集、音乐或照片的地方。
 - **一些磁盘空间，给 Evey 存自己的数据**（数据库、海报图片、搜索索引）。下面的 compose 文件会把这些数据放在文件旁边一个叫 `evey-data` 的文件夹里。
@@ -122,7 +122,7 @@ Evey 只在三种情况下向您的媒体文件夹写入内容：
 | `eveyproject/evey:0.1` | 该次版本线上的最新修复（0.1.0、0.1.1、...），不会升到新的次版本 |
 | `eveyproject/evey:0.1.0` | 恰好是这个版本，直到您修改这一行 |
 | `eveyproject/evey:sha-<commit>` | 某一个确切的构建，是唯一永不变动的标签 |
-| `eveyproject/evey:master` | 开发分支，每次推送都会重新构建：用于测试，不适合您依赖的服务器 |
+| `eveyproject/evey:master` | 集成分支，每次合并都会重新构建：用于测试，不适合您依赖的服务器 |
 
 版本号遵循[语义化版本](https://semver.org/)，从 `0.1.0` 开始；0.x 系列是公开测试版。要更换版本，修改这一行，然后运行 `docker compose pull && docker compose up -d`；您的数据仍保存在 `./evey-data`。当前运行的版本可在 **管理 → 仪表盘**、`/healthz` 以及 `docker exec evey-server evey version` 中看到。不带后缀的标签是完整镜像，包含全部插件运行时（Python、Node.js、PHP、Ruby 和 Lua）；`-nodejs` 和 `-lean` 是精简构建，包含的运行时更少（[详情](operations/advanced-deployments.md#image-tags-and-variants)）。
 

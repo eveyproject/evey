@@ -1,5 +1,5 @@
 ---
-source_sha: af8c6f06737bb877d02dbe562e2082f8b62c725fa10bcf0c4a668855a5f42c87
+source_sha: d18575178717c35ca8643b0eead448a6b422a10bbfee57b8fcc255d843d35d40
 reviewed: true
 ---
 # Servir un vídeo - el camino de reproducción HLS
@@ -96,9 +96,9 @@ de principio a fin:
    fijados en la petición (`vd=` / `ad=`), la corrección de la
    resincronización del audio, etc.
 4. **P3 - Capacidad** - `internal/app/transcoding/calibration_service.go`:
-   `Current()` devuelve `domain/transcoding.Derive(report, policy)`
-   (`derive.go`), los techos de la máquina deducidos de la última
-   calibración.
+   `Current()` devuelve los techos de la máquina: la instantánea de capacidades
+   deducida de la última calibración (`domain/transcoding.Derive`, `derive.go`),
+   con los techos forzados por el operador aplicados.
 5. **Escalera y admisión** - el resolutor ajusta la escalera (clase de
    complejidad, perfiles de los productores, topes de la fuente y de la
    capacidad, topes CMCD/AV1, ruta y techo de admisión) y después **la

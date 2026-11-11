@@ -1,5 +1,5 @@
 ---
-source_sha: 2aa3f137eb7403f9ad58369e4f8f4eb6ea411a331f295395267794f1472f7153
+source_sha: 3d80d298e1b4ec097f2917fc6380f0639be2154565258bb434179a0dd155b17d
 reviewed: true
 ---
 # Architektur
@@ -51,9 +51,9 @@ bringen ein Unterpaket `fakes/` mit.
 
 ## Abgegrenzte Kontexte
 
-Zweiunddreißig Kontextpakete liegen unter `internal/domain/` und
+Dreiunddreißig Kontextpakete liegen unter `internal/domain/` und
 `internal/app/`: 19 gibt es in beiden Schichten, 2 nur in der Domäne
-(`ratings`, `shared`), 11 nur in der App. Sie arbeiten teils über
+(`ratings`, `shared`), 12 nur in der App. Sie arbeiten teils über
 Domänenereignisse auf einem gemeinsamen Bus zusammen; die App-Schicht liest
 außerdem direkt das Domänenpaket eines benachbarten Kontexts (siehe
 [Beziehungen](#relations)).
@@ -87,6 +87,7 @@ außerdem direkt das Domänenpaket eines benachbarten Kontexts (siehe
 | `dlna` (nur App) | SSDP-Erkennung und UPnP-AVTransport-Steuerung |
 | `loadtest` (nur App) | simuliert Zuschauer gegen den eigenen HTTP-Stack des Servers: HLS, oder die unveränderte Datei, wenn die Entscheidung für einen Client Direktwiedergabe lautet |
 | `maintenance` (nur App) | Medienwartung auf Anstoß des Administrators: Neuaufbau des Seek-Index, Reparaturjournal, Rückgängig, Prüfung der Tonspuren |
+| `prunehold` (nur App) | hält das massenhafte Löschen fehlender Dateien durch einen Scan zurück, bis ein Administrator es bestätigt (`library.prune.suspended`) |
 | `presence` (nur App) | nicht gespeichertes Verzeichnis im Arbeitsspeicher, wer gerade verbunden ist |
 | `qoe` (nur App) | Empfang und Zusammenfassung der Wiedergabe-Telemetrie CMCD (CTA-5004) |
 | `demo` (nur App) | die öffentliche Demo-Instanz (`EVEY_DEMO=1`): legt ihre Konten, Bibliotheken und frei lizenzierten Medien über die eigenen Dienste des Produkts an und setzt sich selbst zurück |
@@ -99,7 +100,7 @@ außerdem direkt das Domänenpaket eines benachbarten Kontexts (siehe
 | --- | --- | --- |
 | `library` | `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` | `media.item.added`: `notification`, `metadata` (automatische Anreicherung), `library` selbst (Trickplay-Worker + Intro-Erkennung), `feed` (Genre-Cache verwerfen) |
 | `playback` | `PlaybackStarted` / `PlaybackStopped` | heute kein eigener Abonnent; nur das `"*"`-Sammelabo von `webhook` empfängt sie |
-| `user` | `UserCreated`, `user.password.reset_requested` | das erste hat keinen Abonnenten; das zweite empfängt der getriebene Adapter `email` |
+| `user` | `UserCreated`, `user.password.reset_requested`, `user.login.succeeded` / `user.login.failed` | `UserCreated` hat keinen Abonnenten; die Anfrage zum Zurücksetzen empfängt der getriebene Adapter `email`; die Anmeldeereignisse `activity` (Anmeldeverlauf) |
 | `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` für sein Sicherheits-Dashboard, `notification` für den Administrator |
 | `shared` | `ServerConfigChanged` | die Dienste, die eine im Verwaltungsbereich gespeicherte Einstellung ohne Neustart anwenden (SMTP, Zeitzone, CPU-Budget, ...) |
 
@@ -121,7 +122,7 @@ eines benachbarten Kontexts.
 ## Typischer Datenfluss - „ein Benutzer spielt ein Medium ab“
 
 1. Der Client (Handy/Web) ruft `POST /api/v1/playback/start` auf (Route von grpc-gateway).
-2. `internal/adapters/driving/http` führt seine Auth-Middleware aus (`auth_middleware.go`, `httpAuthMiddleware`) und liest die Sitzung aus.
+2. `internal/adapters/driving/http` übergibt die Anfrage an grpc-gateway (Ratenbegrenzung, Cache-Header); der gRPC-`AuthInterceptor` (`grpcapi/interceptors/auth.go`) authentifiziert das Token und wendet RBAC an.
 3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) prüft das Proto und ruft `app/playback.CommandService.StartStream` auf (Trennung von Befehlen und Abfragen, siehe [ADR-0009](adr/0009-cqrs-repo-split.md)).
 4. `app/playback.CommandService` ruft Domänen-Ports auf: `user.UserRepository`, `playback.SessionQueryRepo` (Idempotenz + Gerätelimit), `playback.SessionCommandRepo`, dann `shared.EventBus.Publish(PlaybackStarted)`.
 5. Die getriebenen Adapter führen aus: `postgres` speichert die Sitzung innerhalb eines Bereichs `shared.TransactionalUnit.Do`; der Bus im Prozess (`internal/pkg/eventbus`) verteilt asynchron.
@@ -134,7 +135,7 @@ beschreibt [Ein Video ausliefern - der HLS-Wiedergabeweg](playback-serving.md).
 ## Architekturwächter
 
 Die Regeln oben stehen nicht nur in der Dokumentation.
-`internal/contractguard/` enthält 58 statische Tests in 30 Dateien, die den
+`internal/contractguard/` enthält 63 statische Tests in 30 Dateien, die den
 Build scheitern lassen, wenn die Codebasis von ihnen abweicht.
 
 Die hexagonale Regel selbst ist `TestDomainContextsDoNotImportEachOther`
@@ -293,7 +294,7 @@ flowchart LR
         a_photo[photo]
         a_user[user]
         a_upd[updatecheck]
-        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, prunehold, qoe, loadtest,<br/>demo]
     end
 
     subgraph domain[Domänenkern - internal/domain]

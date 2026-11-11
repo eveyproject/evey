@@ -1,13 +1,12 @@
 # Release runbook
 
-How a version of Evey goes from a branch to something an operator can pin.
-Written before the first tagged release so the first one follows a procedure
-instead of inventing it.
+How a version of Evey goes from a branch to something an operator can pin:
+the procedure every release since v0.1.0 has followed.
 
 ## What CI does with a tag (read this before tagging)
 
 `.github/workflows/ci.yml` builds and publishes images on every push to
-`main`, `master`, `beta-*` and `alpha-*` (a push that only touches docs builds
+`master`, `beta-*` and `alpha-*` (a push that only touches docs builds
 nothing) and on every `v*.*.*` tag, to `docker.io/eveyproject/evey`. Release
 and pre-release tags and manual runs publish three plugin-runtime variants
 (full, the default, then `-nodejs` and `-lean`); a branch push publishes the

@@ -46,10 +46,10 @@ serves, and falls back one level at a time.
    the master-playlist shed probe; the cumulative rung is kept for diagnostics
    only. So that the refusal never bites a route the host really serves, the
    calibration measures the SAME matrix the resolver emits: every
-   `RouteShape` of `RuntimeRouteShapes()` (`hw_route_cost.go`, derived from
+   `RouteShape` of `RuntimeRouteShapes()` (`internal/domain/transcoding/route.go`, derived from
    `EncodeRoute.CostKey` over the whole route space) that the software chain
    or a certified backend proves, and a coverage test
-   (`route_evidence_plan_test.go`) fails on a shape with no measuring strategy
+   (`internal/adapters/driven/ffmpeg/route_evidence_plan_test.go`) fails on a shape with no measuring strategy
    unless it is listed as deliberately unmeasured with its reason (software
    AV1, an admin opt-in too slow to bench on every host).
 
@@ -59,7 +59,7 @@ serves, and falls back one level at a time.
    the backend for a request in that order: compatible with this source and
    this route, then tall enough for the rung, then cheapest by measured cost
    with a 5 % hysteresis so a recalibration does not flip the pick on noise
-   (`pickBackend`, `internal/app/transcoding/playback_plan_resolver.go`).
+   (`pickBackend`, `internal/app/transcoding/resolver_route.go`).
 
 3. **A failure falls back session, title, host - and the host only on proof.**
    The failed ffmpeg is gone (session). The title is routed to the CPU at once,
@@ -70,7 +70,8 @@ serves, and falls back one level at a time.
    (`CalibrationService.DemoteCapability`); a route incompatibility never
    touches the host, an init failure needs two strikes in ten minutes, and a
    demotion expires after thirty minutes and is re-probed rather than
-   outliving its cause (`internal/domain/transcoding/hw_failure.go`).
+   outliving its cause (`HWDemotionTTL` and `hwInitStrikeWindow`,
+   `internal/app/transcoding/calibration_service.go`).
 
 4. **The ladder is a pure function of persisted facts.** Source facts, the
    per-title complexity, the encode route and the delivery constraints produce

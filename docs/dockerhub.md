@@ -29,7 +29,7 @@ volumes:
 
 Open `http://<your-ip>:9091`, create your account, add a library. Postgres and Meilisearch run inside the container and generate their own secrets on first start. Migrations run automatically.
 
-Run it as the user who owns your media (`user: "1000:1000"` or the `PUID` / `PGID` variables), so that scans can read the files and in-place repairs can write them.
+By default Evey runs as the owner of your `/media*` mounts, so scans can read the files and in-place repairs can write them; set `PUID` / `PGID` only when that owner is root or you want another user.
 
 ## Hardware transcoding
 
@@ -42,7 +42,7 @@ One image covers Intel Quick Sync (VAAPI / QSV), NVIDIA (NVENC) and, on arm64, R
 | `latest` | The newest release. `docker compose pull` moves you to the next one. |
 | `X.Y.Z`, `X.Y`, `X` | Releases. `X.Y` follows the fixes of one minor line, `X.Y.Z` is one exact release. |
 | `sha-<short>` | One exact build, the only tag that never moves: pin it for a server you rely on. |
-| `master` | The development branch, rebuilt at every push. For testing. |
+| `master` | The integration branch, rebuilt at every merge. For testing. |
 
 Variants, same app with fewer plugin runtimes: no suffix (the full image: Python, Node.js, PHP, Ruby and Lua), `-nodejs` (Python and Node.js), `-lean` (Python only).
 

@@ -113,7 +113,7 @@ Android and Android TV apps connect to your server URL. A TV without Android TV 
 - [SSO/OIDC](docs/oidc.md) - Keycloak, Authentik, Google, anything OIDC-compliant
 - [Email notifications](docs/notifications.md) + password recovery
 - [Automatic backups](docs/backups.md)
-- [Plugins & themes](docs/plugins.md) - multi-layer isolation (static analysis, UID drop, seccomp syscall filter, optional LD_PRELOAD)
+- [Plugins & themes](docs/plugins.md) - multi-layer isolation (static analysis, Landlock or bubblewrap confinement, seccomp syscall filter, UID drop on the basic sandbox)
 - Multi-profile with parental controls
 - SyncPlay - watch together in sync
 - Webhooks for external integrations
@@ -121,7 +121,7 @@ Android and Android TV apps connect to your server URL. A TV without Android TV 
 
 ## Plugins & Themes
 
-You can extend Evey with plugins: themes, metadata providers, UI widgets. They run with multi-layer isolation (static analysis at install, UID drop, seccomp syscall filter, optional `LD_PRELOAD` guard). Each layer has known limits - **always review third-party plugins before installing them**. See [docs/SECURITY.md](docs/SECURITY.md) for the full model and its limits.
+You can extend Evey with plugins: themes, metadata providers, UI widgets. They run with multi-layer isolation (static analysis at install, Landlock or bubblewrap confinement, seccomp syscall filter, UID drop on the basic sandbox). Each layer has known limits - **always review third-party plugins before installing them**. See [docs/SECURITY.md](docs/SECURITY.md) for the full model and its limits.
 
 Quick CSS theme:
 ```yaml

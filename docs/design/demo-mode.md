@@ -7,10 +7,9 @@ this page is the design history. Two details settled on the way: the demo
 tracks the last release, and the eight-character password floor is lowered to
 four at composition on the demo so `demo` / `demo` can be seeded.
 
-> This is a design document, not an architecture decision record. It describes a
-> mode the server does not have yet, so it records an intention rather than a
-> decision the code embodies. It becomes an ADR - a short one - the day the mode
-> ships, and only for the parts that turned out to be irreversible.
+> This is a design document, not an architecture decision record. It was
+> written before the mode existed and records the intention; the decision the
+> code embodies is ADR-0031.
 
 ## Context
 
@@ -180,8 +179,8 @@ plugin route, never on the admin one.
 **Locked** (server refuses, UI greys out):
 
 - Plugins: install, update, uninstall, and installation from a URL. The
-  catalogue stays browsable and the installed plugin's own configuration stays
-  editable - that is the part worth showing.
+  catalogue stays browsable; the installed plugin's own configuration is
+  read-only too, since the seeded plugin is shared by every visitor.
 - Network and addressing: published URL, remote access, trusted proxies, ports,
   CORS.
 - Identity and mail: SMTP, OIDC, password reset, user creation and deletion.
@@ -215,9 +214,9 @@ progress is written, because playback needs it.
 keys, SMTP password, VAPID private key) is served masked by every admin read,
 the demo's open ones included.
 
-**Pre-installed rather than installable:** the bootstrap installs the `weather`
+**Pre-installed rather than installable:** the bootstrap installs the `weather-v2`
 example plugin from the bundle the operator drops under `EVEY_DEMO_PLUGIN_DIR`
-(`weather.zip`, built from `examples/plugins/weather` with runtime deps only -
+(`weather-v2.zip`, built by `tests/plugins/weather-v2/build-zip.sh` with runtime deps only -
 a stale dev bundle carrying esbuild is refused by the installer's scan), sets
 it on Paris and re-applies that config at every boot. It is the cheapest honest
 demonstration of the plugin system - it renders a real home-page section and
@@ -241,7 +240,7 @@ fires when it should not and stays silent when it should fire.
 A per-visitor ephemeral profile would make logout meaningful, and it is
 deliberately rejected: it is the one piece of demo-only business logic in an ADR
 whose whole point is that the demo runs the same code as production. The
-idle-triggered restore gets the same result with a shell script.
+idle-triggered reset gets the same result with an in-server timer.
 
 **A daily floor.** Even with the idle trigger, the instance is restored once a
 day regardless, so a demo that is busy for eighteen hours straight does not

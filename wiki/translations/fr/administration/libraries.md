@@ -1,5 +1,5 @@
 ---
-source_sha: c6c0a67f7b17b0139429ba630a95b355b5cc39888b5eb6a2bfd603d38ca8cead
+source_sha: ed2800347644b7f29af5ff78967016d21d06afa3fd5b38856a393e93da5cb5bf
 reviewed: true
 ---
 # Bibliothèques et métadonnées { #libraries-and-metadata }
@@ -134,10 +134,10 @@ la ligne de la bibliothèque :
       dans le dossier pendant quelques secondes. Une bibliothèque où cela
       fonctionne n'est lue qu'une fois par heure au lieu de toutes les
       2 minutes.
-    - Les bibliothèques créées depuis le panneau web n'utilisent pas cette
-      surveillance : la lecture toutes les 2 minutes trouve leurs fichiers.
-      Le formulaire d'administration de l'application mobile propose, pour une
-      bibliothèque, un interrupteur **Surveillance en temps réel**.
+    - Les formulaires de bibliothèque du web et de l'application mobile
+      proposent tous deux un interrupteur **Surveillance en temps réel**,
+      activé par défaut pour une nouvelle bibliothèque ; s'il est désactivé,
+      la lecture toutes les 2 minutes trouve les fichiers.
 
 !!! note "Partages réseau"
     Sur un partage NFS ou SMB, un fichier écrit par une autre machine

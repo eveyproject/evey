@@ -1,5 +1,5 @@
 ---
-source_sha: 5d6e1c496b373ae579e3de32d6359d6c1c9712b93ef8c17806d17afca066d8f8
+source_sha: 22ea0e89f67cb148b89d7ee356857285ae9ca1beab97f10adb964703ca29c453
 reviewed: true
 ---
 # API du serveur
@@ -28,7 +28,7 @@ Trois sortes d'identifiants atteignent l'API, tous dans l'en-tête
 |---|---|---|
 | Jeton de session | Une personne connectée par une application | `Bearer <jeton>`, obtenu à la connexion et renouvelé par l'application. |
 | Clé d'API | Un script, au nom de l'administrateur qui l'a créée | `Bearer evey_...` (le préfixe `Bearer` est facultatif). À permissions limitées, révocable : [Webhooks et clés d'API](../webhooks-api-keys.md). |
-| Jeton de plugin | L'interface d'un plugin, par la page hôte | Émis pour cinq minutes, pour un plugin et un utilisateur, ne portant que les portées `public` et `prefs` accordées au plugin ; toute autre méthode le refuse. Le cadre ne le détient jamais : la page hôte relaie les appels. |
+| Jeton de plugin | L'interface d'un plugin, par la page hôte | Émis pour cinq minutes, pour un plugin et un utilisateur, il peut porter d'autres portées accordées au plugin, mais seules les méthodes rattachées à `public` et `prefs` l'acceptent ; toute autre méthode le refuse. Le cadre ne le détient jamais : la page hôte relaie les appels. |
 
 Un jeton de plugin ne peut jamais atteindre une méthode d'administration,
 quelles que soient ses portées

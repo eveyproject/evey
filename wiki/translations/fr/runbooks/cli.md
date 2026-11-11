@@ -1,5 +1,5 @@
 ---
-source_sha: 80ee38697d8d389ccbe3deabdb838a6d8be5fa0af92f9832ad8d150b574bdcb2
+source_sha: 1e35a9c51baf852b80e5c0b91c75dbbad61da550104f89f4705bb277a16263e2
 reviewed: true
 ---
 # Ligne de commande { #command-line }
@@ -80,6 +80,10 @@ evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the
                                              the visitor accounts, the four libraries, and with
                                              --media the freely licensed media (gigabytes). Refuses
                                              unless EVEY_DEMO=1. Dry-run by default.
+evey admin rollback                          Read-only advisor: running version, schema, newest
+                                             pre-migration backup and the exact HOST commands to roll
+                                             back. The container has no Docker access, by design, so
+                                             it advises rather than acts.
 ```
 
 `reset-password` et `rotate-jwt-key` mettent tous deux fin à des sessions :
@@ -105,6 +109,14 @@ Un `pg_dump` d'avant migration est pris pour `up` et `down` quand
 développement, le Makefile fournit ces trois commandes sous la forme `make migrate-up`,
 `make migrate-down` et `make migrate-version`, exécutées dans le conteneur de
 développement `evey-server`.
+
+### Encodage par titre { #per-title-encoding }
+
+```
+evey admin reclassify <media-id>             Force-recompute the complexity class of one media item.
+evey admin reclassify --all                  Wipe every classified row; the background worker then
+                                             re-classifies the whole library at its background pace.
+```
 
 ### Maintenance des médias { #media-maintenance }
 
@@ -138,12 +150,22 @@ Le même moteur est utilisé par **Administration → Santé des médias**, qui 
 façon la plus simple de réparer une bibliothèque : voir
 [Santé des médias](media-health.md).
 
-### Encodage par titre { #per-title-encoding }
+### Capacité { #capacity }
 
 ```
-evey admin reclassify <media-id>             Force-recompute the complexity class of one media item.
-evey admin reclassify --all                  Wipe every classified row; the background worker then
-                                             re-classifies the whole library at its background pace.
+evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S] [--cold-cache]
+                                             Needs a LIVE server: it is an HTTP client of the local
+                                             gateway. Ramps simulated viewers until the box hits its
+                                             ceiling, then reports the sustained count and latencies.
+                                             Scenarios: transcode, natural, mkvgo, light (80/20),
+                                             balanced (50/50, default), heavy (20/80), mkvgo+N.
+                                             Modes: ramp (default), flash, seek, endurance. Presets:
+                                             minimal (4 viewers), standard (12), max (32); an explicit
+                                             --max-viewers wins. --cold-cache keeps evicting the
+                                             library from the page cache so the run measures the
+                                             storage, not the RAM. admission_full is the ceiling
+                                             verdict (exit 0), not an error. Short sanity run:
+                                             load-test --scenario balanced --max-viewers 4
 ```
 
 ### Diagnostic { #diagnostics }
@@ -156,10 +178,6 @@ evey admin doctor [--repair]                 Health-check DB, schema, jwt.key, M
                                              (ok / WARN / FAIL) with a remediation hint; exits 1 when
                                              a check fails. --repair applies only the safe fixes
                                              (create and chown the missing writable dirs).
-evey admin rollback                          Read-only advisor: running version, schema, newest
-                                             pre-migration backup and the exact HOST commands to roll
-                                             back. The container has no Docker access, by design, so
-                                             it advises rather than acts.
 evey admin route-bench [--backend nvenc|vaapi|qsv|none] [--heights 1080,2160] [--fps 24,30,50,60] [--out rows.csv] [--json run.json] [<file>...]
                                              Measure what a session of each transcode route costs on
                                              this host against the calibration and the cost model.
@@ -177,24 +195,6 @@ evey admin ladder-bench [--scenes 3] [--window 8] [--heights 1080,720] [--crf 18
 evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Run the per-title probe on the given files: probe time,
                                              early-stop rate and points. Reads and encodes only.
-```
-
-### Capacité { #capacity }
-
-```
-evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S] [--cold-cache]
-                                             Needs a LIVE server: it is an HTTP client of the local
-                                             gateway. Ramps simulated viewers until the box hits its
-                                             ceiling, then reports the sustained count and latencies.
-                                             Scenarios: transcode, natural, mkvgo, light (80/20),
-                                             balanced (50/50, default), heavy (20/80), mkvgo+N.
-                                             Modes: ramp (default), flash, seek, endurance. Presets:
-                                             minimal (4 viewers), standard (12), max (32); an explicit
-                                             --max-viewers wins. --cold-cache keeps evicting the
-                                             library from the page cache so the run measures the
-                                             storage, not the RAM. admission_full is the ceiling
-                                             verdict (exit 0), not an error. Short sanity run:
-                                             load-test --scenario balanced --max-viewers 4
 ```
 
 ### Sources de complétion { #completion-sources }

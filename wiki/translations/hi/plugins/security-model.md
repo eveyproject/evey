@@ -1,5 +1,5 @@
 ---
-source_sha: e10872a44bc7a4594b78350969813e3dffa0a11bd28a8acc97dcfb617e5b019b
+source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
 reviewed: true
 ---
 # अनुमतियाँ और स्लॉट { #permissions-and-slots }
@@ -64,10 +64,10 @@ manifest कुछ भी बताए:
 | `native-binary` | पैकेज में `.so`, `.dll`, `.exe`, `.wasm`, `.jar`, अंदर रखे आर्काइव या ऐसा native code हो सकता है जिसे विश्लेषण पढ़ नहीं सकता। एडमिन को ऐसा कोड दिखता है जिसे पढ़ा नहीं जा सकता, और उसे यह स्वीकार करना होता है। `go` प्लगइन के लिए ज़रूरी। |
 | `filesystem` | प्लगइन के फ़ोल्डर के बाहर फ़ाइल सिस्टम छूने का बताया गया इरादा। दर्ज होता है और एडमिन को दिखाया जाता है; सैंडबॉक्स प्लगइन के फ़ोल्डर के बाहर कोई फ़ाइल पहुँच नहीं देता, चाहे कुछ भी बताया गया हो। |
 | `media.read` | होस्ट पर `GetMediaItem` और `ListMediaItems`: मीडिया का पूरा रिकॉर्ड। |
-| `media.write` | मेटाडेटा लिखने वाले कॉल के लिए आरक्षित, जो आज दिए नहीं जाते। |
+| `media.write` | होस्ट पर `UpdateMetadata`, उस प्लगइन के लिए जो `metadata.provider` क्षमता भी घोषित करता है। |
 | `api.library` | `media.read` वाले ही मीडिया पढ़ने के कॉल। |
 | `api.user` | `GetUserPreferences` के लिए आरक्षित, जो आज दिया नहीं जाता। |
-| `api.metadata` | `UpdateMetadata` के लिए आरक्षित, जो आज दिया नहीं जाता। |
+| `api.metadata` | `media.write` वाला ही `UpdateMetadata` कॉल, उसी क्षमता की शर्त के साथ। |
 | `notification.sender` | `SendNotification` के लिए आरक्षित, जो आज दिया नहीं जाता। |
 | `public` | इंटरफ़ेस मीडिया आइटम की एक सुरक्षित झलक पढ़ सकता है (id, टाइटल, टाइप, साल, सारांश, पोस्टर), कभी रास्ते या stream नहीं। देखें [`evey.media.*`](api-reference.md#eveymedia-permission-public)। |
 | `prefs` | इंटरफ़ेस मौजूदा उपयोगकर्ता की पसंद प्लगइन के अपने हिस्से में पढ़ और लिख सकता है। देखें [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs)। |

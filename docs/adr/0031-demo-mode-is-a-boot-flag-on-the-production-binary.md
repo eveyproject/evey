@@ -31,7 +31,7 @@ refuse what a stranger must not do to the host.
   Every entry carries its reason.
 - **The server refuses, the clients grey out.** Every refusal is
   `errors.demo.locked`, translated - never a bare 403. The public setup-status
-  and `/healthz` say `demoMode`; the settings GET reports each entry `locked`.
+  says `demoMode` and `/healthz` says `demo`; the settings GET reports each entry `locked`.
   The web greys its write controls from that flag (per control where reads and
   writes share a page, a disabled fieldset on operator-only pages); mobile and
   TV show the banner and the credentials on the login screen.
@@ -59,22 +59,23 @@ refuse what a stranger must not do to the host.
   (deleting it would reopen the setup wizard on a live server). `evey admin
   demo-seed` runs the same bootstrap by hand. The plugin panel is shown the
   same way: the bootstrap installs the demo plugins (`demo.Plugins`, the
-  weather example on Paris) from the bundles the operator drops under
+  `weather-v2` example on Paris) from the bundles the operator drops under
   `EVEY_DEMO_PLUGIN_DIR`, enables them and re-applies their config at every
   boot; a missing bundle is skipped. Plugins are visual on the demo: the
   catalogue, the config and the logs read, every write - install, enable,
   config, limits - locked, since the seeded plugin is shared by every visitor. `ImpersonateUser` stays open:
   the minted token is judged by this same policy, as a non-administrator on
-  top of it. API-key creation stays open too, so the API can be tried in read
-  mode; a key can do nothing the visitor cannot.
+  top of it. API-key creation is locked (a credential that
+  outlives the visitor), and existing keys and invites are purged at boot
+  and on every reset.
 - **What the open reads say about the other visitors is blanked.** A generic
   `RedactInterceptor` clears the proto fields named in `demo.RedactedFields`
   (`client_ip`, `ip_address`, `user_agent`) in every response, so the sessions
   page, the presence list and the login history show devices and profiles,
   never addresses. By field name, not by RPC: a new response carrying an
   address is covered the day it ships.
-- **The web signs demo visitors in by itself.** The hourly restore wipes every
-  refresh token, so a visitor's session dies mid-visit; the credentials being
+- **The web signs demo visitors in by itself.** The hourly in-server reset
+  re-runs the seed, which re-asserts the `demo` account and its password; the credentials being
   public, the login route signs in as `demo` on its own when the server says
   it is the demo, and holds the form open for a day after a deliberate
   sign-out (`?manual=1` always shows it). A longer cookie would not do: the

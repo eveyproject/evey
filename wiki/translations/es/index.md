@@ -1,5 +1,5 @@
 ---
-source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
+source_sha: 59bcc3e9f3711296c6f1a612c4b161e7d6db4b6f45f2f3a8cd4b7bb292c1de82
 reviewed: true
 hide:
 - navigation
@@ -23,7 +23,8 @@ del resto.
 </p>
 
 <p class="evey-platforms">
-<strong>Qué necesitas:</strong> un ordenador o un NAS x86-64 con Docker, y
+<strong>Qué necesitas:</strong> un ordenador o un NAS con Docker (x86-64, o
+ARM64 como una Raspberry Pi: <a href="operations/advanced-deployments/#arm-hosts">máquinas ARM</a>), y
 una carpeta con tus archivos. La instalación es un archivo y un comando.<br>
 <strong>Dónde ver:</strong> en un navegador web, en teléfonos y tablets Android, en
 Android TV, en el navegador web de un televisor y en un Chromecast. Las apps de Android y Android TV están en
@@ -176,7 +177,8 @@ notificación, secciones en la página de inicio y elementos encima del
 reproductor. Los temas cambian el aspecto. Antes de instalar un plugin, el
 administrador ve lo que el análisis del plugin ha encontrado y los permisos
 que pide. Un permiso nuevo hay que aceptarlo de forma explícita. Un plugin
-funciona en su propio proceso, con un usuario aparte, sin acceso directo a
+funciona en su propio proceso, confinado por Landlock o bubblewrap (con un usuario aparte cuando la máquina
+solo admite el sandbox básico), sin acceso directo a
 la red. Se detiene si supera su límite de memoria, de procesos o de disco.
 El nivel de restricción del acceso a sus archivos depende de la máquina, y el **Panel de
 seguridad** muestra el modo que se usa. El widget de un plugin aparece en la
