@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.27.3+ (the version `go.mod` names)
+- Go 1.27.4+ (the version `go.mod` names)
 - Node.js 22+ / pnpm 10+
 - Docker & Docker Compose
 - [buf](https://buf.build/) (protobuf generation)
