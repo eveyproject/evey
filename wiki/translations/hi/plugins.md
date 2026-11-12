@@ -1,5 +1,5 @@
 ---
-source_sha: 1275452b2933bd99efb7df5d03027053d9e442befddb22c1eb9d953ee35df4bd
+source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
 reviewed: true
 ---
 # प्लगइन { #plugins }
@@ -33,9 +33,10 @@ reviewed: true
 
 1. **एडमिन → प्लगइन** में **प्लगइन इंस्टॉल करें** खोलें और **प्लगइन फ़ाइल
    (.zip)** चुनें। अगर बनाने वाला एक सिग्नेचर देता है, तो उसे **हस्ताक्षर फ़ाइल
-   (.zip.sig, वैकल्पिक)** में जोड़ें। **URL से** वाला टैब इसकी जगह किसी लिंक से
-   इंस्टॉल करता है; डाउनलोड की जाँच करवाने के लिए URL के आखिर में
-   `#sha256:<hash>` जोड़ें।
+   (.zip.sig, वैकल्पिक)** में जोड़ें। **URL से** वाला टैब इसकी जगह किसी `https://`
+   लिंक से इंस्टॉल करता है; सादा `http://` लिंक या सर्वर पर का कोई रास्ता अस्वीकार
+   किया जाता है (देखें [पैकेज कहाँ से आता है](SECURITY.md#where-the-package-comes-from))।
+   डाउनलोड की जाँच करवाने के लिए लिंक के आखिर में `#sha256:<hash>` जोड़ें।
    रिपॉज़िटरी लिंक, `https://github.com/<owner>/<repo>`, उसकी सबसे नई release
    का zip इंस्टॉल करता है, जिसे release में प्रकाशित sha256 से जाँचा जाता है,
    और उसके बाद प्लगइन अपने अपडेट के लिए उसी रिपॉज़िटरी को फ़ॉलो करता है
@@ -79,8 +80,8 @@ Python, Node.js, PHP, Ruby और Lua हैं, `-nodejs` इमेज मे�
 
 ## प्लगइन अपडेट करें { #update-a-plugin }
 
-प्लगइन के कार्ड पर, **स्रोत से अपडेट करें…** नई ZIP लेता है (एक रास्ता या एक
-URL) और वही पूर्वावलोकन दिखाता है। अपडेट का वर्ज़न इंस्टॉल किए गए वर्ज़न से
+प्लगइन के कार्ड पर, **स्रोत से अपडेट करें…** नई ZIP का `https://` लिंक लेता है
+और वही पूर्वावलोकन दिखाता है। अपडेट का वर्ज़न इंस्टॉल किए गए वर्ज़न से
 ऊँचा होना चाहिए। जब वह नई अनुमतियाँ, क्षमताएँ, स्लॉट या होस्ट माँगता है, तो
 पूर्वावलोकन में **यह अपडेट नई अनुमतियाँ माँग रहा है** लिखा आता है और फ़र्क की
 सूची दिखती है: जब तक आप **स्वीकृति दें और इंस्टॉल करें** न चुनें, कुछ लागू नहीं
@@ -245,7 +246,7 @@ TMDB से आते हैं। प्लगइन का टेक्स्�
 | [वेबहुक और API कुंजियाँ](webhooks-api-keys.md) | प्लगइन लिखे बिना Evey को दूसरे टूल से जोड़ना। |
 
 <!-- sources
-install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL
+install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL, CheckRequestedSource ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; i18n admin.plugin.updateSourceLabel
 critical findings refuse, warnings: internal/app/plugin/install.go - validateStagedPlugin, checkEscalatedWarnings ; i18n admin.plugins.blockedByAnalysis, installAnyway
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries ; i18n admin.plugins.availableRuntimes
 cosign policy: internal/config/config.go - CosignPolicy, CosignPublicKey ; internal/adapters/driven/pluginrunner/cosign.go

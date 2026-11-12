@@ -594,7 +594,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		ClearBodyReadDeadline(w)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
 
-		// JSON body {"source": ...} = preview an install source (URL or path)
+		// JSON body {"source": ...} = preview an install source (an https link)
 		// instead of an uploaded file. Install-from-URL used to skip the
 		// preview entirely, so warnings and outbound URLs were only visible
 		// once the plugin was already running.
@@ -605,6 +605,16 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 			if decErr := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body); decErr != nil || strings.TrimSpace(body.Source) == "" {
 				span.SetStatus(otelcodes.Error, "plugin source required")
 				http.Error(w, `{"message":"plugin source required"}`, http.StatusBadRequest)
+				return
+			}
+			// Only an https link: a path on the server is not the admin's to name.
+			if srcErr := appplugin.CheckRequestedSource(body.Source); srcErr != nil {
+				span.SetStatus(otelcodes.Error, "plugin source refused")
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				if encErr := json.NewEncoder(w).Encode(map[string]string{"message": srcErr.Error()}); encErr != nil {
+					slog.WarnContext(ctx, "encode plugin source error", slog.Any("err", encErr))
+				}
 				return
 			}
 			preview, previewErr := svc.PreviewSource(r.Context(), strings.TrimSpace(body.Source))

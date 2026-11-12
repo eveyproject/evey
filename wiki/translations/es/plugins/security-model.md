@@ -1,5 +1,5 @@
 ---
-source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
+source_sha: eb74ee171e9411bc9b9f6cd25d7a873ba78a10c83fa82335cbfa41e930babd88
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -14,6 +14,9 @@ el servidor a un plugin, y lo que ese aislamiento no puede impedir, se explica e
 
 Un plugin se rechaza al instalarlo cuando:
 
+- su origen no es ni un ZIP subido ni un enlace `https://`: una ruta del
+  servidor y un enlace `http://` simple se rechazan (consulta
+  [De dónde viene el paquete](../SECURITY.md#where-the-package-comes-from));
 - falta `kind`, o no es ni `plugin` ni `theme`;
 - a un `kind: plugin` le falta `language` o `entrypoint`, o un `kind: theme`
   los declara, o declara `permissions` o `capabilities`;

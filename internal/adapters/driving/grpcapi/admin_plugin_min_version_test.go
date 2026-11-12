@@ -2,12 +2,9 @@ package grpcapi
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -26,13 +23,10 @@ func TestInstallPlugin_ServerTooOldIsAPrecondition(t *testing.T) {
 	h := &adminPluginHandler{
 		pluginInstaller: appplugin.NewInstallerService(pluginfakes.NewFakePluginRepository(),
 			pluginfakes.NewFakePluginRunner(), parser, sharedfakes.NewFakeEventBus(),
-			appplugin.InstallerWithServerVersion("0.1.0")),
+			appplugin.InstallerWithServerVersion("0.1.0"), appplugin.InstallerWithHTTPClient(loopbackHTTPS())),
 		enabled: true,
 	}
-	zip := filepath.Join(t.TempDir(), "p.zip")
-	require.NoError(t, os.WriteFile(zip, []byte("zip"), 0o644))
-
-	_, err := h.InstallPlugin(context.Background(), &eveyv1.InstallPluginRequest{Source: zip})
+	_, err := h.InstallPlugin(context.Background(), &eveyv1.InstallPluginRequest{Source: servedZip(t, "zip")})
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
 	assert.Contains(t, status.Convert(err).Message(), "9.0.0")
 }

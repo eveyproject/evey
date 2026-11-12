@@ -1,5 +1,5 @@
 ---
-source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
+source_sha: 8933bd5b32a86441eec2e76625bc071fa3416099b98305fa9f8f4f01643c4af0
 reviewed: true
 ---
 # Plugin-Sandbox und Bedrohungsmodell { #plugin-sandbox-and-threat-model }
@@ -52,6 +52,35 @@ flowchart LR
 ```
 
 ## Bei der Installation { #at-install }
+
+### Woher das Paket kommt { #where-the-package-comes-from }
+
+Ein Administrator gibt ein Paket auf zwei Arten an: indem er das ZIP
+hochlädt, oder über einen `https://`-Link, entweder auf das ZIP selbst oder auf
+ein GitHub-Repository, das für sein neuestes Release steht. Alles andere wird
+abgelehnt, bevor der Installer es liest:
+
+- ein Pfad auf dem Server oder ein `file://`-Link: Eine Anfrage über die API
+  kann den Server kein Archiv von seiner eigenen Festplatte lesen lassen. Nur
+  der Code des Servers selbst liest eine lokale Datei: die Upload-Route aus
+  der temporären Kopie des hochgeladenen ZIP und die Demo aus ihren
+  mitgelieferten Plugins;
+- ein einfacher `http://`-Link oder ein Download, den eine Weiterleitung auf
+  `http://` schickt: Jeder auf dem Weg könnte das Archiv austauschen, vor der
+  Vorschau oder zwischen Vorschau und Installation, und bei einem nicht
+  signierten Plugin hält ihn nichts anderes auf.
+
+Der Download läuft über den SSRF-sicheren Client (`internal/pkg/ssrf`), der
+private, reservierte und Link-Local-Adressen nach der DNS-Auflösung ablehnt.
+Er übernimmt keinen Proxy aus der Umgebung (`HTTPS_PROXY`, `HTTP_PROXY`):
+Über einen Proxy sieht der Client nur die Adresse des Proxys, nie die des
+Ziels, und die Prüfung wäre wirkungslos. Ein Server, der das Internet nur über
+einen Proxy erreicht, kann daher weder von einem Link installieren noch ein
+automatisches Update herunterladen; laden Sie stattdessen das ZIP hoch.
+
+Der Download endet bei 100 MB. Ein an den Link angehängtes `#sha256:<hash>`
+wird gegen die empfangenen Bytes geprüft, und eine aus der Vorschau gestartete
+Installation ist an die Bytes gebunden, die die Vorschau gezeigt hat.
 
 ### Entpacken des ZIP { #zip-extraction }
 
@@ -539,6 +568,7 @@ gehören.
 
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
+package source: internal/app/plugin/install.go - CheckRequestedSource, ErrInsecureSource, downloadIfURL (http and redirect refusal, 100 MB) ; installer_service.go - SafeHTTPClientNoProxy ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; internal/adapters/driving/http/plugin_asset_handler.go - preview JSON source ; internal/pkg/ssrf/dialer.go
 runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
 resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
 bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx

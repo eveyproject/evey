@@ -53,7 +53,7 @@ describe("PluginUpdateDialog", () => {
       <PluginUpdateDialog
         pluginId="p1"
         pluginName="My Plugin"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -67,7 +67,7 @@ describe("PluginUpdateDialog", () => {
       <PluginUpdateDialog
         pluginId="p1"
         pluginName="My Plugin"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -82,7 +82,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -97,7 +97,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -112,7 +112,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -131,7 +131,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -145,7 +145,7 @@ describe("PluginUpdateDialog", () => {
   it("a change of kind is shown and needs the admin's acknowledgement", async () => {
     mockEveyFetch.mockResolvedValueOnce({ ...safePreview, requiresAck: true, kindChange: "theme -> plugin", languageChange: "none -> nodejs" });
     render(
-      <PluginUpdateDialog pluginId="p1" source="/path/to/plugin.zip" onClose={vi.fn()} onApplied={vi.fn()} />,
+      <PluginUpdateDialog pluginId="p1" source="https://example.com/plugin.zip" onClose={vi.fn()} onApplied={vi.fn()} />,
     );
     await waitFor(() => expect(screen.getByTestId("banner-nature-change")).toBeInTheDocument());
     expect(screen.getByTestId("banner-nature-change")).toHaveTextContent("theme -> plugin");
@@ -161,7 +161,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -182,7 +182,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={onClose}
         onApplied={onApplied}
       />,
@@ -211,7 +211,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -236,7 +236,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -272,7 +272,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={onClose}
         onApplied={vi.fn()}
       />,
@@ -294,7 +294,7 @@ describe("PluginUpdateDialog", () => {
       <PluginUpdateDialog
         pluginId="p1"
         pluginName="My Plugin"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -318,7 +318,7 @@ describe("PluginUpdateDialog", () => {
       <PluginUpdateDialog
         pluginId="p1"
         pluginName="My Plugin"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,

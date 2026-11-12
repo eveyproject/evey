@@ -1,5 +1,5 @@
 ---
-source_sha: 1275452b2933bd99efb7df5d03027053d9e442befddb22c1eb9d953ee35df4bd
+source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -35,8 +35,10 @@ página.
 1. En **Administración → Plugins**, abre **Instalar plugin** y elige el
    **Archivo de plugin (.zip)**. Si el autor proporciona una firma, añádela en
    **Archivo de firma (.zip.sig, opcional)**. La pestaña **Desde URL** instala
-   a partir de un enlace; añade `#sha256:<hash>` a la URL para que se
-   compruebe la descarga.
+   a partir de un enlace `https://`; un enlace `http://` simple o una ruta del
+   servidor se rechaza (consulta
+   [De dónde viene el paquete](SECURITY.md#where-the-package-comes-from)).
+   Añade `#sha256:<hash>` al enlace para que se compruebe la descarga.
    Un enlace de repositorio, `https://github.com/<owner>/<repo>`, instala el
    zip de su última release, comprobado contra el sha256 que la release
    publica, y el plugin sigue después ese repositorio para sus
@@ -80,8 +82,8 @@ servidor: la imagen por defecto trae Python, Node.js, PHP, Ruby y Lua, la imagen
 
 ## Actualizar un plugin { #update-a-plugin }
 
-En la tarjeta del plugin, **Actualizar desde origen…** acepta el nuevo ZIP
-(una ruta o una URL) y muestra la misma vista previa. Una actualización tiene
+En la tarjeta del plugin, **Actualizar desde origen…** acepta el enlace
+`https://` del nuevo ZIP y muestra la misma vista previa. Una actualización tiene
 que llevar una versión más alta que la instalada. Cuando pide nuevos
 permisos, capacidades, slots o servidores, la vista previa dice **Esta
 actualización solicita nuevos permisos** y muestra la diferencia: no se
@@ -252,7 +254,7 @@ puede contener un tema se describe en [Temas](themes.md).
 | [Webhooks y claves de API](webhooks-api-keys.md) | Integrar Evey con otras herramientas sin escribir un plugin. |
 
 <!-- sources
-install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL
+install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL, CheckRequestedSource ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; i18n admin.plugin.updateSourceLabel
 critical findings refuse, warnings: internal/app/plugin/install.go - validateStagedPlugin, checkEscalatedWarnings ; i18n admin.plugins.blockedByAnalysis, installAnyway
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries ; i18n admin.plugins.availableRuntimes
 cosign policy: internal/config/config.go - CosignPolicy, CosignPublicKey ; internal/adapters/driven/pluginrunner/cosign.go

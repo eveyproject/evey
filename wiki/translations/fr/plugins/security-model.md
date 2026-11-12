@@ -1,5 +1,5 @@
 ---
-source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
+source_sha: eb74ee171e9411bc9b9f6cd25d7a873ba78a10c83fa82335cbfa41e930babd88
 reviewed: true
 ---
 # Permissions et emplacements { #permissions-and-slots }
@@ -15,6 +15,9 @@ pas empêcher, est décrite dans
 
 Un plugin est refusé à l'installation quand :
 
+- sa source n'est ni un ZIP envoyé ni un lien `https://` : un chemin sur le
+  serveur et un lien `http://` simple sont refusés (voir
+  [D'où vient le paquet](../SECURITY.md#where-the-package-comes-from)) ;
 - `kind` manque, ou ne vaut ni `plugin` ni `theme` ;
 - un `kind: plugin` n'a pas de `language` ou d'`entrypoint`, ou un
   `kind: theme` les déclare, ou déclare des `permissions` ou des

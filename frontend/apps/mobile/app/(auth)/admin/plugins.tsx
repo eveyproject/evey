@@ -922,13 +922,13 @@ function PluginRow({
       {showUpdateForm ? (
         <View style={{ borderTopWidth: 1, borderTopColor: theme.colors.border, marginTop: 10, paddingTop: 10, gap: 8 }}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "600" }}>
-            {t("admin.plugin.updateSourceLabel", "Fichier ZIP source (chemin ou URL)")}
+            {t("admin.plugin.updateSourceLabel", "Source: https link to the ZIP, or the repository link")}
           </Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TextInput
               value={updateSourceInput}
               onChangeText={setUpdateSourceInput}
-              placeholder="/path/to/plugin-v2.zip"
+              placeholder="https://example.com/plugin-v2.zip"
               placeholderTextColor={theme.colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}

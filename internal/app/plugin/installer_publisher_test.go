@@ -94,7 +94,7 @@ func newPublisherRig(t *testing.T, policy string, opts ...appplugin.InstallerOpt
 		appplugin.InstallerWithAnalyzer(plgfakes.NewFakePluginAnalyzer()),
 		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
 		appplugin.InstallerWithFileSystem(plgfakes.NewFakePluginFileSystem()),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 		appplugin.InstallerWithSignatureVerifier(pluginrunner.NewCosignVerifier(policy, keyring.Lookup)),
 		appplugin.InstallerWithTrustedPublishers(keyring),
 	}, opts...)
@@ -362,7 +362,7 @@ func TestInstallFromURL_FetchesTheDetachedSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	withSig := true
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/p.zip":
 			_, _ = w.Write(zipBytes)

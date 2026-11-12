@@ -18,7 +18,7 @@ import (
 func TestApplyUpdate_InstallsTheHashedBytesNotARefetch(t *testing.T) {
 	zipA, zipB := []byte("zip-A-acknowledged"), []byte("zip-B-swapped")
 	var gets atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if gets.Add(1) == 1 {
 			_, _ = w.Write(zipA)
 			return

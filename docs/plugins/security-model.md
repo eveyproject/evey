@@ -10,6 +10,9 @@ containment cannot stop, is described in
 
 A plugin is refused at install when:
 
+- its source is neither an uploaded ZIP nor an `https://` link: a path on the
+  server and a plain `http://` link are refused (see
+  [Where the package comes from](../SECURITY.md#where-the-package-comes-from));
 - `kind` is missing, or is neither `plugin` nor `theme`;
 - a `kind: plugin` lacks `language` or `entrypoint`, or a `kind: theme`
   declares them, or declares `permissions` or `capabilities`;

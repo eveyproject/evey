@@ -1,5 +1,5 @@
 ---
-source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
+source_sha: eb74ee171e9411bc9b9f6cd25d7a873ba78a10c83fa82335cbfa41e930babd88
 reviewed: true
 ---
 # Berechtigungen und Slots { #permissions-and-slots }
@@ -14,6 +14,9 @@ diese Isolierung nicht verhindern kann, steht in
 
 Ein Plugin wird bei der Installation abgelehnt, wenn:
 
+- seine Quelle weder ein hochgeladenes ZIP noch ein `https://`-Link ist: Ein
+  Pfad auf dem Server und ein einfacher `http://`-Link werden abgelehnt (siehe
+  [Woher das Paket kommt](../SECURITY.md#where-the-package-comes-from));
 - `kind` fehlt oder weder `plugin` noch `theme` ist;
 - einem `kind: plugin` die Angabe `language` oder `entrypoint` fehlt, oder
   ein `kind: theme` sie angibt oder `permissions` oder `capabilities`

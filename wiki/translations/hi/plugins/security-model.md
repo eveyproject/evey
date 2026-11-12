@@ -1,5 +1,5 @@
 ---
-source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
+source_sha: eb74ee171e9411bc9b9f6cd25d7a873ba78a10c83fa82335cbfa41e930babd88
 reviewed: true
 ---
 # अनुमतियाँ और स्लॉट { #permissions-and-slots }
@@ -13,6 +13,9 @@ reviewed: true
 
 प्लगइन इंस्टॉल के समय मना हो जाता है, जब:
 
+- उसका स्रोत न अपलोड की गई ZIP है, न कोई `https://` लिंक: सर्वर पर का रास्ता और
+  सादा `http://` लिंक अस्वीकार किए जाते हैं (देखें
+  [पैकेज कहाँ से आता है](../SECURITY.md#where-the-package-comes-from));
 - `kind` नहीं है, या न `plugin` है न `theme`;
 - `kind: plugin` में `language` या `entrypoint` नहीं है, या `kind: theme` इन्हें
   बताता है, या `permissions` या `capabilities` बताता है;

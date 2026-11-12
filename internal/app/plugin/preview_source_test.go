@@ -23,7 +23,7 @@ import (
 func TestPreviewSource_URL_PreviewsWithoutInstalling(t *testing.T) {
 	zipContent := makeMinimalPluginZip(t, "url-preview", "1.0.0")
 	hits := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits++
 		w.Header().Set("Content-Type", "application/zip")
 		_, _ = w.Write(zipContent)
@@ -55,7 +55,7 @@ func TestPreviewSource_URL_PreviewsWithoutInstalling(t *testing.T) {
 
 func TestPreviewSource_URL_HashFragmentIsChecked(t *testing.T) {
 	zipContent := makeMinimalPluginZip(t, "url-preview-hash", "1.0.0")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		_, _ = w.Write(zipContent)
 	}))
@@ -84,7 +84,7 @@ func TestPreviewSource_LocalPath(t *testing.T) {
 }
 
 func TestPreviewSource_URL_DownloadFailure(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer srv.Close()

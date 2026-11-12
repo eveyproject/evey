@@ -78,7 +78,32 @@ var (
 	ErrServerTooOld      = errors.New("plugin requires a newer server")
 	ErrHashMismatch      = errors.New("plugin hash mismatch")
 	ErrSourceUnavailable = errors.New("plugin source unavailable")
+	// ErrInsecureSource: a plugin is fetched over https only. Over plain
+	// http anyone on the path can swap the archive the admin previews and
+	// installs, and an unsigned plugin has nothing else to catch it.
+	ErrInsecureSource = errors.New("a plugin is only downloaded over https")
+	// ErrNotALink: an admin request names its source by an https link (or
+	// uploads the archive). A path on the server is for the server's own
+	// callers, never for a value that came over the API.
+	ErrNotALink = errors.New("the plugin source must be an https:// link or an uploaded archive")
 )
+
+// CheckRequestedSource is the gate for a source that came over the API: an
+// https link, nothing else. Every admin entry point that takes a source
+// (install, preview, update preview, update) calls it before the installer
+// sees the value, since the installer also reads server paths for the
+// upload route and the demo bundles.
+func CheckRequestedSource(source string) error {
+	raw, _, _ := strings.Cut(strings.TrimSpace(source), "#")
+	u, err := url.Parse(raw)
+	switch {
+	case err != nil || u.Scheme == "" || u.Host == "":
+		return ErrNotALink
+	case !strings.EqualFold(u.Scheme, "https"):
+		return ErrInsecureSource
+	}
+	return nil
+}
 
 func (e *PluginBlockedError) Error() string {
 	return fmt.Sprintf("plugin blocked: critical security issues found: %v", e.Issues)
@@ -99,7 +124,11 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 		source = rawURL
 	}
 
-	if !strings.HasPrefix(source, "http://") && !strings.HasPrefix(source, "https://") {
+	if strings.HasPrefix(strings.ToLower(source), "http://") {
+		err = ErrInsecureSource
+		return
+	}
+	if !strings.HasPrefix(source, "https://") {
 		localPath = source
 		return
 	}
@@ -117,6 +146,12 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 		return
 	}
 	defer resp.Body.Close()
+	// A redirect is followed by the client; landing on plain http would
+	// hand back bytes nothing protected on the way.
+	if resp.Request != nil && resp.Request.URL.Scheme != "https" {
+		err = ErrInsecureSource
+		return
+	}
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("download plugin: HTTP %d", resp.StatusCode)
 		return
@@ -183,7 +218,7 @@ func (s *InstallerService) fetchDetachedSignature(ctx context.Context, source, d
 		return
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK || resp.Request == nil || resp.Request.URL.Scheme != "https" {
 		return
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxSignatureBytes+1))

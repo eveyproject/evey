@@ -29,8 +29,10 @@ when it has one, runs in an isolated frame of the page.
 
 1. In **Admin → Plugins**, open **Install Plugin** and choose the **Plugin
    file (.zip)**. If the author ships a signature, add it in **Signature file
-   (.zip.sig, optional)**. The **From URL** tab installs from a link instead;
-   append `#sha256:<hash>` to the URL to have the download checked. A
+   (.zip.sig, optional)**. The **From URL** tab installs from an `https://`
+   link instead; a plain `http://` link or a path on the server is refused
+   (see [Where the package comes from](SECURITY.md#where-the-package-comes-from)).
+   Append `#sha256:<hash>` to the link to have the download checked. A
    repository link, `https://github.com/<owner>/<repo>`, installs the zip of
    its latest release, checked against the sha256 the release publishes, and
    the plugin then follows that repository for its updates (see
@@ -74,8 +76,8 @@ Node.js and the `-lean` image keeps Python only.
 
 ## Update a plugin
 
-On the plugin's card, **Update from source…** takes the new ZIP (a path or a
-URL) and shows the same preview. An update must carry a higher version than
+On the plugin's card, **Update from source…** takes the `https://` link of the
+new ZIP and shows the same preview. An update must carry a higher version than
 the installed one. When it asks for new permissions, capabilities, slots or
 hosts, the preview says **This update requests new permissions** and lists the
 difference: nothing is applied until you choose **Approve and install**. The
@@ -235,7 +237,7 @@ contain is described in [Themes](themes.md).
 | [Webhooks and API keys](webhooks-api-keys.md) | Integrating Evey with other tools without writing a plugin. |
 
 <!-- sources
-install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL
+install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL, CheckRequestedSource ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; i18n admin.plugin.updateSourceLabel
 critical findings refuse, warnings: internal/app/plugin/install.go - validateStagedPlugin, checkEscalatedWarnings ; i18n admin.plugins.blockedByAnalysis, installAnyway
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries ; i18n admin.plugins.availableRuntimes
 cosign policy: internal/config/config.go - CosignPolicy, CosignPublicKey ; internal/adapters/driven/pluginrunner/cosign.go
