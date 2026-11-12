@@ -1,5 +1,5 @@
 ---
-source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
+source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -179,7 +179,7 @@ instala esos mismos bytes, por toda la cadena de instalación descrita arriba.
 - **Retenida para un administrador** cuando la release pide un permiso, una
   capacidad, una zona de visualización o un host `external_fetch` que la
   versión instalada no tiene, trae un tipo de aviso del análisis que la
-  versión instalada no tenía, está firmada con otra clave o ya no lo está, o
+  versión instalada no tenía, cambia el `kind` (tema y plugin) o el `language`, es una pre-release, está firmada con otra clave o ya no lo está, o
   cuando la versión instalada no está firmada en absoluto, o cuando el
   administrador desactivó las actualizaciones automáticas. Se notifica a los
   administradores una vez por release.
@@ -193,6 +193,18 @@ todo el código malicioso, así que una release que se instala sola debe estar
 firmada con la clave fijada al instalar el plugin. Quien se haga con el
 repositorio sin esa clave obtiene una release retenida, no una instalada.
 
+Otras tres protecciones rodean esa regla:
+
+- El repositorio se sigue por su identificador permanente de GitHub, no por
+  su nombre: un nombre que otro registra tras un cambio de nombre o un borrado no lleva a nada.
+- La instalación solo se hace sobre el plugin tal como se juzgó. Si un
+  administrador lo desinstala, lo actualiza, cambia su clave, el repositorio
+  que sigue o su interruptor mientras se juzga una release, no se instala
+  nada.
+- Una instalación desde un enlace de repositorio queda fijada a los bytes que
+  mostró la vista previa: la vista previa devuelve el enlace del zip de la
+  release con su sha256, y es lo que recibe la instalación.
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -205,5 +217,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
-automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories, checkUpdateExpectation ; update.go - KindChange, LanguageChange ; preview.go - ResolvedSource ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

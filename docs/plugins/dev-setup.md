@@ -377,7 +377,11 @@ uploaded or linked from anywhere else installs too, but follows nothing.
   when it is signed by the key Evey pinned at install and asks for nothing
   new; an unsigned plugin always waits for the administrator.
 - A release that asks for a new permission, capability, slot or host waits for
-  the administrator's approval: say why in its notes.
+  the administrator's approval: say why in its notes. So does a release that
+  changes the manifest's `kind` or `language`, and a pre-release
+  (`1.2.0-beta.1`) never installs on its own.
+- Renaming or transferring the repository is fine: Evey follows it by its
+  permanent GitHub id.
 - State the permissions and the `external_fetch` hosts in your README: the
   administrator sees the permissions at install and the hosts at update and on
   the Security Dashboard, and has to approve them; a surprise

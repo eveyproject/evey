@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type PluginKind string
@@ -70,6 +71,9 @@ type Plugin struct {
 	// UpdateSource is the repository the plugin follows for its updates
 	// (https://github.com/<owner>/<repo>); empty when it follows none.
 	UpdateSource string
+	// UpdateSourceID is that repository's permanent GitHub id, which the
+	// releases are read by; 0 until it is known.
+	UpdateSourceID int64
 	// AutoUpdate lets a release of UpdateSource install without an admin when
 	// nothing in it is new and sensitive. On by default.
 	AutoUpdate bool
@@ -257,9 +261,16 @@ func (s PluginStatus) IsStarted() bool {
 	return s == Running || s == Initializing
 }
 
+const maxManifestNameRunes = 100
+
 func (m *PluginManifest) Validate() error {
 	if m.Name == "" {
 		return errors.New("manifest requires a name")
+	}
+	// The name is the identifier an update is matched on and travels into
+	// logs, notifications and webhooks: bounded and plain.
+	if utf8.RuneCountInString(m.Name) > maxManifestNameRunes || !plainText(m.Name) {
+		return fmt.Errorf("manifest: name must be at most %d characters, without control or format characters", maxManifestNameRunes)
 	}
 	if m.Version == "" {
 		return errors.New("manifest requires a version")

@@ -1,5 +1,5 @@
 ---
-source_sha: d08a1af35d4a41091645fe63bdc98de0245a23176fc6d3ab99a28e277edee906
+source_sha: 1275452b2933bd99efb7df5d03027053d9e442befddb22c1eb9d953ee35df4bd
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -110,7 +110,7 @@ Ein neueres Release wird beurteilt, bevor irgendetwas läuft:
 | Was das Release enthält | Was passiert |
 |---|---|
 | Nichts Neues: keine neue Berechtigung, Fähigkeit, Anzeigefläche oder Host, keine neue Art von Analysewarnung, derselbe Signaturschlüssel | Wird von selbst installiert: **Version … automatisch installiert**. |
-| Etwas Neues, oder die installierte Version ist nicht signiert, oder der Schalter ist aus | **Version … wartet auf Ihre Freigabe**, und die Administratoren erhalten eine Benachrichtigung. **Prüfen** öffnet die übliche Update-Vorschau, in der Sie den Unterschied freigeben. |
+| Etwas Neues (eine Berechtigung, ein Host, ein Wechsel zwischen Theme und Plugin, eine andere Sprache), eine Vorabversion, eine nicht signierte installierte Version oder der Schalter aus | **Version … wartet auf Ihre Freigabe**, und die Administratoren erhalten eine Benachrichtigung. **Prüfen** öffnet die übliche Update-Vorschau, in der Sie den Unterschied freigeben. |
 | Code, den die statische Analyse ablehnt | **Version … abgelehnt**, mit dem Grund, und die Administratoren erhalten eine Benachrichtigung. Es wird weder automatisch noch von Hand installiert. |
 
 Ein unsigniertes Plugin aktualisiert sich nie selbst: Wer sein Repository
@@ -119,6 +119,16 @@ und nur ein Signaturschlüssel, den er nicht besitzt, hält ihn auf. Eine
 Benachrichtigung geht einmal pro Release hinaus, nicht jede Stunde. Die
 Prüfung fragt die GitHub-API ab und lädt nur aus den Release-Dateien des
 Repositorys herunter, von nirgendwo sonst.
+
+Das Repository wird über die dauerhafte Nummer verfolgt, die GitHub ihm gibt,
+nicht über seinen Namen: Ein umbenanntes oder übertragenes Repository wird
+weiter verfolgt, und wer einen aufgegebenen Namen neu registriert, lässt damit nichts verfolgen. Die Installation über den Repository-Link installiert das Release, das
+die Vorschau gezeigt hat, auch wenn zwischendurch ein neueres erscheint. Ein
+bereits beurteiltes Release wird nicht erneut heruntergeladen, solange sich
+auf keiner Seite etwas ändert. Evey fragt GitHub ohne Token ab, was 60
+Anfragen pro Stunde und Adresse erlaubt: eine pro verfolgtem Plugin und
+Stunde; ist das Kontingent aufgebraucht, hält die Prüfung bis zum nächsten
+Durchlauf an.
 
 ## Die installierten Plugins verwalten { #manage-the-installed-plugins }
 

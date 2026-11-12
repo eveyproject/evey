@@ -1,5 +1,5 @@
 ---
-source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
+source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
 reviewed: true
 ---
 # Permissions et emplacements { #permissions-and-slots }
@@ -183,7 +183,7 @@ décrite plus haut.
 - **Mise en attente d'un administrateur** quand la release demande une
   permission, une capacité, un emplacement ou un hôte `external_fetch` que la
   version installée n'a pas, porte un type d'avertissement d'analyse que la
-  version installée n'avait pas, est signée par une autre clé ou ne l'est
+  version installée n'avait pas, change le `kind` (thème et plugin) ou le `language`, est une pré-release, est signée par une autre clé ou ne l'est
   plus, ou quand la version installée n'est pas signée du tout, ou quand
   l'administrateur a coupé les mises à jour automatiques. Les administrateurs
   sont notifiés une fois par release.
@@ -198,6 +198,18 @@ signée par la clé épinglée à l'installation du plugin. Quelqu'un qui prend 
 contrôle du dépôt sans cette clé obtient une release en attente, pas une
 release installée.
 
+Trois autres garde-fous entourent cette règle :
+
+- Le dépôt est suivi par son identifiant GitHub permanent, pas par son nom :
+  un nom repris après un renommage ou une suppression n'atteint rien.
+- L'installation ne se fait que sur le plugin tel qu'il a été jugé. Si un
+  administrateur le désinstalle, le met à jour, change sa clé, le dépôt qu'il
+  suit ou son interrupteur pendant qu'une release est jugée, rien n'est
+  installé.
+- Une installation depuis un lien de dépôt est épinglée aux octets que
+  l'aperçu a montrés : l'aperçu renvoie le lien du zip de la release avec son
+  sha256, et c'est lui que l'installation reçoit.
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -210,5 +222,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
-automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories, checkUpdateExpectation ; update.go - KindChange, LanguageChange ; preview.go - ResolvedSource ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

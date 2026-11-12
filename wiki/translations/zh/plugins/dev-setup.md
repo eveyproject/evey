@@ -1,5 +1,5 @@
 ---
-source_sha: d9a04e27b340ff02f9e98a0903e834a62b7678a1570238f182417f4efb9155a5
+source_sha: 7d11b826f33cfa195e8f3f70d904164dfd609a7ae7e4214de84ee1327b8f0c61
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -283,6 +283,9 @@ external_fetch:
   密钥签名、且没有提出任何新要求时，才会自动安装；未签名的插件始终等待管理员。
 - 要求新的权限、能力、显示位置或主机的 release 会等待管理员批准：请在它的说明中
   解释原因。
+  更改清单中 `kind` 或 `language` 的 release 同样如此，而预发布版本
+  （`1.2.0-beta.1`）永远不会自动安装。
+- 重命名或转移仓库没有问题：Evey 按其永久的 GitHub id 关联它。
 - 在 README 中写明权限和 `external_fetch` 主机：管理员在安装时会看到权限，在更新
   时和安全仪表盘中会看到主机，并且必须批准它们；这里出现意外是安装被拒绝的首要
   原因。

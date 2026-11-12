@@ -23,7 +23,7 @@ func TestMigration000195_PluginUpdateFollowIsAdditive(t *testing.T) {
 		t.Helper()
 		var n int
 		require.NoError(t, db.QueryRow(`SELECT count(*) FROM information_schema.columns
-			WHERE table_name = 'plugins' AND column_name IN ('update_source', 'auto_update', 'update_state')`).Scan(&n))
+			WHERE table_name = 'plugins' AND column_name IN ('update_source', 'update_source_id', 'auto_update', 'update_state')`).Scan(&n))
 		return n
 	}
 	require.Zero(t, columns())
@@ -31,11 +31,13 @@ func TestMigration000195_PluginUpdateFollowIsAdditive(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, m.Migrate(195))
-	require.Equal(t, 3, columns())
+	require.Equal(t, 4, columns())
 	var src, state string
+	var srcID int64
 	var auto bool
-	require.NoError(t, db.QueryRow(`SELECT update_source, auto_update, update_state::text FROM plugins WHERE id = 'plg-old'`).Scan(&src, &auto, &state))
+	require.NoError(t, db.QueryRow(`SELECT update_source, update_source_id, auto_update, update_state::text FROM plugins WHERE id = 'plg-old'`).Scan(&src, &srcID, &auto, &state))
 	assert.Empty(t, src)
+	assert.Zero(t, srcID)
 	assert.True(t, auto)
 	assert.Equal(t, "{}", state)
 

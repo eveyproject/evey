@@ -1,5 +1,5 @@
 ---
-source_sha: d08a1af35d4a41091645fe63bdc98de0245a23176fc6d3ab99a28e277edee906
+source_sha: 1275452b2933bd99efb7df5d03027053d9e442befddb22c1eb9d953ee35df4bd
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -107,12 +107,22 @@ Una release más reciente se juzga antes de que nada se ejecute:
 | Lo que contiene la release | Lo que pasa |
 |---|---|
 | Nada nuevo: ningún permiso, capacidad, zona de visualización ni host nuevo, ningún tipo nuevo de aviso del análisis, la misma clave de firma | Se instala sola: **Versión … instalada automáticamente**. |
-| Algo nuevo, o la versión instalada no está firmada, o el interruptor está desactivado | **Versión … pendiente de tu aprobación**, y los administradores reciben una notificación. **Revisar** abre la vista previa de actualización habitual, donde apruebas la diferencia. |
+| Algo nuevo (un permiso, un host, un cambio entre tema y plugin, otro lenguaje), una pre-release, una versión instalada sin firmar o el interruptor desactivado | **Versión … pendiente de tu aprobación**, y los administradores reciben una notificación. **Revisar** abre la vista previa de actualización habitual, donde apruebas la diferencia. |
 | Código que el análisis estático rechaza | **Versión … rechazada**, con el motivo, y los administradores reciben una notificación. No se instala, ni automáticamente ni a mano. |
 
 Un plugin sin firmar nunca se actualiza solo: quien se haya hecho con su repositorio podría publicar código que el análisis no detecta, y solo lo detiene una clave de firma que no tiene. La notificación se envía una vez por
 release, no cada hora. La comprobación consulta la API de GitHub y solo
 descarga de los archivos de release del repositorio, de ningún otro sitio.
+
+El repositorio se sigue por el número permanente que GitHub le asigna, no por
+su nombre: un repositorio renombrado o transferido se sigue igual, y quien
+registra un nombre abandonado no consigue que se siga nada. Instalar desde el enlace del
+repositorio instala la release que mostró la vista previa, aunque se publique
+una más reciente entretanto. Una release ya juzgada no se vuelve a descargar
+mientras no cambie nada en ninguna de las dos partes. Evey consulta GitHub sin
+token, lo que permite 60 solicitudes por hora y por dirección: una por plugin
+seguido y por hora; cuando se agota la cuota, la comprobación se detiene
+hasta su siguiente ejecución.
 
 ## Gestionar los plugins instalados { #manage-the-installed-plugins }
 

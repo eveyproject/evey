@@ -1,5 +1,5 @@
 ---
-source_sha: d08a1af35d4a41091645fe63bdc98de0245a23176fc6d3ab99a28e277edee906
+source_sha: 1275452b2933bd99efb7df5d03027053d9e442befddb22c1eb9d953ee35df4bd
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -108,7 +108,7 @@ Une release plus récente est jugée avant que quoi que ce soit ne s'exécute :
 | Ce que contient la release | Ce qui se passe |
 |---|---|
 | Rien de nouveau : aucune nouvelle permission, capacité, zone d'affichage ni hôte, aucun nouveau type d'alerte à l'analyse, la même clé de signature | Installée seule : **Version … installée automatiquement**. |
-| Quelque chose de nouveau, ou la version installée n'est pas signée, ou l'interrupteur est coupé | **Version … en attente de votre accord**, et les administrateurs reçoivent une notification. **Examiner** ouvre l'aperçu de mise à jour habituel, où vous approuvez la différence. |
+| Quelque chose de nouveau (une permission, un hôte, un passage entre thème et plugin, un autre langage), une pré-release, une version installée non signée, ou l'interrupteur coupé | **Version … en attente de votre accord**, et les administrateurs reçoivent une notification. **Examiner** ouvre l'aperçu de mise à jour habituel, où vous approuvez la différence. |
 | Du code que l'analyse statique refuse | **Version … refusée**, avec la raison, et les administrateurs reçoivent une notification. Elle n'est installée ni automatiquement ni à la main. |
 
 Un plugin non signé ne se met jamais à jour seul : quelqu'un qui aurait pris
@@ -117,6 +117,16 @@ pas, et seule une clé de signature qu'il ne détient pas l'arrête. La
 notification est envoyée une fois par release, pas toutes les heures. La
 vérification interroge l'API de GitHub et ne télécharge que depuis les
 fichiers de release du dépôt, nulle part ailleurs.
+
+Le dépôt est suivi par le numéro permanent que GitHub lui attribue, pas par
+son nom : un dépôt renommé ou transféré reste suivi, et quelqu'un qui
+enregistre un nom abandonné ne fait rien suivre. Installer depuis le lien du dépôt
+installe la release montrée par l'aperçu, même si une plus récente est publiée
+entre-temps. Une release déjà jugée n'est pas retéléchargée tant que rien ne
+change d'un côté ou de l'autre. Evey interroge GitHub sans jeton, ce qui donne
+60 requêtes par heure et par adresse : une par plugin suivi et par heure ;
+quand le quota est épuisé, la vérification s'arrête jusqu'à son prochain
+passage.
 
 ## Gérer les plugins installés { #manage-the-installed-plugins }
 

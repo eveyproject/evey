@@ -1447,6 +1447,13 @@
         },
         "signature": {
           "$ref": "#/definitions/v1PluginSignature"
+        },
+        "kindChange": {
+          "type": "string",
+          "description": "kind_change (\"theme -\u003e plugin\") and language_change (\"python -\u003e nodejs\")\nname a change of what the plugin is; empty when there is none. Either\nsets requires_ack."
+        },
+        "languageChange": {
+          "type": "string"
         }
       }
     },

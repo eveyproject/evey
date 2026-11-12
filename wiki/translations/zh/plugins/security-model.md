@@ -1,5 +1,5 @@
 ---
-source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
+source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
 reviewed: true
 ---
 # 权限与插槽 { #permissions-and-slots }
@@ -123,7 +123,7 @@ reviewed: true
   （`deserialization`、`obfuscation`、未声明 `native-binary` 的 `native_code`）。
   管理员会收到通知；不安装任何内容。
 - **等待管理员**：release 要求已安装版本没有的权限、能力、显示位置或
-  `external_fetch` 主机，带有已安装版本没有的分析警告类型，使用了另一把密钥签名
+  `external_fetch` 主机，带有已安装版本没有的分析警告类型，改变了 `kind`（主题与插件之间）或 `language`，是预发布版本，使用了另一把密钥签名
   或不再有签名；或者已安装的版本根本没有签名；或者管理员关闭了自动更新。每个
   release 只通知管理员一次。
 - **应用**：其他所有情况。版本必须更高，zip 必须与 release 发布的 sha256 一致，
@@ -133,6 +133,15 @@ reviewed: true
 保证安全的是签名：分析只能识别已知模式，无法发现所有恶意代码，因此自动安装的
 release 必须使用插件安装时固定下来的密钥签名。没有这把密钥却接管了仓库的人，
 得到的是一个等待中的 release，而不是已安装的 release。
+
+围绕这条规则还有三道防护：
+
+- 仓库按其永久的 GitHub id 关联，而不是按名称：在重命名或删除后被他人抢注的
+  名称无法关联到任何东西。
+- 只会在与判断时完全一致的插件上安装。如果在判断某个 release 期间，管理员卸载
+  或更新了该插件，或者更改了它的密钥、所关联的仓库或开关，则不会安装任何内容。
+- 通过仓库链接进行的安装会固定到预览显示的字节：预览返回该 release 的 zip 链接
+  及其 sha256，安装收到的正是这个链接和 sha256。
 
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
@@ -146,5 +155,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
-automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories, checkUpdateExpectation ; update.go - KindChange, LanguageChange ; preview.go - ResolvedSource ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->
