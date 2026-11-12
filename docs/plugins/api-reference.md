@@ -18,6 +18,7 @@ kind: plugin                 # required; "plugin" or "theme"
 language: nodejs             # required for a plugin; a runtime of the image
 entrypoint: node index.js    # required for a plugin; the command line the server runs
 
+display_name: My Plugin      # optional; a string, or a map {en: ..., fr: ...}
 description: "..."           # optional
 author: "..."                # optional
 min_evey_version: "1.0.0"    # optional; install/update refused when above the server version
@@ -49,6 +50,7 @@ config_schema:               # the fields of the Config panel on the plugin's ca
 | Field | Rule |
 |---|---|
 | `name`, `version`, `kind` | Required. `version` must match `X.Y.Z` or `X.Y.Z-label`; an update must carry a higher version than the installed one. |
+| `display_name` | The name people see; `name` stays the identifier an update is matched on. One string counts as English and stands for every language; a map is keyed by language tag (`en`, `fr`, `pt-BR`). Each value is 1 to 40 characters, without surrounding spaces or control characters. Today the theme picker shows it. |
 | `language` | Required for `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` or `go`. It picks the runtime check and the stubs copied next to the entrypoint; it does not launch anything. |
 | `entrypoint` | Required for `kind: plugin`. The first token is the interpreter (or the binary, with `native-binary`), the rest its arguments; the process runs in the plugin's directory. |
 | `permissions` | Each value must be in the [permissions catalog](security-model.md#permissions-catalog). `network` requires a non-empty `external_fetch`. |
@@ -331,7 +333,7 @@ and two themes (`theme-dark-blue`, `open-workshop`). `make plugin-zips`
 packages them all.
 
 <!-- sources
-manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
+manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; display_name.go - DisplayName ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)

@@ -17,7 +17,7 @@ import (
 )
 
 const pluginColumns = `id, name, version, description, author, language, entrypoint, install_dir,
-	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch, web_root, publisher_key_fingerprint, publisher_key_pem`
+	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch, web_root, publisher_key_fingerprint, publisher_key_pem, display_name`
 
 type PluginRepository struct {
 	db *sql.DB
@@ -93,18 +93,24 @@ func (r *PluginRepository) Create(ctx context.Context, p *plugin.Plugin) error {
 			return err
 		}
 	}
+	displayJSON, err := marshalDisplayName(p.DisplayName)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
 	kind := p.Kind
 	if kind == "" {
 		kind = plugin.KindPlugin
 	}
 	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO plugins (`+pluginColumns+`)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
 		p.ID, p.Name, p.Version, p.Description, p.Author, p.Language, p.Entrypoint, p.InstallDir,
 		capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.InstalledAt, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
 		string(kind), frontendJSON, extFetchJSON, p.WebRoot,
-		nullIfEmpty(p.PublisherKeyFingerprint), nullIfEmpty(p.PublisherKeyPEM),
+		nullIfEmpty(p.PublisherKeyFingerprint), nullIfEmpty(p.PublisherKeyPEM), displayJSON,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -163,13 +169,13 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 	var result []*plugin.Plugin
 	for rows.Next() {
 		p := &plugin.Plugin{}
-		var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON []byte
+		var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON []byte
 		var kindStr string
 		var pubFP, pubPEM sql.NullString
 		if err := rows.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 			&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 			&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-			&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM); err != nil {
+			&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
@@ -183,7 +189,7 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 				p.Kind = plugin.KindPlugin
 			}
 		}
-		unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON)
+		unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON)
 		result = append(result, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -260,6 +266,12 @@ func (r *PluginRepository) Update(ctx context.Context, p *plugin.Plugin) error {
 			return err
 		}
 	}
+	displayJSON, err := marshalDisplayName(p.DisplayName)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
 	kind := p.Kind
 	if kind == "" {
 		kind = plugin.KindPlugin
@@ -269,12 +281,12 @@ func (r *PluginRepository) Update(ctx context.Context, p *plugin.Plugin) error {
 		 entrypoint=$6, install_dir=$7, capabilities=$8, permissions=$9, config_schema=$10, config=$11,
 		 enabled=$12, status=$13, error_message=$14, updated_at=$15, source_hash=$16, analysis_report=$17,
 		 signature=$18, kind=$19, frontend=$20, external_fetch=$21, web_root=$22,
-		 publisher_key_fingerprint=$23, publisher_key_pem=$24 WHERE id=$25`,
+		 publisher_key_fingerprint=$23, publisher_key_pem=$24, display_name=$25 WHERE id=$26`,
 		p.Name, p.Version, p.Description, p.Author, p.Language,
 		p.Entrypoint, p.InstallDir, capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
 		string(kind), frontendJSON, extFetchJSON, p.WebRoot,
-		nullIfEmpty(p.PublisherKeyFingerprint), nullIfEmpty(p.PublisherKeyPEM), p.ID,
+		nullIfEmpty(p.PublisherKeyFingerprint), nullIfEmpty(p.PublisherKeyPEM), displayJSON, p.ID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -347,13 +359,13 @@ func (r *PluginRepository) Delete(ctx context.Context, id string) error {
 
 func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 	p := &plugin.Plugin{}
-	var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON []byte
+	var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON []byte
 	var kindStr string
 	var pubFP, pubPEM sql.NullString
 	err := row.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 		&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 		&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-		&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM)
+		&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -366,11 +378,11 @@ func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 			p.Kind = plugin.KindPlugin
 		}
 	}
-	unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON)
+	unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON)
 	return p, nil
 }
 
-func unmarshalPluginJSON(p *plugin.Plugin, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON []byte) {
+func unmarshalPluginJSON(p *plugin.Plugin, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON []byte) {
 	if err := json.Unmarshal(capJSON, &p.Capabilities); err != nil {
 		slog.Warn("json unmarshal", slog.String("field", "capabilities"), slog.Any("err", err))
 	}
@@ -409,6 +421,19 @@ func unmarshalPluginJSON(p *plugin.Plugin, capJSON, permJSON, schemaJSON, config
 			slog.Warn("json unmarshal", slog.String("field", "external_fetch"), slog.Any("err", err))
 		}
 	}
+	if len(displayJSON) > 0 {
+		if err := json.Unmarshal(displayJSON, &p.DisplayName); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "display_name"), slog.Any("err", err))
+		}
+	}
+}
+
+// marshalDisplayName stores a missing display name as {}, the column default.
+func marshalDisplayName(d plugin.DisplayName) ([]byte, error) {
+	if len(d) == 0 {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(d)
 }
 
 var _ plugin.PluginRepository = (*PluginRepository)(nil)

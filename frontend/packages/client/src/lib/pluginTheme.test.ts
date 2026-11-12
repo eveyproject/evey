@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { themes, defaultTheme } from "@evey/theme";
-import { resolveThemeTokens, mergeCSSVars, pluginThemeKey, isPluginThemeName } from "./pluginTheme";
+import { resolveThemeTokens, mergeCSSVars, pluginThemeKey, pluginThemeLabel, isPluginThemeName } from "./pluginTheme";
 
 // The same stored choice must paint the same on the phone and the television:
 // a built-in by name, a plugin's sheet merged over the default, and the
@@ -31,5 +31,29 @@ describe("resolveThemeTokens", () => {
     expect(light.colors.onSuccess).not.toBe(light.colors.onWarning);
     expect(isPluginThemeName("plugin:x")).toBe(true);
     expect(isPluginThemeName("default")).toBe(false);
+  });
+});
+
+describe("pluginThemeLabel", () => {
+  const blue = { name: "dark-blue", displayName: { en: "Dark Blue", fr: "Bleu sombre", "pt-BR": "Azul escuro" } };
+
+  it("uses the interface language", () => {
+    expect(pluginThemeLabel(blue, "fr")).toBe("Bleu sombre");
+    expect(pluginThemeLabel(blue, "pt-BR")).toBe("Azul escuro");
+  });
+
+  it("falls back on the base language, then English", () => {
+    expect(pluginThemeLabel(blue, "fr-CA")).toBe("Bleu sombre");
+    expect(pluginThemeLabel(blue, "de")).toBe("Dark Blue");
+    expect(pluginThemeLabel(blue, undefined)).toBe("Dark Blue");
+  });
+
+  it("matches the tag whatever its case", () => {
+    expect(pluginThemeLabel(blue, "PT-br")).toBe("Azul escuro");
+  });
+
+  it("shows the plugin name when the manifest declares no display name", () => {
+    expect(pluginThemeLabel({ name: "open-workshop" }, "fr")).toBe("open-workshop");
+    expect(pluginThemeLabel({ name: "x", displayName: { fr: "Seulement FR" } }, "de")).toBe("x");
   });
 });

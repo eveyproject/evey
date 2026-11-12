@@ -346,16 +346,17 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 	}
 
 	type themeEntry struct {
-		ID     string            `json:"id"`
-		Name   string            `json:"name"`
-		Tokens map[string]string `json:"tokens,omitempty"`
+		ID          string                   `json:"id"`
+		Name        string                   `json:"name"`
+		DisplayName domainplugin.DisplayName `json:"displayName,omitempty"`
+		Tokens      map[string]string        `json:"tokens,omitempty"`
 	}
 	var result []themeEntry
 	for _, p := range plugins {
 		if !p.Enabled || !p.IsTheme() {
 			continue
 		}
-		entry := themeEntry{ID: p.ID, Name: p.Name}
+		entry := themeEntry{ID: p.ID, Name: p.Name, DisplayName: p.DisplayName}
 		// Parse :root { --X: Y; ... } from theme.css so mobile clients (which
 		// can't apply CSS) get a JSON token map to feed their native theme
 		// provider. Web ignores this field and keeps loading theme.css.

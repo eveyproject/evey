@@ -1,5 +1,5 @@
 ---
-source_sha: 5797e8e708fd3052602387a0a521f26c0b6a67d9aec080995e9b282571510369
+source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
 reviewed: true
 ---
 # Plugin-API-Referenz { #plugin-api-reference }
@@ -23,6 +23,7 @@ kind: plugin                 # Pflicht; "plugin" oder "theme"
 language: nodejs             # Pflicht für ein Plugin; eine Laufzeit des Images
 entrypoint: node index.js    # Pflicht für ein Plugin; die Befehlszeile, die der Server startet
 
+display_name: My Plugin      # optional; eine Zeichenkette oder eine Map {en: ..., fr: ...}
 description: "..."           # optional
 author: "..."                # optional
 min_evey_version: "1.0.0"    # optional; Installation/Update abgelehnt, wenn höher als die Serverversion
@@ -54,6 +55,7 @@ config_schema:               # die Felder des Bereichs Konfiguration auf der Kar
 | Feld | Regel |
 |---|---|
 | `name`, `version`, `kind` | Pflicht. `version` muss `X.Y.Z` oder `X.Y.Z-label` entsprechen; ein Update muss eine höhere Version tragen als die installierte. |
+| `display_name` | Der Name, den die Leute sehen; `name` bleibt die Kennung, über die ein Update zugeordnet wird. Eine einzelne Zeichenkette zählt als Englisch und gilt für alle Sprachen; eine Map ist nach Sprachcode geschlüsselt (`en`, `fr`, `pt-BR`). Jeder Wert hat 1 bis 40 Zeichen, ohne umgebende Leerzeichen oder Steuerzeichen. Derzeit zeigt ihn die Theme-Auswahl an. |
 | `language` | Pflicht für `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` oder `go`. Es bestimmt die Prüfung der Laufzeit und die Stubs, die neben den Einstiegspunkt kopiert werden; es startet selbst nichts. |
 | `entrypoint` | Pflicht für `kind: plugin`. Das erste Wort ist der Interpreter (oder die Binärdatei, mit `native-binary`), der Rest sind seine Argumente; der Prozess läuft im Verzeichnis des Plugins. |
 | `permissions` | Jeder Wert muss im [Katalog der Berechtigungen](security-model.md#permissions-catalog) stehen. `network` verlangt ein nicht leeres `external_fetch`. |

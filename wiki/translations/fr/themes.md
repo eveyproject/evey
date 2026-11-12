@@ -1,5 +1,5 @@
 ---
-source_sha: 53779971ebd8b5f41b11b97d89f9f1102e0d283c08d999b9cc028f3b92f630ca
+source_sha: c9ba18045bcbe3d08d580a1cbe44e2e75fa72e4dfd7da439e4833b40fb13734a
 reviewed: true
 ---
 # Thèmes
@@ -15,15 +15,22 @@ dans **Paramètres → Apparence → Thème**.
 ## Manifeste
 
 ```yaml title="plugin.yaml"
-name: aurora               # obligatoire ; nom lisible
+name: aurora               # obligatoire ; unique, en kebab-case
 version: 1.0.0             # obligatoire ; semver
 kind: theme                # obligatoire
 
+display_name:              # facultatif ; le libellé du sélecteur de thème
+  en: Aurora
+  fr: Aurore
 description: "..."         # facultatif
 author: "..."              # facultatif
 
 # ni language, ni entrypoint, ni permissions, ni capabilities : l'installation est refusée
 ```
+
+Le sélecteur de thème affiche `display_name` dans la langue de l'interface,
+à défaut en anglais, et `name` quand le manifeste n'en déclare pas. Une
+chaîne seule (`display_name: Aurora`) vaut pour toutes les langues.
 
 Le ZIP contient `theme.css` et/ou `theme.js` à sa racine, à côté du
 manifeste. Un paquet qui n'a ni l'un ni l'autre est accepté et n'a aucun

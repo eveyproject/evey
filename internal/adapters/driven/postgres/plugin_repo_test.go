@@ -365,3 +365,33 @@ func TestPluginRepo_PublisherKey_RoundTrip(t *testing.T) {
 }
 
 func byName(byID map[string]*plugin.Plugin, id string) *plugin.Plugin { return byID[id] }
+
+func TestPluginRepo_DisplayName_RoundTrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewPluginRepository(db)
+	ctx := context.Background()
+
+	bare := newTestPlugin("pldn-bare")
+	require.NoError(t, repo.Create(ctx, bare))
+	got, err := repo.GetByID(ctx, bare.ID)
+	require.NoError(t, err)
+	assert.Empty(t, got.DisplayName, "a manifest without display_name reads back empty")
+
+	named := newTestPlugin("pldn-named")
+	named.DisplayName = plugin.DisplayName{"en": "Dark Blue", "fr": "Bleu sombre"}
+	require.NoError(t, repo.Create(ctx, named))
+	got, err = repo.GetByID(ctx, named.ID)
+	require.NoError(t, err)
+	assert.Equal(t, named.DisplayName, got.DisplayName)
+
+	got.DisplayName = plugin.DisplayName{"en": "Navy"}
+	require.NoError(t, repo.Update(ctx, got))
+	list, err := repo.List(ctx)
+	require.NoError(t, err)
+	for _, p := range list {
+		if p.ID == named.ID {
+			assert.Equal(t, plugin.DisplayName{"en": "Navy"}, p.DisplayName, "an update replaces the whole map")
+		}
+	}
+}
