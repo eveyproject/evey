@@ -1,5 +1,5 @@
 ---
-source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
+source_sha: 8933bd5b32a86441eec2e76625bc071fa3416099b98305fa9f8f4f01643c4af0
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace { #plugin-sandbox-and-threat-model }
@@ -53,6 +53,35 @@ flowchart LR
 ```
 
 ## À l'installation { #at-install }
+
+### D'où vient le paquet { #where-the-package-comes-from }
+
+Un administrateur fournit un paquet de deux façons : en envoyant le ZIP, ou
+par un lien `https://`, soit vers le ZIP lui-même, soit vers un dépôt GitHub,
+qui vaut pour sa dernière release. Tout le reste est refusé avant que
+l'installeur ne le lise :
+
+- un chemin sur le serveur ou un lien `file://` : une requête passée par l'API
+  ne peut pas faire lire au serveur une archive sur son propre disque. Seul le
+  code du serveur lit un fichier local : la route d'envoi, depuis la copie
+  temporaire du ZIP envoyé, et la démo, depuis ses plugins embarqués ;
+- un lien `http://` simple, ou un téléchargement qu'une redirection envoie vers
+  `http://` : n'importe qui sur le trajet pourrait remplacer l'archive, avant
+  l'aperçu ou entre l'aperçu et l'installation, et rien d'autre ne
+  l'arrêterait pour un plugin non signé.
+
+Le téléchargement passe par le client protégé contre la SSRF
+(`internal/pkg/ssrf`), qui refuse les adresses privées, réservées et
+link-local après la résolution DNS. Il ne prend aucun proxy dans
+l'environnement (`HTTPS_PROXY`, `HTTP_PROXY`) : à travers un proxy, le client
+ne voit que l'adresse du proxy, jamais celle de la cible, et le contrôle ne
+servirait à rien. Un serveur qui n'accède à internet que par un proxy ne peut
+donc ni installer depuis un lien ni télécharger une mise à jour automatique ;
+envoyez le ZIP à la place.
+
+Le téléchargement s'arrête à 100 Mo. Un `#sha256:<empreinte>` ajouté au lien
+est vérifié sur les octets reçus, et une installation lancée depuis l'aperçu
+est liée aux octets que l'aperçu a montrés.
 
 ### Extraction du ZIP { #zip-extraction }
 
@@ -525,6 +554,7 @@ vôtres.
 
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
+package source: internal/app/plugin/install.go - CheckRequestedSource, ErrInsecureSource, downloadIfURL (http and redirect refusal, 100 MB) ; installer_service.go - SafeHTTPClientNoProxy ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; internal/adapters/driving/http/plugin_asset_handler.go - preview JSON source ; internal/pkg/ssrf/dialer.go
 runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
 resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
 bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx

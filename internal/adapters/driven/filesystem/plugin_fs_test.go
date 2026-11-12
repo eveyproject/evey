@@ -138,6 +138,17 @@ func TestSDKStubs_InSyncWithSourceProto(t *testing.T) {
 		assert.Contains(t, string(pyGRPC), rpcName,
 			"sdk/python stubs are missing RPC %s - run `make plugin-sdk`", rpcName)
 	}
+
+	// The stubs run on the protobuf and grpcio the image installs from Debian
+	// (python3-protobuf 4.21, python3-grpcio 1.51). Stubs from newer tools check
+	// the runtime version on import and refuse it, which crashed every Python
+	// plugin at start; `make plugin-sdk` pins the tools to that runtime.
+	pyPB, err := os.ReadFile(filepath.Join(repoRoot, "sdk/python/plugin_api_pb2.py"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(pyPB), "runtime_version",
+		"sdk/python/plugin_api_pb2.py needs a newer protobuf than the image ships - regenerate with `make plugin-sdk`")
+	assert.NotContains(t, string(pyGRPC), "GRPC_GENERATED_VERSION",
+		"sdk/python/plugin_api_pb2_grpc.py needs a newer grpcio than the image ships - regenerate with `make plugin-sdk`")
 }
 
 func TestPluginFileSystem_ChownPluginDir(t *testing.T) {

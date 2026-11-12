@@ -89,10 +89,43 @@ func (r *FakePluginRepository) Update(_ context.Context, p *plugin.Plugin) error
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.items[p.ID]; !ok {
+	old, ok := r.items[p.ID]
+	if !ok {
 		return ErrNotFound
 	}
+	// Like the SQL: Update never writes the update follow-up columns.
+	p.UpdateSource, p.UpdateSourceID, p.AutoUpdate, p.UpdateState = old.UpdateSource, old.UpdateSourceID, old.AutoUpdate, old.UpdateState
 	r.items[p.ID] = p
+	return nil
+}
+
+// SetUpdateFollow writes ONLY the source and the auto-update switch.
+func (r *FakePluginRepository) SetUpdateFollow(_ context.Context, id, source string, sourceID int64, autoUpdate bool) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	p.UpdateSource, p.UpdateSourceID, p.AutoUpdate = source, sourceID, autoUpdate
+	return nil
+}
+
+// SetUpdateState writes ONLY the last check's record.
+func (r *FakePluginRepository) SetUpdateState(_ context.Context, id string, state plugin.UpdateState) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	p.UpdateState = state
 	return nil
 }
 

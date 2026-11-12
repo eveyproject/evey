@@ -208,6 +208,9 @@ plugin:
   metadata_field_unknown: "元数据插件只能替换标题、简介和宣传语"
   metadata_refresh_running: "已在从此插件获取媒体库"
   signature_lost: "此更新不再签名，而已安装的版本是签名的 - 请接受未签名的更新后再应用"
+  repository_unsupported: "仅支持 https://github.com/<owner>/<repo> 形式的仓库链接"
+  no_update_source: "此插件未关联任何仓库，请先设置一个"
+  check_running: "已有更新检查正在进行，请稍后再试"
 
 demo:
   locked: "演示服务器上不可用"

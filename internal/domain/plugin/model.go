@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type PluginKind string
@@ -38,6 +39,7 @@ type Plugin struct {
 	ID          string
 	Kind        PluginKind
 	Name        string
+	DisplayName DisplayName
 	Version     string
 	Description string
 	Author      string
@@ -66,6 +68,17 @@ type Plugin struct {
 	// so the admin can audit non-critical warnings (compiled binaries, symlinks,
 	// base64 blobs, suspicious URLs) after the plugin is live. Nil on legacy rows.
 	AnalysisReport *AnalysisReport
+	// UpdateSource is the repository the plugin follows for its updates
+	// (https://github.com/<owner>/<repo>); empty when it follows none.
+	UpdateSource string
+	// UpdateSourceID is that repository's permanent GitHub id, which the
+	// releases are read by; 0 until it is known.
+	UpdateSourceID int64
+	// AutoUpdate lets a release of UpdateSource install without an admin when
+	// nothing in it is new and sensitive. On by default.
+	AutoUpdate bool
+	// UpdateState is the last look at UpdateSource.
+	UpdateState UpdateState
 	// Signature holds the cosign verification result from install time.
 	// Nil when CosignPolicy is "off" or no key is configured.
 	Signature *SignatureStatus
@@ -169,6 +182,7 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		ID:            id,
 		Kind:          manifest.Kind,
 		Name:          manifest.Name,
+		DisplayName:   manifest.DisplayName,
 		Version:       manifest.Version,
 		Description:   manifest.Description,
 		Author:        manifest.Author,
@@ -181,6 +195,7 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		Frontend:      manifest.Frontend,
 		ExternalFetch: NormalizeExternalFetch(manifest.ExternalFetch),
 		Config:        make(map[string]any),
+		AutoUpdate:    true,
 		SourceHash:    sourceHash,
 		Enabled:       true,
 		Status:        Stopped,
@@ -246,12 +261,22 @@ func (s PluginStatus) IsStarted() bool {
 	return s == Running || s == Initializing
 }
 
+const maxManifestNameRunes = 100
+
 func (m *PluginManifest) Validate() error {
 	if m.Name == "" {
 		return errors.New("manifest requires a name")
 	}
+	// The name is the identifier an update is matched on and travels into
+	// logs, notifications and webhooks: bounded and plain.
+	if utf8.RuneCountInString(m.Name) > maxManifestNameRunes || !plainText(m.Name) {
+		return fmt.Errorf("manifest: name must be at most %d characters, without control or format characters", maxManifestNameRunes)
+	}
 	if m.Version == "" {
 		return errors.New("manifest requires a version")
+	}
+	if err := m.DisplayName.Validate(); err != nil {
+		return err
 	}
 	switch m.Kind {
 	case KindTheme:
@@ -331,6 +356,7 @@ type FrontModule struct {
 
 type PluginManifest struct {
 	Name           string         `yaml:"name"`
+	DisplayName    DisplayName    `yaml:"display_name"`
 	Kind           PluginKind     `yaml:"kind"`
 	Version        string         `yaml:"version"`
 	Description    string         `yaml:"description"`

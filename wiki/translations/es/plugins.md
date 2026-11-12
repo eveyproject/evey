@@ -1,5 +1,5 @@
 ---
-source_sha: 80334abe63c67481f81bd04e5cfd89edf7cbe49fcf3168a2fa949fff7a391cc6
+source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -35,8 +35,14 @@ página.
 1. En **Administración → Plugins**, abre **Instalar plugin** y elige el
    **Archivo de plugin (.zip)**. Si el autor proporciona una firma, añádela en
    **Archivo de firma (.zip.sig, opcional)**. La pestaña **Desde URL** instala
-   a partir de un enlace; añade `#sha256:<hash>` a la URL para que se
-   compruebe la descarga.
+   a partir de un enlace `https://`; un enlace `http://` simple o una ruta del
+   servidor se rechaza (consulta
+   [De dónde viene el paquete](SECURITY.md#where-the-package-comes-from)).
+   Añade `#sha256:<hash>` al enlace para que se compruebe la descarga.
+   Un enlace de repositorio, `https://github.com/<owner>/<repo>`, instala el
+   zip de su última release, comprobado contra el sha256 que la release
+   publica, y el plugin sigue después ese repositorio para sus
+   actualizaciones (consulta [Actualizaciones automáticas](#automatic-updates)).
 2. **Vista previa e instalar** analiza el paquete sin instalarlo. La vista
    previa muestra los **Permisos** y las **Capacidades** que pide el plugin,
    el resultado del **Análisis estático** y, cuando se dio una firma, el
@@ -76,14 +82,49 @@ servidor: la imagen por defecto trae Python, Node.js, PHP, Ruby y Lua, la imagen
 
 ## Actualizar un plugin { #update-a-plugin }
 
-En la tarjeta del plugin, **Actualizar desde origen…** acepta el nuevo ZIP
-(una ruta o una URL) y muestra la misma vista previa. Una actualización tiene
+En la tarjeta del plugin, **Actualizar desde origen…** acepta el enlace
+`https://` del nuevo ZIP y muestra la misma vista previa. Una actualización tiene
 que llevar una versión más alta que la instalada. Cuando pide nuevos
 permisos, capacidades, slots o servidores, la vista previa dice **Esta
 actualización solicita nuevos permisos** y muestra la diferencia: no se
 aplica nada hasta que eliges **Aprobar e instalar**. El paquete analizado es
 el paquete instalado: su hash se vuelve a comprobar cuando se aplica la
 actualización.
+
+La fuente también puede ser el enlace del repositorio del plugin: la vista
+previa muestra entonces su última release.
+
+### Actualizaciones automáticas { #automatic-updates }
+
+Un plugin instalado desde el enlace de su repositorio, o desde un enlace de
+release de ese repositorio, sigue el repositorio. La sección
+**Actualizaciones** de su tarjeta muestra el repositorio (**Cambiar** indica
+otro, o ninguno), el interruptor **Actualizaciones automáticas**, activado por
+defecto, y lo que encontró la última comprobación. Evey consulta la última
+release unos minutos después de arrancar y luego cada hora; **Comprobar
+ahora** lo hace al momento.
+
+Una release más reciente se juzga antes de que nada se ejecute:
+
+| Lo que contiene la release | Lo que pasa |
+|---|---|
+| Nada nuevo: ningún permiso, capacidad, zona de visualización ni host nuevo, ningún tipo nuevo de aviso del análisis, la misma clave de firma | Se instala sola: **Versión … instalada automáticamente**. |
+| Algo nuevo (un permiso, un host, un cambio entre tema y plugin, otro lenguaje), una pre-release, una versión instalada sin firmar o el interruptor desactivado | **Versión … pendiente de tu aprobación**, y los administradores reciben una notificación. **Revisar** abre la vista previa de actualización habitual, donde apruebas la diferencia. |
+| Código que el análisis estático rechaza | **Versión … rechazada**, con el motivo, y los administradores reciben una notificación. No se instala, ni automáticamente ni a mano. |
+
+Un plugin sin firmar nunca se actualiza solo: quien se haya hecho con su repositorio podría publicar código que el análisis no detecta, y solo lo detiene una clave de firma que no tiene. La notificación se envía una vez por
+release, no cada hora. La comprobación consulta la API de GitHub y solo
+descarga de los archivos de release del repositorio, de ningún otro sitio.
+
+El repositorio se sigue por el número permanente que GitHub le asigna, no por
+su nombre: un repositorio renombrado o transferido se sigue igual, y quien
+registra un nombre abandonado no consigue que se siga nada. Instalar desde el enlace del
+repositorio instala la release que mostró la vista previa, aunque se publique
+una más reciente entretanto. Una release ya juzgada no se vuelve a descargar
+mientras no cambie nada en ninguna de las dos partes. Evey consulta GitHub sin
+token, lo que permite 60 solicitudes por hora y por dirección: una por plugin
+seguido y por hora; cuando se agota la cuota, la comprobación se detiene
+hasta su siguiente ejecución.
 
 ## Gestionar los plugins instalados { #manage-the-installed-plugins }
 
@@ -213,7 +254,7 @@ puede contener un tema se describe en [Temas](themes.md).
 | [Webhooks y claves de API](webhooks-api-keys.md) | Integrar Evey con otras herramientas sin escribir un plugin. |
 
 <!-- sources
-install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL
+install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL, CheckRequestedSource ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; i18n admin.plugin.updateSourceLabel
 critical findings refuse, warnings: internal/app/plugin/install.go - validateStagedPlugin, checkEscalatedWarnings ; i18n admin.plugins.blockedByAnalysis, installAnyway
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries ; i18n admin.plugins.availableRuntimes
 cosign policy: internal/config/config.go - CosignPolicy, CosignPublicKey ; internal/adapters/driven/pluginrunner/cosign.go
@@ -227,4 +268,5 @@ subprocess: docs/plugins/security-model.md (Permissions catalog)
 slots: internal/domain/plugin/slots.go - AllowedSlots
 scoped token, public/prefs: docs/adr/0012-plugin-token-deny-by-default.md ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes
 theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n common.appearance, common.theme
+automatic updates: internal/app/plugin/auto_update.go - AutoUpdater, updateFromRelease ; install_source.go - resolveInstallSource, followRepository, settleUpdateState ; internal/adapters/driven/pluginrelease/github.go ; frontend/apps/web/src/features/admin/PluginAutoUpdate.tsx ; i18n admin.plugin.autoUpdate.*, common.notifications.pluginUpdateHeld, pluginUpdateRefused
 -->

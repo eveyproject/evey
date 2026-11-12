@@ -46,6 +46,34 @@ flowchart LR
 
 ## At install
 
+### Where the package comes from
+
+An administrator gives a package in one of two ways: by uploading the ZIP, or
+by an `https://` link, either to the ZIP itself or to a GitHub repository,
+which stands for its latest release. Anything else is refused before the
+installer reads it:
+
+- a path on the server or a `file://` link: a request over the API cannot
+  make the server read an archive from its own disk. Only the server's own
+  code reads a local file: the upload route, from the temporary copy of the
+  uploaded ZIP, and the demo, from its bundled plugins;
+- a plain `http://` link, or a download that a redirect sends to `http://`:
+  anyone on the path could swap the archive, before the preview or between
+  the preview and the install, and an unsigned plugin has nothing else to
+  catch it.
+
+The download goes through the SSRF-safe client (`internal/pkg/ssrf`), which
+refuses private, reserved and link-local addresses after DNS resolution. It
+takes no proxy from the environment (`HTTPS_PROXY`, `HTTP_PROXY`): through a
+proxy the client sees only the proxy's address, never the target's, and the
+check would be void. A server that reaches the internet only through a proxy
+can therefore neither install from a link nor download an automatic update;
+upload the ZIP instead.
+
+The download stops at 100 MB. A `#sha256:<hash>` appended to the link is
+checked against the bytes received, and an install started from the preview
+is pinned to the bytes the preview showed.
+
 ### ZIP extraction
 
 Before any file is written (`pluginrunner/zip.go`):
@@ -491,6 +519,7 @@ Do not test against Evey instances that are not yours.
 
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
+package source: internal/app/plugin/install.go - CheckRequestedSource, ErrInsecureSource, downloadIfURL (http and redirect refusal, 100 MB) ; installer_service.go - SafeHTTPClientNoProxy ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; internal/adapters/driving/http/plugin_asset_handler.go - preview JSON source ; internal/pkg/ssrf/dialer.go
 runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
 resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
 bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx

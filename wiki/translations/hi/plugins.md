@@ -1,5 +1,5 @@
 ---
-source_sha: 80334abe63c67481f81bd04e5cfd89edf7cbe49fcf3168a2fa949fff7a391cc6
+source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
 reviewed: true
 ---
 # प्लगइन { #plugins }
@@ -33,9 +33,14 @@ reviewed: true
 
 1. **एडमिन → प्लगइन** में **प्लगइन इंस्टॉल करें** खोलें और **प्लगइन फ़ाइल
    (.zip)** चुनें। अगर बनाने वाला एक सिग्नेचर देता है, तो उसे **हस्ताक्षर फ़ाइल
-   (.zip.sig, वैकल्पिक)** में जोड़ें। **URL से** वाला टैब इसकी जगह किसी लिंक से
-   इंस्टॉल करता है; डाउनलोड की जाँच करवाने के लिए URL के आखिर में
-   `#sha256:<hash>` जोड़ें।
+   (.zip.sig, वैकल्पिक)** में जोड़ें। **URL से** वाला टैब इसकी जगह किसी `https://`
+   लिंक से इंस्टॉल करता है; सादा `http://` लिंक या सर्वर पर का कोई रास्ता अस्वीकार
+   किया जाता है (देखें [पैकेज कहाँ से आता है](SECURITY.md#where-the-package-comes-from))।
+   डाउनलोड की जाँच करवाने के लिए लिंक के आखिर में `#sha256:<hash>` जोड़ें।
+   रिपॉज़िटरी लिंक, `https://github.com/<owner>/<repo>`, उसकी सबसे नई release
+   का zip इंस्टॉल करता है, जिसे release में प्रकाशित sha256 से जाँचा जाता है,
+   और उसके बाद प्लगइन अपने अपडेट के लिए उसी रिपॉज़िटरी को फ़ॉलो करता है
+   (देखें [अपने-आप अपडेट](#automatic-updates))।
 2. **पूर्वावलोकन और इंस्टॉल** पैकेज को इंस्टॉल किए बिना जाँचता है।
    पूर्वावलोकन दिखाता है कि प्लगइन कौन सी **अनुमतियां** और **क्षमताएँ** माँगता
    है, **स्थैतिक विश्लेषण** का नतीजा और, अगर सिग्नेचर दिया गया हो, प्रकाशक के साथ
@@ -75,13 +80,49 @@ Python, Node.js, PHP, Ruby और Lua हैं, `-nodejs` इमेज मे�
 
 ## प्लगइन अपडेट करें { #update-a-plugin }
 
-प्लगइन के कार्ड पर, **स्रोत से अपडेट करें…** नई ZIP लेता है (एक रास्ता या एक
-URL) और वही पूर्वावलोकन दिखाता है। अपडेट का वर्ज़न इंस्टॉल किए गए वर्ज़न से
+प्लगइन के कार्ड पर, **स्रोत से अपडेट करें…** नई ZIP का `https://` लिंक लेता है
+और वही पूर्वावलोकन दिखाता है। अपडेट का वर्ज़न इंस्टॉल किए गए वर्ज़न से
 ऊँचा होना चाहिए। जब वह नई अनुमतियाँ, क्षमताएँ, स्लॉट या होस्ट माँगता है, तो
 पूर्वावलोकन में **यह अपडेट नई अनुमतियाँ माँग रहा है** लिखा आता है और फ़र्क की
 सूची दिखती है: जब तक आप **स्वीकृति दें और इंस्टॉल करें** न चुनें, कुछ लागू नहीं
 होता। जो पैकेज जाँचा गया, वही इंस्टॉल होता है: अपडेट लागू करते समय उसका hash
 फिर से जाँचा जाता है।
+
+स्रोत प्लगइन का रिपॉज़िटरी लिंक भी हो सकता है: तब प्रीव्यू उसकी सबसे नई
+release का होता है।
+
+### अपने-आप अपडेट { #automatic-updates }
+
+जो प्लगइन अपने रिपॉज़िटरी के लिंक से, या उस रिपॉज़िटरी के किसी release लिंक
+से इंस्टॉल हुआ है, वह उस रिपॉज़िटरी को फ़ॉलो करता है। उसके कार्ड का
+**अपडेट** सेक्शन रिपॉज़िटरी दिखाता है (**बदलें** से दूसरा या कोई नहीं चुना
+जाता है), **अपने-आप अपडेट** स्विच, जो पहले से चालू रहता है, और पिछली जाँच
+में क्या मिला। Evey शुरू होने के कुछ मिनट बाद सबसे नई release देखता है, फिर
+हर घंटे; **अभी जाँचें** तुरंत देखता है।
+
+किसी नई release के चलने से पहले उसे परखा जाता है:
+
+| release में क्या है | क्या होता है |
+|---|---|
+| कुछ नया नहीं: कोई नई अनुमति, क्षमता, स्लॉट या होस्ट नहीं, विश्लेषण की कोई नई तरह की चेतावनी नहीं, वही साइनिंग कुंजी | अपने-आप इंस्टॉल: **वर्ज़न … अपने-आप इंस्टॉल हुआ**। |
+| कुछ नया (कोई अनुमति, कोई होस्ट, थीम और प्लगइन के बीच बदलाव, कोई दूसरी भाषा), कोई pre-release, बिना साइन वाला इंस्टॉल किया गया वर्ज़न, या स्विच बंद | **वर्ज़न … आपकी मंज़ूरी का इंतज़ार कर रहा है**, और एडमिन को नोटिफ़िकेशन मिलता है। **देखें** सामान्य अपडेट प्रीव्यू खोलता है, जहाँ आप अंतर को मंज़ूरी देते हैं। |
+| ऐसा कोड जिसे स्टैटिक विश्लेषण अस्वीकार करता है | **वर्ज़न … अस्वीकार किया गया**, कारण के साथ, और एडमिन को नोटिफ़िकेशन मिलता है। यह न अपने-आप इंस्टॉल होता है, न हाथ से। |
+
+बिना साइन वाला प्लगइन कभी अपने-आप अपडेट नहीं होता: जिसने उसकी रिपॉज़िटरी
+पर कब्ज़ा कर लिया हो, वह ऐसा कोड प्रकाशित कर सकता है जिसे विश्लेषण नहीं
+पकड़ता, और उसे सिर्फ़ वही साइनिंग कुंजी रोकती है जो उसके पास नहीं है।
+नोटिफ़िकेशन हर release के लिए एक बार भेजा जाता है, हर घंटे नहीं। जाँच GitHub
+API से पूछती है और सिर्फ़ रिपॉज़िटरी की release फ़ाइलों से डाउनलोड करती है,
+कहीं और से नहीं।
+
+रिपॉज़िटरी को उस स्थायी नंबर से फ़ॉलो किया जाता है जो GitHub उसे देता है, उसके
+नाम से नहीं: नाम बदली गई या ट्रांसफ़र की गई रिपॉज़िटरी फ़ॉलो होती रहती है, और
+जो कोई छोड़ा गया नाम दोबारा रजिस्टर करता है उसका कुछ भी फ़ॉलो नहीं होता। रिपॉज़िटरी
+लिंक से इंस्टॉल करने पर वही release इंस्टॉल होती है जो प्रीव्यू में दिखी थी, भले
+बीच में कोई नई प्रकाशित हो जाए। पहले से परखी गई release दोबारा तब तक डाउनलोड
+नहीं होती जब तक किसी तरफ़ कुछ न बदले। Evey बिना टोकन के GitHub से पूछता है, जिससे
+हर पते के लिए घंटे में 60 रिक्वेस्ट मिलती हैं: हर फ़ॉलो किए गए प्लगइन के लिए
+घंटे में एक; कोटा ख़त्म होने पर जाँच अगली बार तक रुक जाती है।
 
 ## इंस्टॉल किए गए प्लगइन संभालें { #manage-the-installed-plugins }
 
@@ -205,7 +246,7 @@ TMDB से आते हैं। प्लगइन का टेक्स्�
 | [वेबहुक और API कुंजियाँ](webhooks-api-keys.md) | प्लगइन लिखे बिना Evey को दूसरे टूल से जोड़ना। |
 
 <!-- sources
-install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL
+install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL, CheckRequestedSource ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; i18n admin.plugin.updateSourceLabel
 critical findings refuse, warnings: internal/app/plugin/install.go - validateStagedPlugin, checkEscalatedWarnings ; i18n admin.plugins.blockedByAnalysis, installAnyway
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries ; i18n admin.plugins.availableRuntimes
 cosign policy: internal/config/config.go - CosignPolicy, CosignPublicKey ; internal/adapters/driven/pluginrunner/cosign.go
@@ -219,4 +260,5 @@ subprocess: docs/plugins/security-model.md (Permissions catalog)
 slots: internal/domain/plugin/slots.go - AllowedSlots
 scoped token, public/prefs: docs/adr/0012-plugin-token-deny-by-default.md ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes
 theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n common.appearance, common.theme
+automatic updates: internal/app/plugin/auto_update.go - AutoUpdater, updateFromRelease ; install_source.go - resolveInstallSource, followRepository, settleUpdateState ; internal/adapters/driven/pluginrelease/github.go ; frontend/apps/web/src/features/admin/PluginAutoUpdate.tsx ; i18n admin.plugin.autoUpdate.*, common.notifications.pluginUpdateHeld, pluginUpdateRefused
 -->

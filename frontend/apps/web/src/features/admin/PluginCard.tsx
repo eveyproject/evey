@@ -25,6 +25,7 @@ import { useDemoLock, useDemoLockFor } from "@/hooks/useDemoMode";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 import { PluginMetadataSettings } from "./PluginMetadataSettings";
 import { PluginSignatureBadge } from "./PluginSignatureBadge";
+import { PluginAutoUpdate } from "./PluginAutoUpdate";
 
 type PluginWithPermissions = V1Plugin & {
   permissions?: string[];
@@ -428,12 +429,12 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
       {showUpdateInput && (
         <div className="border-t pt-3 mt-1 border-[var(--border)] flex flex-col gap-2">
           <p className="text-xs font-semibold text-[var(--text-muted)]">
-            {t("admin.plugin.updateSourceLabel", "Source ZIP (path or URL)")}
+            {t("admin.plugin.updateSourceLabel", "Source: https link to the ZIP, or the repository link")}
           </p>
           <div className="flex gap-2 items-end">
             <Input
               label=""
-              placeholder="/path/to/plugin-v2.zip"
+              placeholder="https://example.com/plugin-v2.zip"
               value={updateSourceInput}
               onChange={(e) => setUpdateSourceInput(e.target.value)}
             />
@@ -453,6 +454,8 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
           </div>
         </div>
       )}
+
+      <PluginAutoUpdate plugin={plugin} onReview={(src) => setUpdateSource(src)} />
 
       {updateSource && plugin.id && (
         <PluginUpdateDialog

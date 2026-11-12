@@ -40,6 +40,10 @@ push:
     title: "प्लगइन त्रुटि"
   plugin_error_id:
     title: "प्लगइन त्रुटि: {plugin}"
+  plugin_update_held:
+    title: "प्लगइन अपडेट आपकी मंज़ूरी का इंतज़ार कर रहा है: {plugin}"
+  plugin_update_refused:
+    title: "प्लगइन अपडेट अस्वीकार किया गया: {plugin}"
   # Push bodies for the media request events: the stored Message is a
   # machine value the clients translate; the push is rendered here.
   media_type:

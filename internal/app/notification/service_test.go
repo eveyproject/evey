@@ -558,6 +558,45 @@ func TestNotificationService_PluginError_RoutesAdminOnlyWithAdminLister(t *testi
 	assert.Empty(t, userNotifs, "non-admin profile must NOT receive plugin.error")
 }
 
+// A release of a followed plugin that did not install on its own pages the
+// admins only, typed by what happened to it, with the reason as the message.
+func TestNotificationService_PluginUpdateAttention_PagesAdminsByOutcome(t *testing.T) {
+	t.Parallel()
+	for outcome, typ := range map[plugin.UpdateOutcome]notifdom.Type{
+		plugin.UpdateHeld:    notifdom.TypePluginUpdateHeld,
+		plugin.UpdateRefused: notifdom.TypePluginUpdateRefused,
+	} {
+		repo := notiffakes.NewFakeNotificationRepository()
+		profileRepo := userfakes.NewFakeProfileRepository()
+		bus := sharedfakes.NewFakeEventBus()
+		ctx := context.Background()
+		adminProfile := &user.Profile{ID: "p-admin", UserID: "u-admin", Name: "Root"}
+		_ = profileRepo.Create(ctx, adminProfile)
+		_ = profileRepo.Create(ctx, &user.Profile{ID: "p-user", UserID: "u-user", Name: "Bob"})
+		svc := appnotification.NewCommandService(repo, notiffakes.NewFakeSettingsRepository(),
+			notiffakes.NewFakeWatchHistoryAnalyzer(), profileRepo, bus,
+			appnotification.WithAdminLister(&fakeAdminLister{profiles: []*user.Profile{adminProfile}}))
+		svc.Register()
+
+		bus.Publish(ctx, plugin.PluginUpdateAttention{
+			PluginID: "plg-1", Name: "weather", Version: "1.0.2",
+			Outcome: outcome, Reason: "the analysis refuses this code: shell_exec", OccurredAt: time.Now(),
+		})
+
+		got, err := repo.ListByProfile(ctx, "p-admin", false, 0, 0)
+		require.NoError(t, err)
+		require.Len(t, got, 1, outcome)
+		assert.Equal(t, typ, got[0].Type)
+		assert.Equal(t, "weather 1.0.2", got[0].Subject)
+		assert.Equal(t, "the analysis refuses this code: shell_exec", got[0].Message)
+		assert.True(t, typ.IsAdminOnly())
+
+		others, err := repo.ListByProfile(ctx, "p-user", false, 0, 0)
+		require.NoError(t, err)
+		assert.Empty(t, others, "a plugin update is the admins' business")
+	}
+}
+
 func TestNotificationService_BackupFailed_NotifiesAllProfiles(t *testing.T) {
 	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()

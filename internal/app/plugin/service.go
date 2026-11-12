@@ -42,6 +42,11 @@ func (s *QueryService) ListPlugins(ctx context.Context) ([]*plugin.Plugin, error
 	return s.plugins.List(ctx)
 }
 
+// GetPlugin returns one installed plugin.
+func (s *QueryService) GetPlugin(ctx context.Context, id string) (*plugin.Plugin, error) {
+	return s.plugins.GetByID(ctx, id)
+}
+
 type PluginConfigWithSchema struct {
 	Config       map[string]any
 	ConfigSchema map[string]any

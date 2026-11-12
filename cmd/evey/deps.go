@@ -143,6 +143,7 @@ type engagementDeps struct {
 	pluginInstallerSvc         *appplugin.InstallerService
 	pluginRuntimeSvc           *appplugin.RuntimeService
 	pluginQuerySvc             *appplugin.QueryService
+	pluginAutoUpdater          *appplugin.AutoUpdater
 	pluginTokenSvc             *appplugin.TokenService
 	pluginHostServer           *pluginhost.HostServer
 	pluginSecurityDashboardSvc *appplugin.SecurityDashboardService

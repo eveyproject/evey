@@ -1,5 +1,5 @@
 ---
-source_sha: 122a45d14ca6b9f66d0c85768a14922820d0755dcfafd6f138baa4f642b13416
+source_sha: 7d11b826f33cfa195e8f3f70d904164dfd609a7ae7e4214de84ee1327b8f0c61
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -188,6 +188,9 @@ external_fetch:
 
 只有您自己的机器上需要 [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)。
 
+请使用 cosign 2：cosign 3 在没有签名配置时会拒绝 `--tlog-upload=false`，
+而 Evey 的格式正是按下面这些命令校验的。
+
 1. **只需一次：生成一对密钥。**
 
     ```sh
@@ -264,12 +267,33 @@ external_fetch:
 
 ## 10. 分发插件 { #10-distribute-a-plugin }
 
-没有插件目录商店：管理员在管理面板里上传插件的 ZIP 包，或者粘贴它的网址，来源是您发布它的任何地方（代码托管平台上的一个 release，您自己的网站）。
+没有插件目录。请将插件发布为它自己的 GitHub 仓库的 release：管理员粘贴仓库链接
+`https://github.com/<owner>/<repo>` 即可安装，之后插件会关联该仓库来获取更新
+（[自动更新](../plugins.md#automatic-updates)）。从其他地方上传或链接的 ZIP 也能
+安装，但不会关联任何仓库。
 
-- 把 ZIP 包、它的 `.sig` 和您的 `cosign.pub` 放在一起发布（第 7 节）。
-- 在 README 里写明权限和 `external_fetch` 主机：管理员在安装时会看到权限，在更新时和**安全仪表板**里会看到主机，并且必须批准；这里出现未预期的内容，是安装被拒绝的首要原因。
-- 如果想让您的插件和自带的示例列在一起，请向 `examples/plugins/` 提交一个 pull request，附上源代码和 README。
-  示例会经过审查，并从源代码构建；被列入并不代表项目背书，也不带项目的签名。
+- 将仓库命名为 `evey-plugin-<name>`，主题则命名为 `evey-theme-<name>`：搜索这些
+  前缀就能找到所有插件。
+- 为每个 release 打上 `v` + 清单中 `version` 的标签，并恰好附带一个 `.zip`、它的
+  `.sig`（第 7 节）和它的 `.sha256`（`sha256sum` 的输出）。没有 `.sha256` 时，
+  会使用 GitHub 为该文件发布的摘要。
+- 在各个 release 之间保持清单中的 `name` 不变：更新正是靠它与插件对应。
+  `display_name` 可以随意修改。
+- 每个 release 都用同一把密钥签名。只有当 release 使用 Evey 在安装时固定下来的
+  密钥签名、且没有提出任何新要求时，才会自动安装；未签名的插件始终等待管理员。
+- 要求新的权限、能力、显示位置或主机的 release 会等待管理员批准：请在它的说明中
+  解释原因。
+  更改清单中 `kind` 或 `language` 的 release 同样如此，而预发布版本
+  （`1.2.0-beta.1`）永远不会自动安装。
+- 重命名或转移仓库没有问题：Evey 按其永久的 GitHub id 关联它。
+- 在 README 中写明权限和 `external_fetch` 主机：管理员在安装时会看到权限，在更新
+  时和安全仪表盘中会看到主机，并且必须批准它们；这里出现意外是安装被拒绝的首要
+  原因。
+
+Evey 项目的插件就是这样发布的，您可以复制它的 release 工作流：
+[evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather/blob/main/.github/workflows/release.yml)
+会构建可复现的 ZIP，使用保存在仓库 secrets 中的密钥对其签名，并在推送版本标签时
+发布 ZIP、`.sig` 和 `.sha256`。
 
 ## 11. 故障排除 { #11-troubleshooting }
 
@@ -297,7 +321,8 @@ host RPC permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; 
 host RPCs: internal/adapters/driving/pluginhost/host_server.go - Log, GetConfig, SetConfig, GetData ; fetch.go - Fetch (GET/HEAD, maxFetchBytes, fetchTimeout)
 frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc ; internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy
 bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge
-cosign: internal/adapters/driven/pluginrunner/cosign.go - NewCosignVerifier, readPackageKey, verifyBlobSignature ; internal/config/config.go - CosignPolicy validation
+cosign: internal/adapters/driven/pluginrunner/cosign.go - NewCosignVerifier, readPackageKey, verifyBlobSignature ; cosign 3 vs --tlog-upload=false: release run of the project's plugin repositories (cosign-installer default) ; internal/config/config.go - CosignPolicy validation
+distribution, repository links: internal/app/plugin/install_source.go - resolveInstallSource ; internal/adapters/driven/pluginrelease/github.go - Latest (one .zip, .sha256 or asset digest) ; internal/app/plugin/auto_update.go ;
 install order: internal/app/plugin/install.go - installLocalZip, parseAndValidateManifest, resolveExistingPlugin, verifyPluginIntegrity, extractPluginToStaging, validateStagedPlugin, checkEscalatedWarnings, swapAndPersistPlugin ; update.go - ApplyUpdate ; zip limits: docs/SECURITY.md (ZIP extraction)
 resource limits: internal/config/config.go - Plugins ; internal/adapters/driven/pluginrunner/runner_resmon.go ; i18n admin.plugins.resourceLimits.*
 error texts: internal/adapters/driven/pluginrunner/manifest.go ; internal/domain/plugin/model.go ; internal/app/plugin/install.go ; cosign.go ; runner_resmon.go

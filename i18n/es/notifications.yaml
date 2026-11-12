@@ -40,6 +40,10 @@ push:
     title: "Error del plugin"
   plugin_error_id:
     title: "Error del plugin: {plugin}"
+  plugin_update_held:
+    title: "Actualización de plugin pendiente de tu aprobación: {plugin}"
+  plugin_update_refused:
+    title: "Actualización de plugin rechazada: {plugin}"
   # Push bodies for the media request events: the stored Message is a
   # machine value the clients translate; the push is rendered here.
   media_type:

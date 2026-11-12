@@ -57,6 +57,9 @@ type adminPluginHandler struct {
 	// nil when not wired (the RPCs then answer FailedPrecondition).
 	metadataSettings pluginMetadataSettings
 	metadataRefresh  pluginMetadataRefresher
+	// autoUpdater runs a plugin's update check on demand; nil when the plugin
+	// system is disabled.
+	autoUpdater *appplugin.AutoUpdater
 }
 
 // requireEnabled gates state-changing or executing plugin operations.
@@ -182,6 +185,9 @@ func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.Inst
 	// UI, the request carries accept_permission_changes=true and we authorize
 	// the installer to proceed even when the update widens permissions /
 	// capabilities / slots / external_fetch hosts.
+	if err := appplugin.CheckRequestedSource(req.Source); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 	if req.GetAcceptPermissionChanges() {
 		ctx = appplugin.WithAllowPermissionEscalation(ctx)
 	}
@@ -207,7 +213,8 @@ func (d *adminPluginHandler) installPluginError(ctx context.Context, err error) 
 	switch {
 	case errors.As(err, &blocked), strings.Contains(err.Error(), "plugin blocked:"):
 		return status.Error(codes.PermissionDenied, err.Error())
-	case errors.Is(err, appplugin.ErrInvalidManifest), errors.Is(err, appplugin.ErrHashMismatch):
+	case errors.Is(err, appplugin.ErrInvalidManifest), errors.Is(err, appplugin.ErrHashMismatch),
+		errors.Is(err, appplugin.ErrRepositoryLinkPinned), errors.Is(err, appplugin.ErrInsecureSource):
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, appplugin.ErrSourceUnavailable), errors.Is(err, appplugin.ErrServerTooOld):
 		return status.Error(codes.FailedPrecondition, err.Error())
@@ -511,6 +518,9 @@ func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv
 	if req.Source == "" {
 		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.source_required")
 	}
+	if err := appplugin.CheckRequestedSource(req.Source); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 	preview, err := d.pluginInstaller.PreviewUpdate(ctx, req.PluginId, req.Source)
 	if err != nil {
 		span.RecordError(err)
@@ -518,7 +528,9 @@ func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv
 		if errors.Is(err, appplugin.ErrPluginNotFound) {
 			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		}
-		return nil, internalError(ctx, "preview update", err)
+		// A refused candidate (unreachable, not a plugin, blocked) is the
+		// caller's to fix and says why; only a server fault stays opaque.
+		return nil, d.installPluginError(ctx, err)
 	}
 	resp := &eveyv1.PreviewPluginUpdateResponse{
 		CurrentVersion:       preview.CurrentVersion,
@@ -535,6 +547,8 @@ func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv
 		Signature:            signatureToProto(preview.Signature),
 		RequiresAck:          preview.RequiresAck,
 		SourceHash:           preview.SourceHash,
+		KindChange:           preview.KindChange,
+		LanguageChange:       preview.LanguageChange,
 	}
 	for _, f := range preview.NewFindings {
 		resp.NewFindings = append(resp.NewFindings, &eveyv1.SecurityFinding{
@@ -565,6 +579,9 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 	if req.AcknowledgedHash == "" {
 		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.acknowledged_hash_required")
 	}
+	if err := appplugin.CheckRequestedSource(req.Source); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 	p, err := d.pluginInstaller.ApplyUpdate(ctx, req.PluginId, req.Source, req.AcknowledgedHash, req.AcceptNewPublisher)
 	if err != nil {
 		span.RecordError(err)
@@ -576,11 +593,82 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 			return nil, d.translator.TranslatedError(ctx, codes.Aborted, "errors.plugin.candidate_changed")
 		case errors.Is(err, appplugin.ErrPublisherChanged):
 			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.publisher_changed")
-		case errors.Is(err, appplugin.ErrSignatureLost):
-			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.signature_lost")
+		case errors.Is(err, appplugin.ErrPluginPermissionEscalation):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		default:
-			return nil, internalError(ctx, "apply update", err)
+			// Blocked code, an unreachable or invalid candidate: said with its
+			// reason, as an install says it; only a server fault stays opaque.
+			return nil, d.installPluginError(ctx, err)
 		}
+	}
+	return pluginToProto(d.withLiveTrust(ctx, p)), nil
+}
+
+// SetPluginUpdateFollow records the repository a plugin follows and whether
+// its releases install without an admin.
+func (d *adminPluginHandler) SetPluginUpdateFollow(ctx context.Context, req *eveyv1.SetPluginUpdateFollowRequest) (*eveyv1.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.SetPluginUpdateFollow")
+	defer span.End()
+	if err := d.requireEnabled(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if req.PluginId == "" {
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.id_required")
+	}
+	p, err := d.pluginInstaller.SetUpdateFollow(ctx, req.PluginId, req.UpdateSource, req.AutoUpdate)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, appplugin.ErrPluginNotFound):
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
+		case errors.Is(err, plugin.ErrUnsupportedRepository):
+			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.repository_unsupported")
+		case errors.Is(err, appplugin.ErrSourceUnavailable), errors.Is(err, appplugin.ErrNoReleaseSource):
+			// GitHub unreachable, the repository unknown or private, the quota
+			// spent: the admin's to know, with the reason.
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		default:
+			return nil, internalError(ctx, "set plugin update follow", err)
+		}
+	}
+	return pluginToProto(d.withLiveTrust(ctx, p)), nil
+}
+
+// CheckPluginUpdate runs the check now for one plugin.
+func (d *adminPluginHandler) CheckPluginUpdate(ctx context.Context, req *eveyv1.CheckPluginUpdateRequest) (*eveyv1.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.CheckPluginUpdate")
+	defer span.End()
+	if err := d.requireEnabled(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if req.PluginId == "" {
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.id_required")
+	}
+	if d.autoUpdater == nil {
+		return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.system_disabled")
+	}
+	if _, err := d.autoUpdater.CheckNow(ctx, req.PluginId); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, appplugin.ErrPluginNotFound):
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
+		case errors.Is(err, appplugin.ErrNoUpdateSource):
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.no_update_source")
+		case errors.Is(err, appplugin.ErrCheckRunning):
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.check_running")
+		default:
+			return nil, internalError(ctx, "check plugin update", err)
+		}
+	}
+	p, err := d.pluginQuery.GetPlugin(ctx, req.PluginId)
+	if err != nil {
+		return nil, internalError(ctx, "check plugin update", err)
 	}
 	return pluginToProto(d.withLiveTrust(ctx, p)), nil
 }

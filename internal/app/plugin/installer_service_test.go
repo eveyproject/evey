@@ -14,6 +14,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	appplugin "github.com/eveyproject/evey/internal/app/plugin"
@@ -40,7 +41,7 @@ func newTestInstallerService() (*appplugin.InstallerService, *plgfakes.FakePlugi
 		appplugin.InstallerWithAnalyzer(analyzer),
 		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
 		appplugin.InstallerWithFileSystem(pluginFS),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 	)
 
 	return svc, pluginRepo, runner, parser, installer, analyzer
@@ -341,7 +342,7 @@ func TestInstallPlugin_FailedUpgradeIsAtomic(t *testing.T) {
 		appplugin.InstallerWithAnalyzer(analyzer),
 		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
 		appplugin.InstallerWithFileSystem(pluginFS),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 	)
 	ctx := context.Background()
 
@@ -388,7 +389,7 @@ func TestInstallPlugin_SuccessfulUpgradeSwapsStaging(t *testing.T) {
 		appplugin.InstallerWithAnalyzer(analyzer),
 		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
 		appplugin.InstallerWithFileSystem(pluginFS),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 	)
 	ctx := context.Background()
 
@@ -860,7 +861,7 @@ func makeMinimalPluginZip(t *testing.T, name, version string) []byte {
 
 func TestInstallPlugin_WithURL_Success(t *testing.T) {
 	zipContent := makeMinimalPluginZip(t, "url-plugin", "1.0.0")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		_, _ = w.Write(zipContent)
 	}))
@@ -877,7 +878,7 @@ func TestInstallPlugin_WithURL_Success(t *testing.T) {
 
 func TestInstallPlugin_WithURL_HashMismatch(t *testing.T) {
 	zipContent := makeMinimalPluginZip(t, "url-plugin-hash", "1.0.0")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		_, _ = w.Write(zipContent)
 	}))
@@ -897,7 +898,7 @@ func TestInstallPlugin_WithURL_HashMatch(t *testing.T) {
 	h := sha256.Sum256(zipContent)
 	correctHash := hex.EncodeToString(h[:])
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		_, _ = w.Write(zipContent)
 	}))
@@ -913,7 +914,7 @@ func TestInstallPlugin_WithURL_HashMatch(t *testing.T) {
 }
 
 func TestInstallPlugin_WithURL_SizeLimit(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		// Stream slightly more than 100 MB so the size limit is hit.
 		const maxBytes = 100 << 20
@@ -927,6 +928,56 @@ func TestInstallPlugin_WithURL_SizeLimit(t *testing.T) {
 	_, err := svc.InstallPlugin(context.Background(), srv.URL)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds 100 MB")
+}
+
+// Over plain http anyone on the path can swap the archive; a plugin is
+// downloaded over https only, and a redirect that lands on http is refused.
+func TestInstallPlugin_WithURL_PlainHTTPIsRefused(t *testing.T) {
+	zipContent := makeMinimalPluginZip(t, "plain-http", "1.0.0")
+	var served atomic.Int32
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		served.Add(1)
+		_, _ = w.Write(zipContent)
+	}))
+	defer plain.Close()
+
+	svc, repo, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("plain-http")
+
+	_, err := svc.InstallPlugin(context.Background(), plain.URL+"/p.zip")
+	require.ErrorIs(t, err, appplugin.ErrInsecureSource)
+	assert.Zero(t, served.Load(), "nothing is asked over plain http")
+
+	secure := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, plain.URL+"/p.zip", http.StatusFound)
+	}))
+	defer secure.Close()
+	_, err = svc.InstallPlugin(context.Background(), secure.URL+"/p.zip")
+	require.ErrorIs(t, err, appplugin.ErrInsecureSource, "a redirect down to http")
+
+	_, err = svc.PreviewSource(context.Background(), plain.URL+"/p.zip")
+	require.ErrorIs(t, err, appplugin.ErrInsecureSource)
+	all, err := repo.List(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, all, "nothing was installed")
+}
+
+func TestCheckRequestedSource(t *testing.T) {
+	for source, want := range map[string]error{
+		"https://example.com/p.zip":                nil,
+		"https://example.com/p.zip#sha256:" + "ab": nil,
+		"  https://github.com/acme/thing  ":        nil,
+		"HTTPS://example.com/p.zip":                nil,
+		"http://example.com/p.zip":                 appplugin.ErrInsecureSource,
+		"ftp://example.com/p.zip":                  appplugin.ErrInsecureSource,
+		"file:///etc/passwd":                       appplugin.ErrNotALink,
+		"/var/lib/evey/p.zip":                      appplugin.ErrNotALink,
+		"../p.zip":                                 appplugin.ErrNotALink,
+		"example.com/p.zip":                        appplugin.ErrNotALink,
+		"":                                         appplugin.ErrNotALink,
+	} {
+		assert.ErrorIs(t, appplugin.CheckRequestedSource(source), want, source)
+	}
 }
 
 func TestInstallPlugin_WithLocalPath_Unchanged(t *testing.T) {
@@ -1159,7 +1210,7 @@ func TestInstallPlugin_RuntimeMissing_Refused(t *testing.T) {
 		appplugin.InstallerWithAnalyzer(analyzer),
 		appplugin.InstallerWithPluginDir(t.TempDir()),
 		appplugin.InstallerWithFileSystem(pluginFS),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 		appplugin.InstallerWithRuntimeChecker(checker),
 	)
 
@@ -1195,7 +1246,7 @@ func TestInstallPlugin_RuntimeAvailable_Allowed(t *testing.T) {
 		appplugin.InstallerWithAnalyzer(analyzer),
 		appplugin.InstallerWithPluginDir(t.TempDir()),
 		appplugin.InstallerWithFileSystem(pluginFS),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 		appplugin.InstallerWithRuntimeChecker(checker),
 	)
 
@@ -1229,7 +1280,7 @@ func TestInstallPlugin_ThemeSkipsRuntimeCheck(t *testing.T) {
 		appplugin.InstallerWithAnalyzer(analyzer),
 		appplugin.InstallerWithPluginDir(t.TempDir()),
 		appplugin.InstallerWithFileSystem(pluginFS),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 		appplugin.InstallerWithRuntimeChecker(checker),
 	)
 
@@ -1270,7 +1321,7 @@ func newTestInstallerServiceWithFS() (
 		appplugin.InstallerWithAnalyzer(analyzer),
 		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
 		appplugin.InstallerWithFileSystem(pluginFS),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 	)
 
 	return svc, pluginRepo, runner, parser, installer, analyzer, pluginFS

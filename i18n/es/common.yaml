@@ -130,6 +130,8 @@ notifications:
   cacheFull: "Caché de subtítulos llena"
   pruneSuspended: "Eliminación de la biblioteca suspendida"
   mediaRequest: "Nueva solicitud de contenido: {{name}}"
+  pluginUpdateHeld: "Actualización de plugin pendiente de tu aprobación: {{name}}"
+  pluginUpdateRefused: "Actualización de plugin rechazada: {{name}}"
   requestAnswered: "Tu solicitud de contenido se actualizó: {{name}}"
   clearConfirm: ¿Eliminar todas las notificaciones?
   clearTitle: Borrar notificaciones

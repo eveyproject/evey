@@ -224,6 +224,7 @@ func newUpdateTestHandler(t *testing.T) (*adminPluginHandler, *pluginfakes.FakeP
 		appplugin.InstallerWithAnalyzer(analyzer),
 		appplugin.InstallerWithPluginDir(t.TempDir()),
 		appplugin.InstallerWithFileSystem(fs),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 	)
 	h := &adminPluginHandler{
 		pluginInstaller: svc,
@@ -232,22 +233,6 @@ func newUpdateTestHandler(t *testing.T) (*adminPluginHandler, *pluginfakes.FakeP
 		enabled:         true,
 	}
 	return h, repo, parser
-}
-
-// tmpZipGRPC creates a tiny temp zip file for handler tests.
-func tmpZipGRPC(t *testing.T, content string) string {
-	t.Helper()
-	f, err := os.CreateTemp(t.TempDir(), "plugin-*.zip")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.WriteString(content); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return f.Name()
 }
 
 func TestPreviewPluginUpdate_MissingPluginID(t *testing.T) {
@@ -280,7 +265,7 @@ func TestPreviewPluginUpdate_NotFound(t *testing.T) {
 	}
 	_, err := h.PreviewPluginUpdate(context.Background(), &eveyv1.PreviewPluginUpdateRequest{
 		PluginId: "plg-ghost",
-		Source:   tmpZipGRPC(t, "zip"),
+		Source:   servedZip(t, "zip"),
 	})
 	if code := status.Code(err); code != codes.NotFound {
 		t.Fatalf("code = %v, want NotFound", code)
@@ -309,7 +294,7 @@ func TestPreviewPluginUpdate_NewPermission(t *testing.T) {
 
 	resp, err := h.PreviewPluginUpdate(ctx, &eveyv1.PreviewPluginUpdateRequest{
 		PluginId: "plg-prev",
-		Source:   tmpZipGRPC(t, "v2"),
+		Source:   servedZip(t, "v2"),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -361,7 +346,7 @@ func TestApplyPluginUpdate_HashMismatch(t *testing.T) {
 
 	_, err := h.ApplyPluginUpdate(ctx, &eveyv1.ApplyPluginUpdateRequest{
 		PluginId:         "plg-apply",
-		Source:           tmpZipGRPC(t, "v2"),
+		Source:           servedZip(t, "v2"),
 		AcknowledgedHash: strings.Repeat("0", 64),
 	})
 	if code := status.Code(err); code != codes.Aborted {
@@ -377,7 +362,7 @@ func TestApplyPluginUpdate_NotFound(t *testing.T) {
 	}
 	_, err := h.ApplyPluginUpdate(context.Background(), &eveyv1.ApplyPluginUpdateRequest{
 		PluginId:         "plg-ghost",
-		Source:           tmpZipGRPC(t, "v"),
+		Source:           servedZip(t, "v"),
 		AcknowledgedHash: strings.Repeat("a", 64),
 	})
 	if code := status.Code(err); code != codes.NotFound {
@@ -424,4 +409,57 @@ func TestGetPluginLogs_StillReadsARealPluginLog(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.NotEmpty(t, resp.Entries, "a legitimate plugin id must still return its log")
+}
+
+// A forced update to code the analysis blocks is the caller's problem and says
+// why, like an install does - it used to come back as a bare internal error.
+func TestApplyPluginUpdate_BlockedCodeSaysWhy(t *testing.T) {
+	repo := pluginfakes.NewFakePluginRepository()
+	runner := pluginfakes.NewFakePluginRunner()
+	parser := pluginfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	analyzer := pluginfakes.NewFakePluginAnalyzer()
+	analyzer.Report = &plugindomain.AnalysisReport{Safe: false, Issues: []string{"[CRITICAL] main.py:3 - shell command execution (os.system)"},
+		Categories: []string{"shell_exec"}}
+	svc := appplugin.NewInstallerService(repo, runner, parser, bus,
+		appplugin.InstallerWithInstaller(pluginfakes.NewFakePluginInstaller()),
+		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithPluginDir(t.TempDir()),
+		appplugin.InstallerWithFileSystem(pluginfakes.NewFakePluginFileSystem()),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
+	)
+	h := &adminPluginHandler{pluginInstaller: svc, enabled: true}
+	ctx := context.Background()
+	if err := repo.Create(ctx, &plugindomain.Plugin{ID: "plg-b", Name: "blocked", Version: "1.0.0",
+		Kind: plugindomain.KindPlugin, Language: "go", Entrypoint: "./p"}); err != nil {
+		t.Fatal(err)
+	}
+	parser.Result = &plugindomain.PluginManifest{Name: "blocked", Kind: plugindomain.KindPlugin, Version: "2.0.0",
+		Language: "go", Entrypoint: "./p"}
+	src := servedZip(t, "evil")
+	preview, err := h.PreviewPluginUpdate(ctx, &eveyv1.PreviewPluginUpdateRequest{PluginId: "plg-b", Source: src})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	_, err = h.ApplyPluginUpdate(ctx, &eveyv1.ApplyPluginUpdateRequest{PluginId: "plg-b", Source: src, AcknowledgedHash: preview.SourceHash})
+	if code := status.Code(err); code != codes.PermissionDenied {
+		t.Fatalf("code = %v (%v), want PermissionDenied", code, err)
+	}
+	if !strings.Contains(status.Convert(err).Message(), "plugin blocked") {
+		t.Errorf("message %q does not say why", status.Convert(err).Message())
+	}
+}
+
+// An unreachable candidate is said as such, not as a server fault.
+func TestPreviewPluginUpdate_UnreachableSourceIsFailedPrecondition(t *testing.T) {
+	h, repo, _ := newUpdateTestHandler(t)
+	ctx := context.Background()
+	if err := repo.Create(ctx, &plugindomain.Plugin{ID: "plg-u", Name: "u", Version: "1.0.0",
+		Kind: plugindomain.KindPlugin, Language: "go", Entrypoint: "./p"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.PreviewPluginUpdate(ctx, &eveyv1.PreviewPluginUpdateRequest{PluginId: "plg-u", Source: "https://127.0.0.1:1/p.zip"})
+	if code := status.Code(err); code != codes.FailedPrecondition {
+		t.Fatalf("code = %v (%v), want FailedPrecondition", code, err)
+	}
 }

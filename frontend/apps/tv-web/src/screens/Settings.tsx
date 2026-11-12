@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAdminSystemServiceGetSystemInfo, useUserServiceGetCurrentUser, useUserServiceUpdateProfile } from "@evey/api";
 import { useAuthStore, useThemeStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes } from "@evey/theme";
-import { UI_SCALE_OPTIONS, clearUnlocked, pluginThemeKey, resolveSlotEntries, useActiveProfile, usePluginList, usePluginThemes, wikiUrl } from "@evey/client";
+import { UI_SCALE_OPTIONS, clearUnlocked, pluginThemeKey, pluginThemeLabel, resolveSlotEntries, useActiveProfile, usePluginList, usePluginThemes, wikiUrl } from "@evey/client";
 import { applyUiScale, storedUiScale } from "../lib/uiScale";
 import { FocusRoot, useBackHandler } from "../tv/focus";
 import { Pressable } from "../components/ui";
@@ -161,9 +161,10 @@ export function SettingsScreen() {
           })}
           {(pluginThemes ?? []).map((pt) => {
             const key = pluginThemeKey(pt.name);
+            const label = pluginThemeLabel(pt, i18n.language);
             return (
-              <SettingsRow key={key} label={t("mobile.settings.themeOptionA11y", { name: pt.name, defaultValue: `${pt.name} theme` })} checked={currentTheme === key} onPress={() => pickTheme(key, pt.id)}>
-                <span className="set-theme"><span className="set-swatch" style={{ background: pt.tokens?.["--accent"] ?? "var(--accent)" }} /><span className="set-label">{pt.name}</span></span>
+              <SettingsRow key={key} label={t("mobile.settings.themeOptionA11y", { name: label, defaultValue: `${label} theme` })} checked={currentTheme === key} onPress={() => pickTheme(key, pt.id)}>
+                <span className="set-theme"><span className="set-swatch" style={{ background: pt.tokens?.["--accent"] ?? "var(--accent)" }} /><span className="set-label">{label}</span></span>
               </SettingsRow>
             );
           })}

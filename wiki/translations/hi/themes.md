@@ -1,5 +1,5 @@
 ---
-source_sha: 53779971ebd8b5f41b11b97d89f9f1102e0d283c08d999b9cc028f3b92f630ca
+source_sha: c9ba18045bcbe3d08d580a1cbe44e2e75fa72e4dfd7da439e4833b40fb13734a
 reviewed: true
 ---
 # थीम
@@ -14,15 +14,22 @@ reviewed: true
 ## Manifest
 
 ```yaml title="plugin.yaml"
-name: aurora               # ज़रूरी; पढ़ने लायक नाम
+name: aurora               # ज़रूरी; अनोखा, kebab-case
 version: 1.0.0             # ज़रूरी; semver
 kind: theme                # ज़रूरी
 
+display_name:              # वैकल्पिक; थीम चुनने वाली जगह पर दिखने वाला नाम
+  en: Aurora
+  fr: Aurore
 description: "..."         # वैकल्पिक
 author: "..."              # वैकल्पिक
 
 # न language, न entrypoint, न permissions, न capabilities: वरना इंस्टॉल मना होता है
 ```
+
+थीम चुनने वाली जगह पर थीम का नाम `display_name` से आता है, इंटरफ़ेस की भाषा में,
+वह न हो तो अंग्रेज़ी में, और अगर manifest में यह नहीं है तो `name` दिखता है।
+एक अकेली स्ट्रिंग (`display_name: Aurora`) सभी भाषाओं के लिए चलती है।
 
 ZIP के root फ़ोल्डर में, manifest के बगल में, `theme.css` और/या `theme.js` होती है। जिस
 पैकेज में दोनों में से कोई नहीं, वह स्वीकार होता है पर कोई असर नहीं दिखता।

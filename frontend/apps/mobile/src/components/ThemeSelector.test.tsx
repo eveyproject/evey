@@ -11,7 +11,7 @@ vi.mock("react-native", () => ({
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, "aria-selected": String(!!accessibilityState?.selected) }, children),
   StyleSheet: { create: (s: any) => s },
 }));
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (_k: string, f?: string) => (typeof f === "string" ? f : _k) }) }));
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (_k: string, f?: string) => (typeof f === "string" ? f : _k), i18n: { language: "fr" } }) }));
 vi.mock("../providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { accent: "#f00", surfaceRaised: "#222", border: "#333", text: "#fff", onAccent: "#000" }, spacing: { xs: 4, sm: 8, md: 12 }, radii: { md: 8 } }),
 }));
@@ -62,6 +62,15 @@ describe("ThemeSelector", () => {
     expect(screen.getByLabelText("Dark").getAttribute("aria-selected")).toBe("true");
     expect(screen.getByLabelText("AMOLED").getAttribute("aria-selected")).toBe("false");
     await waitFor(() => expect(store.applyFromPreferences).toHaveBeenCalledWith({ theme: "default", audio: "fr" }));
+  });
+
+  // A plugin theme shows its display name in the interface language, and the
+  // stored choice keeps the plugin's name: renaming the label moves nothing.
+  it("labels a plugin theme with its display name", async () => {
+    api.fetch.mockResolvedValue({ themes: [{ id: "plg-2", name: "dark-blue", displayName: { en: "Dark Blue", fr: "Bleu sombre" } }] });
+    mount();
+    fireEvent.click(await screen.findByLabelText("Bleu sombre"));
+    expect(store.setTheme).toHaveBeenCalledWith("plugin:dark-blue", "plg-2");
   });
 
   it("a pick applies locally and merges into the active profile's preferences", async () => {

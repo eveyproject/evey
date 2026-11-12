@@ -44,6 +44,8 @@ export function useRelativeTime() {
 // anything about a title opens it.
 export function notificationUrl(n: { type?: string; mediaItemId?: string }): string | undefined {
   if (n.type === "media_request") return "/admin/media-requests";
+  // A plugin release that did not install on its own waits on the plugins page.
+  if (n.type === "plugin_update_held" || n.type === "plugin_update_refused") return "/admin/plugins";
   // The answer to a request leads to the requester's own list, where the
   // operator's full note and the request's details are.
   if (n.type === "request_answered") return "/requests";

@@ -53,7 +53,7 @@ describe("PluginUpdateDialog", () => {
       <PluginUpdateDialog
         pluginId="p1"
         pluginName="My Plugin"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -67,7 +67,7 @@ describe("PluginUpdateDialog", () => {
       <PluginUpdateDialog
         pluginId="p1"
         pluginName="My Plugin"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -82,7 +82,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -97,7 +97,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -112,7 +112,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -131,7 +131,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -140,12 +140,28 @@ describe("PluginUpdateDialog", () => {
     expect(screen.getByTestId("apply-button")).toBeDisabled();
   });
 
+  // A release that changes what the plugin is (a theme turned plugin) asks for
+  // nothing new in the permission lists, yet it must be shown and acknowledged.
+  it("a change of kind is shown and needs the admin's acknowledgement", async () => {
+    mockEveyFetch.mockResolvedValueOnce({ ...safePreview, requiresAck: true, kindChange: "theme -> plugin", languageChange: "none -> nodejs" });
+    render(
+      <PluginUpdateDialog pluginId="p1" source="https://example.com/plugin.zip" onClose={vi.fn()} onApplied={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByTestId("banner-nature-change")).toBeInTheDocument());
+    expect(screen.getByTestId("banner-nature-change")).toHaveTextContent("theme -> plugin");
+    expect(screen.getByTestId("banner-nature-change")).toHaveTextContent("none -> nodejs");
+    expect(screen.getByTestId("banner-requires-ack")).toBeInTheDocument();
+    expect(screen.getByTestId("apply-button")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("ack-checkbox"));
+    expect(screen.getByTestId("apply-button")).not.toBeDisabled();
+  });
+
   it("Apply button becomes enabled after checking ack checkbox", async () => {
     mockEveyFetch.mockResolvedValueOnce(defaultPreview);
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -166,7 +182,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={onClose}
         onApplied={onApplied}
       />,
@@ -195,7 +211,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -220,7 +236,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -256,7 +272,7 @@ describe("PluginUpdateDialog", () => {
     render(
       <PluginUpdateDialog
         pluginId="p1"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={onClose}
         onApplied={vi.fn()}
       />,
@@ -278,7 +294,7 @@ describe("PluginUpdateDialog", () => {
       <PluginUpdateDialog
         pluginId="p1"
         pluginName="My Plugin"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,
@@ -302,7 +318,7 @@ describe("PluginUpdateDialog", () => {
       <PluginUpdateDialog
         pluginId="p1"
         pluginName="My Plugin"
-        source="/path/to/plugin.zip"
+        source="https://example.com/plugin.zip"
         onClose={vi.fn()}
         onApplied={vi.fn()}
       />,

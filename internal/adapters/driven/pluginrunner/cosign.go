@@ -64,9 +64,9 @@ func (v *CosignVerifier) VerifySignature(ctx context.Context, zipPath, sigPath s
 	if v.policy == "enforce" {
 		switch {
 		case !status.Verified:
-			return status, fmt.Errorf("plugin signature verification failed: %s", status.Error)
+			return status, fmt.Errorf("%w: %s", domainplugin.ErrSignatureRefused, status.Error)
 		case !status.Trusted:
-			return status, fmt.Errorf("plugin signature verification failed: signing key %s is not a trusted publisher", status.KeyFingerprint)
+			return status, fmt.Errorf("%w: signing key %s is not a trusted publisher", domainplugin.ErrSignatureRefused, status.KeyFingerprint)
 		}
 	}
 	return status, nil

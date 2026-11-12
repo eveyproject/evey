@@ -166,7 +166,28 @@ plugin:
   uninstall: Uninstall
   update: "Update from source…"
   previewUpdate: Preview
-  updateSourceLabel: Source ZIP (path or URL)
+  updateSourceLabel: "Source: https link to the ZIP, or the repository link"
+  autoUpdate:
+    title: "Updates"
+    repository: "Repository"
+    repositoryNone: "This plugin follows no repository."
+    edit: "Change"
+    toggle: "Automatic updates"
+    toggleHint: "A new release installs on its own when it asks for nothing new: no new permission, capability, slot or host, no new kind of analysis warning, and the same signing key. Anything else waits for you, and code the analysis refuses is never installed."
+    checkNow: "Check now"
+    checking: "Checking…"
+    checkedAt: "checked {{when}}"
+    neverChecked: "Not checked yet"
+    review: "Review"
+    saved: "Update settings saved"
+    saveFailed: "Failed to save the update settings"
+    checkFailed: "The check failed"
+    outcome:
+      upToDate: "Up to date ({{version}})"
+      applied: "Version {{version}} installed automatically"
+      held: "Version {{version}} awaits your approval"
+      refused: "Version {{version}} refused"
+      failed: "The check failed"
   configuration: Configuration
   noConfig: No config keys defined.
   configSaved: Config saved
@@ -199,6 +220,8 @@ plugin:
     hashMismatch: The candidate hash no longer matches - refresh the preview
     bannerRequiresAck: This update requests new permissions - review before applying
     bannerSafe: No permission changes - safe update
+    kindChange: "This update changes what the plugin is: {{change}}. A theme that becomes a plugin runs a process on the server; a plugin that becomes a theme runs script in every page."
+    languageChange: "This update changes the plugin's language: {{change}}."
     tabSlots: Slots
     tabExternalFetch: External calls
     tabFindings: Findings
@@ -267,12 +290,13 @@ plugins:
   uploadFile: Upload File
   fromUrl: From URL
   installFromUrl: Install from URL
-  installFromUrlHint: "Paste a plugin .zip URL - optionally append #sha256:<hash> to verify the download."
+  installFromUrlHint: "Paste the https link of a plugin .zip - optionally append #sha256:<hash> to verify the download."
   chooseFile: "Choose file..."
   previewInstall: Preview & Install
   pluginFileZip: Plugin file (.zip)
   sigFileOptional: "Signature file (.zip.sig, optional)"
   sourceUrl: Source URL
+  repoLinkHint: "A GitHub repository link (https://github.com/owner/repo) installs its latest release, and the plugin then follows that repository: a signed release that asks for nothing new installs on its own, anything else waits for you. You can turn this off on the plugin's card."
   nameOptional: Name (optional)
   permissions: Permissions
   capabilities: Capabilities

@@ -53,7 +53,29 @@ func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {
 		pb.AnalysisReport = rep
 	}
 	pb.Signature = signatureToProto(p.Signature)
+	if len(p.DisplayName) > 0 {
+		pb.DisplayName = map[string]string(p.DisplayName)
+	}
+	pb.UpdateSource = p.UpdateSource
+	pb.AutoUpdate = p.AutoUpdate
+	pb.UpdateState = updateStateToProto(p.UpdateState)
 	return pb
+}
+
+// updateStateToProto maps the last check; nil before the first one.
+func updateStateToProto(st plugin.UpdateState) *eveyv1.PluginUpdateState {
+	if st.CheckedAt.IsZero() && st.Outcome == "" {
+		return nil
+	}
+	out := &eveyv1.PluginUpdateState{
+		LatestVersion: st.LatestVersion,
+		Outcome:       string(st.Outcome),
+		Reason:        st.Reason,
+	}
+	if !st.CheckedAt.IsZero() {
+		out.CheckedAt = toTimestamppb(st.CheckedAt)
+	}
+	return out
 }
 
 // signatureToProto maps a signature verdict; nil (policy off) stays nil.

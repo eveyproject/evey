@@ -346,16 +346,17 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 	}
 
 	type themeEntry struct {
-		ID     string            `json:"id"`
-		Name   string            `json:"name"`
-		Tokens map[string]string `json:"tokens,omitempty"`
+		ID          string                   `json:"id"`
+		Name        string                   `json:"name"`
+		DisplayName domainplugin.DisplayName `json:"displayName,omitempty"`
+		Tokens      map[string]string        `json:"tokens,omitempty"`
 	}
 	var result []themeEntry
 	for _, p := range plugins {
 		if !p.Enabled || !p.IsTheme() {
 			continue
 		}
-		entry := themeEntry{ID: p.ID, Name: p.Name}
+		entry := themeEntry{ID: p.ID, Name: p.Name, DisplayName: p.DisplayName}
 		// Parse :root { --X: Y; ... } from theme.css so mobile clients (which
 		// can't apply CSS) get a JSON token map to feed their native theme
 		// provider. Web ignores this field and keeps loading theme.css.
@@ -593,7 +594,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		ClearBodyReadDeadline(w)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
 
-		// JSON body {"source": ...} = preview an install source (URL or path)
+		// JSON body {"source": ...} = preview an install source (an https link)
 		// instead of an uploaded file. Install-from-URL used to skip the
 		// preview entirely, so warnings and outbound URLs were only visible
 		// once the plugin was already running.
@@ -604,6 +605,16 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 			if decErr := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body); decErr != nil || strings.TrimSpace(body.Source) == "" {
 				span.SetStatus(otelcodes.Error, "plugin source required")
 				http.Error(w, `{"message":"plugin source required"}`, http.StatusBadRequest)
+				return
+			}
+			// Only an https link: a path on the server is not the admin's to name.
+			if srcErr := appplugin.CheckRequestedSource(body.Source); srcErr != nil {
+				span.SetStatus(otelcodes.Error, "plugin source refused")
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				if encErr := json.NewEncoder(w).Encode(map[string]string{"message": srcErr.Error()}); encErr != nil {
+					slog.WarnContext(ctx, "encode plugin source error", slog.Any("err", encErr))
+				}
 				return
 			}
 			preview, previewErr := svc.PreviewSource(r.Context(), strings.TrimSpace(body.Source))
@@ -736,27 +747,31 @@ func writePluginPreview(ctx context.Context, w http.ResponseWriter, preview *app
 	}
 
 	resp := struct {
-		Name         string         `json:"name"`
-		Version      string         `json:"version"`
-		Description  string         `json:"description"`
-		Author       string         `json:"author"`
-		Language     string         `json:"language"`
-		Entrypoint   string         `json:"entrypoint"`
-		Permissions  []string       `json:"permissions"`
-		Capabilities []string       `json:"capabilities"`
-		SourceHash   string         `json:"source_hash"`
-		Analysis     *analysisResp  `json:"analysis,omitempty"`
-		Signature    *signatureResp `json:"signature,omitempty"`
+		Name         string   `json:"name"`
+		Version      string   `json:"version"`
+		Description  string   `json:"description"`
+		Author       string   `json:"author"`
+		Language     string   `json:"language"`
+		Entrypoint   string   `json:"entrypoint"`
+		Permissions  []string `json:"permissions"`
+		Capabilities []string `json:"capabilities"`
+		SourceHash   string   `json:"source_hash"`
+		// ResolvedSource is what the install must be sent to get the bytes
+		// previewed (the downloaded URL pinned to their sha256).
+		ResolvedSource string         `json:"resolved_source,omitempty"`
+		Analysis       *analysisResp  `json:"analysis,omitempty"`
+		Signature      *signatureResp `json:"signature,omitempty"`
 	}{
-		Name:         preview.Name,
-		Version:      preview.Version,
-		Description:  preview.Description,
-		Author:       preview.Author,
-		Language:     preview.Language,
-		Entrypoint:   preview.Entrypoint,
-		Permissions:  perms,
-		Capabilities: caps,
-		SourceHash:   preview.SourceHash,
+		Name:           preview.Name,
+		Version:        preview.Version,
+		Description:    preview.Description,
+		Author:         preview.Author,
+		Language:       preview.Language,
+		Entrypoint:     preview.Entrypoint,
+		Permissions:    perms,
+		Capabilities:   caps,
+		SourceHash:     preview.SourceHash,
+		ResolvedSource: preview.ResolvedSource,
 	}
 
 	if sig := preview.Signature; sig != nil {

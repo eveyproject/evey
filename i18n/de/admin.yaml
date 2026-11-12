@@ -166,7 +166,28 @@ plugin:
   uninstall: Deinstallieren
   update: "Aus Quelle aktualisieren …"
   previewUpdate: Vorschau
-  updateSourceLabel: Quell-ZIP (Pfad oder URL)
+  updateSourceLabel: "Quelle: https-Link zum ZIP oder zum Repository"
+  autoUpdate:
+    title: "Updates"
+    repository: "Repository"
+    repositoryNone: "Dieses Plugin folgt keinem Repository."
+    edit: "Ändern"
+    toggle: "Automatische Updates"
+    toggleHint: "Eine neue Version installiert sich selbst, wenn sie nichts Neues verlangt: keine neue Berechtigung, Fähigkeit, Anzeigefläche oder Host, keine neue Art von Analysewarnung und derselbe Signaturschlüssel. Alles andere wartet auf Sie, und Code, den die Analyse ablehnt, wird nie installiert."
+    checkNow: "Jetzt prüfen"
+    checking: "Wird geprüft…"
+    checkedAt: "geprüft am {{when}}"
+    neverChecked: "Noch nicht geprüft"
+    review: "Prüfen"
+    saved: "Update-Einstellungen gespeichert"
+    saveFailed: "Update-Einstellungen konnten nicht gespeichert werden"
+    checkFailed: "Die Prüfung ist fehlgeschlagen"
+    outcome:
+      upToDate: "Aktuell ({{version}})"
+      applied: "Version {{version}} automatisch installiert"
+      held: "Version {{version}} wartet auf Ihre Freigabe"
+      refused: "Version {{version}} abgelehnt"
+      failed: "Die Prüfung ist fehlgeschlagen"
   configuration: Konfiguration
   noConfig: Keine Konfigurationsschlüssel definiert.
   configSaved: Konfiguration gespeichert
@@ -199,6 +220,8 @@ plugin:
     hashMismatch: "Der Hash des Kandidaten stimmt nicht mehr überein - Vorschau aktualisieren"
     bannerRequiresAck: "Diese Aktualisierung fordert neue Berechtigungen an - vor dem Anwenden prüfen"
     bannerSafe: "Keine Berechtigungsänderung - sichere Aktualisierung"
+    kindChange: "Dieses Update ändert, was das Plugin ist: {{change}}. Ein Theme, das zum Plugin wird, startet einen Prozess auf dem Server; ein Plugin, das zum Theme wird, führt Skript in jeder Seite aus."
+    languageChange: "Dieses Update ändert die Sprache des Plugins: {{change}}."
     tabSlots: Slots
     tabExternalFetch: "Externe Aufrufe"
     tabFindings: Befunde
@@ -278,12 +301,13 @@ plugins:
   uploadFile: Datei hochladen
   fromUrl: Von URL
   installFromUrl: Von URL installieren
-  installFromUrlHint: "Fügen Sie die URL eines Plugin-.zip ein - optional #sha256:<hash> anhängen, um den Download zu verifizieren."
+  installFromUrlHint: "Fügen Sie den https-Link eines Plugin-.zip ein - optional #sha256:<hash> anhängen, um den Download zu verifizieren."
   chooseFile: "Datei auswählen..."
   previewInstall: Vorschau & Installieren
   pluginFileZip: Plugin-Datei (.zip)
   sigFileOptional: "Signaturdatei (.zip.sig, optional)"
   sourceUrl: Quell-URL
+  repoLinkHint: "Ein GitHub-Repository-Link (https://github.com/owner/repo) installiert dessen neuestes Release, und das Plugin folgt danach diesem Repository: Ein signiertes Release, das nichts Neues verlangt, installiert sich selbst, alles andere wartet auf Sie. Sie können das auf der Karte des Plugins ausschalten."
   nameOptional: Name (optional)
   permissions: Berechtigungen
   capabilities: Fähigkeiten

@@ -1,5 +1,5 @@
 ---
-source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
+source_sha: eb74ee171e9411bc9b9f6cd25d7a873ba78a10c83fa82335cbfa41e930babd88
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -14,6 +14,9 @@ el servidor a un plugin, y lo que ese aislamiento no puede impedir, se explica e
 
 Un plugin se rechaza al instalarlo cuando:
 
+- su origen no es ni un ZIP subido ni un enlace `https://`: una ruta del
+  servidor y un enlace `http://` simple se rechazan (consulta
+  [De dónde viene el paquete](../SECURITY.md#where-the-package-comes-from));
 - falta `kind`, o no es ni `plugin` ni `theme`;
 - a un `kind: plugin` le falta `language` o `entrypoint`, o un `kind: theme`
   los declara, o declara `permissions` o `capabilities`;
@@ -165,6 +168,46 @@ método que ese token no nombre.
    válida en el paso de aplicar bloquea la actualización aunque la vista
    previa haya pasado.
 
+## Actualizaciones automáticas { #automatic-updates }
+
+Un plugin puede seguir el repositorio desde el que se instaló
+(`https://github.com/<owner>/<repo>`). Cada hora, el servidor lee la última
+release por la API de GitHub, descarga su zip una sola vez, juzga esos bytes e
+instala esos mismos bytes, por toda la cadena de instalación descrita arriba.
+
+- **Rechazada** cuando el análisis estático rechaza el código: un hallazgo
+  crítico, o un aviso que la propia instalación bloquea (`deserialization`,
+  `obfuscation`, `native_code` sin `native-binary`). Se notifica a los
+  administradores; no se instala nada.
+- **Retenida para un administrador** cuando la release pide un permiso, una
+  capacidad, una zona de visualización o un host `external_fetch` que la
+  versión instalada no tiene, trae un tipo de aviso del análisis que la
+  versión instalada no tenía, cambia el `kind` (tema y plugin) o el `language`, es una pre-release, está firmada con otra clave o ya no lo está, o
+  cuando la versión instalada no está firmada en absoluto, o cuando el
+  administrador desactivó las actualizaciones automáticas. Se notifica a los
+  administradores una vez por release.
+- **Aplicada** en cualquier otro caso. La versión debe ser superior, el zip
+  debe coincidir con el sha256 que publica la release, la release debe ser el
+  mismo plugin (el mismo `name`), y el zip debe venir de los propios archivos
+  de release del repositorio.
+
+La firma es lo que lo hace seguro: el análisis detecta patrones conocidos, no
+todo el código malicioso, así que una release que se instala sola debe estar
+firmada con la clave fijada al instalar el plugin. Quien se haga con el
+repositorio sin esa clave obtiene una release retenida, no una instalada.
+
+Otras tres protecciones rodean esa regla:
+
+- El repositorio se sigue por su identificador permanente de GitHub, no por
+  su nombre: un nombre que otro registra tras un cambio de nombre o un borrado no lleva a nada.
+- La instalación solo se hace sobre el plugin tal como se juzgó. Si un
+  administrador lo desinstala, lo actualiza, cambia su clave, el repositorio
+  que sigue o su interruptor mientras se juzga una release, no se instala
+  nada.
+- Una instalación desde un enlace de repositorio queda fijada a los bytes que
+  mostró la vista previa: la vista previa devuelve el enlace del zip de la
+  release con su sha256, y es lo que recibe la instalación.
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -177,4 +220,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories, checkUpdateExpectation ; update.go - KindChange, LanguageChange ; preview.go - ResolvedSource ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->
