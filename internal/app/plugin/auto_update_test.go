@@ -55,6 +55,7 @@ type autoRig struct {
 	srv      *httptest.Server
 	dir      string
 	key      signer
+	keyring  *appplugin.TrustedPublisherService
 }
 
 func newAutoRig(t *testing.T, policy string) *autoRig {
@@ -79,7 +80,7 @@ func newAutoRig(t *testing.T, policy string) *autoRig {
 		appplugin.InstallerWithReleaseSource(releases),
 	)
 	return &autoRig{svc: svc, upd: appplugin.NewAutoUpdater(svc), plugins: plugins, parser: parser,
-		analyzer: analyzer, bus: bus, releases: releases, srv: srv, dir: dir, key: newSigner(t)}
+		analyzer: analyzer, bus: bus, releases: releases, srv: srv, dir: dir, key: newSigner(t), keyring: keyring}
 }
 
 // signed builds a package signed with the rig's key, the publisher's.
@@ -416,4 +417,37 @@ func TestAutoUpdate_WithVerificationOffNothingUpdatesOnItsOwn(t *testing.T) {
 	p := rig.installFromRepo(t, &rig.key)
 	rig.publish(t, goManifestVersioned("thing", "1.0.1"), rig.signed(t, "v101"))
 	assert.Equal(t, plugindomain.UpdateHeld, rig.check(t, p.ID).Outcome)
+}
+
+// A key pinned while verification was on keeps guarding the plugin after an
+// admin turns verification off: an unsigned release still waits.
+func TestAutoUpdate_APinnedKeyStillGuardsWithVerificationOff(t *testing.T) {
+	rig := newAutoRig(t, "off")
+	p := rig.installFromRepo(t, &rig.key)
+	stored := rig.stored(t, p.ID)
+	stored.PublisherKeyFingerprint, stored.PublisherKeyPEM = rig.key.fingerprint, rig.key.pem
+	require.NoError(t, rig.plugins.Update(context.Background(), stored))
+
+	rig.publish(t, goManifestVersioned("thing", "1.0.1"), pkg(t, nil, "v101"))
+	st := rig.check(t, p.ID)
+	assert.Equal(t, plugindomain.UpdateHeld, st.Outcome)
+	assert.Contains(t, st.Reason, "no longer validly signed")
+	assert.Equal(t, "1.0.0", rig.stored(t, p.ID).Version)
+}
+
+// Under enforce, a release signed by a key that is no longer trusted waits for
+// the admin: it is a matter of trust, not malicious code, so it must not be
+// reported as refused.
+func TestAutoUpdate_AnUntrustedKeyUnderEnforceIsHeldNotRefused(t *testing.T) {
+	rig := newAutoRig(t, "enforce")
+	_, err := rig.keyring.AddByPEM(context.Background(), "Acme", rig.key.pem)
+	require.NoError(t, err)
+	p := rig.installFromRepo(t, &rig.key)
+	require.NoError(t, rig.keyring.Remove(context.Background(), rig.key.fingerprint))
+
+	rig.publish(t, goManifestVersioned("thing", "1.0.1"), rig.signed(t, "v101"))
+	st := rig.check(t, p.ID)
+	assert.Equal(t, plugindomain.UpdateHeld, st.Outcome, st.Reason)
+	assert.Contains(t, st.Reason, "not a trusted publisher")
+	assert.Equal(t, "1.0.0", rig.stored(t, p.ID).Version)
 }
