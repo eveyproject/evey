@@ -69,7 +69,7 @@ func startBwrapSleeperNoWait(t *testing.T, id string) (*Runner, *processEntry) {
 // bubblewrap: the process running the plugin code (the PID the host socket
 // authenticates and the resource monitor samples) is bwrap's direct child,
 // with no reaper in between, still in bwrap's process group so Stop/Kill
-// reach it, and without bwrap's --info-fd leaked into it.
+// reach it, and without bwrap's --info-fd pipe leaked into it.
 func TestBwrapStart_PayloadIsTheSandboxedChild(t *testing.T) {
 	_, e := startBwrapSleeper(t, "bwrap-payload")
 	bwrapPID := e.cmd.Process.Pid
@@ -82,8 +82,22 @@ func TestBwrapStart_PayloadIsTheSandboxedChild(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, bwrapPID, pgid, "the plugin must stay in the group Stop/Kill signal")
 
-	_, err = os.Readlink("/proc/" + strconv.Itoa(e.payloadPID) + "/fd/3")
-	assert.ErrorIs(t, err, os.ErrNotExist, "bwrap's --info-fd must not reach the plugin (fd 3: %v)", err)
+	// The plugin's own startup opens files on fd 3 and up (the dynamic loader,
+	// locale data), so an open fd 3 proves nothing: the leak would be the info
+	// pipe, and the plugin never holds a pipe past stdout and stderr.
+	fdDir := "/proc/" + strconv.Itoa(e.payloadPID) + "/fd"
+	fds, err := os.ReadDir(fdDir)
+	require.NoError(t, err)
+	for _, fd := range fds {
+		if n, convErr := strconv.Atoi(fd.Name()); convErr != nil || n <= 2 {
+			continue
+		}
+		target, readErr := os.Readlink(filepath.Join(fdDir, fd.Name()))
+		if readErr != nil {
+			continue // closed since the listing
+		}
+		assert.False(t, strings.HasPrefix(target, "pipe:"), "bwrap's --info-fd must not reach the plugin (fd %s: %s)", fd.Name(), target)
+	}
 }
 
 func TestBwrapKill_ReachesThePayload(t *testing.T) {
