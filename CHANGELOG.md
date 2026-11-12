@@ -7,6 +7,56 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-12
+
+Server image `eveyproject/evey:0.1.6` (also `0.1` and `latest`). The phone
+fixes below ship with the next app build.
+
+### Upgrade notes
+- Migrations 000194 and 000195, both additive with constant defaults
+  (plugin `display_name`, and the columns a plugin follows its repository
+  with).
+- A plugin installed before this version follows no repository: install it
+  again from its `https://github.com/<owner>/<repo>` link to get automatic
+  updates.
+- A plugin source given through the API is now an `https://` link or an
+  uploaded archive only: plain `http://`, a redirect to `http://` and a path
+  on the server are refused, and the download ignores any proxy set in the
+  environment.
+
+### Added
+- Plugins follow the GitHub repository they were installed from, by its
+  permanent id. Every hour a newer release installs on its own when it is
+  signed by the key pinned at install and asks for nothing new (no new
+  permission, capability, slot or host, no new kind of analysis warning,
+  same kind and language, not a pre-release). Otherwise it is held for an
+  admin, or refused when the analysis refuses the code; admins are notified
+  either way. An unsigned plugin never updates on its own. The plugin card
+  has an Updates section with an Automatic updates switch and Check now.
+- A plugin manifest can carry a `display_name`, one string or one per
+  language, which labels a theme in the picker.
+- Every account and profile change lands in the audit log, refused ones
+  too, with the field names and the refusal, never a value.
+- Mobile: an eye on the account password fields shows what was typed.
+
+### Fixed
+- An account edit with an e-mail the server refuses answered a 500 and lost
+  the password change made in the same save. Edits now name the refused
+  field, are all or nothing, and a password change never depends on the
+  e-mail. Mobile: one message per failed save, and autofill no longer puts
+  the login in the e-mail field.
+- A file with an audio track the client cannot decode next to the one it
+  plays is no longer served raw: a phone direct-playing an MKV with a DTS
+  track could fail at the first frame.
+- A finished title played again comes back on the resume rail while short
+  of its end.
+- Python plugins crashed at start since their SDK stubs were generated for
+  a newer protobuf than the image ships; they start again.
+- A plugin update refused for its code or its source says why instead of an
+  internal error.
+- Security: Go 1.27.4 toolchain (GO-2026-6859 in net/http) and node-forge
+  1.4.3 in the app tooling.
+
 ## [0.1.5] - 2026-11-10
 
 Hotfix on top of 0.1.4. Server image `eveyproject/evey:0.1.5` (also `0.1`
