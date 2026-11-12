@@ -166,7 +166,7 @@ plugin:
   uninstall: Uninstall
   update: "Update from source…"
   previewUpdate: Preview
-  updateSourceLabel: Source: https link to the ZIP, or the repository link
+  updateSourceLabel: "Source: https link to the ZIP, or the repository link"
   autoUpdate:
     title: "Updates"
     repository: "Repository"
