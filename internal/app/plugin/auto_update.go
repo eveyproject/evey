@@ -230,6 +230,11 @@ func (s *InstallerService) updateFromRelease(ctx context.Context, existing *plug
 	}
 
 	if _, err := s.installLocalZip(ctx, localPath, hash); err != nil {
+		// A key the enforce policy no longer trusts is the admin's to settle;
+		// it says nothing about the code, so it is held, never "refused".
+		if errors.Is(err, plugin.ErrSignatureRefused) {
+			return plugin.UpdateHeld, err.Error()
+		}
 		var blocked *PluginBlockedError
 		if errors.As(err, &blocked) || strings.Contains(err.Error(), "plugin blocked") {
 			return plugin.UpdateRefused, err.Error()

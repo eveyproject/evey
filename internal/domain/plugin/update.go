@@ -61,6 +61,11 @@ type ReleaseSource interface {
 	Latest(ctx context.Context, repo string) (*Release, error)
 }
 
+// ErrSignatureRefused: under the enforce policy, the package is not validly
+// signed by a trusted publisher. A matter of trust for an admin to settle, not
+// a verdict on the code.
+var ErrSignatureRefused = errors.New("plugin signature verification failed")
+
 // ErrUnsupportedRepository: the link is not one the server can follow.
 var ErrUnsupportedRepository = errors.New("plugin repository: only https://github.com/<owner>/<repo> links are supported")
 
