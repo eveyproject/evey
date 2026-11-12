@@ -81,7 +81,7 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 	localPath, fragmentHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
-		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
+		return nil, fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, dlErr)
 	}
 
 	freshHash, hashErr := hashFile(localPath)

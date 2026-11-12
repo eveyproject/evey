@@ -521,7 +521,9 @@ func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv
 		if errors.Is(err, appplugin.ErrPluginNotFound) {
 			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		}
-		return nil, internalError(ctx, "preview update", err)
+		// A refused candidate (unreachable, not a plugin, blocked) is the
+		// caller's to fix and says why; only a server fault stays opaque.
+		return nil, d.installPluginError(ctx, err)
 	}
 	resp := &eveyv1.PreviewPluginUpdateResponse{
 		CurrentVersion:       preview.CurrentVersion,
@@ -579,10 +581,12 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 			return nil, d.translator.TranslatedError(ctx, codes.Aborted, "errors.plugin.candidate_changed")
 		case errors.Is(err, appplugin.ErrPublisherChanged):
 			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.publisher_changed")
-		case errors.Is(err, appplugin.ErrSignatureLost):
-			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.signature_lost")
+		case errors.Is(err, appplugin.ErrPluginPermissionEscalation):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		default:
-			return nil, internalError(ctx, "apply update", err)
+			// Blocked code, an unreachable or invalid candidate: said with its
+			// reason, as an install says it; only a server fault stays opaque.
+			return nil, d.installPluginError(ctx, err)
 		}
 	}
 	return pluginToProto(d.withLiveTrust(ctx, p)), nil
