@@ -235,6 +235,10 @@ rules are in [Permissions and slots](security-model.md#external-fetch-rules).
 You need [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) on your
 machine only.
 
+Use cosign 2: cosign 3 refuses `--tlog-upload=false` without a signing
+configuration, and the commands below are the ones Evey's format is checked
+against.
+
 1. **Once: generate a key pair.**
 
     ```sh
@@ -356,19 +360,38 @@ administrator which to pick.
 
 ## 10. Distribute a plugin
 
-There is no catalog: an administrator installs a plugin by uploading its ZIP
-or pasting its URL in the admin panel, from wherever you publish it (a release
-on a forge, your own site).
+There is no catalog. Publish the plugin as releases of its own GitHub
+repository: an administrator then installs it by pasting the repository link,
+`https://github.com/<owner>/<repo>`, and the plugin follows the repository for
+its updates ([Automatic updates](../plugins.md#automatic-updates)). A ZIP
+uploaded or linked from anywhere else installs too, but follows nothing.
 
-- Ship the ZIP, its `.sig` and your `cosign.pub` together (section 7).
+- Name the repository `evey-plugin-<name>`, or `evey-theme-<name>` for a
+  theme: a search on those prefixes finds every plugin.
+- Tag each release `v` + the manifest's `version`, and attach exactly one
+  `.zip`, its `.sig` (section 7) and its `.sha256` (`sha256sum` output). When
+  there is no `.sha256`, the digest GitHub publishes for the asset is used.
+- Keep the manifest's `name` from one release to the next: it is what an
+  update is matched on. `display_name` can change freely.
+- Sign every release with the same key. A release installs on its own only
+  when it is signed by the key Evey pinned at install and asks for nothing
+  new; an unsigned plugin always waits for the administrator.
+- A release that asks for a new permission, capability, slot or host waits for
+  the administrator's approval: say why in its notes. So does a release that
+  changes the manifest's `kind` or `language`, and a pre-release
+  (`1.2.0-beta.1`) never installs on its own.
+- Renaming or transferring the repository is fine: Evey follows it by its
+  permanent GitHub id.
 - State the permissions and the `external_fetch` hosts in your README: the
   administrator sees the permissions at install and the hosts at update and on
   the Security Dashboard, and has to approve them; a surprise
   there is the first reason an install is refused.
-- To have your plugin listed with the bundled examples, open a pull request
-  against `examples/plugins/` with the source and a README. Examples are
-  reviewed and built from source; a listing is not an endorsement and carries
-  no signature from the project.
+
+The Evey project's plugins publish this way, with a release workflow you can
+copy: [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather/blob/main/.github/workflows/release.yml)
+builds a reproducible ZIP, signs it with a key kept in the repository's
+secrets, and publishes the ZIP, the `.sig` and the `.sha256` when a version
+tag is pushed.
 
 ## 11. Troubleshooting
 
@@ -396,7 +419,8 @@ host RPC permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; 
 host RPCs: internal/adapters/driving/pluginhost/host_server.go - Log, GetConfig, SetConfig, GetData ; fetch.go - Fetch (GET/HEAD, maxFetchBytes, fetchTimeout)
 frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc ; internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy
 bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge
-cosign: internal/adapters/driven/pluginrunner/cosign.go - NewCosignVerifier, readPackageKey, verifyBlobSignature ; internal/config/config.go - CosignPolicy validation
+cosign: internal/adapters/driven/pluginrunner/cosign.go - NewCosignVerifier, readPackageKey, verifyBlobSignature ; cosign 3 vs --tlog-upload=false: release run of the project's plugin repositories (cosign-installer default) ;
+distribution, repository links: internal/app/plugin/install_source.go - resolveInstallSource ; internal/adapters/driven/pluginrelease/github.go - Latest (one .zip, .sha256 or asset digest) ; internal/app/plugin/auto_update.go ; internal/config/config.go - CosignPolicy validation
 install order: internal/app/plugin/install.go - installLocalZip, parseAndValidateManifest, resolveExistingPlugin, verifyPluginIntegrity, extractPluginToStaging, validateStagedPlugin, checkEscalatedWarnings, swapAndPersistPlugin ; update.go - ApplyUpdate ; zip limits: docs/SECURITY.md (ZIP extraction)
 resource limits: internal/config/config.go - Plugins ; internal/adapters/driven/pluginrunner/runner_resmon.go ; i18n admin.plugins.resourceLimits.*
 error texts: internal/adapters/driven/pluginrunner/manifest.go ; internal/domain/plugin/model.go ; internal/app/plugin/install.go ; cosign.go ; runner_resmon.go

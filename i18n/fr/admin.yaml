@@ -166,6 +166,27 @@ plugin:
   update: "Mettre à jour depuis la source…"
   previewUpdate: Aperçu
   updateSourceLabel: "ZIP source (chemin ou URL)"
+  autoUpdate:
+    title: "Mises à jour"
+    repository: "Dépôt"
+    repositoryNone: "Ce plugin ne suit aucun dépôt."
+    edit: "Modifier"
+    toggle: "Mise à jour automatique"
+    toggleHint: "Une nouvelle version s'installe seule quand elle ne demande rien de nouveau : aucune nouvelle permission, capacité, zone d'affichage ni hôte, aucun nouveau type d'alerte à l'analyse, et la même clé de signature. Tout le reste attend votre accord, et un code refusé par l'analyse n'est jamais installé."
+    checkNow: "Vérifier maintenant"
+    checking: "Vérification…"
+    checkedAt: "vérifié le {{when}}"
+    neverChecked: "Pas encore vérifié"
+    review: "Examiner"
+    saved: "Réglages de mise à jour enregistrés"
+    saveFailed: "Échec de l'enregistrement des réglages de mise à jour"
+    checkFailed: "La vérification a échoué"
+    outcome:
+      upToDate: "À jour ({{version}})"
+      applied: "Version {{version}} installée automatiquement"
+      held: "Version {{version}} en attente de votre accord"
+      refused: "Version {{version}} refusée"
+      failed: "La vérification a échoué"
   configuration: Configuration
   noConfig: Aucune clé de config définie.
   configSaved: Config enregistrée
@@ -198,6 +219,8 @@ plugin:
     hashMismatch: "Le hash du candidat ne correspond plus - actualisez la prévisualisation"
     bannerRequiresAck: "Cette mise à jour demande de nouvelles permissions - vérifiez avant d'appliquer"
     bannerSafe: "Aucun changement de permissions - mise à jour sûre"
+    kindChange: "Cette mise à jour change la nature du plugin : {{change}}. Un thème qui devient un plugin exécute un processus sur le serveur ; un plugin qui devient un thème exécute du script dans chaque page."
+    languageChange: "Cette mise à jour change le langage du plugin : {{change}}."
     tabSlots: "Slots"
     tabExternalFetch: "Appels externes"
     tabFindings: "Résultats de l'analyse"
@@ -283,6 +306,7 @@ plugins:
   pluginFileZip: "Fichier plugin (.zip)"
   sigFileOptional: "Fichier signature (.zip.sig, optionnel)"
   sourceUrl: "URL source"
+  repoLinkHint: "Un lien de dépôt GitHub (https://github.com/owner/repo) installe sa dernière release, puis le plugin suit ce dépôt : une release signée qui ne demande rien de nouveau s'installe seule, tout le reste attend votre accord. Vous pouvez le désactiver sur la carte du plugin."
   nameOptional: "Nom (optionnel)"
   permissions: "Permissions"
   capabilities: "Capacités"

@@ -395,3 +395,58 @@ func TestPluginRepo_DisplayName_RoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestPluginRepo_UpdateFollow_SurvivesAFullUpdate(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewPluginRepository(db)
+	ctx := context.Background()
+
+	p := newTestPlugin("plupd")
+	p.AutoUpdate = true
+	require.NoError(t, repo.Create(ctx, p))
+	got, err := repo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Empty(t, got.UpdateSource)
+	assert.True(t, got.AutoUpdate)
+	assert.True(t, got.UpdateState.CheckedAt.IsZero())
+
+	require.NoError(t, repo.SetUpdateFollow(ctx, p.ID, "https://github.com/acme/thing", 42, false))
+	state := plugin.UpdateState{CheckedAt: time.Now().UTC().Truncate(time.Second), LatestVersion: "1.0.1",
+		Outcome: plugin.UpdateHeld, Reason: "new entries requested: permission:network", Notified: "1.0.1/held"}
+	require.NoError(t, repo.SetUpdateState(ctx, p.ID, state))
+
+	// An upgrade rewrites the row from the new manifest, whose record carries
+	// the defaults: the admin's choice and the last check must survive it.
+	upgraded := newTestPlugin("plupd")
+	upgraded.Version = "2.0.0"
+	upgraded.AutoUpdate = true
+	require.NoError(t, repo.Update(ctx, upgraded))
+
+	for _, read := range []func() (*plugin.Plugin, error){
+		func() (*plugin.Plugin, error) { return repo.GetByID(ctx, p.ID) },
+		func() (*plugin.Plugin, error) {
+			list, listErr := repo.List(ctx)
+			if listErr != nil {
+				return nil, listErr
+			}
+			for _, x := range list {
+				if x.ID == p.ID {
+					return x, nil
+				}
+			}
+			return nil, shared.ErrNotFound
+		},
+	} {
+		got, err = read()
+		require.NoError(t, err)
+		assert.Equal(t, "2.0.0", got.Version)
+		assert.Equal(t, "https://github.com/acme/thing", got.UpdateSource)
+		assert.Equal(t, int64(42), got.UpdateSourceID, "the repository's permanent id survives the upgrade")
+		assert.False(t, got.AutoUpdate, "the admin turned automatic updates off; an upgrade does not turn them back on")
+		assert.Equal(t, state, got.UpdateState)
+	}
+
+	require.ErrorIs(t, repo.SetUpdateFollow(ctx, "nope", "", 0, true), shared.ErrNotFound)
+	require.ErrorIs(t, repo.SetUpdateState(ctx, "nope", plugin.UpdateState{}), shared.ErrNotFound)
+}

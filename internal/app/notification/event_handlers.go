@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/backup"
@@ -124,6 +125,54 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 	slog.InfoContext(ctx, "plugin error notified",
 		slog.String("plugin_id", e.PluginID),
 		slog.Int("admins", len(profiles)))
+}
+
+// handlePluginUpdateAttention pages the admins about a release of a followed
+// plugin that did not install on its own: held for their approval, or refused.
+// The subject is "<plugin> <version>", worded by the client; the message is
+// the reason, as the server wrote it.
+func (s *CommandService) handlePluginUpdateAttention(parentCtx context.Context, ev shared.Event) {
+	defer func() {
+		if rv := recover(); rv != nil {
+			slog.ErrorContext(parentCtx, "handlePluginUpdateAttention panic recovered", slog.Any("panic", rv))
+		}
+	}()
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+	e, ok := ev.(plugin.PluginUpdateAttention)
+	if !ok {
+		return
+	}
+	typ, title, key := notification.TypePluginUpdateHeld, "Plugin update awaiting approval: ", "notifications.push.plugin_update_held.title"
+	if e.Outcome == plugin.UpdateRefused {
+		typ, title, key = notification.TypePluginUpdateRefused, "Plugin update refused: ", "notifications.push.plugin_update_refused.title"
+	}
+	subject := strings.TrimSpace(e.Name + " " + e.Version)
+	title += subject
+	push := pushSpec{key: key, params: map[string]string{"plugin": subject}, fallback: title}
+	profiles, err := s.listAdminTargetProfiles(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "notification: list admin profiles for plugin.update.attention", slog.Any("err", err))
+		return
+	}
+	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	fanoutID := uuid.New().String()
+	for _, p := range profiles {
+		n, err := notification.NewNotification(uuid.New().String(), p.ID, typ, title,
+			notification.WithNotificationMessage(e.Reason),
+			notification.WithLabelParts(subject, 0, 0),
+			notification.WithNotificationLevel(notification.LevelAll),
+			notification.WithNotificationExpiresAt(&expires),
+		)
+		if err != nil {
+			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			continue
+		}
+		s.persistAndDispatch(ctx, n, push, p.Locale, fanoutID)
+	}
+	slog.InfoContext(ctx, "plugin update notified to admins",
+		slog.String("plugin_id", e.PluginID), slog.String("version", e.Version),
+		slog.String("outcome", string(e.Outcome)), slog.Int("admins", len(profiles)))
 }
 
 // listAdminTargetProfiles prefers the optional AdminProfileLister so

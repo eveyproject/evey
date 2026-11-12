@@ -24,7 +24,9 @@ const (
 	maxDisplayNameLangs    = 32
 )
 
-var displayNameLangRe = regexp.MustCompile(`^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$`)
+// A language tag: a 2-3 letter language and at most three subtags
+// ("pt-BR", "zh-Hant-TW"), so a key cannot grow without bound.
+var displayNameLangRe = regexp.MustCompile(`^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$`)
 
 // UnmarshalYAML accepts the string form as well as the map.
 func (d *DisplayName) UnmarshalYAML(unmarshal func(any) error) error {
@@ -57,11 +59,22 @@ func (d DisplayName) Validate() error {
 		if utf8.RuneCountInString(v) > maxDisplayNameRunes {
 			return fmt.Errorf("manifest: display_name %q is longer than %d characters", lang, maxDisplayNameRunes)
 		}
-		for _, r := range v {
-			if unicode.IsControl(r) {
-				return fmt.Errorf("manifest: display_name %q contains a control character", lang)
-			}
+		if !plainText(v) {
+			return fmt.Errorf("manifest: display_name %q contains a control, format or private-use character", lang)
 		}
 	}
 	return nil
+}
+
+// plainText refuses what renders as something else than the text it is:
+// control characters, format characters (zero-width spaces, text-direction
+// overrides that reorder what the reader sees), private-use and surrogate
+// code points. A label made of those could pass for another theme's.
+func plainText(s string) bool {
+	for _, r := range s {
+		if unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Co, unicode.Cs) {
+			return false
+		}
+	}
+	return true
 }

@@ -737,27 +737,31 @@ func writePluginPreview(ctx context.Context, w http.ResponseWriter, preview *app
 	}
 
 	resp := struct {
-		Name         string         `json:"name"`
-		Version      string         `json:"version"`
-		Description  string         `json:"description"`
-		Author       string         `json:"author"`
-		Language     string         `json:"language"`
-		Entrypoint   string         `json:"entrypoint"`
-		Permissions  []string       `json:"permissions"`
-		Capabilities []string       `json:"capabilities"`
-		SourceHash   string         `json:"source_hash"`
-		Analysis     *analysisResp  `json:"analysis,omitempty"`
-		Signature    *signatureResp `json:"signature,omitempty"`
+		Name         string   `json:"name"`
+		Version      string   `json:"version"`
+		Description  string   `json:"description"`
+		Author       string   `json:"author"`
+		Language     string   `json:"language"`
+		Entrypoint   string   `json:"entrypoint"`
+		Permissions  []string `json:"permissions"`
+		Capabilities []string `json:"capabilities"`
+		SourceHash   string   `json:"source_hash"`
+		// ResolvedSource is what the install must be sent to get the bytes
+		// previewed (the downloaded URL pinned to their sha256).
+		ResolvedSource string         `json:"resolved_source,omitempty"`
+		Analysis       *analysisResp  `json:"analysis,omitempty"`
+		Signature      *signatureResp `json:"signature,omitempty"`
 	}{
-		Name:         preview.Name,
-		Version:      preview.Version,
-		Description:  preview.Description,
-		Author:       preview.Author,
-		Language:     preview.Language,
-		Entrypoint:   preview.Entrypoint,
-		Permissions:  perms,
-		Capabilities: caps,
-		SourceHash:   preview.SourceHash,
+		Name:           preview.Name,
+		Version:        preview.Version,
+		Description:    preview.Description,
+		Author:         preview.Author,
+		Language:       preview.Language,
+		Entrypoint:     preview.Entrypoint,
+		Permissions:    perms,
+		Capabilities:   caps,
+		SourceHash:     preview.SourceHash,
+		ResolvedSource: preview.ResolvedSource,
 	}
 
 	if sig := preview.Signature; sig != nil {

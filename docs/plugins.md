@@ -30,7 +30,11 @@ when it has one, runs in an isolated frame of the page.
 1. In **Admin → Plugins**, open **Install Plugin** and choose the **Plugin
    file (.zip)**. If the author ships a signature, add it in **Signature file
    (.zip.sig, optional)**. The **From URL** tab installs from a link instead;
-   append `#sha256:<hash>` to the URL to have the download checked.
+   append `#sha256:<hash>` to the URL to have the download checked. A
+   repository link, `https://github.com/<owner>/<repo>`, installs the zip of
+   its latest release, checked against the sha256 the release publishes, and
+   the plugin then follows that repository for its updates (see
+   [Automatic updates](#automatic-updates)).
 2. **Preview & Install** analyses the package without installing it. The
    preview shows the **Permissions** and **Capabilities** the plugin asks for,
    the result of the **Static Analysis** and, when a signature was given, the
@@ -76,7 +80,40 @@ the installed one. When it asks for new permissions, capabilities, slots or
 hosts, the preview says **This update requests new permissions** and lists the
 difference: nothing is applied until you choose **Approve and install**. The
 package analysed is the package installed: its hash is checked again when the
-update is applied.
+update is applied. The source can also be the plugin's repository link: the
+preview is then of its latest release.
+
+### Automatic updates
+
+A plugin installed from its repository link, or from one of that repository's
+release links, follows the repository. The **Updates** section of its card
+shows the repository (**Change** sets another one, or none), the **Automatic
+updates** switch, on by default, and what the last look found. Evey looks at
+the latest release a few minutes after it starts, then every hour; **Check
+now** looks at once.
+
+A newer release is judged before anything runs:
+
+| What the release holds | What happens |
+|---|---|
+| Nothing new: no new permission, capability, slot or host, no new kind of analysis warning, the same signing key | Installed on its own: **Version … installed automatically**. |
+| Something new (a permission, a host, a change between theme and plugin, another language), a pre-release, an installed version that is not signed, or the switch off | **Version … awaits your approval**, and the admins get a notification. **Review** opens the usual update preview, where you approve the difference. |
+| Code the static analysis refuses | **Version … refused**, with the reason, and the admins get a notification. It is not installed, automatically or by hand. |
+
+An unsigned plugin never updates on its own: whoever took over its repository
+could publish code the analysis does not catch, and only a signing key they do
+not hold stops them. A notification is sent once per release, not every hour.
+The check reads the GitHub API and downloads from the repository's release
+files, and from nowhere else.
+
+The repository is followed by the permanent number GitHub gives it, not by
+its name: a renamed or transferred repository is still followed, and whoever
+registers an abandoned name gets nothing followed. Installing from the
+repository link installs the release the preview showed, even if a newer one
+is published in between. A release already judged is not downloaded again
+until something changes on either side. Evey asks GitHub without a token,
+which allows 60 requests an hour per address: one per followed plugin and per
+hour; when the quota is spent, the check stops until its next run.
 
 ## Manage the installed plugins
 
@@ -214,4 +251,5 @@ subprocess: docs/plugins/security-model.md (Permissions catalog)
 slots: internal/domain/plugin/slots.go - AllowedSlots
 scoped token, public/prefs: docs/adr/0012-plugin-token-deny-by-default.md ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes
 theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n common.appearance, common.theme
+automatic updates: internal/app/plugin/auto_update.go - AutoUpdater, updateFromRelease ; install_source.go - resolveInstallSource, followRepository, settleUpdateState ; internal/adapters/driven/pluginrelease/github.go ; frontend/apps/web/src/features/admin/PluginAutoUpdate.tsx ; i18n admin.plugin.autoUpdate.*, common.notifications.pluginUpdateHeld, pluginUpdateRefused
 -->

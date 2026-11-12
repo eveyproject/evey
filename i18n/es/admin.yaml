@@ -167,6 +167,27 @@ plugin:
   update: "Actualizar desde origen…"
   previewUpdate: Vista previa
   updateSourceLabel: ZIP de origen (ruta o URL)
+  autoUpdate:
+    title: "Actualizaciones"
+    repository: "Repositorio"
+    repositoryNone: "Este plugin no sigue ningún repositorio."
+    edit: "Cambiar"
+    toggle: "Actualizaciones automáticas"
+    toggleHint: "Una nueva versión se instala sola cuando no pide nada nuevo: ningún permiso, capacidad, zona de visualización ni host nuevo, ningún tipo nuevo de aviso del análisis y la misma clave de firma. Todo lo demás espera tu aprobación, y el código que el análisis rechaza nunca se instala."
+    checkNow: "Comprobar ahora"
+    checking: "Comprobando…"
+    checkedAt: "comprobado el {{when}}"
+    neverChecked: "Aún no comprobado"
+    review: "Revisar"
+    saved: "Ajustes de actualización guardados"
+    saveFailed: "No se pudieron guardar los ajustes de actualización"
+    checkFailed: "La comprobación ha fallado"
+    outcome:
+      upToDate: "Al día ({{version}})"
+      applied: "Versión {{version}} instalada automáticamente"
+      held: "Versión {{version}} pendiente de tu aprobación"
+      refused: "Versión {{version}} rechazada"
+      failed: "La comprobación ha fallado"
   configuration: Configuración
   noConfig: No hay claves de config definidas.
   configSaved: Config guardada
@@ -199,6 +220,8 @@ plugin:
     hashMismatch: "El hash del candidato ya no coincide - actualiza la vista previa"
     bannerRequiresAck: "Esta actualización solicita nuevos permisos - revísalos antes de aplicar"
     bannerSafe: "Sin cambios de permisos - actualización segura"
+    kindChange: "Esta actualización cambia lo que es el plugin: {{change}}. Un tema que se convierte en plugin ejecuta un proceso en el servidor; un plugin que se convierte en tema ejecuta script en cada página."
+    languageChange: "Esta actualización cambia el lenguaje del plugin: {{change}}."
     tabSlots: Slots
     tabExternalFetch: "Llamadas externas"
     tabFindings: Hallazgos
@@ -284,6 +307,7 @@ plugins:
   pluginFileZip: "Archivo de plugin (.zip)"
   sigFileOptional: "Archivo de firma (.zip.sig, opcional)"
   sourceUrl: "URL de origen"
+  repoLinkHint: "Un enlace de repositorio de GitHub (https://github.com/owner/repo) instala su última release, y luego el plugin sigue ese repositorio: una release firmada que no pide nada nuevo se instala sola, todo lo demás espera tu aprobación. Puedes desactivarlo en la tarjeta del plugin."
   nameOptional: "Nombre (opcional)"
   permissions: "Permisos"
   capabilities: "Capacidades"

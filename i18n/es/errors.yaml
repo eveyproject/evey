@@ -209,6 +209,9 @@ plugin:
   metadata_field_unknown: "Un plugin de metadatos puede sustituir el título, la sinopsis y el eslogan, nada más"
   metadata_refresh_running: "La biblioteca ya se está obteniendo de este plugin"
   signature_lost: "Esta actualización ya no está firmada y la versión instalada sí lo estaba - acepta la actualización sin firma para aplicarla"
+  repository_unsupported: "Solo se admiten enlaces de repositorio https://github.com/<owner>/<repo>"
+  no_update_source: "Este plugin no sigue ningún repositorio: indica uno primero"
+  check_running: "Ya hay una comprobación de actualizaciones en curso: inténtalo de nuevo en un momento"
 
 demo:
   locked: "No disponible en el servidor de demostración"

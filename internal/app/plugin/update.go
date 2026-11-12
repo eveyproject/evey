@@ -71,11 +71,17 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 		return nil, ErrPluginNotFound
 	}
 
+	// A repository link resolves to its latest release; if that moved since
+	// the preview, the hash check below refuses it.
+	source, _, resErr := s.resolveInstallSource(ctx, source)
+	if resErr != nil {
+		return nil, resErr
+	}
 	// Download/read the candidate once and hash it; this file is what gets installed.
 	localPath, fragmentHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
-		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
+		return nil, fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, dlErr)
 	}
 
 	freshHash, hashErr := hashFile(localPath)
@@ -99,6 +105,31 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 	return s.installLocalZip(ctx, localPath, fragmentHash)
 }
 
+// KindChange is "theme -> plugin" when the candidate is another kind of
+// package than the installed one, empty otherwise.
+func KindChange(existing *plugin.Plugin, manifest *plugin.PluginManifest) string {
+	if existing.Kind == "" || manifest.Kind == existing.Kind {
+		return ""
+	}
+	return string(existing.Kind) + " -> " + string(manifest.Kind)
+}
+
+// LanguageChange is "python -> nodejs" when the candidate runs on another
+// runtime than the installed one, empty otherwise.
+func LanguageChange(existing *plugin.Plugin, manifest *plugin.PluginManifest) string {
+	if manifest.Language == existing.Language {
+		return ""
+	}
+	from, to := existing.Language, manifest.Language
+	if from == "" {
+		from = "none"
+	}
+	if to == "" {
+		to = "none"
+	}
+	return from + " -> " + to
+}
+
 // checkPermissionEscalation returns ErrPluginPermissionEscalation when the
 // incoming manifest requests permissions, capabilities, frontend slots, or
 // external_fetch entries that are absent from the currently installed plugin.
@@ -114,6 +145,15 @@ func checkPermissionEscalation(manifest *plugin.PluginManifest, existing *plugin
 	}
 
 	var added []string
+	// What the plugin IS counts as much as what it may call: a theme turned
+	// plugin starts a process on the host, a plugin turned theme injects
+	// script into every page, a new language is another interpreter.
+	if change := KindChange(existing, manifest); change != "" {
+		added = append(added, "kind:"+change)
+	}
+	if change := LanguageChange(existing, manifest); change != "" {
+		added = append(added, "language:"+change)
+	}
 	for _, p := range manifest.Permissions {
 		if _, ok := existingPerms[p]; !ok {
 			added = append(added, "permission:"+p)

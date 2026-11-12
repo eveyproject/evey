@@ -209,6 +209,9 @@ plugin:
   metadata_field_unknown: "A metadata plugin can replace the title, the overview and the tagline, nothing else"
   metadata_refresh_running: "The library is already being fetched from this plugin"
   signature_lost: "This update is no longer signed, the installed version was - accept the unsigned update to apply it"
+  repository_unsupported: "Only https://github.com/<owner>/<repo> repository links are supported"
+  no_update_source: "This plugin follows no repository - set one first"
+  check_running: "An update check is already running - try again in a moment"
 
 demo:
   locked: "Not available on the demo server"

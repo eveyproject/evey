@@ -63,6 +63,9 @@ interface PluginPreview {
   language: string;
   permissions: string[];
   capabilities: string[];
+  // The URL to install so the install gets the very bytes previewed (pinned
+  // to their sha256); absent for an uploaded file.
+  resolved_source?: string;
   // Present when a .sig was provided with the package.
   signature?: PluginSignature;
   signatureStatus?: string;
@@ -391,7 +394,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     setStep("installing");
     setError("");
     installPlugin.mutate(
-      { data: { source: source.trim(), name } },
+      { data: { source: preview?.resolved_source || source.trim(), name } },
       { onSettled: () => setStep("reviewing") },
     );
   }
@@ -400,7 +403,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     if (mode === "file") {
       void handleFileInstall(true);
     } else {
-      installPlugin.mutate({ data: { source, name, acceptPermissionChanges: true } });
+      installPlugin.mutate({ data: { source: preview?.resolved_source || source.trim(), name, acceptPermissionChanges: true } });
     }
   }
 
@@ -605,6 +608,9 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
             placeholder="https://example.com/plugin.zip"
             required
           />
+          <p className="text-xs text-[var(--text-muted)] -mt-2" data-testid="plugin-url-repo-hint">
+            {t("admin.plugins.repoLinkHint")}
+          </p>
           <Input
             label={t("admin.plugins.nameOptional")}
             value={name}

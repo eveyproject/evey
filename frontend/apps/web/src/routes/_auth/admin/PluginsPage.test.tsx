@@ -30,6 +30,8 @@ vi.mock("@evey/api", () => ({
   useAdminPluginServiceInstallPlugin: vi.fn(() => ({ mutate: mockInstallPlugin, isPending: false })),
   useAdminPluginServiceGetPluginConfig: vi.fn(() => ({ data: { values: {} }, isLoading: false })),
   useAdminPluginServiceUpdatePluginConfig: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useAdminPluginServiceSetPluginUpdateFollow: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useAdminPluginServiceCheckPluginUpdate: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useAdminPluginServiceGetPluginLogs: vi.fn(() => ({ data: undefined, isLoading: false })),
   useAdminPluginServiceGetPluginResourceLimits: vi.fn(() => ({ data: undefined, isLoading: false })),
   useAdminPluginServiceUpdatePluginResourceLimits: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
@@ -194,6 +196,30 @@ describe("PluginsPage", () => {
       fireEvent.click(screen.getByRole("button", { name: /Install Anyway/i }));
       expect(mockInstallPlugin).toHaveBeenCalledWith(
         { data: { source: "https://example.com/p.zip#sha256:abc", name: "" } },
+        expect.anything(),
+      );
+    });
+
+    // A repository link means "the latest release", which can move between the
+    // preview and the click: the install is sent the source the preview
+    // resolved, pinned to the bytes the admin saw.
+    it("installs the source the preview resolved, pinned to what was previewed", async () => {
+      stubPreview(() => Promise.resolve({
+        name: "weather",
+        version: "1.0.0",
+        language: "nodejs",
+        permissions: [],
+        capabilities: [],
+        resolved_source: "https://github.com/acme/weather/releases/download/v1.0.0/weather-1.0.0.zip#sha256:abc123",
+        analysis: { safe: true, total_files_scanned: 3, issues: ["[WARNING] outbound fetch() call"], urls: [] },
+      }));
+      await openUrlForm();
+      fireEvent.click(screen.getByRole("button", { name: /Preview & Install/i }));
+      await waitFor(() => expect(screen.getByText("weather")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: /Install Anyway/i }));
+      expect(mockInstallPlugin).toHaveBeenCalledWith(
+        { data: { source: "https://github.com/acme/weather/releases/download/v1.0.0/weather-1.0.0.zip#sha256:abc123", name: "" } },
         expect.anything(),
       );
     });

@@ -149,6 +149,44 @@ server refuses by default every method that token does not name.
    `EVEY_PLUGINS_COSIGN_POLICY=enforce`, an untrusted or invalid signature at
    the apply step blocks the update even if the preview passed.
 
+## Automatic updates
+
+A plugin can follow the repository it was installed from
+(`https://github.com/<owner>/<repo>`). Every hour the server reads the latest
+release through the GitHub API, downloads its zip once, judges those bytes and
+installs those same bytes, through the full install pipeline above.
+
+- **Refused** when the static analysis refuses the code: a critical finding,
+  or a warning the install itself blocks (`deserialization`, `obfuscation`,
+  `native_code` without `native-binary`). The admins are notified; nothing is
+  installed.
+- **Held for an admin** when the release asks for any permission, capability,
+  slot or `external_fetch` host the installed version does not have, carries
+  a kind of analysis warning the installed version did not, changes the
+  `kind` (theme and plugin) or the `language`, is a pre-release, is signed by
+  another key or no longer signed, or when the installed version is not
+  signed at all, or when the admin turned automatic updates off. The admins
+  are notified once per release.
+- **Applied** otherwise. The version must be higher, the zip must match the
+  sha256 the release publishes, the release must be the same plugin (same
+  `name`), and the zip must be served from the repository's own release files.
+
+Signing is what makes this safe: the analysis catches known patterns, not
+every piece of malicious code, so a release that installs on its own must be
+signed by the key pinned when the plugin was installed. Whoever takes over the
+repository without that key gets a held release, not an installed one.
+
+Three more guards hold around that rule:
+
+- The repository is followed by its permanent GitHub id, not by its name: a
+  name taken over after a rename or a deletion reaches nothing.
+- The install proceeds only onto the plugin as it was judged. If an admin
+  uninstalls it, updates it, changes its key, the repository it follows or
+  its switch while a release is being judged, nothing is installed.
+- An install from a repository link is pinned to the bytes the preview
+  showed: the preview returns the release's zip link with its sha256, and
+  the install is sent that.
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -161,4 +199,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories, checkUpdateExpectation ; update.go - KindChange, LanguageChange ; preview.go - ResolvedSource ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

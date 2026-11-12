@@ -130,6 +130,8 @@ notifications:
   cacheFull: "字幕缓存已满"
   pruneSuspended: "媒体库删除已暂停"
   mediaRequest: "新的媒体请求：{{name}}"
+  pluginUpdateHeld: "插件更新等待您批准：{{name}}"
+  pluginUpdateRefused: "插件更新已被拒绝：{{name}}"
   requestAnswered: "您的媒体请求已更新：{{name}}"
   clearConfirm: 删除所有通知？
   clearTitle: 清除通知

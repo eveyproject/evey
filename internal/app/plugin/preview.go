@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/eveyproject/evey/internal/domain/plugin"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
@@ -30,6 +31,10 @@ type PluginPreview struct {
 	// against the installed plugin of the same name when there is one.
 	Signature      *plugin.SignatureStatus
 	SignatureState string
+	// ResolvedSource is the source to install so that the install gets the
+	// very bytes previewed: the URL actually downloaded, pinned to their
+	// sha256. Empty for an upload or a local path.
+	ResolvedSource string
 }
 
 // PluginUpdatePreview holds the diff between an installed plugin and a
@@ -54,8 +59,14 @@ type PluginUpdatePreview struct {
 	// version; nil when sig verification is disabled.
 	Signature *plugin.SignatureStatus
 
+	// KindChange and LanguageChange name a change of what the plugin is
+	// ("theme -> plugin", "python -> nodejs"); empty when there is none.
+	KindChange     string
+	LanguageChange string
+
 	// RequiresAck is true when any permission/capability/slot/host was added,
-	// or when the signing publisher changed or was lost.
+	// when the kind or the language changed, or when the signing publisher
+	// changed or was lost.
 	RequiresAck bool
 
 	// SourceHash is the SHA-256 of the candidate ZIP. Must be passed back
@@ -124,19 +135,23 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 	if err != nil {
 		return nil, ErrPluginNotFound
 	}
+	source, _, err = s.resolveInstallSource(ctx, source)
+	if err != nil {
+		return nil, err
+	}
 
 	localPath, _, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
-		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
+		return nil, fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, dlErr)
 	}
 
 	manifest, parseErr := s.parser.Parse(localPath)
 	if parseErr != nil {
-		return nil, fmt.Errorf("parse manifest: %w", parseErr)
+		return nil, fmt.Errorf("parse manifest: %w: %w", ErrInvalidManifest, parseErr)
 	}
 	if err := manifest.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid manifest: %w", err)
+		return nil, fmt.Errorf("invalid manifest: %w: %w", ErrInvalidManifest, err)
 	}
 
 	sourceHash, hashErr := hashFile(localPath)
@@ -149,8 +164,10 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 	slotDiff := DiffSlots(existing.Frontend, manifest.Frontend)
 	fetchDiff := DiffExternalFetch(existing.ExternalFetch, manifest.ExternalFetch)
 
+	kindChange := KindChange(existing, manifest)
+	langChange := LanguageChange(existing, manifest)
 	requiresAck := len(permDiff.Added) > 0 || len(capDiff.Added) > 0 ||
-		len(slotDiff.Added) > 0 || len(fetchDiff.Added) > 0
+		len(slotDiff.Added) > 0 || len(fetchDiff.Added) > 0 || kindChange != "" || langChange != ""
 
 	preview := &PluginUpdatePreview{
 		CurrentVersion:    existing.Version,
@@ -159,6 +176,8 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 		CapabilitiesDiff:  capDiff,
 		SlotsDiff:         slotDiff,
 		ExternalFetchDiff: fetchDiff,
+		KindChange:        kindChange,
+		LanguageChange:    langChange,
 		RequiresAck:       requiresAck,
 		SourceHash:        sourceHash,
 	}
@@ -225,6 +244,10 @@ func (s *InstallerService) candidateSignature(ctx context.Context, zipPath strin
 func (s *InstallerService) PreviewSource(ctx context.Context, source string) (*PluginPreview, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.plugin.PreviewSource")
 	defer span.End()
+	source, _, err := s.resolveInstallSource(ctx, source)
+	if err != nil {
+		return nil, err
+	}
 	localPath, expectedHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
@@ -236,6 +259,12 @@ func (s *InstallerService) PreviewSource(ctx context.Context, source string) (*P
 	}
 	if expectedHash != "" && preview.SourceHash != expectedHash {
 		return nil, fmt.Errorf("plugin hash mismatch: expected %s, got %s", expectedHash, preview.SourceHash)
+	}
+	if raw, _, _ := strings.Cut(source, "#"); strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "http://") {
+		// A link can serve other bytes at install time than at preview (a
+		// repository's "latest" moves by design): the install is pinned to
+		// what the admin saw.
+		preview.ResolvedSource = raw + "#sha256:" + preview.SourceHash
 	}
 	return preview, nil
 }

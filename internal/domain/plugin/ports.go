@@ -16,6 +16,11 @@ type PluginRepository interface {
 	// snapshot over permissions, external_fetch, enabled and status. Any path
 	// where the writer is the PLUGIN itself must use this, never Update.
 	UpdateConfig(ctx context.Context, id string, config map[string]any) error
+	// SetUpdateFollow writes ONLY update_source and auto_update; Update never
+	// touches them, so an upgrade keeps what the admin chose.
+	SetUpdateFollow(ctx context.Context, id, source string, sourceID int64, autoUpdate bool) error
+	// SetUpdateState writes ONLY update_state, the background check's record.
+	SetUpdateState(ctx context.Context, id string, state UpdateState) error
 	Delete(ctx context.Context, id string) error
 }
 

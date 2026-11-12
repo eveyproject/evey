@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
 	"log/slog"
 	"os"
 	"syscall"
@@ -177,6 +178,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		Transcoding:            deps.media.transcodingSvc,
 		Mkv:                    deps.media.mkvSvc,
 		PluginInstaller:        deps.engagement.pluginInstallerSvc,
+		PluginAutoUpdate:       pluginAutoUpdaterOrNil(cfg, deps.engagement.pluginAutoUpdater),
 		PluginRuntime:          deps.engagement.pluginRuntimeSvc,
 		PluginQuery:            deps.engagement.pluginQuerySvc,
 		PluginToken:            deps.engagement.pluginTokenSvc,
@@ -303,4 +305,13 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	)
 	grpcSrv.RegisterServices()
 	return grpcSrv
+}
+
+// pluginAutoUpdaterOrNil hides the "check now" RPC behind the plugin switch:
+// with plugins off, nothing follows a repository.
+func pluginAutoUpdaterOrNil(cfg *config.Config, u *appplugin.AutoUpdater) *appplugin.AutoUpdater {
+	if !cfg.Server.PluginsEnabled {
+		return nil
+	}
+	return u
 }

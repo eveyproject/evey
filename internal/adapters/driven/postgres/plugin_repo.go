@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eveyproject/evey/internal/domain/plugin"
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -17,7 +18,7 @@ import (
 )
 
 const pluginColumns = `id, name, version, description, author, language, entrypoint, install_dir,
-	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch, web_root, publisher_key_fingerprint, publisher_key_pem, display_name`
+	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch, web_root, publisher_key_fingerprint, publisher_key_pem, display_name, update_source, update_source_id, auto_update, update_state`
 
 type PluginRepository struct {
 	db *sql.DB
@@ -99,18 +100,25 @@ func (r *PluginRepository) Create(ctx context.Context, p *plugin.Plugin) error {
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
+	updateStateJSON, err := json.Marshal(p.UpdateState)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
 	kind := p.Kind
 	if kind == "" {
 		kind = plugin.KindPlugin
 	}
 	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO plugins (`+pluginColumns+`)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
 		p.ID, p.Name, p.Version, p.Description, p.Author, p.Language, p.Entrypoint, p.InstallDir,
 		capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.InstalledAt, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
 		string(kind), frontendJSON, extFetchJSON, p.WebRoot,
 		nullIfEmpty(p.PublisherKeyFingerprint), nullIfEmpty(p.PublisherKeyPEM), displayJSON,
+		p.UpdateSource, p.UpdateSourceID, p.AutoUpdate, updateStateJSON,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -169,13 +177,13 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 	var result []*plugin.Plugin
 	for rows.Next() {
 		p := &plugin.Plugin{}
-		var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON []byte
+		var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON, updateStateJSON []byte
 		var kindStr string
 		var pubFP, pubPEM sql.NullString
 		if err := rows.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 			&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 			&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-			&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON); err != nil {
+			&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON, &p.UpdateSource, &p.UpdateSourceID, &p.AutoUpdate, &updateStateJSON); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
@@ -189,7 +197,7 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 				p.Kind = plugin.KindPlugin
 			}
 		}
-		unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON)
+		unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON, updateStateJSON)
 		result = append(result, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -337,6 +345,53 @@ func (r *PluginRepository) UpdateConfig(ctx context.Context, id string, config m
 	return nil
 }
 
+// SetUpdateFollow writes ONLY update_source, update_source_id and auto_update: the admin's
+// choice, which the full Update never names.
+func (r *PluginRepository) SetUpdateFollow(ctx context.Context, id, source string, sourceID int64, autoUpdate bool) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin.SetUpdateFollow")
+	defer span.End()
+	span.SetAttributes(attribute.String("plugin.id", id))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE plugins SET update_source=$1, update_source_id=$2, auto_update=$3 WHERE id=$4`, source, sourceID, autoUpdate, id)
+	return r.affectedOne(span, res, err)
+}
+
+// SetUpdateState writes ONLY update_state, the background check's record, so
+// a check that ends while an admin edits the plugin overwrites nothing of
+// theirs.
+func (r *PluginRepository) SetUpdateState(ctx context.Context, id string, state plugin.UpdateState) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin.SetUpdateState")
+	defer span.End()
+	span.SetAttributes(attribute.String("plugin.id", id))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	stateJSON, err := json.Marshal(state)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE plugins SET update_state=$1 WHERE id=$2`, stateJSON, id)
+	return r.affectedOne(span, res, err)
+}
+
+func (r *PluginRepository) affectedOne(span trace.Span, res sql.Result, err error) error {
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 func (r *PluginRepository) Delete(ctx context.Context, id string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.plugin.Delete")
 	defer span.End()
@@ -359,13 +414,13 @@ func (r *PluginRepository) Delete(ctx context.Context, id string) error {
 
 func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 	p := &plugin.Plugin{}
-	var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON []byte
+	var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON, updateStateJSON []byte
 	var kindStr string
 	var pubFP, pubPEM sql.NullString
 	err := row.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 		&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 		&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-		&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON)
+		&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON, &p.UpdateSource, &p.UpdateSourceID, &p.AutoUpdate, &updateStateJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -378,11 +433,11 @@ func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 			p.Kind = plugin.KindPlugin
 		}
 	}
-	unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON)
+	unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON, updateStateJSON)
 	return p, nil
 }
 
-func unmarshalPluginJSON(p *plugin.Plugin, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON []byte) {
+func unmarshalPluginJSON(p *plugin.Plugin, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON, displayJSON, updateStateJSON []byte) {
 	if err := json.Unmarshal(capJSON, &p.Capabilities); err != nil {
 		slog.Warn("json unmarshal", slog.String("field", "capabilities"), slog.Any("err", err))
 	}
@@ -424,6 +479,11 @@ func unmarshalPluginJSON(p *plugin.Plugin, capJSON, permJSON, schemaJSON, config
 	if len(displayJSON) > 0 {
 		if err := json.Unmarshal(displayJSON, &p.DisplayName); err != nil {
 			slog.Warn("json unmarshal", slog.String("field", "display_name"), slog.Any("err", err))
+		}
+	}
+	if len(updateStateJSON) > 0 {
+		if err := json.Unmarshal(updateStateJSON, &p.UpdateState); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "update_state"), slog.Any("err", err))
 		}
 	}
 }
