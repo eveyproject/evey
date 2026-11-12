@@ -81,6 +81,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminPluginService/UninstallPlugin",
 		"/evey.v1.AdminPluginService/PreviewPluginUpdate",
 		"/evey.v1.AdminPluginService/ApplyPluginUpdate",
+		"/evey.v1.AdminPluginService/SetPluginUpdateFollow",
+		"/evey.v1.AdminPluginService/CheckPluginUpdate",
 		"/evey.v1.AdminPluginService/EnablePlugin",
 		"/evey.v1.AdminPluginService/DisablePlugin",
 		"/evey.v1.AdminPluginService/ListPlugins",

@@ -106,6 +106,7 @@ func (s *CommandService) Register() {
 	s.events.Subscribe("transcoding.derived_cache_full", s.handleDerivedCacheFull)
 	s.events.Subscribe("library.prune.suspended", s.handlePruneSuspended)
 	s.events.Subscribe("plugin.error", s.handlePluginError)
+	s.events.Subscribe("plugin.update.attention", s.handlePluginUpdateAttention)
 	s.events.Subscribe("media.request.created", s.handleMediaRequestCreated)
 	s.events.Subscribe("media.request.answered", s.handleRequestAnswered)
 }

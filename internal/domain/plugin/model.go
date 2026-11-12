@@ -67,6 +67,14 @@ type Plugin struct {
 	// so the admin can audit non-critical warnings (compiled binaries, symlinks,
 	// base64 blobs, suspicious URLs) after the plugin is live. Nil on legacy rows.
 	AnalysisReport *AnalysisReport
+	// UpdateSource is the repository the plugin follows for its updates
+	// (https://github.com/<owner>/<repo>); empty when it follows none.
+	UpdateSource string
+	// AutoUpdate lets a release of UpdateSource install without an admin when
+	// nothing in it is new and sensitive. On by default.
+	AutoUpdate bool
+	// UpdateState is the last look at UpdateSource.
+	UpdateState UpdateState
 	// Signature holds the cosign verification result from install time.
 	// Nil when CosignPolicy is "off" or no key is configured.
 	Signature *SignatureStatus
@@ -183,6 +191,7 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		Frontend:      manifest.Frontend,
 		ExternalFetch: NormalizeExternalFetch(manifest.ExternalFetch),
 		Config:        make(map[string]any),
+		AutoUpdate:    true,
 		SourceHash:    sourceHash,
 		Enabled:       true,
 		Status:        Stopped,

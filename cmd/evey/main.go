@@ -324,6 +324,9 @@ func run() error {
 			rootLog.Info("plugin host gRPC server started")
 		}
 		go deps.engagement.pluginRuntimeSvc.AutoStartPlugins(ctx)
+		// Plugins that follow their repository: a look every hour, a release
+		// installs on its own only when nothing in it is new and sensitive.
+		deps.engagement.pluginAutoUpdater.Start(ctx)
 	} else {
 		rootLog.Info("plugin subsystem disabled (set EVEY_PLUGINS_ENABLED=true to activate)")
 	}

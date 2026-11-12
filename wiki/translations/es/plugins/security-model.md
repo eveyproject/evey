@@ -1,5 +1,5 @@
 ---
-source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
+source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -165,6 +165,34 @@ método que ese token no nombre.
    válida en el paso de aplicar bloquea la actualización aunque la vista
    previa haya pasado.
 
+## Actualizaciones automáticas { #automatic-updates }
+
+Un plugin puede seguir el repositorio desde el que se instaló
+(`https://github.com/<owner>/<repo>`). Cada hora, el servidor lee la última
+release por la API de GitHub, descarga su zip una sola vez, juzga esos bytes e
+instala esos mismos bytes, por toda la cadena de instalación descrita arriba.
+
+- **Rechazada** cuando el análisis estático rechaza el código: un hallazgo
+  crítico, o un aviso que la propia instalación bloquea (`deserialization`,
+  `obfuscation`, `native_code` sin `native-binary`). Se notifica a los
+  administradores; no se instala nada.
+- **Retenida para un administrador** cuando la release pide un permiso, una
+  capacidad, una zona de visualización o un host `external_fetch` que la
+  versión instalada no tiene, trae un tipo de aviso del análisis que la
+  versión instalada no tenía, está firmada con otra clave o ya no lo está, o
+  cuando la versión instalada no está firmada en absoluto, o cuando el
+  administrador desactivó las actualizaciones automáticas. Se notifica a los
+  administradores una vez por release.
+- **Aplicada** en cualquier otro caso. La versión debe ser superior, el zip
+  debe coincidir con el sha256 que publica la release, la release debe ser el
+  mismo plugin (el mismo `name`), y el zip debe venir de los propios archivos
+  de release del repositorio.
+
+La firma es lo que lo hace seguro: el análisis detecta patrones conocidos, no
+todo el código malicioso, así que una release que se instala sola debe estar
+firmada con la clave fijada al instalar el plugin. Quien se haga con el
+repositorio sin esa clave obtiene una release retenida, no una instalada.
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -177,4 +205,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

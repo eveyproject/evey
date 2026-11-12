@@ -167,6 +167,27 @@ plugin:
   update: "Update from source…"
   previewUpdate: Preview
   updateSourceLabel: Source ZIP (path or URL)
+  autoUpdate:
+    title: "Updates"
+    repository: "Repository"
+    repositoryNone: "This plugin follows no repository."
+    edit: "Change"
+    toggle: "Automatic updates"
+    toggleHint: "A new release installs on its own when it asks for nothing new: no new permission, capability, slot or host, no new kind of analysis warning, and the same signing key. Anything else waits for you, and code the analysis refuses is never installed."
+    checkNow: "Check now"
+    checking: "Checking…"
+    checkedAt: "checked {{when}}"
+    neverChecked: "Not checked yet"
+    review: "Review"
+    saved: "Update settings saved"
+    saveFailed: "Failed to save the update settings"
+    checkFailed: "The check failed"
+    outcome:
+      upToDate: "Up to date ({{version}})"
+      applied: "Version {{version}} installed automatically"
+      held: "Version {{version}} awaits your approval"
+      refused: "Version {{version}} refused"
+      failed: "The check failed"
   configuration: Configuration
   noConfig: No config keys defined.
   configSaved: Config saved

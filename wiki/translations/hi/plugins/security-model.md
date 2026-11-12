@@ -1,5 +1,5 @@
 ---
-source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
+source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
 reviewed: true
 ---
 # अनुमतियाँ और स्लॉट { #permissions-and-slots }
@@ -150,6 +150,33 @@ bridge सीमित करता है कि फ़्रेम पेज �
    करने वाले कदम पर भरोसे से बाहर या अमान्य सिग्नेचर अपडेट रोक देता है, भले ही
    पूर्वावलोकन पास हो गया हो।
 
+## अपने-आप अपडेट { #automatic-updates }
+
+कोई प्लगइन उस रिपॉज़िटरी को फ़ॉलो कर सकता है जिससे वह इंस्टॉल हुआ था
+(`https://github.com/<owner>/<repo>`)। हर घंटे सर्वर GitHub API से सबसे नई
+release पढ़ता है, उसका zip एक बार डाउनलोड करता है, उन्हीं बाइट्स को परखता है
+और उन्हीं बाइट्स को ऊपर बताई गई पूरी इंस्टॉल प्रक्रिया से इंस्टॉल करता है।
+
+- **अस्वीकार** जब स्टैटिक विश्लेषण कोड को अस्वीकार करता है: कोई गंभीर खोज,
+  या ऐसी चेतावनी जिसे इंस्टॉल खुद रोकता है (`deserialization`,
+  `obfuscation`, `native-binary` के बिना `native_code`)। एडमिन को सूचना दी
+  जाती है; कुछ भी इंस्टॉल नहीं होता।
+- **एडमिन के लिए रोकी गई** जब release ऐसी अनुमति, क्षमता, स्लॉट या
+  `external_fetch` होस्ट माँगती है जो इंस्टॉल किए गए वर्ज़न में नहीं है,
+  विश्लेषण की ऐसी तरह की चेतावनी लाती है जो इंस्टॉल किए गए वर्ज़न में नहीं
+  थी, किसी दूसरी कुंजी से साइन है या अब साइन नहीं है, या जब इंस्टॉल किया
+  गया वर्ज़न साइन ही नहीं है, या जब एडमिन ने अपने-आप अपडेट बंद कर दिए हैं।
+  एडमिन को हर release के लिए एक बार सूचना दी जाती है।
+- **लागू** बाकी सभी मामलों में। वर्ज़न ऊँचा होना चाहिए, zip को release में
+  प्रकाशित sha256 से मेल खाना चाहिए, release वही प्लगइन होनी चाहिए (वही
+  `name`), और zip रिपॉज़िटरी की अपनी release फ़ाइलों से आना चाहिए।
+
+साइनिंग ही इसे सुरक्षित बनाती है: विश्लेषण जाने-पहचाने पैटर्न पकड़ता है, हर
+ख़तरनाक कोड नहीं, इसलिए जो release अपने-आप इंस्टॉल होती है उसे उस कुंजी से
+साइन होना चाहिए जो प्लगइन इंस्टॉल होते समय दर्ज की गई थी। जो इस कुंजी के
+बिना रिपॉज़िटरी पर कब्ज़ा करता है, उसे रोकी गई release मिलती है, इंस्टॉल की
+गई नहीं।
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -162,4 +189,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

@@ -577,7 +577,11 @@ func (f *fakePlugins) Update(context.Context, *plugin.Plugin) error   { return n
 func (f *fakePlugins) UpdateConfig(context.Context, string, map[string]any) error {
 	return nil
 }
-func (f *fakePlugins) Delete(context.Context, string) error { return nil }
+func (f *fakePlugins) Delete(context.Context, string) error                        { return nil }
+func (f *fakePlugins) SetUpdateFollow(context.Context, string, string, bool) error { return nil }
+func (f *fakePlugins) SetUpdateState(context.Context, string, plugin.UpdateState) error {
+	return nil
+}
 
 func (f *fakePlugins) InstallPlugin(_ context.Context, source string) (*plugin.Plugin, error) {
 	f.installed = append(f.installed, source)

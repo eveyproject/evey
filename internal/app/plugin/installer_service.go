@@ -45,6 +45,9 @@ type InstallerService struct {
 	// serverVersion is checked against a manifest's min_evey_version; empty
 	// (or a dev build) skips the check.
 	serverVersion string
+	// releases resolves a repository link to its latest release; nil leaves
+	// repository links unsupported.
+	releases plugin.ReleaseSource
 }
 
 // InstallerWithServerVersion sets the running server's version, which a
@@ -106,6 +109,12 @@ func InstallerWithRuntimeChecker(c plugin.RuntimeAvailabilityChecker) InstallerO
 // from a loopback httptest server - production should not bypass SSRF.
 func InstallerWithHTTPClient(c *http.Client) InstallerOption {
 	return func(s *InstallerService) { s.httpClient = c }
+}
+
+// InstallerWithReleaseSource lets an install source be a repository link,
+// resolved to its latest release, and lets an installed plugin follow it.
+func InstallerWithReleaseSource(r plugin.ReleaseSource) InstallerOption {
+	return func(s *InstallerService) { s.releases = r }
 }
 
 // defaultListDirs is the production implementation of listDirsFn - backed

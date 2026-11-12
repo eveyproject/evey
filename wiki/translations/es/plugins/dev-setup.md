@@ -1,5 +1,5 @@
 ---
-source_sha: 122a45d14ca6b9f66d0c85768a14922820d0755dcfafd6f138baa4f642b13416
+source_sha: d9a04e27b340ff02f9e98a0903e834a62b7678a1570238f182417f4efb9155a5
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -247,6 +247,9 @@ directamente a esos hosts por `https`. Las reglas están en
 Solo necesitas [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) en tu
 máquina.
 
+Usa cosign 2: cosign 3 rechaza `--tlog-upload=false` sin una configuración
+de firma, y el formato de Evey se comprueba precisamente con los comandos de abajo.
+
 1. **Una vez: genera un par de claves.**
 
     ```sh
@@ -378,18 +381,37 @@ a un administrador cuál elegir.
 
 ## 10. Distribuir un plugin { #10-distribute-a-plugin }
 
-No hay catálogo: un administrador instala un plugin subiendo su ZIP o
-pegando su URL en el panel de administración, desde donde lo publiques (una
-versión en una forja, tu propia web).
+No hay catálogo. Publica el plugin como releases de su propio repositorio de
+GitHub: un administrador lo instala entonces pegando el enlace del
+repositorio, `https://github.com/<owner>/<repo>`, y el plugin sigue ese
+repositorio para sus actualizaciones
+([Actualizaciones automáticas](../plugins.md#automatic-updates)). Un ZIP subido
+o enlazado desde otro sitio también se instala, pero no sigue nada.
 
-- Publica juntos el ZIP, su `.sig` y tu `cosign.pub` (sección 7).
-- Indica los permisos y los hosts de `external_fetch` en tu README: el
-  administrador ve los permisos al instalar y los hosts al actualizar y en el Panel de seguridad, y tiene que aprobarlos; algo inesperado ahí
-  es el primer motivo por el que se rechaza una instalación.
-- Para que tu plugin aparezca con los ejemplos incluidos, abre una pull
-  request contra `examples/plugins/` con el código fuente y un README. Los
-  ejemplos se revisan y se compilan desde el código fuente; aparecer en la
-  lista no es una recomendación y no lleva ninguna firma del proyecto.
+- Llama al repositorio `evey-plugin-<name>`, o `evey-theme-<name>` para un
+  tema: una búsqueda con esos prefijos encuentra todos los plugins.
+- Etiqueta cada release con `v` + la `version` del manifiesto y adjunta
+  exactamente un `.zip`, su `.sig` (sección 7) y su `.sha256` (la salida de
+  `sha256sum`). Si no hay `.sha256`, se usa el resumen que GitHub publica para
+  el archivo.
+- Conserva el `name` del manifiesto de una release a otra: es lo que vincula
+  una actualización con su plugin. `display_name` puede cambiar libremente.
+- Firma cada release con la misma clave. Una release solo se instala automáticamente si
+  está firmada con la clave que Evey fijó al instalar y no pide nada nuevo; un
+  plugin sin firmar siempre espera al administrador.
+- Una release que pide un permiso, una capacidad, una zona de visualización o
+  un host nuevos espera la aprobación del administrador: explica por qué en
+  sus notas.
+- Indica los permisos y los hosts `external_fetch` en tu README: el
+  administrador ve los permisos al instalar y los hosts al actualizar y en el
+  Panel de seguridad, y tiene que aprobarlos; una sorpresa ahí es el primer
+  motivo por el que se rechaza una instalación.
+
+Los plugins del proyecto Evey se publican así, con un workflow de release que
+puedes copiar: [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather/blob/main/.github/workflows/release.yml)
+construye un ZIP reproducible, lo firma con una clave guardada en los secretos
+del repositorio y publica el ZIP, el `.sig` y el `.sha256` cuando se sube una
+etiqueta de versión.
 
 ## 11. Solución de problemas { #11-troubleshooting }
 
@@ -417,7 +439,8 @@ host RPC permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; 
 host RPCs: internal/adapters/driving/pluginhost/host_server.go - Log, GetConfig, SetConfig, GetData ; fetch.go - Fetch (GET/HEAD, maxFetchBytes, fetchTimeout)
 frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc ; internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy
 bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge
-cosign: internal/adapters/driven/pluginrunner/cosign.go - NewCosignVerifier, readPackageKey, verifyBlobSignature ; internal/config/config.go - CosignPolicy validation
+cosign: internal/adapters/driven/pluginrunner/cosign.go - NewCosignVerifier, readPackageKey, verifyBlobSignature ; cosign 3 vs --tlog-upload=false: release run of the project's plugin repositories (cosign-installer default) ; internal/config/config.go - CosignPolicy validation
+distribution, repository links: internal/app/plugin/install_source.go - resolveInstallSource ; internal/adapters/driven/pluginrelease/github.go - Latest (one .zip, .sha256 or asset digest) ; internal/app/plugin/auto_update.go ;
 install order: internal/app/plugin/install.go - installLocalZip, parseAndValidateManifest, resolveExistingPlugin, verifyPluginIntegrity, extractPluginToStaging, validateStagedPlugin, checkEscalatedWarnings, swapAndPersistPlugin ; update.go - ApplyUpdate ; zip limits: docs/SECURITY.md (ZIP extraction)
 resource limits: internal/config/config.go - Plugins ; internal/adapters/driven/pluginrunner/runner_resmon.go ; i18n admin.plugins.resourceLimits.*
 error texts: internal/adapters/driven/pluginrunner/manifest.go ; internal/domain/plugin/model.go ; internal/app/plugin/install.go ; cosign.go ; runner_resmon.go

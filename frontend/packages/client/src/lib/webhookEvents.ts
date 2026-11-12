@@ -38,6 +38,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "plugin.started",
   "plugin.stopped",
   "plugin.uninstalled",
+  "plugin.update.attention",
   "server.config.changed",
   "transcode.cancelled",
   "transcode.failed",

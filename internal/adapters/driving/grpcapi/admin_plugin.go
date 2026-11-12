@@ -57,6 +57,9 @@ type adminPluginHandler struct {
 	// nil when not wired (the RPCs then answer FailedPrecondition).
 	metadataSettings pluginMetadataSettings
 	metadataRefresh  pluginMetadataRefresher
+	// autoUpdater runs a plugin's update check on demand; nil when the plugin
+	// system is disabled.
+	autoUpdater *appplugin.AutoUpdater
 }
 
 // requireEnabled gates state-changing or executing plugin operations.
@@ -581,6 +584,69 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 		default:
 			return nil, internalError(ctx, "apply update", err)
 		}
+	}
+	return pluginToProto(d.withLiveTrust(ctx, p)), nil
+}
+
+// SetPluginUpdateFollow records the repository a plugin follows and whether
+// its releases install without an admin.
+func (d *adminPluginHandler) SetPluginUpdateFollow(ctx context.Context, req *eveyv1.SetPluginUpdateFollowRequest) (*eveyv1.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.SetPluginUpdateFollow")
+	defer span.End()
+	if err := d.requireEnabled(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if req.PluginId == "" {
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.id_required")
+	}
+	p, err := d.pluginInstaller.SetUpdateFollow(ctx, req.PluginId, req.UpdateSource, req.AutoUpdate)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, appplugin.ErrPluginNotFound):
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
+		case errors.Is(err, plugin.ErrUnsupportedRepository):
+			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.repository_unsupported")
+		default:
+			return nil, internalError(ctx, "set plugin update follow", err)
+		}
+	}
+	return pluginToProto(d.withLiveTrust(ctx, p)), nil
+}
+
+// CheckPluginUpdate runs the check now for one plugin.
+func (d *adminPluginHandler) CheckPluginUpdate(ctx context.Context, req *eveyv1.CheckPluginUpdateRequest) (*eveyv1.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.CheckPluginUpdate")
+	defer span.End()
+	if err := d.requireEnabled(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if req.PluginId == "" {
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.id_required")
+	}
+	if d.autoUpdater == nil {
+		return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.system_disabled")
+	}
+	if _, err := d.autoUpdater.Check(ctx, req.PluginId); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, appplugin.ErrPluginNotFound):
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
+		case errors.Is(err, appplugin.ErrNoUpdateSource):
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.no_update_source")
+		default:
+			return nil, internalError(ctx, "check plugin update", err)
+		}
+	}
+	p, err := d.pluginQuery.GetPlugin(ctx, req.PluginId)
+	if err != nil {
+		return nil, internalError(ctx, "check plugin update", err)
 	}
 	return pluginToProto(d.withLiveTrust(ctx, p)), nil
 }

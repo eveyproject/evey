@@ -17,6 +17,7 @@ import (
 	"github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
 	musicbrainzadapter "github.com/eveyproject/evey/internal/adapters/driven/musicbrainz"
 	"github.com/eveyproject/evey/internal/adapters/driven/opensubtitles"
+	"github.com/eveyproject/evey/internal/adapters/driven/pluginrelease"
 	"github.com/eveyproject/evey/internal/adapters/driven/pluginrunner"
 	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
 	proberpkg "github.com/eveyproject/evey/internal/adapters/driven/prober"
@@ -461,6 +462,7 @@ func buildPluginSubsystem(ctx context.Context, infra *infraDeps, rootLog *slog.L
 		appplugin.InstallerWithFileSystem(pluginFS),
 		appplugin.InstallerWithCSSSanitizer(cssSanitizer),
 		appplugin.InstallerWithRuntimeChecker(runtimeChecker),
+		appplugin.InstallerWithReleaseSource(pluginrelease.NewGitHub(nil)),
 	)
 	// Reap any plugin install dirs left behind by uninstalls that crashed
 	// before the FS removal succeeded. Async so it never blocks startup.

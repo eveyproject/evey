@@ -1,5 +1,5 @@
 ---
-source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
+source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
 reviewed: true
 ---
 # Permissions et emplacements { #permissions-and-slots }
@@ -168,6 +168,36 @@ jeton ne nomme pas.
    fiable ou invalide à l'application bloque la mise à jour même si l'aperçu
    a réussi.
 
+## Mises à jour automatiques { #automatic-updates }
+
+Un plugin peut suivre le dépôt depuis lequel il a été installé
+(`https://github.com/<owner>/<repo>`). Toutes les heures, le serveur lit la
+dernière release par l'API de GitHub, télécharge son zip une seule fois, juge
+ces octets et installe ces mêmes octets, par toute la chaîne d'installation
+décrite plus haut.
+
+- **Refusée** quand l'analyse statique refuse le code : une découverte
+  critique, ou un avertissement que l'installation bloque elle-même
+  (`deserialization`, `obfuscation`, `native_code` sans `native-binary`). Les
+  administrateurs sont notifiés ; rien n'est installé.
+- **Mise en attente d'un administrateur** quand la release demande une
+  permission, une capacité, un emplacement ou un hôte `external_fetch` que la
+  version installée n'a pas, porte un type d'avertissement d'analyse que la
+  version installée n'avait pas, est signée par une autre clé ou ne l'est
+  plus, ou quand la version installée n'est pas signée du tout, ou quand
+  l'administrateur a coupé les mises à jour automatiques. Les administrateurs
+  sont notifiés une fois par release.
+- **Appliquée** sinon. La version doit être supérieure, le zip doit
+  correspondre au sha256 que publie la release, la release doit être le même
+  plugin (même `name`), et le zip doit venir des fichiers de release du dépôt
+  lui-même.
+
+C'est la signature qui rend cela sûr : l'analyse repère des motifs connus,
+pas tout code malveillant, donc une release qui s'installe seule doit être
+signée par la clé épinglée à l'installation du plugin. Quelqu'un qui prend le
+contrôle du dépôt sans cette clé obtient une release en attente, pas une
+release installée.
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -180,4 +210,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

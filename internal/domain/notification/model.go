@@ -46,13 +46,17 @@ const (
 	// requester of the operator's decision (a personal notification).
 	TypeMediaRequest    Type = "media_request"
 	TypeRequestAnswered Type = "request_answered"
+	// TypePluginUpdateHeld: a release of a followed plugin waits for an
+	// admin. TypePluginUpdateRefused: its code was refused. Admin-only.
+	TypePluginUpdateHeld    Type = "plugin_update_held"
+	TypePluginUpdateRefused Type = "plugin_update_refused"
 )
 
 func (t Type) IsValid() bool {
 	switch t {
 	case TypeNewMovie, TypeNewEpisode, TypeNewSeason, TypeNewSeries, TypeNewAlbum,
 		TypeLibraryScanned, TypeBackupFailed, TypePluginError, TypeCacheFull, TypeCustom, TypePruneSuspended,
-		TypeMediaRequest, TypeRequestAnswered:
+		TypeMediaRequest, TypeRequestAnswered, TypePluginUpdateHeld, TypePluginUpdateRefused:
 		return true
 	}
 	return false
@@ -70,7 +74,8 @@ func (t Type) IsValid() bool {
 // filters (the web bell hides plugin_error, which has its own dashboard).
 func (t Type) IsAdminOnly() bool {
 	switch t {
-	case TypeBackupFailed, TypePluginError, TypeCacheFull, TypePruneSuspended, TypeMediaRequest:
+	case TypeBackupFailed, TypePluginError, TypeCacheFull, TypePruneSuspended, TypeMediaRequest,
+		TypePluginUpdateHeld, TypePluginUpdateRefused:
 		return true
 	}
 	return false

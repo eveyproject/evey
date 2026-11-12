@@ -1,5 +1,5 @@
 ---
-source_sha: 80334abe63c67481f81bd04e5cfd89edf7cbe49fcf3168a2fa949fff7a391cc6
+source_sha: d08a1af35d4a41091645fe63bdc98de0245a23176fc6d3ab99a28e277edee906
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -38,6 +38,10 @@ läuft in einem isolierten Rahmen der Seite.
    optional)** hinzu. Der Reiter **Von URL** installiert stattdessen über
    einen Link. Hängen Sie `#sha256:<hash>` an die URL an, damit der Download
    geprüft wird.
+   Ein Repository-Link, `https://github.com/<owner>/<repo>`, installiert das
+   ZIP seines neuesten Releases, geprüft gegen die SHA-256, die das Release
+   veröffentlicht, und das Plugin folgt danach diesem Repository für seine
+   Updates (siehe [Automatische Updates](#automatic-updates)).
 2. **Vorschau & Installieren** analysiert das Paket, ohne es zu installieren.
    Die Vorschau zeigt die **Berechtigungen** und **Fähigkeiten**, die das
    Plugin anfordert, das Ergebnis der **Statischen Analyse** und, wenn eine
@@ -87,6 +91,34 @@ Aktualisierung beantragt neue Berechtigungen** und listet den Unterschied
 auf: Nichts wird übernommen, bevor Sie **Genehmigen und installieren**
 wählen. Das analysierte Paket ist das installierte Paket: Sein Hashwert wird
 beim Übernehmen des Updates noch einmal geprüft.
+
+Die Quelle kann auch der Repository-Link des Plugins sein: Die Vorschau
+zeigt dann dessen neuestes Release.
+
+### Automatische Updates { #automatic-updates }
+
+Ein Plugin, das über den Link seines Repositorys oder über einen Release-Link
+dieses Repositorys installiert wurde, folgt dem Repository. Der Abschnitt
+**Updates** seiner Karte zeigt das Repository (**Ändern** legt ein anderes
+oder keines fest), den Schalter **Automatische Updates**, standardmäßig
+eingeschaltet, und was die letzte Prüfung gefunden hat. Evey sieht sich das
+neueste Release einige Minuten nach dem Start an, danach jede Stunde; **Jetzt
+prüfen** tut es sofort.
+
+Ein neueres Release wird beurteilt, bevor irgendetwas läuft:
+
+| Was das Release enthält | Was passiert |
+|---|---|
+| Nichts Neues: keine neue Berechtigung, Fähigkeit, Anzeigefläche oder Host, keine neue Art von Analysewarnung, derselbe Signaturschlüssel | Wird von selbst installiert: **Version … automatisch installiert**. |
+| Etwas Neues, oder die installierte Version ist nicht signiert, oder der Schalter ist aus | **Version … wartet auf Ihre Freigabe**, und die Administratoren erhalten eine Benachrichtigung. **Prüfen** öffnet die übliche Update-Vorschau, in der Sie den Unterschied freigeben. |
+| Code, den die statische Analyse ablehnt | **Version … abgelehnt**, mit dem Grund, und die Administratoren erhalten eine Benachrichtigung. Es wird weder automatisch noch von Hand installiert. |
+
+Ein unsigniertes Plugin aktualisiert sich nie selbst: Wer sein Repository
+übernommen hat, könnte Code veröffentlichen, den die Analyse nicht erkennt,
+und nur ein Signaturschlüssel, den er nicht besitzt, hält ihn auf. Eine
+Benachrichtigung geht einmal pro Release hinaus, nicht jede Stunde. Die
+Prüfung fragt die GitHub-API ab und lädt nur aus den Release-Dateien des
+Repositorys herunter, von nirgendwo sonst.
 
 ## Die installierten Plugins verwalten { #manage-the-installed-plugins }
 
@@ -234,4 +266,5 @@ subprocess: docs/plugins/security-model.md (Permissions catalog)
 slots: internal/domain/plugin/slots.go - AllowedSlots
 scoped token, public/prefs: docs/adr/0012-plugin-token-deny-by-default.md ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes
 theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n common.appearance, common.theme
+automatic updates: internal/app/plugin/auto_update.go - AutoUpdater, updateFromRelease ; install_source.go - resolveInstallSource, followRepository, settleUpdateState ; internal/adapters/driven/pluginrelease/github.go ; frontend/apps/web/src/features/admin/PluginAutoUpdate.tsx ; i18n admin.plugin.autoUpdate.*, common.notifications.pluginUpdateHeld, pluginUpdateRefused
 -->

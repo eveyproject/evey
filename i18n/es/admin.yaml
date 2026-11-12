@@ -167,6 +167,27 @@ plugin:
   update: "Actualizar desde origen…"
   previewUpdate: Vista previa
   updateSourceLabel: ZIP de origen (ruta o URL)
+  autoUpdate:
+    title: "Actualizaciones"
+    repository: "Repositorio"
+    repositoryNone: "Este plugin no sigue ningún repositorio."
+    edit: "Cambiar"
+    toggle: "Actualizaciones automáticas"
+    toggleHint: "Una nueva versión se instala sola cuando no pide nada nuevo: ningún permiso, capacidad, zona de visualización ni host nuevo, ningún tipo nuevo de aviso del análisis y la misma clave de firma. Todo lo demás espera tu aprobación, y el código que el análisis rechaza nunca se instala."
+    checkNow: "Comprobar ahora"
+    checking: "Comprobando…"
+    checkedAt: "comprobado el {{when}}"
+    neverChecked: "Aún no comprobado"
+    review: "Revisar"
+    saved: "Ajustes de actualización guardados"
+    saveFailed: "No se pudieron guardar los ajustes de actualización"
+    checkFailed: "La comprobación ha fallado"
+    outcome:
+      upToDate: "Al día ({{version}})"
+      applied: "Versión {{version}} instalada automáticamente"
+      held: "Versión {{version}} pendiente de tu aprobación"
+      refused: "Versión {{version}} rechazada"
+      failed: "La comprobación ha fallado"
   configuration: Configuración
   noConfig: No hay claves de config definidas.
   configSaved: Config guardada

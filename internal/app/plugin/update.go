@@ -71,6 +71,12 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 		return nil, ErrPluginNotFound
 	}
 
+	// A repository link resolves to its latest release; if that moved since
+	// the preview, the hash check below refuses it.
+	source, _, resErr := s.resolveInstallSource(ctx, source)
+	if resErr != nil {
+		return nil, resErr
+	}
 	// Download/read the candidate once and hash it; this file is what gets installed.
 	localPath, fragmentHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()

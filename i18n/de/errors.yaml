@@ -208,6 +208,8 @@ plugin:
   metadata_field_unknown: "Ein Metadaten-Plugin kann den Titel, die Beschreibung und den Slogan ersetzen, sonst nichts"
   metadata_refresh_running: "Die Bibliothek wird bereits von diesem Plugin abgerufen"
   signature_lost: "Dieses Update ist nicht mehr signiert, die installierte Version war es - akzeptieren Sie das unsignierte Update, um es anzuwenden"
+  repository_unsupported: "Nur Repository-Links der Form https://github.com/<owner>/<repo> werden unterstützt"
+  no_update_source: "Dieses Plugin folgt keinem Repository - legen Sie zuerst eines fest"
 
 demo:
   locked: "Auf dem Demo-Server nicht verfügbar"
