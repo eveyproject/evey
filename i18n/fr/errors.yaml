@@ -209,6 +209,8 @@ plugin:
   metadata_field_unknown: "Un plugin de métadonnées peut remplacer le titre, le synopsis et l'accroche, rien d'autre"
   metadata_refresh_running: "La bibliothèque est déjà en cours de récupération depuis ce plugin"
   signature_lost: "Cette mise à jour n'est plus signée alors que la version installée l'était - acceptez la mise à jour non signée pour l'appliquer"
+  repository_unsupported: "Seuls les liens de dépôt https://github.com/<owner>/<repo> sont pris en charge"
+  no_update_source: "Ce plugin ne suit aucun dépôt - renseignez-en un d'abord"
 
 demo:
   locked: "Indisponible sur le serveur de démonstration"

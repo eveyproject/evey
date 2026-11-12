@@ -1,5 +1,5 @@
 ---
-source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
+source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
 reviewed: true
 ---
 # Berechtigungen und Slots { #permissions-and-slots }
@@ -167,6 +167,36 @@ lehnt standardmäßig jede Methode ab, die dieser Token nicht nennt.
    eine nicht vertraute oder ungültige Signatur beim Anwenden das Update,
    auch wenn die Vorschau bestanden hat.
 
+## Automatische Updates { #automatic-updates }
+
+Ein Plugin kann dem Repository folgen, aus dem es installiert wurde
+(`https://github.com/<owner>/<repo>`). Jede Stunde liest der Server das
+neueste Release über die GitHub-API, lädt dessen ZIP einmal herunter,
+beurteilt diese Bytes und installiert genau diese Bytes, über die gesamte
+oben beschriebene Installationskette.
+
+- **Abgelehnt**, wenn die statische Analyse den Code ablehnt: ein kritischer
+  Befund oder eine Warnung, die schon die Installation blockiert
+  (`deserialization`, `obfuscation`, `native_code` ohne `native-binary`). Die
+  Administratoren werden benachrichtigt; nichts wird installiert.
+- **Für einen Administrator zurückgehalten**, wenn das Release eine
+  Berechtigung, Fähigkeit, Anzeigefläche oder einen `external_fetch`-Host
+  verlangt, den die installierte Version nicht hat, eine Art von
+  Analysewarnung trägt, die die installierte Version nicht hatte, mit einem
+  anderen Schlüssel oder nicht mehr signiert ist, oder wenn die installierte
+  Version gar nicht signiert ist, oder wenn der Administrator automatische
+  Updates ausgeschaltet hat. Die Administratoren werden einmal pro Release
+  benachrichtigt.
+- **Angewendet** in allen anderen Fällen. Die Version muss höher sein, das
+  ZIP muss zur SHA-256 passen, die das Release veröffentlicht, das Release
+  muss dasselbe Plugin sein (derselbe `name`), und das ZIP muss aus den
+  Release-Dateien des Repositorys selbst kommen.
+
+Die Signatur macht das sicher: Die Analyse erkennt bekannte Muster, nicht
+jeden bösartigen Code, deshalb muss ein Release, das sich selbst installiert,
+mit dem Schlüssel signiert sein, der bei der Installation des Plugins fest hinterlegt wurde. Wer das Repository ohne diesen Schlüssel übernimmt,
+bekommt ein zurückgehaltenes Release, kein installiertes.
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -179,4 +209,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

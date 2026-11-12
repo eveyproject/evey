@@ -128,6 +128,8 @@ notifications:
   cacheFull: "Untertitel-Cache voll"
   pruneSuspended: "Löschen in der Bibliothek ausgesetzt"
   mediaRequest: "Neue Medienanfrage: {{name}}"
+  pluginUpdateHeld: "Plugin-Update wartet auf Ihre Freigabe: {{name}}"
+  pluginUpdateRefused: "Plugin-Update abgelehnt: {{name}}"
   requestAnswered: "Ihre Medienanfrage wurde aktualisiert: {{name}}"
   clearConfirm: Alle Benachrichtigungen löschen?
   clearTitle: Benachrichtigungen löschen

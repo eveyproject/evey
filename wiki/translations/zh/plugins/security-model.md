@@ -1,5 +1,5 @@
 ---
-source_sha: 5797ab4dad60aa26f26d5791264549ceebbd9fbfca0de769cce540c484fbc743
+source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
 reviewed: true
 ---
 # 权限与插槽 { #permissions-and-slots }
@@ -113,6 +113,27 @@ reviewed: true
 3. 包的哈希值在预览时记下，在应用时核对：被分析的 ZIP，就是被安装的那个 ZIP。
 4. 签名密钥要检查连续性：用与已安装版本不同的密钥签名、或不再签名的更新会被拒绝，直到管理员接受新的发布者。在 `EVEY_PLUGINS_COSIGN_POLICY=enforce` 下，即使预览通过了，只要应用这一步的签名不受信任或无效，更新就会被阻止。
 
+## 自动更新 { #automatic-updates }
+
+插件可以关联它的安装来源仓库（`https://github.com/<owner>/<repo>`）。服务器每小时
+通过 GitHub API 读取最新 release，只下载一次它的 zip，判断这些字节，并通过上文所述
+的完整安装流程安装同样的这些字节。
+
+- **拒绝**：静态分析拒绝该代码，即出现严重级别的问题，或出现安装本身就会阻止的警告
+  （`deserialization`、`obfuscation`、未声明 `native-binary` 的 `native_code`）。
+  管理员会收到通知；不安装任何内容。
+- **等待管理员**：release 要求已安装版本没有的权限、能力、显示位置或
+  `external_fetch` 主机，带有已安装版本没有的分析警告类型，使用了另一把密钥签名
+  或不再有签名；或者已安装的版本根本没有签名；或者管理员关闭了自动更新。每个
+  release 只通知管理员一次。
+- **应用**：其他所有情况。版本必须更高，zip 必须与 release 发布的 sha256 一致，
+  release 必须是同一个插件（相同的 `name`），并且 zip 必须来自该仓库自己的
+  release 文件。
+
+保证安全的是签名：分析只能识别已知模式，无法发现所有恶意代码，因此自动安装的
+release 必须使用插件安装时固定下来的密钥签名。没有这把密钥却接管了仓库的人，
+得到的是一个等待中的 release，而不是已安装的 release。
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -125,4 +146,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

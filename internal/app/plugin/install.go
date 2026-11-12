@@ -199,12 +199,21 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	ctx, span := tracing.StartSpan(ctx, "app.plugin.InstallPlugin")
 	defer span.End()
 
+	source, repo, err := s.resolveInstallSource(ctx, source)
+	if err != nil {
+		return nil, err
+	}
 	localPath, expectedHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
 		return nil, fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, dlErr)
 	}
-	return s.installLocalZip(ctx, localPath, expectedHash)
+	p, err := s.installLocalZip(ctx, localPath, expectedHash)
+	if err != nil {
+		return nil, err
+	}
+	s.followRepository(ctx, p, repo)
+	return p, nil
 }
 
 // installLocalZip runs the whole install pipeline (manifest, integrity and
@@ -260,6 +269,7 @@ func (s *InstallerService) installLocalZip(ctx context.Context, zipPath, expecte
 	if err != nil {
 		return nil, err
 	}
+	s.settleUpdateState(ctx, p)
 
 	if startFailed := s.startPluginAndUpdateStatus(ctx, p); startFailed {
 		installOK = true
@@ -444,6 +454,9 @@ func (s *InstallerService) buildPluginRecord(existing *plugin.Plugin, sourceHash
 		// added fields appear; unchanged fields keep their stored values.
 		p.Config = existing.Config
 		p.Enabled = existing.Enabled
+		// The repository it follows is the admin's choice, which the upgrade
+		// keeps (Update never writes it); the record returned says so too.
+		p.UpdateSource, p.AutoUpdate, p.UpdateState = existing.UpdateSource, existing.AutoUpdate, existing.UpdateState
 	}
 	return p, nil
 }
@@ -736,16 +749,26 @@ func (s *InstallerService) checkEscalatedWarnings(_ context.Context, p *plugin.P
 		return fmt.Errorf("plugin blocked: %s", msg)
 	}
 
+	if msg := blockingWarning(report, p.Permissions); msg != "" {
+		return blockAndClean(msg)
+	}
+	return nil
+}
+
+// blockingWarning names the warning categories that refuse a package although
+// they are not critical; empty when there is none. The install and the
+// automatic update judge a package by this same rule.
+func blockingWarning(report *plugin.AnalysisReport, permissions []string) string {
 	if report.HasWarningCategory("deserialization") {
-		return blockAndClean("unsafe deserialization patterns detected (e.g. yaml.load without Loader) - use safe alternatives such as yaml.safe_load()")
+		return "unsafe deserialization patterns detected (e.g. yaml.load without Loader) - use safe alternatives such as yaml.safe_load()"
 	}
 	if report.HasWarningCategory("obfuscation") {
-		return blockAndClean("code obfuscation patterns detected (str_rot13, chr() concatenation) - remove obfuscated constructs before installing")
+		return "code obfuscation patterns detected (str_rot13, chr() concatenation) - remove obfuscated constructs before installing"
 	}
 	// native_code warnings (Go unsafe.*) require explicit native-binary opt-in
 	// because unsafe code bypasses Go memory safety guarantees.
-	if report.HasWarningCategory("native_code") && !slices.Contains(p.Permissions, nativeBinaryPerm) {
-		return blockAndClean(fmt.Sprintf("native/unsafe code patterns detected - declare permission %q in manifest to opt in", nativeBinaryPerm))
+	if report.HasWarningCategory("native_code") && !slices.Contains(permissions, nativeBinaryPerm) {
+		return fmt.Sprintf("native/unsafe code patterns detected - declare permission %q in manifest to opt in", nativeBinaryPerm)
 	}
-	return nil
+	return ""
 }

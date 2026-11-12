@@ -124,6 +124,10 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 	if err != nil {
 		return nil, ErrPluginNotFound
 	}
+	source, _, err = s.resolveInstallSource(ctx, source)
+	if err != nil {
+		return nil, err
+	}
 
 	localPath, _, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
@@ -225,6 +229,10 @@ func (s *InstallerService) candidateSignature(ctx context.Context, zipPath strin
 func (s *InstallerService) PreviewSource(ctx context.Context, source string) (*PluginPreview, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.plugin.PreviewSource")
 	defer span.End()
+	source, _, err := s.resolveInstallSource(ctx, source)
+	if err != nil {
+		return nil, err
+	}
 	localPath, expectedHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {

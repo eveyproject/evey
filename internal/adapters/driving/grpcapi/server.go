@@ -58,7 +58,10 @@ type GRPCServerDeps struct {
 	PluginInstaller *appplugin.InstallerService
 	PluginRuntime   *appplugin.RuntimeService
 	PluginQuery     *appplugin.QueryService
-	PluginToken     *appplugin.TokenService
+	// PluginAutoUpdate runs a plugin's update check on demand; nil when the
+	// plugin system is disabled.
+	PluginAutoUpdate *appplugin.AutoUpdater
+	PluginToken      *appplugin.TokenService
 	// PluginRunner drives the per-plugin resource-limits RPCs (read + apply).
 	// Holds *pluginrunner.Runner; nil when the plugin system is disabled.
 	PluginRunner           pluginResourceController
@@ -260,6 +263,7 @@ func (s *GRPCServer) RegisterServices() {
 		enabled:          d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
 		metadataSettings: metadataSettingsOrNil(d.PluginMetadataSettings),
 		metadataRefresh:  metadataRefreshOrNil(d.PluginMetadataRefresh),
+		autoUpdater:      d.PluginAutoUpdate,
 	}
 	eveyv1.RegisterAdminPluginServiceServer(s.server, adminPlugins)
 	eveyv1.RegisterPluginUserDataServiceServer(s.server, newPluginUserDataHandler(d.PluginData))

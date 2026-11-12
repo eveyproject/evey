@@ -1,5 +1,5 @@
 ---
-source_sha: 80334abe63c67481f81bd04e5cfd89edf7cbe49fcf3168a2fa949fff7a391cc6
+source_sha: d08a1af35d4a41091645fe63bdc98de0245a23176fc6d3ab99a28e277edee906
 reviewed: true
 ---
 # 插件 { #plugins }
@@ -30,6 +30,9 @@ reviewed: true
 1. 在**管理 → 插件**里，打开**安装插件**，选择**插件文件 (.zip)**。如果作者提供了签名，
    把它加到**签名文件（.zip.sig，可选）**里。**从 URL 安装**选项卡则是通过链接安装；
    在 URL 后面加上 `#sha256:<hash>`，下载的文件就会被核对。
+   仓库链接 `https://github.com/<owner>/<repo>` 会安装其最新 release 的 zip，
+   并用该 release 发布的 sha256 校验；之后插件会关联这个仓库来获取更新（参见
+   [自动更新](#automatic-updates)）。
 2. **预览并安装**会分析这个安装包，但不安装它。预览显示插件请求的**权限**和**能力**、
    **静态分析**的结果，以及（如果提供了签名）带有发布者的**签名**结论。插槽和主机会在更新时以及**安全仪表板**里显示。
 3. 请把这份清单视为插件的约定范围：插件能做的事，只有这些。确认后，插件就会启动。
@@ -61,6 +64,27 @@ reviewed: true
 更新的版本号必须比已安装的高。如果更新请求了新的权限、能力、插槽或主机，预览会显示**此更新请求新权限**，
 并列出差别：在您选择**批准并安装**之前，什么都不会生效。被分析的安装包就是被安装的安装包：
 真正应用更新时，会再核对一次它的哈希值。
+
+来源也可以是插件的仓库链接：此时预览的是它的最新 release。
+
+### 自动更新 { #automatic-updates }
+
+通过仓库链接，或该仓库的某个 release 链接安装的插件，会关联这个仓库。插件卡片的
+**更新**部分显示所关联的仓库（**更改**可以指定另一个仓库，或不关联任何仓库）、
+默认开启的**自动更新**开关，以及上一次检查的结果。Evey 在启动几分钟后查看最新
+release，之后每小时一次；**立即检查**会马上查看。
+
+较新的 release 在任何代码运行之前都会先经过判断：
+
+| release 包含的内容 | 结果 |
+|---|---|
+| 没有任何新内容：没有新的权限、能力、显示位置或主机，没有新类型的分析警告，签名密钥相同 | 自动安装：**已自动安装 … 版本**。 |
+| 有新内容，或已安装的版本没有签名，或开关已关闭 | **… 版本等待您批准**，管理员会收到通知。**查看**会打开常规的更新预览，您在其中批准这些差异。 |
+| 静态分析拒绝的代码 | **… 版本已被拒绝**，并附上原因，管理员会收到通知。它既不会自动安装，也不能手动安装。 |
+
+未签名的插件永远不会自动更新：接管了其仓库的人可能发布分析无法发现的代码，只有
+一把他不持有的签名密钥才能阻止他。每个 release 只发送一次通知，而不是每小时一次。
+检查会访问 GitHub API，并且只从该仓库的 release 文件下载，不会从其他任何地方下载。
 
 ## 管理已安装的插件 { #manage-the-installed-plugins }
 
@@ -162,4 +186,5 @@ subprocess: docs/plugins/security-model.md (Permissions catalog)
 slots: internal/domain/plugin/slots.go - AllowedSlots
 scoped token, public/prefs: docs/adr/0012-plugin-token-deny-by-default.md ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes
 theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n common.appearance, common.theme
+automatic updates: internal/app/plugin/auto_update.go - AutoUpdater, updateFromRelease ; install_source.go - resolveInstallSource, followRepository, settleUpdateState ; internal/adapters/driven/pluginrelease/github.go ; frontend/apps/web/src/features/admin/PluginAutoUpdate.tsx ; i18n admin.plugin.autoUpdate.*, common.notifications.pluginUpdateHeld, pluginUpdateRefused
 -->

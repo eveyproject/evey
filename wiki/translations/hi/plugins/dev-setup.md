@@ -1,5 +1,5 @@
 ---
-source_sha: 122a45d14ca6b9f66d0c85768a14922820d0755dcfafd6f138baa4f642b13416
+source_sha: d9a04e27b340ff02f9e98a0903e834a62b7678a1570238f182417f4efb9155a5
 reviewed: true
 ---
 # प्लगइन लिखना { #writing-a-plugin }
@@ -237,6 +237,10 @@ broker `http` और `https`, `GET` और `HEAD` स्वीकार कर�
 [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) सिर्फ़ आपकी मशीन पर
 चाहिए।
 
+cosign 2 इस्तेमाल करें: cosign 3 साइनिंग कॉन्फ़िगरेशन के बिना
+`--tlog-upload=false` को अस्वीकार करता है, और Evey का फ़ॉर्मैट नीचे दिए गए
+कमांड से ही जाँचा जाता है।
+
 1. **एक बार: कुंजी का जोड़ा बनाएँ।**
 
     ```sh
@@ -354,17 +358,37 @@ broker `http` और `https`, `GET` और `HEAD` स्वीकार कर�
 
 ## 10. प्लगइन का वितरण { #10-distribute-a-plugin }
 
-कोई कैटलॉग नहीं है: एडमिन प्लगइन इंस्टॉल करने के लिए उसका ZIP अपलोड करता है या
-एडमिन पैनल में उसका URL चिपकाता है, जहाँ भी आप उसे प्रकाशित करें (किसी forge पर
-रिलीज़, आपकी अपनी साइट)।
+कोई कैटलॉग नहीं है। प्लगइन को उसकी अपनी GitHub रिपॉज़िटरी की releases के
+रूप में प्रकाशित करें: तब एडमिन रिपॉज़िटरी लिंक
+`https://github.com/<owner>/<repo>` चिपकाकर उसे इंस्टॉल करता है, और प्लगइन
+अपने अपडेट के लिए उस रिपॉज़िटरी को फ़ॉलो करता है
+([अपने-आप अपडेट](../plugins.md#automatic-updates))। कहीं और से अपलोड या
+लिंक किया गया ZIP भी इंस्टॉल होता है, पर किसी को फ़ॉलो नहीं करता।
 
-- ZIP, उसकी `.sig` और अपनी `cosign.pub` एक साथ दें (सेक्शन 7)।
-- अपनी README में अनुमतियाँ और `external_fetch` के होस्ट बताएँ: एडमिन अनुमतियाँ इंस्टॉल के समय और होस्ट अपडेट के समय व सुरक्षा डैशबोर्ड पर देखता है, और इन्हें मंज़ूर करना होता है; यहाँ कोई अनपेक्षित चीज़
-  इंस्टॉल मना होने का सबसे पहला कारण है।
-- अपने प्लगइन को साथ आने वाले उदाहरणों के साथ सूची में लाने के लिए,
-  `examples/plugins/` पर स्रोत कोड और एक README के साथ pull request खोलें।
-  उदाहरणों की समीक्षा होती है और वे स्रोत से build होते हैं; सूची में होना कोई
-  सिफ़ारिश नहीं है और उस पर प्रोजेक्ट का कोई सिग्नेचर नहीं होता।
+- रिपॉज़िटरी का नाम `evey-plugin-<name>` रखें, या थीम के लिए
+  `evey-theme-<name>`: इन प्रीफ़िक्स पर खोज से सारे प्लगइन मिल जाते हैं।
+- हर release को `v` + manifest के `version` से टैग करें, और उसमें ठीक एक
+  `.zip`, उसका `.sig` (सेक्शन 7) और उसका `.sha256` (`sha256sum` का आउटपुट)
+  जोड़ें। `.sha256` न हो तो GitHub फ़ाइल के लिए जो डाइजेस्ट प्रकाशित करता है,
+  वह इस्तेमाल होता है।
+- एक release से दूसरी तक manifest का `name` वही रखें: इसी से अपडेट अपने
+  प्लगइन से जुड़ता है। `display_name` को बेझिझक बदला जा सकता है।
+- हर release को एक ही कुंजी से साइन करें। कोई release तभी अपने-आप इंस्टॉल
+  होती है जब वह उस कुंजी से साइन हो जो Evey ने इंस्टॉल के समय दर्ज की थी और
+  कुछ नया न माँगे; बिना साइन वाला प्लगइन हमेशा एडमिन का इंतज़ार करता है।
+- जो release नई अनुमति, क्षमता, स्लॉट या होस्ट माँगती है, वह एडमिन की
+  मंज़ूरी का इंतज़ार करती है: उसके नोट्स में कारण बताएँ।
+- अपने README में अनुमतियाँ और `external_fetch` होस्ट लिखें: एडमिन इंस्टॉल
+  के समय अनुमतियाँ, और अपडेट के समय और सिक्योरिटी डैशबोर्ड में होस्ट देखता है,
+  और उन्हें मंज़ूरी देनी होती है; वहाँ कोई अचानक बात होना इंस्टॉल ठुकराए जाने
+  की सबसे पहली वजह है।
+
+Evey प्रोजेक्ट के प्लगइन इसी तरह प्रकाशित होते हैं, एक release workflow के
+साथ जिसे आप कॉपी कर सकते हैं:
+[evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather/blob/main/.github/workflows/release.yml)
+एक रीप्रोड्यूसिबल ZIP बनाता है, उसे रिपॉज़िटरी के secrets में रखी कुंजी से
+साइन करता है, और वर्ज़न टैग पुश होने पर ZIP, `.sig` और `.sha256` प्रकाशित
+करता है।
 
 ## 11. समस्या का हल { #11-troubleshooting }
 
@@ -392,7 +416,8 @@ host RPC permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; 
 host RPCs: internal/adapters/driving/pluginhost/host_server.go - Log, GetConfig, SetConfig, GetData ; fetch.go - Fetch (GET/HEAD, maxFetchBytes, fetchTimeout)
 frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc ; internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy
 bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge
-cosign: internal/adapters/driven/pluginrunner/cosign.go - NewCosignVerifier, readPackageKey, verifyBlobSignature ; internal/config/config.go - CosignPolicy validation
+cosign: internal/adapters/driven/pluginrunner/cosign.go - NewCosignVerifier, readPackageKey, verifyBlobSignature ; cosign 3 vs --tlog-upload=false: release run of the project's plugin repositories (cosign-installer default) ; internal/config/config.go - CosignPolicy validation
+distribution, repository links: internal/app/plugin/install_source.go - resolveInstallSource ; internal/adapters/driven/pluginrelease/github.go - Latest (one .zip, .sha256 or asset digest) ; internal/app/plugin/auto_update.go ;
 install order: internal/app/plugin/install.go - installLocalZip, parseAndValidateManifest, resolveExistingPlugin, verifyPluginIntegrity, extractPluginToStaging, validateStagedPlugin, checkEscalatedWarnings, swapAndPersistPlugin ; update.go - ApplyUpdate ; zip limits: docs/SECURITY.md (ZIP extraction)
 resource limits: internal/config/config.go - Plugins ; internal/adapters/driven/pluginrunner/runner_resmon.go ; i18n admin.plugins.resourceLimits.*
 error texts: internal/adapters/driven/pluginrunner/manifest.go ; internal/domain/plugin/model.go ; internal/app/plugin/install.go ; cosign.go ; runner_resmon.go

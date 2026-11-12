@@ -8,6 +8,8 @@ afterEach(() => {
 describe("notificationUrl", () => {
   it("sends a media request page to the moderation queue, a title to its page, else nowhere", () => {
     expect(notificationUrl({ type: "media_request" })).toBe("/admin/media-requests");
+    expect(notificationUrl({ type: "plugin_update_held" })).toBe("/admin/plugins");
+    expect(notificationUrl({ type: "plugin_update_refused" })).toBe("/admin/plugins");
     expect(notificationUrl({ type: "media_request", mediaItemId: "m1" })).toBe("/admin/media-requests");
     expect(notificationUrl({ type: "new_movie", mediaItemId: "m1" })).toBe("/media/m1");
     expect(notificationUrl({ type: "backup_failed" })).toBeUndefined();

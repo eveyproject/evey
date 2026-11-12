@@ -63,6 +63,8 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminPluginService/UninstallPlugin":              RoleAdmin,
 			"/evey.v1.AdminPluginService/PreviewPluginUpdate":          RoleAdmin,
 			"/evey.v1.AdminPluginService/ApplyPluginUpdate":            RoleAdmin,
+			"/evey.v1.AdminPluginService/SetPluginUpdateFollow":        RoleAdmin,
+			"/evey.v1.AdminPluginService/CheckPluginUpdate":            RoleAdmin,
 			"/evey.v1.AdminPluginService/EnablePlugin":                 RoleAdmin,
 			"/evey.v1.AdminPluginService/DisablePlugin":                RoleAdmin,
 			"/evey.v1.AdminPluginService/ListPlugins":                  RoleAdmin,

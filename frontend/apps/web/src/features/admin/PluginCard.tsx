@@ -25,6 +25,7 @@ import { useDemoLock, useDemoLockFor } from "@/hooks/useDemoMode";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 import { PluginMetadataSettings } from "./PluginMetadataSettings";
 import { PluginSignatureBadge } from "./PluginSignatureBadge";
+import { PluginAutoUpdate } from "./PluginAutoUpdate";
 
 type PluginWithPermissions = V1Plugin & {
   permissions?: string[];
@@ -453,6 +454,8 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
           </div>
         </div>
       )}
+
+      <PluginAutoUpdate plugin={plugin} onReview={(src) => setUpdateSource(src)} />
 
       {updateSource && plugin.id && (
         <PluginUpdateDialog

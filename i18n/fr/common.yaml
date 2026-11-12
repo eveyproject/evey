@@ -130,6 +130,8 @@ notifications:
   cacheFull: "Cache des sous-titres plein"
   pruneSuspended: "Suppression de bibliothèque suspendue"
   mediaRequest: "Nouvelle demande de média : {{name}}"
+  pluginUpdateHeld: "Mise à jour de plugin en attente de votre accord : {{name}}"
+  pluginUpdateRefused: "Mise à jour de plugin refusée : {{name}}"
   requestAnswered: "Votre demande de média a été mise à jour : {{name}}"
   clearConfirm: Supprimer toutes les notifications ?
   clearTitle: Effacer les notifications

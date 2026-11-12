@@ -109,6 +109,24 @@ service AdminPluginService {
     };
   }
 
+  // SetPluginUpdateFollow sets the repository a plugin follows for its
+  // updates (empty: none) and whether a release installs without an admin.
+  rpc SetPluginUpdateFollow(SetPluginUpdateFollowRequest) returns (Plugin) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/plugins/{plugin_id}/update-follow"
+      body: "*"
+    };
+  }
+
+  // CheckPluginUpdate reads the followed repository's latest release now and
+  // acts on it as the hourly check would.
+  rpc CheckPluginUpdate(CheckPluginUpdateRequest) returns (Plugin) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/plugins/{plugin_id}/check-update"
+      body: "*"
+    };
+  }
+
   // GetPluginResourceLimits returns the effective per-plugin resource caps the
   // runner is enforcing (env defaults overlaid with admin overrides).
   rpc GetPluginResourceLimits(GetPluginResourceLimitsRequest) returns (PluginResourceLimits) {
@@ -278,6 +296,26 @@ message Plugin {
   string web_root = 19;
   // signature is the install-time verdict; null when the policy is off.
   PluginSignature signature = 20;
+  // display_name is the manifest's display_name, keyed by language tag.
+  map<string, string> display_name = 21;
+  // update_source is the repository the plugin follows for its updates
+  // (https://github.com/<owner>/<repo>); empty when it follows none.
+  string update_source = 22;
+  // auto_update lets a release install without an admin when nothing in it
+  // is new and sensitive.
+  bool auto_update = 23;
+  // update_state is the last look at update_source; unset before the first.
+  PluginUpdateState update_state = 24;
+}
+
+// PluginUpdateState is the last look at a followed repository.
+message PluginUpdateState {
+  google.protobuf.Timestamp checked_at = 1;
+  string latest_version = 2;
+  // outcome: up_to_date, applied, held (waits for an admin), refused (the
+  // analysis refuses its code) or failed (the check could not conclude).
+  string outcome = 3;
+  string reason = 4;
 }
 
 // PluginAnalysisReport exposes the static-analysis warnings recorded at
@@ -433,6 +471,16 @@ message PreviewPluginUpdateResponse {
   bool requires_ack = 13;
   string source_hash = 14;
   PluginSignature signature = 15;
+}
+
+message SetPluginUpdateFollowRequest {
+  string plugin_id = 1;
+  string update_source = 2;
+  bool auto_update = 3;
+}
+
+message CheckPluginUpdateRequest {
+  string plugin_id = 1;
 }
 
 message ApplyPluginUpdateRequest {

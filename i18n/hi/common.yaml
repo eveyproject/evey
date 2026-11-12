@@ -130,6 +130,8 @@ notifications:
   cacheFull: "उपशीर्षक कैश भर गया"
   pruneSuspended: "लाइब्रेरी से हटाना रोका गया"
   mediaRequest: "नया मीडिया अनुरोध: {{name}}"
+  pluginUpdateHeld: "प्लगइन अपडेट आपकी मंज़ूरी का इंतज़ार कर रहा है: {{name}}"
+  pluginUpdateRefused: "प्लगइन अपडेट अस्वीकार किया गया: {{name}}"
   requestAnswered: "आपका मीडिया अनुरोध अपडेट किया गया: {{name}}"
   clearConfirm: सभी सूचनाएं हटाएं?
   clearTitle: सूचनाएं साफ़ करें

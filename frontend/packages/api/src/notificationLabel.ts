@@ -26,6 +26,8 @@ const TITLE_KEYS: Record<string, string> = {
   prune_suspended: "common.notifications.pruneSuspended",
   media_request: "common.notifications.mediaRequest",
   request_answered: "common.notifications.requestAnswered",
+  plugin_update_held: "common.notifications.pluginUpdateHeld",
+  plugin_update_refused: "common.notifications.pluginUpdateRefused",
 };
 
 // The English labels the server stored for media request notifications before

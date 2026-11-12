@@ -167,6 +167,27 @@ plugin:
   update: "Aus Quelle aktualisieren …"
   previewUpdate: Vorschau
   updateSourceLabel: Quell-ZIP (Pfad oder URL)
+  autoUpdate:
+    title: "Updates"
+    repository: "Repository"
+    repositoryNone: "Dieses Plugin folgt keinem Repository."
+    edit: "Ändern"
+    toggle: "Automatische Updates"
+    toggleHint: "Eine neue Version installiert sich selbst, wenn sie nichts Neues verlangt: keine neue Berechtigung, Fähigkeit, Anzeigefläche oder Host, keine neue Art von Analysewarnung und derselbe Signaturschlüssel. Alles andere wartet auf Sie, und Code, den die Analyse ablehnt, wird nie installiert."
+    checkNow: "Jetzt prüfen"
+    checking: "Wird geprüft…"
+    checkedAt: "geprüft am {{when}}"
+    neverChecked: "Noch nicht geprüft"
+    review: "Prüfen"
+    saved: "Update-Einstellungen gespeichert"
+    saveFailed: "Update-Einstellungen konnten nicht gespeichert werden"
+    checkFailed: "Die Prüfung ist fehlgeschlagen"
+    outcome:
+      upToDate: "Aktuell ({{version}})"
+      applied: "Version {{version}} automatisch installiert"
+      held: "Version {{version}} wartet auf Ihre Freigabe"
+      refused: "Version {{version}} abgelehnt"
+      failed: "Die Prüfung ist fehlgeschlagen"
   configuration: Konfiguration
   noConfig: Keine Konfigurationsschlüssel definiert.
   configSaved: Konfiguration gespeichert

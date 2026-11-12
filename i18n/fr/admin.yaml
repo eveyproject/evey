@@ -166,6 +166,27 @@ plugin:
   update: "Mettre à jour depuis la source…"
   previewUpdate: Aperçu
   updateSourceLabel: "ZIP source (chemin ou URL)"
+  autoUpdate:
+    title: "Mises à jour"
+    repository: "Dépôt"
+    repositoryNone: "Ce plugin ne suit aucun dépôt."
+    edit: "Modifier"
+    toggle: "Mise à jour automatique"
+    toggleHint: "Une nouvelle version s'installe seule quand elle ne demande rien de nouveau : aucune nouvelle permission, capacité, zone d'affichage ni hôte, aucun nouveau type d'alerte à l'analyse, et la même clé de signature. Tout le reste attend votre accord, et un code refusé par l'analyse n'est jamais installé."
+    checkNow: "Vérifier maintenant"
+    checking: "Vérification…"
+    checkedAt: "vérifié le {{when}}"
+    neverChecked: "Pas encore vérifié"
+    review: "Examiner"
+    saved: "Réglages de mise à jour enregistrés"
+    saveFailed: "Échec de l'enregistrement des réglages de mise à jour"
+    checkFailed: "La vérification a échoué"
+    outcome:
+      upToDate: "À jour ({{version}})"
+      applied: "Version {{version}} installée automatiquement"
+      held: "Version {{version}} en attente de votre accord"
+      refused: "Version {{version}} refusée"
+      failed: "La vérification a échoué"
   configuration: Configuration
   noConfig: Aucune clé de config définie.
   configSaved: Config enregistrée

@@ -11,6 +11,10 @@ const t = (key: string, opts?: Record<string, unknown>): string => {
       return `Nouvelle série : ${opts?.name}`;
     case "common.notifications.newEpisode":
       return `Nouvel épisode : ${opts?.name}`;
+    case "common.notifications.pluginUpdateHeld":
+      return `Mise à jour de plugin en attente de votre accord : ${opts?.name}`;
+    case "common.notifications.pluginUpdateRefused":
+      return `Mise à jour de plugin refusée : ${opts?.name}`;
     case "common.notifications.seasonCount":
       return count === 1 ? `${count} saison` : `${count} saisons`;
     case "common.notifications.episodeCount":
@@ -21,6 +25,14 @@ const t = (key: string, opts?: Record<string, unknown>): string => {
 };
 
 describe("notificationLabel", () => {
+  // The server stores an English title; the subject lets the client word it.
+  it("words a plugin update that waits or was refused", () => {
+    expect(notificationLabel(t, { type: "plugin_update_held", title: "Plugin update awaiting approval: weather 1.1.0", subject: "weather 1.1.0" }))
+      .toBe("Mise à jour de plugin en attente de votre accord : weather 1.1.0");
+    expect(notificationLabel(t, { type: "plugin_update_refused", title: "Plugin update refused: weather 1.0.2", subject: "weather 1.0.2" }))
+      .toBe("Mise à jour de plugin refusée : weather 1.0.2");
+  });
+
   // Seen on the TV on 2026-08-02, in a French UI:
   // "Nouvelle série : Some Series (1 seasons, 1 episodes)".
   it("words the whole sentence in the viewer's language", () => {

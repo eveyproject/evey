@@ -420,6 +420,45 @@
         ]
       }
     },
+    "/api/v1/admin/plugins/{pluginId}/check-update": {
+      "post": {
+        "summary": "CheckPluginUpdate reads the followed repository's latest release now and\nacts on it as the hourly check would.",
+        "operationId": "AdminPluginService_CheckPluginUpdate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Plugin"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pluginId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminPluginServiceCheckPluginUpdateBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
+    },
     "/api/v1/admin/plugins/{pluginId}/config": {
       "get": {
         "operationId": "AdminPluginService_GetPluginConfig",
@@ -536,6 +575,113 @@
         ]
       }
     },
+    "/api/v1/admin/plugins/{pluginId}/metadata-refresh": {
+      "post": {
+        "summary": "RefreshPluginMetadata asks a metadata plugin about every movie and\nseries of the libraries, in the background, one item after the other.\nNew items are asked about as they are enriched; this is for the library\nthe plugin found when it was installed.",
+        "operationId": "AdminPluginService_RefreshPluginMetadata",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PluginMetadataSettings"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pluginId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminPluginServiceRefreshPluginMetadataBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
+    },
+    "/api/v1/admin/plugins/{pluginId}/metadata-settings": {
+      "get": {
+        "summary": "GetPluginMetadataSettings returns what a metadata plugin (capability\nmetadata.provider) may replace on an item, and where the fetch of the\nexisting library stands.",
+        "operationId": "AdminPluginService_GetPluginMetadataSettings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PluginMetadataSettings"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pluginId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      },
+      "put": {
+        "summary": "UpdatePluginMetadataSettings sets the fields a metadata plugin may\nreplace. It applies to what the plugin already gave: nothing is fetched\nagain.",
+        "operationId": "AdminPluginService_UpdatePluginMetadataSettings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PluginMetadataSettings"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pluginId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminPluginServiceUpdatePluginMetadataSettingsBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
+    },
     "/api/v1/admin/plugins/{pluginId}/preview-update": {
       "post": {
         "summary": "PreviewPluginUpdate returns a diff of what would change if the candidate\nZIP were applied to the currently installed plugin. No state is mutated.",
@@ -567,6 +713,45 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/AdminPluginServicePreviewPluginUpdateBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
+    },
+    "/api/v1/admin/plugins/{pluginId}/update-follow": {
+      "put": {
+        "summary": "SetPluginUpdateFollow sets the repository a plugin follows for its\nupdates (empty: none) and whether a release installs without an admin.",
+        "operationId": "AdminPluginService_SetPluginUpdateFollow",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Plugin"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pluginId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminPluginServiceSetPluginUpdateFollowBody"
             }
           }
         ],
@@ -632,6 +817,9 @@
         }
       }
     },
+    "AdminPluginServiceCheckPluginUpdateBody": {
+      "type": "object"
+    },
     "AdminPluginServiceIssuePluginTokenBody": {
       "type": "object"
     },
@@ -643,6 +831,20 @@
         }
       }
     },
+    "AdminPluginServiceRefreshPluginMetadataBody": {
+      "type": "object"
+    },
+    "AdminPluginServiceSetPluginUpdateFollowBody": {
+      "type": "object",
+      "properties": {
+        "updateSource": {
+          "type": "string"
+        },
+        "autoUpdate": {
+          "type": "boolean"
+        }
+      }
+    },
     "AdminPluginServiceUpdatePluginConfigBody": {
       "type": "object",
       "properties": {
@@ -651,6 +853,18 @@
           "additionalProperties": {
             "type": "string"
           }
+        }
+      }
+    },
+    "AdminPluginServiceUpdatePluginMetadataSettingsBody": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "fields the plugin may replace, among PluginMetadataSettings.available_fields."
         }
       }
     },
@@ -887,6 +1101,25 @@
         "signature": {
           "$ref": "#/definitions/v1PluginSignature",
           "description": "signature is the install-time verdict; null when the policy is off."
+        },
+        "displayName": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "display_name is the manifest's display_name, keyed by language tag."
+        },
+        "updateSource": {
+          "type": "string",
+          "description": "update_source is the repository the plugin follows for its updates\n(https://github.com/\u003cowner\u003e/\u003crepo\u003e); empty when it follows none."
+        },
+        "autoUpdate": {
+          "type": "boolean",
+          "description": "auto_update lets a release install without an admin when nothing in it\nis new and sensitive."
+        },
+        "updateState": {
+          "$ref": "#/definitions/v1PluginUpdateState",
+          "description": "update_state is the last look at update_source; unset before the first."
         }
       }
     },
@@ -966,6 +1199,62 @@
         "timestamp": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "v1PluginMetadataRefresh": {
+      "type": "object",
+      "properties": {
+        "running": {
+          "type": "boolean"
+        },
+        "done": {
+          "type": "integer",
+          "format": "int32",
+          "description": "done of total movies and series asked about; covered is how many of them\nthe plugin gave a text for."
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "covered": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failed": {
+          "type": "integer",
+          "format": "int32",
+          "description": "failed counts the items the plugin did not answer (an error, a timeout)."
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "PluginMetadataRefresh is where the fetch of the existing library stands for\none plugin since the server started."
+    },
+    "v1PluginMetadataSettings": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "fields the plugin may replace; TMDB keeps the others."
+        },
+        "availableFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "available_fields is every field a metadata plugin can replace, in display\norder: title, overview, tagline."
+        },
+        "refresh": {
+          "$ref": "#/definitions/v1PluginMetadataRefresh"
         }
       }
     },
@@ -1061,6 +1350,26 @@
         "PLUGIN_STATE_INITIALIZING"
       ],
       "default": "PLUGIN_STATE_UNSPECIFIED"
+    },
+    "v1PluginUpdateState": {
+      "type": "object",
+      "properties": {
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "latestVersion": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string",
+          "description": "outcome: up_to_date, applied, held (waits for an admin), refused (the\nanalysis refuses its code) or failed (the check could not conclude)."
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "description": "PluginUpdateState is the last look at a followed repository."
     },
     "v1PreviewPluginUpdateResponse": {
       "type": "object",
