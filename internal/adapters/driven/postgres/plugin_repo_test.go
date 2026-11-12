@@ -411,7 +411,7 @@ func TestPluginRepo_UpdateFollow_SurvivesAFullUpdate(t *testing.T) {
 	assert.True(t, got.AutoUpdate)
 	assert.True(t, got.UpdateState.CheckedAt.IsZero())
 
-	require.NoError(t, repo.SetUpdateFollow(ctx, p.ID, "https://github.com/acme/thing", false))
+	require.NoError(t, repo.SetUpdateFollow(ctx, p.ID, "https://github.com/acme/thing", 42, false))
 	state := plugin.UpdateState{CheckedAt: time.Now().UTC().Truncate(time.Second), LatestVersion: "1.0.1",
 		Outcome: plugin.UpdateHeld, Reason: "new entries requested: permission:network", Notified: "1.0.1/held"}
 	require.NoError(t, repo.SetUpdateState(ctx, p.ID, state))
@@ -442,10 +442,11 @@ func TestPluginRepo_UpdateFollow_SurvivesAFullUpdate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "2.0.0", got.Version)
 		assert.Equal(t, "https://github.com/acme/thing", got.UpdateSource)
+		assert.Equal(t, int64(42), got.UpdateSourceID, "the repository's permanent id survives the upgrade")
 		assert.False(t, got.AutoUpdate, "the admin turned automatic updates off; an upgrade does not turn them back on")
 		assert.Equal(t, state, got.UpdateState)
 	}
 
-	require.ErrorIs(t, repo.SetUpdateFollow(ctx, "nope", "", true), shared.ErrNotFound)
+	require.ErrorIs(t, repo.SetUpdateFollow(ctx, "nope", "", 0, true), shared.ErrNotFound)
 	require.ErrorIs(t, repo.SetUpdateState(ctx, "nope", plugin.UpdateState{}), shared.ErrNotFound)
 }

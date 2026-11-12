@@ -15,33 +15,53 @@ import (
 // to read releases (not wired).
 var ErrNoReleaseSource = errors.New("repository links are not supported by this server")
 
+// ErrRepositoryLinkPinned: a repository link carries a #sha256 pin, which
+// cannot hold for "the latest release".
+var ErrRepositoryLinkPinned = errors.New("a repository link installs its latest release and takes no #sha256 pin: pin the release's zip link instead")
+
 // resolveInstallSource turns an install source into something downloadIfURL
 // fetches, and names the repository the plugin can follow:
 //   - a repository page (https://github.com/<owner>/<repo>) becomes the zip of
 //     its latest release, pinned to the release's sha256;
 //   - a release download link of that repository is kept as is;
 //   - anything else (another URL, a local path) is kept and follows nothing.
-func (s *InstallerService) resolveInstallSource(ctx context.Context, source string) (resolved, repo string, err error) {
-	raw, _, _ := strings.Cut(source, "#")
-	repo = repoOf(raw)
+func (s *InstallerService) resolveInstallSource(ctx context.Context, source string) (resolved string, follow repoRef, err error) {
+	raw, fragment, _ := strings.Cut(source, "#")
+	repo := repoOf(raw)
 	if repo == "" {
-		return source, "", nil
+		return source, repoRef{}, nil
 	}
 	if !isRepositoryPage(raw) {
-		return source, repo, nil
+		return source, repoRef{link: repo}, nil
+	}
+	if fragment != "" {
+		// A pin on a link that means "whatever is latest" would be silently
+		// dropped; refuse it rather than install something else than asked.
+		return "", repoRef{}, ErrRepositoryLinkPinned
 	}
 	if s.releases == nil {
-		return "", "", ErrNoReleaseSource
+		return "", repoRef{}, ErrNoReleaseSource
 	}
-	rel, err := s.releases.Latest(ctx, repo)
+	id, canonical, err := s.releases.Identify(ctx, repo)
 	if err != nil {
-		return "", "", fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, err)
+		return "", repoRef{}, fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, err)
+	}
+	rel, err := s.releases.Latest(ctx, id)
+	if err != nil {
+		return "", repoRef{}, fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, err)
 	}
 	resolved = rel.ZipURL
 	if rel.SHA256 != "" {
 		resolved += "#sha256:" + rel.SHA256
 	}
-	return resolved, repo, nil
+	return resolved, repoRef{link: canonical, id: id}, nil
+}
+
+// repoRef is the repository an install source belongs to: its link, and its
+// permanent id when it is already known (0 otherwise).
+type repoRef struct {
+	link string
+	id   int64
 }
 
 // repoOf is the repository a link belongs to, empty when it is no repository
@@ -67,19 +87,30 @@ func isRepositoryPage(raw string) bool {
 // followRepository records the repository a plugin was installed from, the
 // first time only: a plugin that already follows one, or that an admin set to
 // follow another, keeps its choice.
-func (s *InstallerService) followRepository(ctx context.Context, p *plugin.Plugin, repo string) {
-	if repo == "" || p == nil {
+func (s *InstallerService) followRepository(ctx context.Context, p *plugin.Plugin, ref repoRef) {
+	if ref.link == "" || p == nil || s.releases == nil {
 		return
 	}
 	stored, err := s.plugins.GetByID(ctx, p.ID)
 	if err != nil || stored.UpdateSource != "" {
 		return
 	}
-	if err := s.plugins.SetUpdateFollow(ctx, p.ID, repo, stored.AutoUpdate); err != nil {
+	repo, id := ref.link, ref.id
+	if id == 0 {
+		// Followed by its permanent id: a repository whose number is unknown
+		// is not followed at all rather than followed by a name.
+		id, repo, err = s.releases.Identify(ctx, ref.link)
+		if err != nil {
+			slog.WarnContext(ctx, "plugin: identify the repository it came from, not followed",
+				slog.String("plugin_id", p.ID), slog.String("repo", ref.link), slog.Any("err", err))
+			return
+		}
+	}
+	if err := s.plugins.SetUpdateFollow(ctx, p.ID, repo, id, stored.AutoUpdate); err != nil {
 		slog.WarnContext(ctx, "plugin: record the repository it follows", slog.String("plugin_id", p.ID), slog.Any("err", err))
 		return
 	}
-	p.UpdateSource, p.AutoUpdate = repo, stored.AutoUpdate
+	p.UpdateSource, p.UpdateSourceID, p.AutoUpdate = repo, id, stored.AutoUpdate
 }
 
 // settleUpdateState: once a plugin runs the release its last check reported
@@ -108,10 +139,24 @@ func (s *InstallerService) SetUpdateFollow(ctx context.Context, pluginID, source
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.plugins.GetByID(ctx, pluginID); err != nil {
+	stored, err := s.plugins.GetByID(ctx, pluginID)
+	if err != nil {
 		return nil, ErrPluginNotFound
 	}
-	if err := s.plugins.SetUpdateFollow(ctx, pluginID, repo, autoUpdate); err != nil {
+	var id int64
+	switch {
+	case repo == "":
+	case repo == stored.UpdateSource && stored.UpdateSourceID > 0:
+		id = stored.UpdateSourceID
+	case s.releases == nil:
+		return nil, ErrNoReleaseSource
+	default:
+		// A new repository is identified now: it is followed by that number.
+		if id, repo, err = s.releases.Identify(ctx, repo); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrSourceUnavailable, err)
+		}
+	}
+	if err := s.plugins.SetUpdateFollow(ctx, pluginID, repo, id, autoUpdate); err != nil {
 		return nil, err
 	}
 	if repo == "" {

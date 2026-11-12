@@ -94,13 +94,13 @@ func (r *FakePluginRepository) Update(_ context.Context, p *plugin.Plugin) error
 		return ErrNotFound
 	}
 	// Like the SQL: Update never writes the update follow-up columns.
-	p.UpdateSource, p.AutoUpdate, p.UpdateState = old.UpdateSource, old.AutoUpdate, old.UpdateState
+	p.UpdateSource, p.UpdateSourceID, p.AutoUpdate, p.UpdateState = old.UpdateSource, old.UpdateSourceID, old.AutoUpdate, old.UpdateState
 	r.items[p.ID] = p
 	return nil
 }
 
 // SetUpdateFollow writes ONLY the source and the auto-update switch.
-func (r *FakePluginRepository) SetUpdateFollow(_ context.Context, id, source string, autoUpdate bool) error {
+func (r *FakePluginRepository) SetUpdateFollow(_ context.Context, id, source string, sourceID int64, autoUpdate bool) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -110,7 +110,7 @@ func (r *FakePluginRepository) SetUpdateFollow(_ context.Context, id, source str
 	if !ok {
 		return ErrNotFound
 	}
-	p.UpdateSource, p.AutoUpdate = source, autoUpdate
+	p.UpdateSource, p.UpdateSourceID, p.AutoUpdate = source, sourceID, autoUpdate
 	return nil
 }
 

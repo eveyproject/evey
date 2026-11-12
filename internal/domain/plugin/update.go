@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -39,9 +40,15 @@ type UpdateState struct {
 	LatestVersion string        `json:"latestVersion,omitempty"`
 	Outcome       UpdateOutcome `json:"outcome,omitempty"`
 	Reason        string        `json:"reason,omitempty"`
-	// Notified is the "<version>/<outcome>" the admins were last told about,
+	// Notified is the "<digest>/<outcome>" the admins were last told about,
 	// so a held or refused release pages them once, not every hour.
 	Notified string `json:"notified,omitempty"`
+	// Digest is the sha256 of the release that was judged, and JudgedFor what
+	// it was judged against (installed version, pinned key, switch, server
+	// build). The same release judged against the same plugin gets the same
+	// verdict without being downloaded and analysed again every hour.
+	Digest    string `json:"digest,omitempty"`
+	JudgedFor string `json:"judgedFor,omitempty"`
 }
 
 // Release is the latest release of a plugin repository.
@@ -56,10 +63,20 @@ type Release struct {
 	SHA256 string
 }
 
-// ReleaseSource reads the latest release of a repository.
+// ReleaseSource reads a followed repository's releases. A repository is
+// followed by the permanent number GitHub gives it, not by its name: a name
+// can be renamed away and registered again by someone else, the number
+// cannot, so whoever takes an abandoned name over gets nothing followed.
 type ReleaseSource interface {
-	Latest(ctx context.Context, repo string) (*Release, error)
+	// Identify returns the repository's permanent id and its canonical link.
+	Identify(ctx context.Context, repo string) (id int64, canonical string, err error)
+	// Latest reads the latest release of the repository with that id.
+	Latest(ctx context.Context, repoID int64) (*Release, error)
 }
+
+// ErrReleaseRateLimited: GitHub refuses more anonymous requests from this
+// address for now. The check stops until its next run.
+var ErrReleaseRateLimited = errors.New("GitHub's API rate limit for this address is reached")
 
 // ErrSignatureRefused: under the enforce policy, the package is not validly
 // signed by a trusted publisher. A matter of trust for an admin to settle, not
@@ -78,12 +95,21 @@ func NormalizeRepoURL(raw string) (string, error) {
 		return "", nil
 	}
 	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || !strings.EqualFold(u.Host, "github.com") || u.User != nil {
+	if err != nil || u.Scheme != "https" || !strings.EqualFold(u.Host, "github.com") || u.User != nil ||
+		u.RawPath != "" || u.RawQuery != "" {
 		return "", ErrUnsupportedRepository
 	}
-	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	// Every segment must be a plain name: a "." or ".." would let the link
+	// name one repository while the request reaches another, and an empty
+	// segment is a path GitHub would read differently.
+	parts := strings.Split(strings.TrimSuffix(strings.TrimPrefix(u.Path, "/"), "/"), "/")
 	if len(parts) < 2 {
 		return "", ErrUnsupportedRepository
+	}
+	for _, seg := range parts {
+		if seg == "" || seg == "." || seg == ".." {
+			return "", ErrUnsupportedRepository
+		}
 	}
 	owner, repo := parts[0], strings.TrimSuffix(parts[1], ".git")
 	if !validRepoSegment(owner) || !validRepoSegment(repo) {
@@ -100,6 +126,22 @@ func RepoOwnerAndName(repo string) (owner, name string, err error) {
 	}
 	parts := strings.Split(strings.TrimPrefix(n, "https://github.com/"), "/")
 	return parts[0], parts[1], nil
+}
+
+// releaseVersionRe is the version a release tag may carry once its leading
+// "v" is dropped: the manifest's own semver grammar, nothing else.
+var releaseVersionRe = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]{1,40})?$`)
+
+// ValidReleaseVersion reports whether a release's version is one the server
+// will compare and display; anything else is not read as a version at all.
+func ValidReleaseVersion(v string) bool {
+	return len(v) <= 64 && releaseVersionRe.MatchString(v)
+}
+
+// IsPreRelease: a version with a pre-release label ("1.2.0-beta.1"). Such a
+// release never installs on its own.
+func IsPreRelease(v string) bool {
+	return strings.Contains(v, "-")
 }
 
 func validRepoSegment(s string) bool {

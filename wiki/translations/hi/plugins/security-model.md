@@ -1,5 +1,5 @@
 ---
-source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
+source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
 reviewed: true
 ---
 # अनुमतियाँ और स्लॉट { #permissions-and-slots }
@@ -164,7 +164,7 @@ release पढ़ता है, उसका zip एक बार डाउन�
 - **एडमिन के लिए रोकी गई** जब release ऐसी अनुमति, क्षमता, स्लॉट या
   `external_fetch` होस्ट माँगती है जो इंस्टॉल किए गए वर्ज़न में नहीं है,
   विश्लेषण की ऐसी तरह की चेतावनी लाती है जो इंस्टॉल किए गए वर्ज़न में नहीं
-  थी, किसी दूसरी कुंजी से साइन है या अब साइन नहीं है, या जब इंस्टॉल किया
+  थी, `kind` (थीम और प्लगइन) या `language` बदलती है, pre-release है, किसी दूसरी कुंजी से साइन है या अब साइन नहीं है, या जब इंस्टॉल किया
   गया वर्ज़न साइन ही नहीं है, या जब एडमिन ने अपने-आप अपडेट बंद कर दिए हैं।
   एडमिन को हर release के लिए एक बार सूचना दी जाती है।
 - **लागू** बाकी सभी मामलों में। वर्ज़न ऊँचा होना चाहिए, zip को release में
@@ -176,6 +176,17 @@ release पढ़ता है, उसका zip एक बार डाउन�
 साइन होना चाहिए जो प्लगइन इंस्टॉल होते समय दर्ज की गई थी। जो इस कुंजी के
 बिना रिपॉज़िटरी पर कब्ज़ा करता है, उसे रोकी गई release मिलती है, इंस्टॉल की
 गई नहीं।
+
+इस नियम के आसपास तीन और सुरक्षा उपाय हैं:
+
+- रिपॉज़िटरी को उसकी स्थायी GitHub id से फ़ॉलो किया जाता है, नाम से नहीं: नाम
+  बदलने या मिटाए जाने के बाद दोबारा लिया गया नाम किसी प्लगइन से नहीं जुड़ता।
+- इंस्टॉल सिर्फ़ उसी प्लगइन पर होता है जैसा उसे परखा गया था। अगर release परखे
+  जाते समय कोई एडमिन उसे अनइंस्टॉल या अपडेट करता है, या उसकी कुंजी, फ़ॉलो की
+  जाने वाली रिपॉज़िटरी या स्विच बदलता है, तो कुछ इंस्टॉल नहीं होता।
+- रिपॉज़िटरी लिंक से इंस्टॉल उन्हीं बाइट्स से बँधा होता है जो प्रीव्यू में दिखे
+  थे: प्रीव्यू release के zip का लिंक उसके sha256 के साथ लौटाता है, और इंस्टॉल
+  को वही भेजा जाता है।
 
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
@@ -189,5 +200,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
-automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories, checkUpdateExpectation ; update.go - KindChange, LanguageChange ; preview.go - ResolvedSource ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

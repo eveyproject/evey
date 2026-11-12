@@ -220,6 +220,8 @@ plugin:
     hashMismatch: The candidate hash no longer matches - refresh the preview
     bannerRequiresAck: This update requests new permissions - review before applying
     bannerSafe: No permission changes - safe update
+    kindChange: "This update changes what the plugin is: {{change}}. A theme that becomes a plugin runs a process on the server; a plugin that becomes a theme runs script in every page."
+    languageChange: "This update changes the plugin's language: {{change}}."
     tabSlots: Slots
     tabExternalFetch: External calls
     tabFindings: Findings
@@ -294,6 +296,7 @@ plugins:
   pluginFileZip: Plugin file (.zip)
   sigFileOptional: "Signature file (.zip.sig, optional)"
   sourceUrl: Source URL
+  repoLinkHint: "A GitHub repository link (https://github.com/owner/repo) installs its latest release, and the plugin then follows that repository: a signed release that asks for nothing new installs on its own, anything else waits for you. You can turn this off on the plugin's card."
   nameOptional: Name (optional)
   permissions: Permissions
   capabilities: Capabilities

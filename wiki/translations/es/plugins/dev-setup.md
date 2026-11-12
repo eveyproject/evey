@@ -1,5 +1,5 @@
 ---
-source_sha: d9a04e27b340ff02f9e98a0903e834a62b7678a1570238f182417f4efb9155a5
+source_sha: 7d11b826f33cfa195e8f3f70d904164dfd609a7ae7e4214de84ee1327b8f0c61
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -402,6 +402,10 @@ o enlazado desde otro sitio también se instala, pero no sigue nada.
 - Una release que pide un permiso, una capacidad, una zona de visualización o
   un host nuevos espera la aprobación del administrador: explica por qué en
   sus notas.
+  Lo mismo ocurre con una release que cambia el `kind` o el `language` del
+  manifiesto, y una pre-release (`1.2.0-beta.1`) nunca se instala sola.
+- Cambiar el nombre del repositorio o transferirlo no es un problema: Evey lo
+  sigue por su identificador permanente de GitHub.
 - Indica los permisos y los hosts `external_fetch` en tu README: el
   administrador ve los permisos al instalar y los hosts al actualizar y en el
   Panel de seguridad, y tiene que aprobarlos; una sorpresa ahí es el primer

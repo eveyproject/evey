@@ -4,13 +4,18 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,24 +29,81 @@ import (
 
 const testRepo = "https://github.com/acme/thing"
 
-// fakeReleases is the repository: whatever was published last.
+// testRepoID is the permanent id GitHub gives the test repository.
+const testRepoID int64 = 42
+
+// fakeReleases is GitHub: the name testRepo resolves to an id, and each id
+// has its own latest release. takenOver moves the name to another id, as when
+// someone registers an abandoned name.
 type fakeReleases struct {
-	mu  sync.Mutex
-	rel *plugindomain.Release
-	err error
+	mu        sync.Mutex
+	rel       *plugindomain.Release // the latest release of testRepoID
+	other     *plugindomain.Release // the latest release of the repository that took the name over
+	takenOver bool
+	err       error
+	latestErr error
 }
 
-func (f *fakeReleases) Latest(_ context.Context, repo string) (*plugindomain.Release, error) {
+func (f *fakeReleases) Identify(_ context.Context, repo string) (int64, string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if repo != testRepo {
-		return nil, plugindomain.ErrUnsupportedRepository
+	if f.err != nil {
+		return 0, "", f.err
 	}
+	if repo != testRepo {
+		return 0, "", plugindomain.ErrUnsupportedRepository
+	}
+	if f.takenOver {
+		return 99, testRepo, nil
+	}
+	return testRepoID, testRepo, nil
+}
+
+func (f *fakeReleases) Latest(_ context.Context, id int64) (*plugindomain.Release, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.err != nil {
 		return nil, f.err
 	}
-	r := *f.rel
-	return &r, nil
+	if f.latestErr != nil {
+		return nil, f.latestErr
+	}
+	switch id {
+	case testRepoID:
+		r := *f.rel
+		return &r, nil
+	case 99:
+		r := *f.other
+		return &r, nil
+	}
+	return nil, errors.New("no such repository id")
+}
+
+// hookAnalyzer runs `during` once, in the middle of the first analysis: the
+// moment an admin acts while a release is being judged.
+type hookAnalyzer struct {
+	inner  *plgfakes.FakePluginAnalyzer
+	during func()
+}
+
+func (h *hookAnalyzer) Analyze(dir, webRoot string) (*plugindomain.AnalysisReport, error) {
+	if f := h.during; f != nil {
+		h.during = nil
+		f()
+	}
+	return h.inner.Analyze(dir, webRoot)
+}
+
+// toServer sends every request to the test server, path kept: the release
+// links stay real https://github.com/... links, as the server sees them.
+type toServer struct{ base string }
+
+func (r toServer) RoundTrip(req *http.Request) (*http.Response, error) {
+	out, err := http.NewRequestWithContext(req.Context(), req.Method, r.base+req.URL.Path, nil)
+	if err != nil {
+		return nil, err
+	}
+	return http.DefaultTransport.RoundTrip(out)
 }
 
 type autoRig struct {
@@ -56,31 +118,41 @@ type autoRig struct {
 	dir      string
 	key      signer
 	keyring  *appplugin.TrustedPublisherService
+	hook     *hookAnalyzer
+	zipGets  *atomic.Int32
 }
 
 func newAutoRig(t *testing.T, policy string) *autoRig {
 	t.Helper()
 	dir := t.TempDir()
-	srv := httptest.NewServer(http.FileServer(http.Dir(dir)))
+	var zipGets atomic.Int32
+	files := http.FileServer(http.Dir(dir))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".zip") {
+			zipGets.Add(1)
+		}
+		files.ServeHTTP(w, r)
+	}))
 	t.Cleanup(srv.Close)
 	plugins := plgfakes.NewFakePluginRepository()
 	parser := plgfakes.NewFakeManifestParser()
 	analyzer := plgfakes.NewFakePluginAnalyzer()
+	hook := &hookAnalyzer{inner: analyzer}
 	bus := sharedfakes.NewFakeEventBus()
 	releases := &fakeReleases{}
 	keyring := appplugin.NewTrustedPublisherService(plgfakes.NewFakeTrustedPublisherRepository(), plugins)
 	svc := appplugin.NewInstallerService(plugins, plgfakes.NewFakePluginRunner(), parser, bus,
 		appplugin.InstallerWithInstaller(plgfakes.NewFakePluginInstaller()),
-		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithAnalyzer(hook),
 		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
 		appplugin.InstallerWithFileSystem(plgfakes.NewFakePluginFileSystem()),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(&http.Client{Transport: toServer{base: srv.URL}}),
 		appplugin.InstallerWithSignatureVerifier(pluginrunner.NewCosignVerifier(policy, keyring.Lookup)),
 		appplugin.InstallerWithTrustedPublishers(keyring),
 		appplugin.InstallerWithReleaseSource(releases),
 	)
 	return &autoRig{svc: svc, upd: appplugin.NewAutoUpdater(svc), plugins: plugins, parser: parser,
-		analyzer: analyzer, bus: bus, releases: releases, srv: srv, dir: dir, key: newSigner(t), keyring: keyring}
+		analyzer: analyzer, bus: bus, releases: releases, srv: srv, dir: dir, key: newSigner(t), keyring: keyring, hook: hook, zipGets: &zipGets}
 }
 
 // signed builds a package signed with the rig's key, the publisher's.
@@ -94,16 +166,18 @@ func (r *autoRig) signed(t *testing.T, body string) string {
 func (r *autoRig) publish(t *testing.T, m *plugindomain.PluginManifest, zipPath string) {
 	t.Helper()
 	name := m.Name + "-" + m.Version + ".zip"
+	rel := "/acme/thing/releases/download/v" + m.Version + "/" + name
 	data, err := os.ReadFile(zipPath)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(r.dir, name), data, 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(r.dir, rel)), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(r.dir, rel), data, 0o600))
 	if sig, err := os.ReadFile(zipPath + ".sig"); err == nil {
-		require.NoError(t, os.WriteFile(filepath.Join(r.dir, name+".sig"), sig, 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(r.dir, rel+".sig"), sig, 0o600))
 	}
 	sum := sha256.Sum256(data)
 	r.releases.mu.Lock()
 	r.releases.rel = &plugindomain.Release{Version: m.Version, Tag: "v" + m.Version,
-		ZipURL: r.srv.URL + "/" + name, SHA256: hex.EncodeToString(sum[:])}
+		ZipURL: "https://github.com" + rel, SHA256: hex.EncodeToString(sum[:])}
 	r.releases.mu.Unlock()
 	r.parser.Result = m
 }
@@ -450,4 +524,268 @@ func TestAutoUpdate_AnUntrustedKeyUnderEnforceIsHeldNotRefused(t *testing.T) {
 	assert.Equal(t, plugindomain.UpdateHeld, st.Outcome, st.Reason)
 	assert.Contains(t, st.Reason, "not a trusted publisher")
 	assert.Equal(t, "1.0.0", rig.stored(t, p.ID).Version)
+}
+
+// A signed release cannot change what the plugin is on its own: a theme that
+// becomes a plugin would start a process on the host, a plugin that becomes a
+// theme would inject script into every page, another language is another
+// interpreter. Each waits for the admin.
+func TestAutoUpdate_AChangeOfKindOrLanguageWaitsForTheAdmin(t *testing.T) {
+	theme := func(v string) *plugindomain.PluginManifest {
+		return &plugindomain.PluginManifest{Name: "thing", Kind: plugindomain.KindTheme, Version: v}
+	}
+	cases := map[string]struct {
+		installed, release *plugindomain.PluginManifest
+		reason             string
+	}{
+		"theme becomes a plugin": {theme("1.0.0"), goManifestVersioned("thing", "1.0.1"), "kind:theme -> plugin"},
+		"plugin becomes a theme": {goManifestVersioned("thing", "1.0.0"), theme("1.0.1"), "kind:plugin -> theme"},
+		"another language": {goManifestVersioned("thing", "1.0.0"), func() *plugindomain.PluginManifest {
+			m := goManifestVersioned("thing", "1.0.1")
+			m.Language = "python"
+			m.Entrypoint = "python3 main.py"
+			return m
+		}(), "language:go -> python"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			rig := newAutoRig(t, "warn")
+			rig.publish(t, c.installed, rig.signed(t, "v1"))
+			p, err := rig.svc.InstallPlugin(context.Background(), testRepo)
+			require.NoError(t, err)
+
+			rig.publish(t, c.release, rig.signed(t, "v2"))
+			st := rig.check(t, p.ID)
+
+			assert.Equal(t, plugindomain.UpdateHeld, st.Outcome, st.Reason)
+			assert.Contains(t, st.Reason, c.reason)
+			got := rig.stored(t, p.ID)
+			assert.Equal(t, "1.0.0", got.Version)
+			assert.Equal(t, c.installed.Kind, got.Kind)
+		})
+	}
+}
+
+// The manual preview shows the change and asks for the admin's acknowledgement.
+func TestPreviewUpdate_ShowsAChangeOfKind(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	rig.publish(t, &plugindomain.PluginManifest{Name: "thing", Kind: plugindomain.KindTheme, Version: "1.0.0"}, rig.signed(t, "v1"))
+	p, err := rig.svc.InstallPlugin(context.Background(), testRepo)
+	require.NoError(t, err)
+	rig.publish(t, goManifestVersioned("thing", "1.0.1"), rig.signed(t, "v2"))
+
+	preview, err := rig.svc.PreviewUpdate(context.Background(), p.ID, testRepo)
+	require.NoError(t, err)
+	assert.Equal(t, "theme -> plugin", preview.KindChange)
+	assert.Equal(t, "none -> go", preview.LanguageChange)
+	assert.True(t, preview.RequiresAck)
+
+	_, err = rig.svc.ApplyUpdate(context.Background(), p.ID, testRepo, preview.SourceHash, false)
+	require.NoError(t, err, "an admin who saw the preview may approve it")
+	assert.Equal(t, plugindomain.KindPlugin, rig.stored(t, p.ID).Kind)
+}
+
+// An admin who acts while a release is being judged wins: the judgment
+// describes a plugin that no longer exists as such, so nothing is installed.
+func TestAutoUpdate_AnAdminActingDuringTheCheckWins(t *testing.T) {
+	cases := map[string]func(rig *autoRig, id string){
+		"uninstalled": func(rig *autoRig, id string) {
+			require.NoError(t, rig.plugins.Delete(context.Background(), id))
+		},
+		"automatic updates turned off": func(rig *autoRig, id string) {
+			_, err := rig.svc.SetUpdateFollow(context.Background(), id, testRepo, false)
+			require.NoError(t, err)
+		},
+		"repository unfollowed": func(rig *autoRig, id string) {
+			_, err := rig.svc.SetUpdateFollow(context.Background(), id, "", true)
+			require.NoError(t, err)
+		},
+	}
+	for name, act := range cases {
+		t.Run(name, func(t *testing.T) {
+			rig := newAutoRig(t, "warn")
+			p := rig.installFromRepo(t, &rig.key)
+			rig.publish(t, goManifestVersioned("thing", "1.0.1"), rig.signed(t, "v101"))
+			rig.hook.during = func() { act(rig, p.ID) }
+
+			_, _ = rig.upd.Check(context.Background(), p.ID)
+
+			list, err := rig.plugins.List(context.Background())
+			require.NoError(t, err)
+			for _, x := range list {
+				assert.NotEqual(t, "1.0.1", x.Version, "the judged release was installed over the admin's action")
+			}
+			if name == "uninstalled" {
+				assert.Empty(t, list, "an uninstalled plugin must not come back")
+			}
+		})
+	}
+}
+
+// The admin installs what they previewed: a release published between the
+// preview and the click does not slip in, because the install is pinned to
+// the previewed bytes.
+func TestInstallFromRepositoryLink_InstallsThePreviewedRelease(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	rig.publish(t, goManifestVersioned("thing", "1.0.0"), rig.signed(t, "v1"))
+	preview, err := rig.svc.PreviewSource(context.Background(), testRepo)
+	require.NoError(t, err)
+	require.Contains(t, preview.ResolvedSource, "#sha256:"+preview.SourceHash)
+
+	m := goManifestVersioned("thing", "1.1.0")
+	m.Permissions = []string{"network"}
+	m.ExternalFetch = []string{"evil.example"}
+	rig.publish(t, m, rig.signed(t, "v110"))
+	rig.parser.Result = goManifestVersioned("thing", "1.0.0") // the bytes of 1.0.0 carry its manifest
+
+	p, err := rig.svc.InstallPlugin(context.Background(), preview.ResolvedSource)
+	require.NoError(t, err)
+	got := rig.stored(t, p.ID)
+	assert.Equal(t, "1.0.0", got.Version)
+	assert.Empty(t, got.Permissions)
+	assert.Equal(t, testRepo, got.UpdateSource, "a release link of the repository still follows it")
+}
+
+func TestInstallFromRepositoryLink_RefusesAPin(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	rig.publish(t, goManifestVersioned("thing", "1.0.0"), rig.signed(t, "v1"))
+	_, err := rig.svc.InstallPlugin(context.Background(), testRepo+"#sha256:"+strings.Repeat("a", 64))
+	require.ErrorIs(t, err, appplugin.ErrRepositoryLinkPinned)
+}
+
+// A release already judged held or refused, against the same plugin, keeps
+// its verdict without being downloaded and analysed again every hour; a new
+// asset under the same tag is judged again and pages again.
+func TestAutoUpdate_AJudgedReleaseIsNotDownloadedAgain(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	p := rig.installFromRepo(t, &rig.key)
+	m := goManifestVersioned("thing", "1.1.0")
+	m.Permissions = []string{"network"}
+	m.ExternalFetch = []string{"api.example.com"}
+	rig.publish(t, m, rig.signed(t, "v110"))
+
+	require.Equal(t, plugindomain.UpdateHeld, rig.check(t, p.ID).Outcome)
+	gets := rig.zipGets.Load()
+	st := rig.check(t, p.ID)
+	assert.Equal(t, plugindomain.UpdateHeld, st.Outcome)
+	assert.Equal(t, gets, rig.zipGets.Load(), "the same release was downloaded again")
+	assert.Len(t, rig.attention(), 1)
+
+	rig.publish(t, m, rig.signed(t, "v110 rebuilt"))
+	assert.Equal(t, plugindomain.UpdateHeld, rig.check(t, p.ID).Outcome)
+	assert.Greater(t, rig.zipGets.Load(), gets, "a new asset is judged again")
+	assert.Len(t, rig.attention(), 2, "and the admins hear about the new bytes")
+
+	_, err := rig.svc.SetUpdateFollow(context.Background(), p.ID, testRepo, false)
+	require.NoError(t, err)
+	gets = rig.zipGets.Load()
+	rig.check(t, p.ID)
+	assert.Greater(t, rig.zipGets.Load(), gets, "a change on the plugin's side is judged again")
+}
+
+func TestAutoUpdate_APreReleaseNeverInstallsOnItsOwn(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	p := rig.installFromRepo(t, &rig.key)
+	rig.publish(t, goManifestVersioned("thing", "1.1.0-beta.1"), rig.signed(t, "beta"))
+	st := rig.check(t, p.ID)
+	assert.Equal(t, plugindomain.UpdateHeld, st.Outcome)
+	assert.Contains(t, st.Reason, "pre-release")
+	assert.Equal(t, "1.0.0", rig.stored(t, p.ID).Version)
+}
+
+// The tag is the repository owner's text: what is not a version is not read
+// as one, and never reaches a notification as such.
+func TestAutoUpdate_ATagThatIsNoVersionIsRefusedAsAVersion(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	p := rig.installFromRepo(t, &rig.key)
+	rig.publish(t, goManifestVersioned("thing", "1.0.1"), rig.signed(t, "v101"))
+	rig.releases.rel.Version = "9.9.9 - approved by the Evey team, install now"
+	rig.releases.rel.Tag = "v" + rig.releases.rel.Version
+
+	st := rig.check(t, p.ID)
+	assert.Equal(t, plugindomain.UpdateFailed, st.Outcome)
+	assert.Contains(t, st.Reason, "is not a version")
+	assert.Empty(t, rig.attention())
+	assert.Equal(t, "1.0.0", rig.stored(t, p.ID).Version)
+}
+
+// The version reported is the one the zip carries, not the tag's.
+func TestAutoUpdate_TheVersionReportedIsTheZips(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	p := rig.installFromRepo(t, &rig.key)
+	m := goManifestVersioned("thing", "1.0.1")
+	m.Permissions = []string{"network"}
+	m.ExternalFetch = []string{"api.example.com"}
+	rig.publish(t, m, rig.signed(t, "v101"))
+	rig.releases.rel.Version = "5.0.0"
+
+	st := rig.check(t, p.ID)
+	assert.Equal(t, "1.0.1", st.LatestVersion)
+	require.Len(t, rig.attention(), 1)
+	assert.Equal(t, "1.0.1", rig.attention()[0].Version)
+}
+
+func TestAutoUpdate_TheReasonIsBounded(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	p := rig.installFromRepo(t, &rig.key)
+	m := goManifestVersioned("thing", "1.0.1")
+	for i := range 200 {
+		m.ExternalFetch = append(m.ExternalFetch, fmt.Sprintf("host%03d.example.com", i))
+	}
+	m.Permissions = []string{"network"}
+	rig.publish(t, m, rig.signed(t, "v101"))
+
+	st := rig.check(t, p.ID)
+	assert.Equal(t, plugindomain.UpdateHeld, st.Outcome)
+	assert.LessOrEqual(t, utf8.RuneCountInString(st.Reason), 501)
+	assert.LessOrEqual(t, utf8.RuneCountInString(rig.attention()[0].Reason), 501)
+}
+
+// The admin's button does not queue behind a running check.
+func TestAutoUpdate_CheckNowSaysWhenACheckIsRunning(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	p := rig.installFromRepo(t, &rig.key)
+	rig.publish(t, goManifestVersioned("thing", "1.0.1"), rig.signed(t, "v101"))
+	release := make(chan struct{})
+	started := make(chan struct{})
+	rig.hook.during = func() { close(started); <-release }
+
+	done := make(chan struct{})
+	go func() { defer close(done); _, _ = rig.upd.Check(context.Background(), p.ID) }()
+	<-started
+	_, err := rig.upd.CheckNow(context.Background(), p.ID)
+	require.ErrorIs(t, err, appplugin.ErrCheckRunning)
+	close(release)
+	<-done
+}
+
+// Whoever registers an abandoned repository name gets nothing followed: the
+// plugin follows the repository's permanent id, not its name.
+func TestAutoUpdate_ATakenOverRepositoryNameIsNotFollowed(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	p := rig.installFromRepo(t, &rig.key)
+	require.Equal(t, testRepoID, rig.stored(t, p.ID).UpdateSourceID)
+
+	rig.releases.mu.Lock()
+	rig.releases.takenOver = true
+	rig.releases.other = &plugindomain.Release{Version: "9.0.0", Tag: "v9.0.0",
+		ZipURL: "https://github.com/acme/thing/releases/download/v9.0.0/evil.zip", SHA256: strings.Repeat("e", 64)}
+	rig.releases.mu.Unlock()
+
+	st := rig.check(t, p.ID)
+	assert.Equal(t, plugindomain.UpdateUpToDate, st.Outcome, "the followed repository has published nothing new")
+	assert.Equal(t, "1.0.0", rig.stored(t, p.ID).Version)
+}
+
+// A spent GitHub quota stops the run: the plugins left are not marked failed
+// one after the other for nothing.
+func TestAutoUpdate_ASpentQuotaStopsTheRun(t *testing.T) {
+	rig := newAutoRig(t, "warn")
+	p := rig.installFromRepo(t, &rig.key)
+	rig.releases.latestErr = fmt.Errorf("read latest release: %w until later", plugindomain.ErrReleaseRateLimited)
+
+	st, err := rig.upd.Check(context.Background(), p.ID)
+	require.ErrorIs(t, err, plugindomain.ErrReleaseRateLimited)
+	assert.Equal(t, plugindomain.UpdateFailed, st.Outcome)
+	assert.Contains(t, st.Reason, "rate limit")
 }

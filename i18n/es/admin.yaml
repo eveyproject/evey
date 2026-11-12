@@ -220,6 +220,8 @@ plugin:
     hashMismatch: "El hash del candidato ya no coincide - actualiza la vista previa"
     bannerRequiresAck: "Esta actualización solicita nuevos permisos - revísalos antes de aplicar"
     bannerSafe: "Sin cambios de permisos - actualización segura"
+    kindChange: "Esta actualización cambia lo que es el plugin: {{change}}. Un tema que se convierte en plugin ejecuta un proceso en el servidor; un plugin que se convierte en tema ejecuta script en cada página."
+    languageChange: "Esta actualización cambia el lenguaje del plugin: {{change}}."
     tabSlots: Slots
     tabExternalFetch: "Llamadas externas"
     tabFindings: Hallazgos
@@ -305,6 +307,7 @@ plugins:
   pluginFileZip: "Archivo de plugin (.zip)"
   sigFileOptional: "Archivo de firma (.zip.sig, opcional)"
   sourceUrl: "URL de origen"
+  repoLinkHint: "Un enlace de repositorio de GitHub (https://github.com/owner/repo) instala su última release, y luego el plugin sigue ese repositorio: una release firmada que no pide nada nuevo se instala sola, todo lo demás espera tu aprobación. Puedes desactivarlo en la tarjeta del plugin."
   nameOptional: "Nombre (opcional)"
   permissions: "Permisos"
   capabilities: "Capacidades"

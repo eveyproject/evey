@@ -97,7 +97,7 @@ A newer release is judged before anything runs:
 | What the release holds | What happens |
 |---|---|
 | Nothing new: no new permission, capability, slot or host, no new kind of analysis warning, the same signing key | Installed on its own: **Version … installed automatically**. |
-| Something new, or the installed version is not signed, or the switch is off | **Version … awaits your approval**, and the admins get a notification. **Review** opens the usual update preview, where you approve the difference. |
+| Something new (a permission, a host, a change between theme and plugin, another language), a pre-release, an installed version that is not signed, or the switch off | **Version … awaits your approval**, and the admins get a notification. **Review** opens the usual update preview, where you approve the difference. |
 | Code the static analysis refuses | **Version … refused**, with the reason, and the admins get a notification. It is not installed, automatically or by hand. |
 
 An unsigned plugin never updates on its own: whoever took over its repository
@@ -105,6 +105,15 @@ could publish code the analysis does not catch, and only a signing key they do
 not hold stops them. A notification is sent once per release, not every hour.
 The check reads the GitHub API and downloads from the repository's release
 files, and from nowhere else.
+
+The repository is followed by the permanent number GitHub gives it, not by
+its name: a renamed or transferred repository is still followed, and whoever
+registers an abandoned name gets nothing followed. Installing from the
+repository link installs the release the preview showed, even if a newer one
+is published in between. A release already judged is not downloaded again
+until something changes on either side. Evey asks GitHub without a token,
+which allows 60 requests an hour per address: one per followed plugin and per
+hour; when the quota is spent, the check stops until its next run.
 
 ## Manage the installed plugins
 

@@ -220,6 +220,8 @@ plugin:
     hashMismatch: "Der Hash des Kandidaten stimmt nicht mehr überein - Vorschau aktualisieren"
     bannerRequiresAck: "Diese Aktualisierung fordert neue Berechtigungen an - vor dem Anwenden prüfen"
     bannerSafe: "Keine Berechtigungsänderung - sichere Aktualisierung"
+    kindChange: "Dieses Update ändert, was das Plugin ist: {{change}}. Ein Theme, das zum Plugin wird, startet einen Prozess auf dem Server; ein Plugin, das zum Theme wird, führt Skript in jeder Seite aus."
+    languageChange: "Dieses Update ändert die Sprache des Plugins: {{change}}."
     tabSlots: Slots
     tabExternalFetch: "Externe Aufrufe"
     tabFindings: Befunde
@@ -305,6 +307,7 @@ plugins:
   pluginFileZip: Plugin-Datei (.zip)
   sigFileOptional: "Signaturdatei (.zip.sig, optional)"
   sourceUrl: Quell-URL
+  repoLinkHint: "Ein GitHub-Repository-Link (https://github.com/owner/repo) installiert dessen neuestes Release, und das Plugin folgt danach diesem Repository: Ein signiertes Release, das nichts Neues verlangt, installiert sich selbst, alles andere wartet auf Sie. Sie können das auf der Karte des Plugins ausschalten."
   nameOptional: Name (optional)
   permissions: Berechtigungen
   capabilities: Fähigkeiten

@@ -32,6 +32,8 @@ interface PreviewResponse {
   signature?: PluginSignature;
   requiresAck?: boolean;
   sourceHash?: string;
+  kindChange?: string;
+  languageChange?: string;
 }
 
 type Phase = "previewing" | "reviewing" | "applying" | "error";
@@ -218,7 +220,8 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
   const publisherBlock =
     preview?.signatureStatus === "publisher-changed" || preview?.signatureStatus === "signature-lost";
   const widens = [preview?.permissionsAdded, preview?.capabilitiesAdded, preview?.slotsAdded, preview?.externalFetchAdded]
-    .some((l) => (l?.length ?? 0) > 0) || (preview?.newFindings?.length ?? 0) > 0;
+    .some((l) => (l?.length ?? 0) > 0) || (preview?.newFindings?.length ?? 0) > 0 ||
+    !!preview?.kindChange || !!preview?.languageChange;
   const needsPermAck = !!preview?.requiresAck && (!publisherBlock || widens);
 
   const applyDisabled =
@@ -279,6 +282,21 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
               {preview.signatureStatus === "signature-lost"
                 ? t("admin.plugin.signature.bannerLost")
                 : t("admin.plugin.signature.bannerChanged")}
+            </div>
+          )}
+
+          {(preview.kindChange || preview.languageChange) && (
+            <div
+              className="rounded border px-3 py-2 text-sm font-semibold flex flex-col gap-1"
+              style={{
+                borderColor: "var(--color-danger)",
+                background: "var(--badge-error-bg, rgba(127,29,29,0.15))",
+                color: "var(--badge-error-text)",
+              }}
+              data-testid="banner-nature-change"
+            >
+              {preview.kindChange && <span>{t("admin.plugin.updateDialog.kindChange", { change: preview.kindChange })}</span>}
+              {preview.languageChange && <span>{t("admin.plugin.updateDialog.languageChange", { change: preview.languageChange })}</span>}
             </div>
           )}
 

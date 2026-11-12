@@ -18,7 +18,7 @@ import (
 )
 
 const pluginColumns = `id, name, version, description, author, language, entrypoint, install_dir,
-	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch, web_root, publisher_key_fingerprint, publisher_key_pem, display_name, update_source, auto_update, update_state`
+	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch, web_root, publisher_key_fingerprint, publisher_key_pem, display_name, update_source, update_source_id, auto_update, update_state`
 
 type PluginRepository struct {
 	db *sql.DB
@@ -112,13 +112,13 @@ func (r *PluginRepository) Create(ctx context.Context, p *plugin.Plugin) error {
 	}
 	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO plugins (`+pluginColumns+`)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
 		p.ID, p.Name, p.Version, p.Description, p.Author, p.Language, p.Entrypoint, p.InstallDir,
 		capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.InstalledAt, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
 		string(kind), frontendJSON, extFetchJSON, p.WebRoot,
 		nullIfEmpty(p.PublisherKeyFingerprint), nullIfEmpty(p.PublisherKeyPEM), displayJSON,
-		p.UpdateSource, p.AutoUpdate, updateStateJSON,
+		p.UpdateSource, p.UpdateSourceID, p.AutoUpdate, updateStateJSON,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -183,7 +183,7 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 		if err := rows.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 			&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 			&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-			&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON, &p.UpdateSource, &p.AutoUpdate, &updateStateJSON); err != nil {
+			&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON, &p.UpdateSource, &p.UpdateSourceID, &p.AutoUpdate, &updateStateJSON); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
@@ -345,16 +345,16 @@ func (r *PluginRepository) UpdateConfig(ctx context.Context, id string, config m
 	return nil
 }
 
-// SetUpdateFollow writes ONLY update_source and auto_update: the admin's
+// SetUpdateFollow writes ONLY update_source, update_source_id and auto_update: the admin's
 // choice, which the full Update never names.
-func (r *PluginRepository) SetUpdateFollow(ctx context.Context, id, source string, autoUpdate bool) error {
+func (r *PluginRepository) SetUpdateFollow(ctx context.Context, id, source string, sourceID int64, autoUpdate bool) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.plugin.SetUpdateFollow")
 	defer span.End()
 	span.SetAttributes(attribute.String("plugin.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE plugins SET update_source=$1, auto_update=$2 WHERE id=$3`, source, autoUpdate, id)
+		`UPDATE plugins SET update_source=$1, update_source_id=$2, auto_update=$3 WHERE id=$4`, source, sourceID, autoUpdate, id)
 	return r.affectedOne(span, res, err)
 }
 
@@ -420,7 +420,7 @@ func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 	err := row.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 		&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 		&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-		&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON, &p.UpdateSource, &p.AutoUpdate, &updateStateJSON)
+		&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM, &displayJSON, &p.UpdateSource, &p.UpdateSourceID, &p.AutoUpdate, &updateStateJSON)
 	if err != nil {
 		return nil, err
 	}

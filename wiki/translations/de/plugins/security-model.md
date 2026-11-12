@@ -1,5 +1,5 @@
 ---
-source_sha: 5151536236816e5df4ba49b273ba6816ed55bc00d29f3b54ba372d772b93b393
+source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
 reviewed: true
 ---
 # Berechtigungen und Slots { #permissions-and-slots }
@@ -182,7 +182,7 @@ oben beschriebene Installationskette.
 - **Für einen Administrator zurückgehalten**, wenn das Release eine
   Berechtigung, Fähigkeit, Anzeigefläche oder einen `external_fetch`-Host
   verlangt, den die installierte Version nicht hat, eine Art von
-  Analysewarnung trägt, die die installierte Version nicht hatte, mit einem
+  Analysewarnung trägt, die die installierte Version nicht hatte, den `kind` (Theme und Plugin) oder die `language` ändert, eine Vorabversion ist, mit einem
   anderen Schlüssel oder nicht mehr signiert ist, oder wenn die installierte
   Version gar nicht signiert ist, oder wenn der Administrator automatische
   Updates ausgeschaltet hat. Die Administratoren werden einmal pro Release
@@ -197,6 +197,19 @@ jeden bösartigen Code, deshalb muss ein Release, das sich selbst installiert,
 mit dem Schlüssel signiert sein, der bei der Installation des Plugins fest hinterlegt wurde. Wer das Repository ohne diesen Schlüssel übernimmt,
 bekommt ein zurückgehaltenes Release, kein installiertes.
 
+Drei weitere Schutzmaßnahmen umgeben diese Regel:
+
+- Das Repository wird über seine dauerhafte GitHub-ID verfolgt, nicht über
+  seinen Namen: Ein nach einer Umbenennung oder Löschung übernommener Name
+  erreicht nichts.
+- Installiert wird nur, solange das Plugin noch so ist, wie es beurteilt wurde. Wenn
+  ein Administrator es deinstalliert, aktualisiert, seinen Schlüssel, das
+  verfolgte Repository oder seinen Schalter ändert, während ein Release
+  beurteilt wird, wird nichts installiert.
+- Eine Installation über einen Repository-Link ist an die Bytes gebunden, die
+  die Vorschau gezeigt hat: Die Vorschau gibt den ZIP-Link des Releases mit
+  seiner SHA-256 zurück, und genau diese beiden erhält die Installation.
+
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
@@ -209,5 +222,5 @@ frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildC
 slots: internal/domain/plugin/slots.go - AllowedSlots
 bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
 update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
-automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
+automatic updates: internal/app/plugin/auto_update.go - updateFromRelease, newWarningCategories, checkUpdateExpectation ; update.go - KindChange, LanguageChange ; preview.go - ResolvedSource ; install.go - blockingWarning ; internal/adapters/driven/pluginrelease/github.go - Latest (asset prefix check) ; internal/domain/plugin/update.go - NormalizeRepoURL
 -->

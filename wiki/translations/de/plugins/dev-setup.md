@@ -1,5 +1,5 @@
 ---
-source_sha: d9a04e27b340ff02f9e98a0903e834a62b7678a1570238f182417f4efb9155a5
+source_sha: 7d11b826f33cfa195e8f3f70d904164dfd609a7ae7e4214de84ee1327b8f0c61
 reviewed: true
 ---
 # Ein Plugin schreiben { #writing-a-plugin }
@@ -418,6 +418,10 @@ folgt aber nichts.
 - Ein Release, das eine neue Berechtigung, Fähigkeit, Anzeigefläche oder
   einen neuen Host verlangt, wartet auf die Freigabe des Administrators:
   Erklären Sie in den Release-Notizen, warum.
+  Ebenso wartet ein Release, das den `kind` oder die `language` des Manifests
+  ändert, und eine Vorabversion (`1.2.0-beta.1`) installiert sich nie von selbst.
+- Das Repository umzubenennen oder zu übertragen ist kein Problem: Evey folgt
+  ihm über seine dauerhafte GitHub-ID.
 - Nennen Sie die Berechtigungen und die `external_fetch`-Hosts in Ihrer
   README: Der Administrator sieht die Berechtigungen bei der Installation und
   die Hosts beim Update und im Sicherheits-Dashboard und muss sie freigeben;

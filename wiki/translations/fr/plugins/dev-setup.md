@@ -1,5 +1,5 @@
 ---
-source_sha: d9a04e27b340ff02f9e98a0903e834a62b7678a1570238f182417f4efb9155a5
+source_sha: 7d11b826f33cfa195e8f3f70d904164dfd609a7ae7e4214de84ee1327b8f0c61
 reviewed: true
 ---
 # Écrire un plugin { #writing-a-plugin }
@@ -408,6 +408,10 @@ Un ZIP envoyé ou lié depuis ailleurs s'installe aussi, mais ne suit rien.
 - Une release qui demande une nouvelle permission, capacité, zone d'affichage
   ou un nouvel hôte attend l'accord de l'administrateur : expliquez pourquoi
   dans ses notes.
+  Il en va de même d'une release qui change le `kind` ou le `language` du
+  manifeste, et une pré-release (`1.2.0-beta.1`) ne s'installe jamais seule.
+- Renommer ou transférer le dépôt ne pose pas de problème : Evey le suit par
+  son identifiant GitHub permanent.
 - Indiquez les permissions et les hôtes `external_fetch` dans votre README :
   l'administrateur voit les permissions à l'installation, et les hôtes à la
   mise à jour et dans le Tableau de bord sécurité, et doit les approuver ; une

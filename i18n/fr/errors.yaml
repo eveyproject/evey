@@ -211,6 +211,7 @@ plugin:
   signature_lost: "Cette mise à jour n'est plus signée alors que la version installée l'était - acceptez la mise à jour non signée pour l'appliquer"
   repository_unsupported: "Seuls les liens de dépôt https://github.com/<owner>/<repo> sont pris en charge"
   no_update_source: "Ce plugin ne suit aucun dépôt - renseignez-en un d'abord"
+  check_running: "Une vérification des mises à jour est déjà en cours - réessayez dans un instant"
 
 demo:
   locked: "Indisponible sur le serveur de démonstration"

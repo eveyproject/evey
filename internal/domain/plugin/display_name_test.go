@@ -46,6 +46,10 @@ func TestDisplayName_Validate(t *testing.T) {
 		"padded":        {"en": " Blue"},
 		"control":       {"en": "Blue\nRed"},
 		"too long":      {"en": strings.Repeat("a", 41)},
+		"key too long":  {"en-" + strings.Repeat("abcdefgh-", 5) + "x1": "Blue"},
+		"rtl override":  {"en": "Dark\u202eeulB"},
+		"zero width":    {"en": "Da\u200brk"},
+		"bom":           {"en": "\ufeffDark"},
 	}
 	for name, d := range bad {
 		require.Error(t, d.Validate(), name)
@@ -67,4 +71,14 @@ func TestManifestValidate_RejectsBadDisplayName(t *testing.T) {
 	p, err := plugin.NewPluginFromManifest("plg-1", "h", &m)
 	require.NoError(t, err)
 	assert.Equal(t, m.DisplayName, p.DisplayName)
+}
+
+func TestManifestValidate_BoundsTheName(t *testing.T) {
+	t.Parallel()
+	m := plugin.PluginManifest{Name: strings.Repeat("a", 101), Version: "1.0.0", Kind: plugin.KindTheme}
+	require.ErrorContains(t, m.Validate(), "name")
+	m.Name = "weather\u202e"
+	require.ErrorContains(t, m.Validate(), "name")
+	m.Name = "weather"
+	require.NoError(t, m.Validate())
 }

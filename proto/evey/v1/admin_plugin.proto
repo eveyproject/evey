@@ -471,6 +471,11 @@ message PreviewPluginUpdateResponse {
   bool requires_ack = 13;
   string source_hash = 14;
   PluginSignature signature = 15;
+  // kind_change ("theme -> plugin") and language_change ("python -> nodejs")
+  // name a change of what the plugin is; empty when there is none. Either
+  // sets requires_ack.
+  string kind_change = 16;
+  string language_change = 17;
 }
 
 message SetPluginUpdateFollowRequest {

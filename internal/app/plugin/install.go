@@ -199,7 +199,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	ctx, span := tracing.StartSpan(ctx, "app.plugin.InstallPlugin")
 	defer span.End()
 
-	source, repo, err := s.resolveInstallSource(ctx, source)
+	source, follow, err := s.resolveInstallSource(ctx, source)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	if err != nil {
 		return nil, err
 	}
-	s.followRepository(ctx, p, repo)
+	s.followRepository(ctx, p, follow)
 	return p, nil
 }
 
@@ -231,6 +231,9 @@ func (s *InstallerService) installLocalZip(ctx context.Context, zipPath, expecte
 	existing, err := s.resolveExistingPlugin(ctx, manifest)
 	if err != nil {
 		return nil, err
+	}
+	if expErr := checkUpdateExpectation(ctx, existing); expErr != nil {
+		return nil, expErr
 	}
 
 	sourceHash, sigStatus, err := s.verifyPluginIntegrity(ctx, zipPath, expectedHash, existing)
@@ -456,7 +459,7 @@ func (s *InstallerService) buildPluginRecord(existing *plugin.Plugin, sourceHash
 		p.Enabled = existing.Enabled
 		// The repository it follows is the admin's choice, which the upgrade
 		// keeps (Update never writes it); the record returned says so too.
-		p.UpdateSource, p.AutoUpdate, p.UpdateState = existing.UpdateSource, existing.AutoUpdate, existing.UpdateState
+		p.UpdateSource, p.UpdateSourceID, p.AutoUpdate, p.UpdateState = existing.UpdateSource, existing.UpdateSourceID, existing.AutoUpdate, existing.UpdateState
 	}
 	return p, nil
 }
