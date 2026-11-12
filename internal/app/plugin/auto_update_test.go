@@ -96,6 +96,8 @@ func (h *hookAnalyzer) Analyze(dir, webRoot string) (*plugindomain.AnalysisRepor
 
 // toServer sends every request to the test server, path kept: the release
 // links stay real https://github.com/... links, as the server sees them.
+// toServer answers https://github.com/... links from the loopback test
+// server, the way GitHub would: the response is for the https request asked.
 type toServer struct{ base string }
 
 func (r toServer) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -103,7 +105,11 @@ func (r toServer) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return http.DefaultTransport.RoundTrip(out)
+	resp, err := http.DefaultTransport.RoundTrip(out)
+	if err == nil {
+		resp.Request = req
+	}
+	return resp, err
 }
 
 type autoRig struct {

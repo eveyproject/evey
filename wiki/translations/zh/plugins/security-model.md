@@ -1,5 +1,5 @@
 ---
-source_sha: 1edd16d5084387fb219f0cee997dd3f2bcf7cef1fcdf2ca1ae0cc3fcf370d2ed
+source_sha: eb74ee171e9411bc9b9f6cd25d7a873ba78a10c83fa82335cbfa41e930babd88
 reviewed: true
 ---
 # 权限与插槽 { #permissions-and-slots }
@@ -12,6 +12,7 @@ reviewed: true
 
 出现以下情况时，插件会在安装时被拒绝：
 
+- 它的来源既不是上传的 ZIP，也不是 `https://` 链接：服务器上的路径和普通的 `http://` 链接都会被拒绝（参见[安装包从哪里来](../SECURITY.md#where-the-package-comes-from)）；
 - 缺少 `kind`，或者它既不是 `plugin` 也不是 `theme`；
 - `kind: plugin` 缺少 `language` 或 `entrypoint`；或者 `kind: theme` 声明了它们，或声明了 `permissions` 或 `capabilities`；
 - 某个权限或能力是未知的；

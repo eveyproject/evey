@@ -166,7 +166,7 @@ plugin:
   uninstall: "अनइंस्टॉल"
   update: "स्रोत से अपडेट करें…"
   previewUpdate: "पूर्वावलोकन"
-  updateSourceLabel: "स्रोत ZIP (पथ या URL)"
+  updateSourceLabel: "स्रोत: ZIP या रिपॉज़िटरी का https लिंक"
   autoUpdate:
     title: "अपडेट"
     repository: "रिपॉज़िटरी"
@@ -301,7 +301,7 @@ plugins:
   uploadFile: "फ़ाइल अपलोड करें"
   fromUrl: "URL से"
   installFromUrl: "URL से इंस्टॉल करें"
-  installFromUrlHint: "प्लगइन .zip URL पेस्ट करें - डाउनलोड सत्यापित करने के लिए वैकल्पिक रूप से #sha256:<hash> जोड़ें।"
+  installFromUrlHint: "प्लगइन .zip का https लिंक पेस्ट करें - डाउनलोड सत्यापित करने के लिए वैकल्पिक रूप से #sha256:<hash> जोड़ें।"
   chooseFile: "फ़ाइल चुनें..."
   previewInstall: "पूर्वावलोकन और इंस्टॉल"
   pluginFileZip: "प्लगइन फ़ाइल (.zip)"

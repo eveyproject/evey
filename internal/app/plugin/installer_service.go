@@ -35,9 +35,10 @@ type InstallerService struct {
 	permChecker  *PermissionChecker
 	pluginDir    string
 	installMu    sync.Mutex
-	// httpClient downloads remote plugin ZIPs. Defaults to an ssrf-safe
-	// client; tests inject http.DefaultClient via InstallerWithHTTPClient
-	// to hit loopback (httptest.Server) without the SSRF guard firing.
+	// httpClient downloads remote plugin ZIPs. Defaults to the ssrf-safe
+	// client with no proxy: the link is the admin's input, and through a
+	// proxy the dialer would only see the proxy, never the real target.
+	// Tests inject their own via InstallerWithHTTPClient to reach loopback.
 	httpClient *http.Client
 	// listDirsFn lists names of plg-* subdirectories under a base dir.
 	// Defaults to an os.ReadDir-based implementation; injectable for tests.
@@ -151,7 +152,7 @@ func NewInstallerService(
 		opt(s)
 	}
 	if s.httpClient == nil {
-		s.httpClient = ssrf.SafeHTTPClient(5 * time.Minute)
+		s.httpClient = ssrf.SafeHTTPClientNoProxy(5 * time.Minute)
 	}
 	return s
 }

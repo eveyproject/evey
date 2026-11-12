@@ -195,7 +195,7 @@ describe("PluginCard", () => {
       { wrapper: Wrapper },
     );
     await userEvent.click(screen.getByTestId("plugin-update-toggle"));
-    expect(screen.getByPlaceholderText("/path/to/plugin-v2.zip")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("https://example.com/plugin-v2.zip")).toBeInTheDocument();
     expect(screen.getByTestId("plugin-update-preview-btn")).toBeDisabled();
   });
 
@@ -243,7 +243,7 @@ describe("PluginCard", () => {
       { wrapper: Wrapper },
     );
     await userEvent.click(screen.getByTestId("plugin-update-toggle"));
-    await userEvent.type(screen.getByPlaceholderText("/path/to/plugin-v2.zip"), "/tmp/plugin-v2.zip");
+    await userEvent.type(screen.getByPlaceholderText("https://example.com/plugin-v2.zip"), "https://example.com/plugin-v2.zip");
     await userEvent.click(screen.getByTestId("plugin-update-preview-btn"));
     // Dialog opens (the plain "Update" text also lives on the toggle button,
     // so assert the modal itself rather than a text match)

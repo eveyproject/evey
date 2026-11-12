@@ -185,6 +185,9 @@ func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.Inst
 	// UI, the request carries accept_permission_changes=true and we authorize
 	// the installer to proceed even when the update widens permissions /
 	// capabilities / slots / external_fetch hosts.
+	if err := appplugin.CheckRequestedSource(req.Source); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 	if req.GetAcceptPermissionChanges() {
 		ctx = appplugin.WithAllowPermissionEscalation(ctx)
 	}
@@ -211,7 +214,7 @@ func (d *adminPluginHandler) installPluginError(ctx context.Context, err error) 
 	case errors.As(err, &blocked), strings.Contains(err.Error(), "plugin blocked:"):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, appplugin.ErrInvalidManifest), errors.Is(err, appplugin.ErrHashMismatch),
-		errors.Is(err, appplugin.ErrRepositoryLinkPinned):
+		errors.Is(err, appplugin.ErrRepositoryLinkPinned), errors.Is(err, appplugin.ErrInsecureSource):
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, appplugin.ErrSourceUnavailable), errors.Is(err, appplugin.ErrServerTooOld):
 		return status.Error(codes.FailedPrecondition, err.Error())
@@ -515,6 +518,9 @@ func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv
 	if req.Source == "" {
 		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.source_required")
 	}
+	if err := appplugin.CheckRequestedSource(req.Source); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 	preview, err := d.pluginInstaller.PreviewUpdate(ctx, req.PluginId, req.Source)
 	if err != nil {
 		span.RecordError(err)
@@ -572,6 +578,9 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 	}
 	if req.AcknowledgedHash == "" {
 		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.acknowledged_hash_required")
+	}
+	if err := appplugin.CheckRequestedSource(req.Source); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	p, err := d.pluginInstaller.ApplyUpdate(ctx, req.PluginId, req.Source, req.AcknowledgedHash, req.AcceptNewPublisher)
 	if err != nil {

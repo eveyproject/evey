@@ -247,7 +247,8 @@ func TestPluginUpdate_PublisherChangeRoundTrip(t *testing.T) {
 		appplugin.InstallerWithFileSystem(pluginfakes.NewFakePluginFileSystem()),
 		appplugin.InstallerWithSignatureVerifier(fixedVerifier{plugindomain.SignatureStatus{
 			Verified: true, KeyFingerprint: "sha256:new", VerifiedBy: "sha256:new",
-		}}))
+		}}),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()))
 	h := &adminPluginHandler{pluginInstaller: svc, enabled: true}
 
 	require.NoError(t, plugins.Create(ctx, &plugindomain.Plugin{
@@ -255,7 +256,7 @@ func TestPluginUpdate_PublisherChangeRoundTrip(t *testing.T) {
 		PublisherKeyFingerprint: "sha256:old",
 	}))
 	parser.Result = &plugindomain.PluginManifest{Name: "signed", Kind: plugindomain.KindPlugin, Version: "1.1.0", Language: "go", Entrypoint: "./plugin"}
-	zip := tmpZipGRPC(t, "v2")
+	zip := servedZip(t, "v2")
 
 	preview, err := h.PreviewPluginUpdate(ctx, &eveyv1.PreviewPluginUpdateRequest{PluginId: "plg-1", Source: zip})
 	require.NoError(t, err)

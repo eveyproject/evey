@@ -166,7 +166,7 @@ plugin:
   uninstall: Deinstallieren
   update: "Aus Quelle aktualisieren …"
   previewUpdate: Vorschau
-  updateSourceLabel: Quell-ZIP (Pfad oder URL)
+  updateSourceLabel: "Quelle: https-Link zum ZIP oder zum Repository"
   autoUpdate:
     title: "Updates"
     repository: "Repository"
@@ -301,7 +301,7 @@ plugins:
   uploadFile: Datei hochladen
   fromUrl: Von URL
   installFromUrl: Von URL installieren
-  installFromUrlHint: "Fügen Sie die URL eines Plugin-.zip ein - optional #sha256:<hash> anhängen, um den Download zu verifizieren."
+  installFromUrlHint: "Fügen Sie den https-Link eines Plugin-.zip ein - optional #sha256:<hash> anhängen, um den Download zu verifizieren."
   chooseFile: "Datei auswählen..."
   previewInstall: Vorschau & Installieren
   pluginFileZip: Plugin-Datei (.zip)

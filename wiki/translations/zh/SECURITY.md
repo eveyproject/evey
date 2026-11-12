@@ -1,5 +1,5 @@
 ---
-source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
+source_sha: 8933bd5b32a86441eec2e76625bc071fa3416099b98305fa9f8f4f01643c4af0
 reviewed: true
 ---
 # 插件沙箱与威胁模型 { #plugin-sandbox-and-threat-model }
@@ -42,6 +42,23 @@ flowchart LR
 ```
 
 ## 安装时 { #at-install }
+
+### 安装包从哪里来 { #where-the-package-comes-from }
+
+管理员有两种方式提供安装包：上传 ZIP，或者给一个 `https://` 链接，可以直接指向 ZIP，
+也可以指向一个 GitHub 仓库（代表它的最新 release）。其他任何来源都会在安装程序读取之前被拒绝：
+
+- 服务器上的路径或 `file://` 链接：通过 API 发来的请求不能让服务器读取它自己磁盘上的压缩包。
+  只有服务器自己的代码会读取本地文件：上传路由读取上传 ZIP 的临时副本，演示模式读取它自带的插件；
+- 普通的 `http://` 链接，或者被重定向到 `http://` 的下载：路径上的任何人都可以替换压缩包，
+  无论是在预览之前，还是在预览和安装之间；对于未签名的插件，没有别的机制能拦住它。
+
+下载通过防 SSRF 的客户端（`internal/pkg/ssrf`）进行，它在 DNS 解析之后拒绝私有、保留和
+link-local 地址。它不使用环境变量里的代理（`HTTPS_PROXY`、`HTTP_PROXY`）：通过代理时，
+客户端只能看到代理的地址，看不到目标的地址，这项检查就失去了意义。因此，只能通过代理访问互联网的服务器，
+既不能从链接安装，也不能下载自动更新；请改为上传 ZIP。
+
+下载在 100 MB 处停止。附加在链接后的 `#sha256:<hash>` 会与收到的字节核对，从预览开始的安装会绑定到预览所显示的那些字节。
 
 ### ZIP 解压 { #zip-extraction }
 
@@ -365,6 +382,7 @@ flowchart LR
 
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
+package source: internal/app/plugin/install.go - CheckRequestedSource, ErrInsecureSource, downloadIfURL (http and redirect refusal, 100 MB) ; installer_service.go - SafeHTTPClientNoProxy ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; internal/adapters/driving/http/plugin_asset_handler.go - preview JSON source ; internal/pkg/ssrf/dialer.go
 runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
 resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
 bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx
