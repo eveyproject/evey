@@ -71,6 +71,10 @@ func startBwrapSleeperNoWait(t *testing.T, id string) (*Runner, *processEntry) {
 // with no reaper in between, still in bwrap's process group so Stop/Kill
 // reach it, and without bwrap's --info-fd pipe leaked into it.
 func TestBwrapStart_PayloadIsTheSandboxedChild(t *testing.T) {
+	inherited := map[string]bool{}
+	for _, target := range openPipes(t, os.Getpid()) {
+		inherited[target] = true
+	}
 	_, e := startBwrapSleeper(t, "bwrap-payload")
 	bwrapPID := e.cmd.Process.Pid
 
@@ -84,19 +88,10 @@ func TestBwrapStart_PayloadIsTheSandboxedChild(t *testing.T) {
 
 	// The plugin's own startup opens files on fd 3 and up (the dynamic loader,
 	// locale data), so an open fd 3 proves nothing: the leak would be the info
-	// pipe, and the plugin never holds a pipe past stdout and stderr.
-	fdDir := "/proc/" + strconv.Itoa(e.payloadPID) + "/fd"
-	fds, err := os.ReadDir(fdDir)
-	require.NoError(t, err)
-	for _, fd := range fds {
-		if n, convErr := strconv.Atoi(fd.Name()); convErr != nil || n <= 2 {
-			continue
-		}
-		target, readErr := os.Readlink(filepath.Join(fdDir, fd.Name()))
-		if readErr != nil {
-			continue // closed since the listing
-		}
-		assert.False(t, strings.HasPrefix(target, "pipe:"), "bwrap's --info-fd must not reach the plugin (fd %s: %s)", fd.Name(), target)
+	// pipe. Pipes the test process itself inherited (a CI runner passes some
+	// down) reach every child and are not the runner's doing.
+	for fd, target := range openPipes(t, e.payloadPID) {
+		assert.True(t, inherited[target], "bwrap's --info-fd must not reach the plugin (fd %d: %s)", fd, target)
 	}
 }
 
@@ -145,6 +140,26 @@ func TestStart_NonBwrapPayloadIsTheProcess(t *testing.T) {
 	r.mu.RUnlock()
 	require.NotNil(t, e)
 	assert.Equal(t, e.cmd.Process.Pid, e.payloadPID)
+}
+
+// openPipes lists the pipes a process holds above stderr, by fd.
+func openPipes(t *testing.T, pid int) map[int]string {
+	t.Helper()
+	fdDir := "/proc/" + strconv.Itoa(pid) + "/fd"
+	fds, err := os.ReadDir(fdDir)
+	require.NoError(t, err)
+	pipes := map[int]string{}
+	for _, fd := range fds {
+		n, convErr := strconv.Atoi(fd.Name())
+		if convErr != nil || n <= 2 {
+			continue
+		}
+		target, readErr := os.Readlink(filepath.Join(fdDir, fd.Name()))
+		if readErr == nil && strings.HasPrefix(target, "pipe:") {
+			pipes[n] = target
+		}
+	}
+	return pipes
 }
 
 func assertGone(t *testing.T, pid int) {
