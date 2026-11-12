@@ -132,15 +132,15 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 	localPath, _, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
-		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
+		return nil, fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, dlErr)
 	}
 
 	manifest, parseErr := s.parser.Parse(localPath)
 	if parseErr != nil {
-		return nil, fmt.Errorf("parse manifest: %w", parseErr)
+		return nil, fmt.Errorf("parse manifest: %w: %w", ErrInvalidManifest, parseErr)
 	}
 	if err := manifest.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid manifest: %w", err)
+		return nil, fmt.Errorf("invalid manifest: %w: %w", ErrInvalidManifest, err)
 	}
 
 	sourceHash, hashErr := hashFile(localPath)
