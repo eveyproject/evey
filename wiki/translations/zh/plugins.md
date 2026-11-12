@@ -1,5 +1,5 @@
 ---
-source_sha: 1275452b2933bd99efb7df5d03027053d9e442befddb22c1eb9d953ee35df4bd
+source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
 reviewed: true
 ---
 # 插件 { #plugins }
@@ -28,8 +28,10 @@ reviewed: true
 ## 安装插件 { #install-a-plugin }
 
 1. 在**管理 → 插件**里，打开**安装插件**，选择**插件文件 (.zip)**。如果作者提供了签名，
-   把它加到**签名文件（.zip.sig，可选）**里。**从 URL 安装**选项卡则是通过链接安装；
-   在 URL 后面加上 `#sha256:<hash>`，下载的文件就会被核对。
+   把它加到**签名文件（.zip.sig，可选）**里。**从 URL 安装**选项卡则是通过 `https://` 链接安装；
+   普通的 `http://` 链接或服务器上的路径会被拒绝（参见
+   [安装包从哪里来](SECURITY.md#where-the-package-comes-from)）。
+   在链接后面加上 `#sha256:<hash>`，下载的文件就会被核对。
    仓库链接 `https://github.com/<owner>/<repo>` 会安装其最新 release 的 zip，
    并用该 release 发布的 sha256 校验；之后插件会关联这个仓库来获取更新（参见
    [自动更新](#automatic-updates)）。
@@ -60,7 +62,7 @@ reviewed: true
 
 ## 更新插件 { #update-a-plugin }
 
-在插件的卡片上，**从源更新…**接收新的 ZIP（一个路径或一个 URL），并显示同样的预览。
+在插件的卡片上，**从源更新…**接收新 ZIP 的 `https://` 链接，并显示同样的预览。
 更新的版本号必须比已安装的高。如果更新请求了新的权限、能力、插槽或主机，预览会显示**此更新请求新权限**，
 并列出差别：在您选择**批准并安装**之前，什么都不会生效。被分析的安装包就是被安装的安装包：
 真正应用更新时，会再核对一次它的哈希值。
@@ -179,7 +181,7 @@ CPU 优先级对之后启动的插件生效；更改沙箱模式会立即重启�
 | [Webhook 与 API 密钥](webhooks-api-keys.md) | 不写插件，也能把 Evey 和其他工具集成起来。 |
 
 <!-- sources
-install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL
+install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL, CheckRequestedSource ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; i18n admin.plugin.updateSourceLabel
 critical findings refuse, warnings: internal/app/plugin/install.go - validateStagedPlugin, checkEscalatedWarnings ; i18n admin.plugins.blockedByAnalysis, installAnyway
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries ; i18n admin.plugins.availableRuntimes
 cosign policy: internal/config/config.go - CosignPolicy, CosignPublicKey ; internal/adapters/driven/pluginrunner/cosign.go

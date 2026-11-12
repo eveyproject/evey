@@ -260,7 +260,7 @@ func (s *InstallerService) PreviewSource(ctx context.Context, source string) (*P
 	if expectedHash != "" && preview.SourceHash != expectedHash {
 		return nil, fmt.Errorf("plugin hash mismatch: expected %s, got %s", expectedHash, preview.SourceHash)
 	}
-	if raw, _, _ := strings.Cut(source, "#"); strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "http://") {
+	if raw, _, _ := strings.Cut(source, "#"); strings.HasPrefix(raw, "https://") {
 		// A link can serve other bytes at install time than at preview (a
 		// repository's "latest" moves by design): the install is pinned to
 		// what the admin saw.

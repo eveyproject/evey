@@ -442,6 +442,22 @@ func TestPluginPreview_FromSource(t *testing.T) {
 		assert.Equal(t, "plugin preview failed: resolve plugin source: download plugin: HTTP 404", body["message"])
 	})
 
+	t.Run("a path on the server or a plain http link is refused before the installer sees it", func(t *testing.T) {
+		for _, source := range []string{"/etc/evey/p.zip", "file:///etc/evey/p.zip", "http://example.com/plugin.zip"} {
+			watching := &stubPluginManager{}
+			wmux := http.NewServeMux()
+			registerPluginPreviewRoute(wmux, tokenGen, watching, ratelimit.New(100))
+			req := httptest.NewRequest("POST", "/api/v1/admin/plugins/preview", strings.NewReader(`{"source":"`+source+`"}`))
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			wmux.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusBadRequest, w.Code, source)
+			assert.Contains(t, w.Body.String(), "https", source)
+			assert.Empty(t, watching.previewedSource, "%s reached the installer", source)
+		}
+	})
+
 	t.Run("without a token it is a 401 like the upload path", func(t *testing.T) {
 		req := httptest.NewRequest("POST", "/api/v1/admin/plugins/preview", strings.NewReader(`{"source":"https://example.com/plugin.zip"}`))
 		req.Header.Set("Content-Type", "application/json")

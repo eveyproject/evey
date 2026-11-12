@@ -3,7 +3,6 @@ package plugin_test
 import (
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,7 +41,7 @@ func newSwapFixture(t *testing.T) *swapFixture {
 		appplugin.InstallerWithAnalyzer(plgfakes.NewFakePluginAnalyzer()),
 		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
 		appplugin.InstallerWithFileSystem(f.fs),
-		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithHTTPClient(loopbackHTTPS()),
 	)
 	f.parser.Result = goManifestVersioned("swap", "1.0.0")
 	v1, err := f.svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))

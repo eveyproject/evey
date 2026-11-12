@@ -1,5 +1,5 @@
 ---
-source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
+source_sha: 8933bd5b32a86441eec2e76625bc071fa3416099b98305fa9f8f4f01643c4af0
 reviewed: true
 ---
 # प्लगइन सैंडबॉक्स और ख़तरा मॉडल { #plugin-sandbox-and-threat-model }
@@ -49,6 +49,33 @@ flowchart LR
 ```
 
 ## इंस्टॉल के समय { #at-install }
+
+### पैकेज कहाँ से आता है { #where-the-package-comes-from }
+
+एडमिन पैकेज दो तरीकों से देता है: ZIP अपलोड करके, या किसी `https://` लिंक से,
+जो या तो सीधे ZIP का हो या किसी GitHub रिपॉज़िटरी का, जिसका मतलब उसकी सबसे नई
+release है। बाकी सब कुछ इंस्टॉलर के पढ़ने से पहले ही अस्वीकार कर दिया जाता है:
+
+- सर्वर पर का कोई रास्ता या `file://` लिंक: API से आया अनुरोध सर्वर से उसकी
+  अपनी डिस्क की कोई archive नहीं पढ़वा सकता। लोकल फ़ाइल सिर्फ़ सर्वर का अपना
+  कोड पढ़ता है: अपलोड वाला route, अपलोड की गई ZIP की अस्थायी कॉपी से, और डेमो,
+  अपने साथ आए प्लगइन से;
+- सादा `http://` लिंक, या ऐसा डाउनलोड जिसे कोई redirect `http://` पर भेज दे:
+  रास्ते में बैठा कोई भी archive बदल सकता है, पूर्वावलोकन से पहले या
+  पूर्वावलोकन और इंस्टॉल के बीच, और बिना सिग्नेचर वाले प्लगइन में उसे और कुछ
+  नहीं रोकता।
+
+डाउनलोड SSRF से सुरक्षित client (`internal/pkg/ssrf`) से होता है, जो DNS
+resolution के बाद private, reserved और link-local पते अस्वीकार करता है। यह
+environment से कोई proxy नहीं लेता (`HTTPS_PROXY`, `HTTP_PROXY`): proxy से
+होकर client को सिर्फ़ proxy का पता दिखता है, लक्ष्य का कभी नहीं, और जाँच बेकार
+हो जाती। इसलिए जो सर्वर इंटरनेट तक सिर्फ़ proxy से पहुँचता है, वह न लिंक से
+इंस्टॉल कर सकता है, न अपने-आप वाला अपडेट डाउनलोड कर सकता है; इसकी जगह ZIP
+अपलोड करें।
+
+डाउनलोड 100 MB पर रुक जाता है। लिंक में जोड़ा गया `#sha256:<hash>` मिले हुए
+bytes से जाँचा जाता है, और पूर्वावलोकन से शुरू किया गया इंस्टॉल उन्हीं bytes से
+बँधा होता है जो पूर्वावलोकन ने दिखाए थे।
 
 ### ZIP extraction { #zip-extraction }
 
@@ -475,6 +502,7 @@ credentials साफ़ कर दिए जाते हैं (`internal/pkg/
 
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
+package source: internal/app/plugin/install.go - CheckRequestedSource, ErrInsecureSource, downloadIfURL (http and redirect refusal, 100 MB) ; installer_service.go - SafeHTTPClientNoProxy ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; internal/adapters/driving/http/plugin_asset_handler.go - preview JSON source ; internal/pkg/ssrf/dialer.go
 runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
 resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
 bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx
