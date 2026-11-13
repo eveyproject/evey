@@ -13,12 +13,21 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { useDemoLockFor } from "@/hooks/useDemoMode";
-import { type PluginSignature, shortFingerprint, signatureKind } from "./pluginSignature";
+import { type PreviewSignature, shortFingerprint, signatureKind } from "./pluginSignature";
 
 // The signature verdict on a plugin card, with the "Trust this key" action for
 // a valid signature whose key is not in the trusted-publisher list yet.
-// canTrust is off in the install preview: the key is only known to the server once the package is installed.
-export function PluginSignatureBadge({ signature, canTrust = true }: { signature?: PluginSignature; canTrust?: boolean }) {
+// In the install preview nothing is installed yet, so the key is trusted from
+// the PEM the preview carries; onTrusted lets the preview show the new verdict.
+export function PluginSignatureBadge({
+  signature,
+  canTrust = true,
+  onTrusted,
+}: {
+  signature?: PreviewSignature;
+  canTrust?: boolean;
+  onTrusted?: (name: string) => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { lock } = useDemoLockFor("/evey.v1.AdminPluginService/AddTrustedPublisher");
@@ -31,6 +40,7 @@ export function PluginSignatureBadge({ signature, canTrust = true }: { signature
     mutation: {
       onSuccess: () => {
         toast.success(t("admin.plugin.signature.trustedToast"));
+        onTrusted?.(name.trim());
         setAsking(false);
         setName("");
         void queryClient.invalidateQueries({ queryKey: getAdminPluginServiceListTrustedPublishersQueryKey() });
@@ -82,7 +92,13 @@ export function PluginSignatureBadge({ signature, canTrust = true }: { signature
               variant="primary"
               disabled={!name.trim()}
               loading={addPublisher.isPending}
-              onClick={() => addPublisher.mutate({ data: { name: name.trim(), fingerprint: fp } })}
+              onClick={() =>
+                addPublisher.mutate({
+                  data: signature?.keyPem
+                    ? { name: name.trim(), publicKeyPem: signature.keyPem }
+                    : { name: name.trim(), fingerprint: fp },
+                })
+              }
               data-testid="plugin-trust-confirm"
             >
               {t("admin.plugin.signature.trustConfirm")}

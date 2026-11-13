@@ -5,6 +5,9 @@ export interface PluginSignatureInfo {
   trusted?: boolean;
   continuity?: string;
   error?: string;
+  // Only in the install preview, while the key is not trusted: the package's
+  // public key, so it can be trusted before anything is installed.
+  keyPem?: string;
 }
 
 export type SignatureKind = "trusted" | "untrusted" | "unsigned" | "invalid";

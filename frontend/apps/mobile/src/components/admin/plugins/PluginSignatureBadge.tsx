@@ -13,8 +13,14 @@ import { useTheme } from "../../../providers/ThemeProvider";
 import { type PluginSignatureInfo, shortFingerprint, signatureKind } from "./pluginSignature";
 
 // The signature verdict on a plugin row, with the "Trust this key" action for a
-// valid signature whose key is not in the trusted-publisher list yet.
-export function PluginSignatureBadge({ signature, canTrust = true }: { signature?: PluginSignatureInfo; canTrust?: boolean }) {
+// valid signature whose key is not in the trusted-publisher list yet. In the
+// install preview nothing is installed yet, so the key is trusted from the PEM
+// the preview carries; onTrusted lets the preview show the new verdict.
+export function PluginSignatureBadge({ signature, canTrust = true, onTrusted }: {
+  signature?: PluginSignatureInfo;
+  canTrust?: boolean;
+  onTrusted?: (name: string) => void;
+}) {
   const theme = useTheme();
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -28,6 +34,7 @@ export function PluginSignatureBadge({ signature, canTrust = true }: { signature
     mutation: {
       onSuccess: () => {
         toast.success(t("admin.plugin.signature.trustedToast", "Key trusted"));
+        onTrusted?.(name.trim());
         setAsking(false);
         setName("");
         void qc.invalidateQueries({ queryKey: getAdminPluginServiceListTrustedPublishersQueryKey() });
@@ -79,7 +86,13 @@ export function PluginSignatureBadge({ signature, canTrust = true }: { signature
                 <Text style={{ color: theme.colors.text, fontWeight: "600" }}>{t("common.cancel")}</Text>
               </Pressable>
               <Pressable
-                onPress={() => add.mutate({ data: { name: name.trim(), fingerprint: fp } })}
+                onPress={() =>
+                  add.mutate({
+                    data: signature?.keyPem
+                      ? { name: name.trim(), publicKeyPem: signature.keyPem }
+                      : { name: name.trim(), fingerprint: fp },
+                  })
+                }
                 disabled={!name.trim() || add.isPending}
                 style={{ flex: 1, alignItems: "center", paddingVertical: theme.spacing.sm + 2, borderRadius: theme.radii.md, backgroundColor: theme.colors.accent, opacity: !name.trim() || add.isPending ? 0.5 : 1 }}
               >

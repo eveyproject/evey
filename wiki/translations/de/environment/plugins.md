@@ -1,5 +1,5 @@
 ---
-source_sha: c99cc1b66de151e0e27b786bbc03a5bbf4ecf4e6c64681fc28cf588a10e0cdfa
+source_sha: 2fff76be47e76b961cb7f575193c79665c31bb63a9a1803d998bcb72f5e4a064
 reviewed: true
 ---
 # Plugins und Sandbox
@@ -36,7 +36,7 @@ Vorrang vor ihnen.
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` oder `enforce`: was eine fehlgeschlagene Signaturprüfung bewirkt. Signaturen werden gegen den Schlüssel geprüft, den jedes Paket mitbringt, und gegen die Liste vertrauenswürdiger Herausgeber; ein Schlüssel ist also nicht nötig. | keine |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `enforce` | `off`, `warn` oder `enforce`: was eine fehlgeschlagene Signaturprüfung bewirkt. Signaturen werden gegen den Schlüssel geprüft, den jedes Paket mitbringt, und gegen die Liste vertrauenswürdiger Herausgeber; ein Schlüssel ist also nicht nötig. | keine |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | leer | Optionaler Pfad zum öffentlichen PEM-Schlüssel Ihres eigenen Herausgebers, der bei jedem Start zu den vertrauenswürdigen Herausgebern hinzugefügt wird. | keine |
 
 ## Protokolle

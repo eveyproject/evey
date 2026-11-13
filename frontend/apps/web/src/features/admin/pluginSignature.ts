@@ -2,6 +2,10 @@ import type { V1Plugin } from "@evey/api";
 
 export type PluginSignature = NonNullable<V1Plugin["signature"]>;
 
+// The install preview also hands back the package's public key while it is
+// not trusted, so the admin can trust it before anything is installed.
+export type PreviewSignature = PluginSignature & { keyPem?: string };
+
 export type SignatureKind = "trusted" | "untrusted" | "unsigned" | "invalid";
 
 // A key that did not verify with a real error is "invalid"; a package with no

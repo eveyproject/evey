@@ -28,7 +28,7 @@ import { uploadRefusalMessage } from "@/features/plugins/uploadRefusal";
 import { PluginResourceLimits } from "@/features/admin/PluginResourceLimits";
 import { TrustedPublishers } from "@/features/admin/TrustedPublishers";
 import { PluginSignatureBadge } from "@/features/admin/PluginSignatureBadge";
-import type { PluginSignature } from "@/features/admin/pluginSignature";
+import type { PreviewSignature } from "@/features/admin/pluginSignature";
 import { useDemoLockFor } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/plugins")({
@@ -67,7 +67,7 @@ interface PluginPreview {
   // to their sha256); absent for an uploaded file.
   resolved_source?: string;
   // Present when a .sig was provided with the package.
-  signature?: PluginSignature;
+  signature?: PreviewSignature;
   signatureStatus?: string;
   analysis?: {
     safe: boolean;
@@ -109,12 +109,14 @@ function PreviewPanel({
   installing,
   onCancel,
   onConfirm,
+  onKeyTrusted,
 }: {
   preview: PluginPreview;
   hasWarnings: boolean;
   installing: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  onKeyTrusted: (name: string) => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -173,7 +175,7 @@ function PreviewPanel({
             {t("admin.plugin.signature.installHeading")}
           </span>
           <div className="flex flex-wrap items-center gap-2">
-            <PluginSignatureBadge signature={preview.signature} canTrust={false} />
+            <PluginSignatureBadge signature={preview.signature} canTrust={!!preview.signature.keyPem} onTrusted={onKeyTrusted} />
           </div>
           {preview.signature.keyFingerprint && (
             <span className="font-mono text-xs break-all text-[var(--text-muted)]">
@@ -288,6 +290,12 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
 
   function getFile(): File | null {
     return fileRef.current?.files?.[0] ?? null;
+  }
+
+  function markPreviewKeyTrusted(name: string) {
+    setPreview((p) =>
+      p?.signature ? { ...p, signature: { ...p.signature, trusted: true, publisher: name, keyPem: undefined } } : p,
+    );
   }
 
   async function handleFilePreview() {
@@ -578,6 +586,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
             installing={step === "installing"}
             onCancel={resetFileFlow}
             onConfirm={() => handleFileInstall(false)}
+            onKeyTrusted={markPreviewKeyTrusted}
           />
         </>
       )}
@@ -595,6 +604,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
             installing={step === "installing" || installPlugin.isPending}
             onCancel={resetFileFlow}
             onConfirm={handleUrlInstall}
+            onKeyTrusted={markPreviewKeyTrusted}
           />
         </>
       )}
