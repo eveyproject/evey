@@ -138,13 +138,14 @@ func TestPluginPreview_UploadedSignatureVerdict(t *testing.T) {
 
 	type previewBody struct {
 		Signature *struct {
-			SignatureStatus string `json:"signature_status"`
+			SignatureStatus string `json:"signatureStatus"`
 			Verified        bool   `json:"verified"`
-			KeyFingerprint  string `json:"key_fingerprint"`
+			KeyFingerprint  string `json:"keyFingerprint"`
 			Publisher       string `json:"publisher"`
 			Trusted         bool   `json:"trusted"`
 			Continuity      string `json:"continuity"`
 			Error           string `json:"error"`
+			KeyPEM          string `json:"keyPem"`
 		} `json:"signature"`
 	}
 	decode := func(w *httptest.ResponseRecorder) previewBody {
@@ -161,6 +162,7 @@ func TestPluginPreview_UploadedSignatureVerdict(t *testing.T) {
 	assert.True(t, b.Signature.Verified)
 	assert.Equal(t, k.fp, b.Signature.KeyFingerprint)
 	assert.False(t, b.Signature.Trusted)
+	assert.Equal(t, k.pem, b.Signature.KeyPEM, "an untrusted key comes with its PEM so the preview can trust it")
 
 	_, err := r.keys.AddByPEM(context.Background(), "Acme", k.pem)
 	require.NoError(t, err)
@@ -168,6 +170,7 @@ func TestPluginPreview_UploadedSignatureVerdict(t *testing.T) {
 	assert.Equal(t, "signed", b.Signature.SignatureStatus)
 	assert.Equal(t, "Acme", b.Signature.Publisher)
 	assert.True(t, b.Signature.Trusted)
+	assert.Empty(t, b.Signature.KeyPEM, "a trusted key has nothing left to trust")
 
 	b = decode(r.post(t, "/api/v1/admin/plugins/preview", zipBytes, nil, nil))
 	assert.Equal(t, "unsigned", b.Signature.SignatureStatus)

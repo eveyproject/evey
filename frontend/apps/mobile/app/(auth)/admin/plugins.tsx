@@ -376,13 +376,14 @@ function PluginLogsSection({ pluginId, theme, t }: { pluginId: string; theme: Th
 
 // --- Install-from-URL preview -------------------------------------------
 
-function InstallPreviewPanel({ preview, theme, t, installing, onCancel, onConfirm }: {
+function InstallPreviewPanel({ preview, theme, t, installing, onCancel, onConfirm, onKeyTrusted }: {
   preview: InstallPreview;
   theme: Theme;
   t: TFunction;
   installing: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  onKeyTrusted: (name: string) => void;
 }) {
   const warn = installPreviewHasWarnings(preview);
   const issues = preview.analysis?.issues ?? [];
@@ -412,7 +413,7 @@ function InstallPreviewPanel({ preview, theme, t, installing, onCancel, onConfir
         <View style={{ gap: 4 }}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>{t("admin.plugin.signature.installHeading", "Signature")}</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-            <PluginSignatureBadge signature={preview.signature} canTrust={false} />
+            <PluginSignatureBadge signature={preview.signature} canTrust={!!preview.signature.keyPem} onTrusted={onKeyTrusted} />
           </View>
           {preview.signature.keyFingerprint ? (
             <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontFamily: "monospace" }}>{preview.signature.keyFingerprint}</Text>
@@ -1376,6 +1377,11 @@ export default function AdminPluginsScreen() {
               installing={installPlugin.isPending || fileBusy}
               onCancel={closeInstallModal}
               onConfirm={handleInstallPreviewed}
+              onKeyTrusted={(name) =>
+                setInstallPreview((p) =>
+                  p?.signature ? { ...p, signature: { ...p.signature, trusted: true, publisher: name, keyPem: undefined } } : p,
+                )
+              }
             />
           ) : (
             <>

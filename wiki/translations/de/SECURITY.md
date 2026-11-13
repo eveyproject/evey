@@ -1,5 +1,5 @@
 ---
-source_sha: 8933bd5b32a86441eec2e76625bc071fa3416099b98305fa9f8f4f01643c4af0
+source_sha: cd248efab1b67da1bac31b8aa74aa2efe53af88dd685f73cd4f56ef6e10f9c92
 reviewed: true
 ---
 # Plugin-Sandbox und Bedrohungsmodell { #plugin-sandbox-and-threat-model }
@@ -183,8 +183,13 @@ Daraus folgen drei Dinge:
 | Regel | Wirkung |
 |---|---|
 | `off` | Die Signatur wird nicht geprüft und nichts wird festgehalten. |
-| `warn` (Standard) | Das Urteil wird festgehalten und angezeigt; unsignierte, nicht vertraute und ungültige Pakete werden installiert. |
-| `enforce` | Nur ein Paket, das von einem vertrauenswürdigen Herausgeber signiert ist, wird installiert oder aktualisiert. |
+| `warn` | Das Urteil wird festgehalten und angezeigt; unsignierte, nicht vertraute und ungültige Pakete werden installiert. |
+| `enforce` (Standard) | Nur ein Paket, das von einem vertrauenswürdigen Herausgeber signiert ist, wird installiert oder aktualisiert. |
+
+Der Schlüssel des Evey-Projekts selbst steht von Anfang an in der Liste,
+als **Evey project**. Den Schlüssel eines anderen Herausgebers kann man schon
+in der Installationsvorschau als vertrauenswürdig markieren, bevor etwas
+installiert ist.
 
 Eine Signatur beweist, dass das Paket dasjenige ist, das sein Herausgeber
 veröffentlicht hat, und dass ein Update vom selben Herausgeber stammt. Über
@@ -499,7 +504,7 @@ Systemaufrufe werden abgelehnt, auch für kompilierte Binärdateien.
 |---|---|---|
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` oder `basic`. Auch unter **Verwaltung → Plugins** änderbar. |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` oder `off`. Nicht vereinbar mit `no_new_privs` auf dem Container. |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` oder `enforce`. |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `enforce` | `off`, `warn` oder `enforce`. |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | keiner | Optional: ein öffentlicher PEM-Schlüssel, der beim Start zu den vertrauenswürdigen Herausgebern hinzugefügt wird. |
 | `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Standardwerte der Ressourcenlimits beim Start; der Verwaltungsbereich überschreibt sie, für alle Plugins zugleich. |
 

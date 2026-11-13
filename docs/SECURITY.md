@@ -163,8 +163,12 @@ fingerprint (`sha256:` over the DER public key). Three facts follow from it:
 | Policy | Effect |
 |---|---|
 | `off` | The signature is not checked and nothing is recorded. |
-| `warn` (default) | The verdict is recorded and shown; unsigned, untrusted and invalid packages install. |
-| `enforce` | Only a package signed by a trusted publisher installs or updates. |
+| `warn` | The verdict is recorded and shown; unsigned, untrusted and invalid packages install. |
+| `enforce` (default) | Only a package signed by a trusted publisher installs or updates. |
+
+The Evey project's own key is in the list from the start, under **Evey
+project**. Another publisher's key can be trusted from the install preview,
+before anything is installed.
 
 What a signature proves is that the package is the one its publisher
 released, and that an update comes from the same publisher. It says nothing
@@ -458,7 +462,7 @@ included.
 |---|---|---|
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` or `basic`. Also editable in **Admin → Plugins**. |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` or `off`. Incompatible with `no_new_privs` on the container. |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` or `enforce`. |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `enforce` | `off`, `warn` or `enforce`. |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | none | Optional: a PEM public key added to the trusted publishers at boot. |
 | `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Boot defaults of the resource limits; the panel overrides them, for every plugin at once. |
 

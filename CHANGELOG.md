@@ -7,6 +7,24 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+### Upgrade notes
+- The plugin signature policy now defaults to `enforce`: a plugin installs
+  or updates only when it is signed by a trusted publisher. Plugins already
+  installed keep running. Set `EVEY_PLUGINS_COSIGN_POLICY=warn` to keep the
+  previous behaviour.
+- Migration 000196 adds the Evey project's signing key to the trusted
+  publishers, under **Evey project**, so the project's plugins install with
+  no setup.
+
+### Added
+- The install preview offers **Trust this key** for a signed package whose
+  key is not trusted yet, on the web and on the phone, so another
+  publisher's plugin installs under `enforce` without pasting its key.
+
+### Fixed
+- The install preview shows the signing key's fingerprint, and tells an
+  invalid signature from a missing one, on the web and on the phone.
+
 ## [0.1.6] - 2026-11-12
 
 Server image `eveyproject/evey:0.1.6` (also `0.1` and `latest`). The phone

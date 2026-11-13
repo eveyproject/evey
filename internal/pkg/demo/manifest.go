@@ -279,8 +279,8 @@ var Manifest = []MediaFile{
 
 // Plugin is one plugin the demo bootstrap installs so the plugin panel and
 // the home slots have something to show. File is the bundle's name under the
-// demo plugin directory (EVEY_DEMO_PLUGIN_DIR): the bundle is built from
-// examples/plugins/<Name> and dropped there by the operator, the bootstrap
+// demo plugin directory (EVEY_DEMO_PLUGIN_DIR): the operator drops the
+// plugin's signed release there with its .sig beside it, the bootstrap
 // installs, enables and configures it, and skips it when the file is absent.
 // Config is applied at every boot, so a restore puts the plugin back the way
 // the demo shows it.
@@ -292,14 +292,16 @@ type Plugin struct {
 
 // Plugins are installed at boot when missing, by name. Only visual on the
 // demo: every plugin write except reading the config is locked (policy.go).
-// The bundle is built with tests/plugins/weather-v2/build-zip.sh.
+// The bundle is the release ZIP of the eveyproject/evey-plugin-weather
+// repository saved as weather.zip, with its signature beside it as
+// weather.zip.sig: the default signature policy refuses an unsigned package.
 var Plugins = []Plugin{
-	{Name: "weather-v2", File: "weather-v2.zip", Config: map[string]any{"city": "Paris", "units": "celsius"}},
+	{Name: "weather", File: "weather.zip", Config: map[string]any{"city": "Paris", "units": "celsius"}},
 }
 
 // RetiredPlugins were seeded by an earlier demo and are uninstalled at boot
 // when found, so an upgraded demo does not show two weather widgets.
-var RetiredPlugins = []string{"weather"}
+var RetiredPlugins = []string{"weather-v2"}
 
 // Home is the default home page of the demo, top to bottom: the weather
 // widget, what the visitor was watching, the three media libraries by name,
@@ -307,7 +309,7 @@ var RetiredPlugins = []string{"weather"}
 // bootstrap writes it as the admin feed configuration at every boot; a
 // visitor's own arrangement stays in their browser (the demo home layout).
 var Home = []HomeSection{
-	{Plugin: "weather-v2"},
+	{Plugin: "weather"},
 	{Type: "resume_playback"},
 	{Library: "Movies"},
 	{Library: "Shows"},

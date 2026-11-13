@@ -1,5 +1,5 @@
 ---
-source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
+source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
 reviewed: true
 ---
 # 插件 { #plugins }
@@ -54,10 +54,10 @@ reviewed: true
     更换密钥或去掉签名的更新，要等您明确接受。其余由策略决定：
 
     ```sh
-    EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn（默认）| enforce
+    EVEY_PLUGINS_COSIGN_POLICY=enforce   # off | warn | enforce（默认）
     ```
 
-    设为 `warn` 时，只显示结论，不阻止任何东西；设为 `enforce` 时，只有受信任的发布者才能安装。插件作者请看
+    设为 `enforce` 时，只有受信任的发布者才能安装：Evey 项目的密钥一开始就受信任，其他发布者的密钥可以在安装预览里设为受信任。设为 `warn` 时，只显示结论，不阻止任何东西。插件作者请看
     [编写插件](plugins/dev-setup.md#7-sign-your-plugin)。
 
 ## 更新插件 { #update-a-plugin }

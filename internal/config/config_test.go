@@ -131,12 +131,10 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "evey", cfg.Tracing.ServiceName)
 	assert.InDelta(t, 0.0, cfg.Tracing.SampleRatio, 0.0001)
 
-	// Plugins defaults: bubblewrap sandbox + cosign warn (non-blocking, surfaces
-	// finding when key is configured). Without a key the verifier degrades to
-	// a no-op so plugin developers see no behaviour change vs the previous
-	// "off" default - only admins who configure a key get verification.
+	// Plugins defaults: bubblewrap sandbox + cosign enforce (an install needs
+	// a signature from a trusted publisher; the dev stack sets off).
 	assert.Equal(t, "auto", cfg.Plugins.SandboxMode)
-	assert.Equal(t, "warn", cfg.Plugins.CosignPolicy)
+	assert.Equal(t, "enforce", cfg.Plugins.CosignPolicy)
 	assert.Empty(t, cfg.Plugins.CosignPublicKey)
 	assert.Equal(t, int64(256), cfg.Plugins.MemoryMB)
 	assert.Equal(t, 10, cfg.Plugins.CPUNice)

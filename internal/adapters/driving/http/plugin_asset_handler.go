@@ -714,17 +714,21 @@ func saveUploadedSignature(ctx context.Context, r *http.Request, zipPath string)
 }
 
 // signatureResp is the "signature" object of the install preview: the fields of
-// the PluginSignature message plus the single verdict string
-// ("signed", "signed-untrusted", "unsigned", "invalid", "publisher-changed",
-// "signature-lost"). Absent when the signature policy is off.
+// the PluginSignature message, spelled as its JSON (the clients read both with
+// one type), plus the single verdict string ("signed", "signed-untrusted",
+// "unsigned", "invalid", "publisher-changed", "signature-lost"). KeyPEM is the
+// package's public key when it verified but is not trusted yet, so the admin
+// can trust it from the preview: nothing is installed to hold it otherwise.
+// Absent when the signature policy is off.
 type signatureResp struct {
-	SignatureStatus string `json:"signature_status"`
+	SignatureStatus string `json:"signatureStatus"`
 	Verified        bool   `json:"verified"`
-	KeyFingerprint  string `json:"key_fingerprint"`
+	KeyFingerprint  string `json:"keyFingerprint"`
 	Publisher       string `json:"publisher"`
 	Trusted         bool   `json:"trusted"`
 	Continuity      string `json:"continuity"`
 	Error           string `json:"error"`
+	KeyPEM          string `json:"keyPem,omitempty"`
 }
 
 // writePluginPreview renders a preview as the JSON the install dialogs read,
@@ -783,6 +787,9 @@ func writePluginPreview(ctx context.Context, w http.ResponseWriter, preview *app
 			Trusted:         sig.Trusted,
 			Continuity:      sig.Continuity,
 			Error:           sig.Error,
+		}
+		if sig.Verified && !sig.Trusted {
+			resp.Signature.KeyPEM = sig.KeyPEM
 		}
 	}
 

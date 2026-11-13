@@ -506,7 +506,7 @@ func TestTeardown_SparesAPluginTheDemoDidNotInstall(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	fp := newFakePlugins()
-	_ = fp.Create(ctx, &plugin.Plugin{ID: "mine", Name: "weather-v2"})
+	_ = fp.Create(ctx, &plugin.Plugin{ID: "mine", Name: "weather"})
 	h.boot.WithPlugins(fp, fp, fp, t.TempDir())
 	if _, err := h.boot.EnsurePlugins(ctx); err != nil {
 		t.Fatal(err)
@@ -515,7 +515,7 @@ func TestTeardown_SparesAPluginTheDemoDidNotInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(fp.uninstalled) != 0 {
-		t.Errorf("uninstalled %v: the operator's weather-v2 must stay", fp.uninstalled)
+		t.Errorf("uninstalled %v: the operator's weather must stay", fp.uninstalled)
 	}
 }
 
@@ -615,8 +615,8 @@ func (f *fakePlugins) UpdatePluginConfig(_ context.Context, id string, cfg map[s
 	return nil
 }
 
-// The weather-v2 plugin is installed from the bundle under the plugin dir,
-// configured on Paris and enabled; the retired v1 seed is uninstalled; a
+// The weather plugin is installed from the bundle under the plugin dir,
+// configured on Paris and enabled; the retired weather-v2 seed is uninstalled; a
 // second boot re-applies the config and installs nothing; a missing bundle is
 // skipped, not an error; the teardown uninstalls by name and leaves the
 // operator's plugins alone.
@@ -626,7 +626,7 @@ func TestPlugins_InstalledFromBundleConfiguredAndRemoved(t *testing.T) {
 	fp := newFakePlugins()
 	own := &plugin.Plugin{ID: "own-1", Name: "own-theme"}
 	_ = fp.Create(ctx, own)
-	_ = fp.Create(ctx, &plugin.Plugin{ID: "old-weather", Name: "weather"})
+	_ = fp.Create(ctx, &plugin.Plugin{ID: "old-weather", Name: "weather-v2"})
 	pluginDir := t.TempDir()
 	h.boot.WithPlugins(fp, fp, fp, pluginDir)
 
@@ -642,7 +642,7 @@ func TestPlugins_InstalledFromBundleConfiguredAndRemoved(t *testing.T) {
 		t.Fatalf("retired plugin not removed: %v", fp.uninstalled)
 	}
 
-	bundle := filepath.Join(pluginDir, "weather-v2.zip")
+	bundle := filepath.Join(pluginDir, "weather.zip")
 	_ = os.WriteFile(bundle, []byte("zip"), 0o644)
 	ids, err = h.boot.EnsurePlugins(ctx)
 	if err != nil {
@@ -651,9 +651,9 @@ func TestPlugins_InstalledFromBundleConfiguredAndRemoved(t *testing.T) {
 	if len(fp.installed) != 1 || fp.installed[0] != bundle {
 		t.Fatalf("installed = %v, want the bundle once", fp.installed)
 	}
-	id := fp.byName["weather-v2"].ID
-	if ids["weather-v2"] != id {
-		t.Errorf("ids = %v, want weather-v2 -> %s", ids, id)
+	id := fp.byName["weather"].ID
+	if ids["weather"] != id {
+		t.Errorf("ids = %v, want weather -> %s", ids, id)
 	}
 	if got := fp.configs[id]["city"]; got != "Paris" {
 		t.Errorf("city = %v, want Paris", got)
@@ -664,7 +664,7 @@ func TestPlugins_InstalledFromBundleConfiguredAndRemoved(t *testing.T) {
 
 	// Second boot with the plugin disabled (a visitor cannot, an operator on
 	// a dev box can): re-enabled, config re-applied, nothing reinstalled.
-	fp.byName["weather-v2"].Enabled, fp.byName["weather-v2"].Status = false, plugin.Installed
+	fp.byName["weather"].Enabled, fp.byName["weather"].Status = false, plugin.Installed
 	fp.configs[id] = map[string]any{"city": "Lyon"}
 	if _, err := h.boot.EnsurePlugins(ctx); err != nil {
 		t.Fatal(err)
@@ -711,7 +711,7 @@ func TestArrangeHome_WritesTheManifestOrderAndHidesTheRest(t *testing.T) {
 	home := &fakeHome{}
 	h.boot.WithHomeLayout(home)
 
-	if err := h.boot.ArrangeHome(ctx, libs, map[string]string{"weather-v2": "plg-1"}); err != nil {
+	if err := h.boot.ArrangeHome(ctx, libs, map[string]string{"weather": "plg-1"}); err != nil {
 		t.Fatal(err)
 	}
 	var shown []string

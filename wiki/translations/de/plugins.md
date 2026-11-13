@@ -1,5 +1,5 @@
 ---
-source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
+source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -76,11 +76,13 @@ Servers gehören: Das Standard-Image bringt Python, Node.js, PHP, Ruby und Lua m
     den Rest:
 
     ```sh
-    EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (Standard) | enforce
+    EVEY_PLUGINS_COSIGN_POLICY=enforce   # off | warn | enforce (Standard)
     ```
 
-    Mit `warn` wird das Urteil angezeigt und nichts blockiert; mit `enforce`
-    werden nur vertrauenswürdige Herausgeber installiert. Für Autoren: siehe
+    Mit `enforce` werden nur vertrauenswürdige Herausgeber installiert: Dem
+    Schlüssel des Evey-Projekts wird von Anfang an vertraut, den eines anderen
+    Herausgebers markiert man in der Installationsvorschau als vertrauenswürdig.
+    Mit `warn` wird das Urteil angezeigt und nichts blockiert. Für Autoren: siehe
     [Ihr Plugin signieren](plugins/dev-setup.md#7-sign-your-plugin).
 
 ## Ein Plugin aktualisieren { #update-a-plugin }

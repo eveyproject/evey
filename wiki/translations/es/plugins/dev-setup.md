@@ -1,5 +1,5 @@
 ---
-source_sha: 7d11b826f33cfa195e8f3f70d904164dfd609a7ae7e4214de84ee1327b8f0c61
+source_sha: e5498cbe162421216bad6ea8b820fff1d05e8752e13b5a31df1cec45ea69d1a6
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -298,9 +298,11 @@ verifica el paquete con la clave que lleva y muestra una de estas opciones:
   lista con un nombre.
 - **Sin firma**, o **Firma no válida**.
 
-La política decide qué ocurre: `EVEY_PLUGINS_COSIGN_POLICY=warn` (por
-defecto) registra el veredicto y deja pasar toda instalación; `enforce` solo
-admite claves de confianza. Sea cual sea la política, una actualización cuya
+La política decide qué ocurre: `EVEY_PLUGINS_COSIGN_POLICY=enforce` (por
+defecto) solo admite claves de confianza, así que un paquete sin firma no se
+instala; `warn` registra el veredicto y deja pasar toda instalación. El
+administrador que instala tu plugin ve tu clave en la vista previa de
+instalación, la aprueba ahí con un clic y luego instala. Sea cual sea la política, una actualización cuya
 clave difiere de la versión instalada, o que abandona la firma, se rechaza
 hasta que el administrador marque **El editor cambió, acepto la nueva clave**
 en el diálogo de actualización. `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` es
