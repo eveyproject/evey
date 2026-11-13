@@ -1,5 +1,5 @@
 ---
-source_sha: 8933bd5b32a86441eec2e76625bc071fa3416099b98305fa9f8f4f01643c4af0
+source_sha: cd248efab1b67da1bac31b8aa74aa2efe53af88dd685f73cd4f56ef6e10f9c92
 reviewed: true
 ---
 # 插件沙箱与威胁模型 { #plugin-sandbox-and-threat-model }
@@ -125,8 +125,10 @@ link-local 地址。它不使用环境变量里的代理（`HTTPS_PROXY`、`HTTP
 | 策略 | 效果 |
 |---|---|
 | `off` | 不检查签名，也不记录任何东西。 |
-| `warn`（默认） | 记录并展示结论；未签名、不受信任和无效的包照常安装。 |
-| `enforce` | 只有受信任的发布者签名的包才能安装或更新。 |
+| `warn` | 记录并展示结论；未签名、不受信任和无效的包照常安装。 |
+| `enforce`（默认） | 只有受信任的发布者签名的包才能安装或更新。 |
+
+Evey 项目自己的密钥一开始就在列表里，名称为 **Evey project**。其他发布者的密钥可以在安装预览里直接设为受信任，无需先安装任何东西。
 
 签名证明的是：这个包就是其发布者发布的那个包，并且更新来自同一个发布者。它不说明代码本身如何，那由分析、权限和沙箱来判断。
 
@@ -337,7 +339,7 @@ link-local 地址。它不使用环境变量里的代理（`HTTPS_PROXY`、`HTTP
 |---|---|---|
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`、`landlock`、`bubblewrap`、`strict` 或 `basic`。也可以在**管理 → 插件**里修改。 |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`、`on` 或 `off`。和容器上的 `no_new_privs` 不能同时使用。 |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`、`warn` 或 `enforce`。 |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `enforce` | `off`、`warn` 或 `enforce`。 |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | 无 | 可选：一把 PEM 公钥，启动时加入受信任的发布者。 |
 | `EVEY_PLUGINS_MEMORY_MB`、`EVEY_PLUGINS_PIDS_MAX`、`EVEY_PLUGINS_DISK_MAX_MB`、`EVEY_PLUGINS_CPU_NICE` | 256、64、100、10 | 资源限制在启动时的默认值；面板里可以覆盖，对所有插件一起生效。 |
 

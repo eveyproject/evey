@@ -1,5 +1,5 @@
 ---
-source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
+source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -74,11 +74,13 @@ Node.js et l'image `-lean` ne garde que Python.
     reste :
 
     ```sh
-    EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (défaut) | enforce
+    EVEY_PLUGINS_COSIGN_POLICY=enforce   # off | warn | enforce (défaut)
     ```
 
-    Avec `warn`, le verdict est affiché et rien n'est bloqué ; avec
-    `enforce`, seuls les éditeurs de confiance s'installent. Auteurs : voir
+    Avec `enforce`, seuls les éditeurs de confiance s'installent : la clé du
+    projet Evey est approuvée dès le départ, et celle d'un autre éditeur
+    s'approuve depuis l'aperçu d'installation. Avec `warn`, le verdict est
+    affiché et rien n'est bloqué. Auteurs : voir
     [Signer son plugin](plugins/dev-setup.md#7-sign-your-plugin).
 
 ## Mettre à jour un plugin { #update-a-plugin }

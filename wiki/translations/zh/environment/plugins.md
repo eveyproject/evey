@@ -1,5 +1,5 @@
 ---
-source_sha: c99cc1b66de151e0e27b786bbc03a5bbf4ecf4e6c64681fc28cf588a10e0cdfa
+source_sha: 2fff76be47e76b961cb7f575193c79665c31bb63a9a1803d998bcb72f5e4a064
 reviewed: true
 ---
 # 插件与沙箱
@@ -30,7 +30,7 @@ reviewed: true
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`、`warn` 或 `enforce`：签名检查失败时怎么办。签名会根据每个插件包自带的密钥和受信任发布者列表来核对，所以不需要配置密钥。 | 无 |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `enforce` | `off`、`warn` 或 `enforce`：签名检查失败时怎么办。签名会根据每个插件包自带的密钥和受信任发布者列表来核对，所以不需要配置密钥。 | 无 |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | 空 | 可选：您自己的发布者 PEM 公钥的路径，每次启动时加入受信任发布者列表。 | 无 |
 
 ## 日志

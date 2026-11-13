@@ -200,6 +200,40 @@ describe("PluginsPage", () => {
       );
     });
 
+    // Under the enforce policy a key nobody trusts yet blocks the install, and
+    // nothing is installed to hold it: the preview trusts it from the PEM it
+    // carries, then shows the publisher.
+    it("trusts an unknown signing key from the preview with the key it carries", async () => {
+      const api = await import("@evey/api");
+      const mockAdd = vi.fn();
+      vi.mocked(api.useAdminPluginServiceAddTrustedPublisher).mockImplementation(((opts: { mutation: { onSuccess: () => void } }) => ({
+        mutate: (vars: unknown) => { mockAdd(vars); opts.mutation.onSuccess(); },
+        isPending: false,
+      })) as unknown as typeof api.useAdminPluginServiceAddTrustedPublisher);
+      stubPreview(() => Promise.resolve({
+        name: "remote-plugin",
+        version: "1.0.0",
+        language: "Go",
+        permissions: [],
+        capabilities: [],
+        signature: { verified: true, trusted: false, keyFingerprint: "sha256:abcd1234ef", keyPem: "-----BEGIN PUBLIC KEY-----\nX\n-----END PUBLIC KEY-----\n" },
+        analysis: { safe: true, total_files_scanned: 1, issues: [], urls: [] },
+      }));
+      await openUrlForm();
+      fireEvent.click(screen.getByRole("button", { name: /Preview & Install/i }));
+      await waitFor(() => expect(screen.getByText("remote-plugin")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: "Trust this key" }));
+      fireEvent.change(screen.getByLabelText("Publisher name"), { target: { value: " Acme " } });
+      fireEvent.click(screen.getByRole("button", { name: "Trust" }));
+
+      expect(mockAdd).toHaveBeenCalledWith({
+        data: { name: "Acme", publicKeyPem: "-----BEGIN PUBLIC KEY-----\nX\n-----END PUBLIC KEY-----\n" },
+      });
+      await waitFor(() => expect(screen.getByText("Signed by Acme")).toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: "Trust this key" })).not.toBeInTheDocument();
+    });
+
     // A repository link means "the latest release", which can move between the
     // preview and the click: the install is sent the source the preview
     // resolved, pinned to the bytes the admin saw.

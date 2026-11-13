@@ -1,5 +1,5 @@
 ---
-source_sha: 8933bd5b32a86441eec2e76625bc071fa3416099b98305fa9f8f4f01643c4af0
+source_sha: cd248efab1b67da1bac31b8aa74aa2efe53af88dd685f73cd4f56ef6e10f9c92
 reviewed: true
 ---
 # Sandbox de plugins y modelo de amenazas { #plugin-sandbox-and-threat-model }
@@ -178,8 +178,12 @@ derivan tres cosas:
 | Política | Efecto |
 |---|---|
 | `off` | La firma no se comprueba y no se registra nada. |
-| `warn` (por defecto) | El veredicto se registra y se muestra; los paquetes sin firma, de clave no fiable o no válidos se instalan. |
-| `enforce` | Solo se instala o actualiza un paquete firmado por un editor de confianza. |
+| `warn` | El veredicto se registra y se muestra; los paquetes sin firma, de clave no fiable o no válidos se instalan. |
+| `enforce` (por defecto) | Solo se instala o actualiza un paquete firmado por un editor de confianza. |
+
+La clave del propio proyecto Evey está en la lista desde el principio, como
+**Evey project**. La clave de otro editor se puede aprobar desde la vista
+previa de instalación, antes de instalar nada.
 
 Una firma demuestra que el paquete es el que su editor publicó, y que una
 actualización viene del mismo editor. No dice nada del código, que juzgan el
@@ -488,7 +492,7 @@ se rechazan, binarios compilados incluidos.
 |---|---|---|
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` o `basic`. También se puede cambiar en **Administración → Plugins**. |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` u `off`. Incompatible con `no_new_privs` en el contenedor. |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` o `enforce`. |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `enforce` | `off`, `warn` o `enforce`. |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | ninguna | Opcional: una clave pública PEM que se añade a los editores de confianza al arrancar. |
 | `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Valores por defecto de los límites de recursos al arrancar; el panel los sustituye, para todos los plugins a la vez. |
 
