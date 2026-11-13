@@ -46,7 +46,8 @@ func (r *FakeQuickConnectRepository) GetByCode(_ context.Context, code string) (
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return req, nil
+	c := *req
+	return &c, nil
 }
 
 func (r *FakeQuickConnectRepository) GetByShortCode(_ context.Context, shortCode string) (*user.QuickConnectRequest, error) {
@@ -58,7 +59,8 @@ func (r *FakeQuickConnectRepository) GetByShortCode(_ context.Context, shortCode
 	upper := strings.ToUpper(shortCode)
 	for _, req := range r.items {
 		if req.Status == user.Pending && strings.HasSuffix(strings.ToUpper(req.Code), upper) {
-			return req, nil
+			c := *req
+			return &c, nil
 		}
 	}
 	return nil, ErrNotFound
