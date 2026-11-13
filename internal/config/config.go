@@ -118,9 +118,10 @@ type PluginsConfig struct {
 	UIDSeparation string
 
 	// CosignPolicy controls whether plugin ZIPs must carry a cosign signature.
-	// Values: "off" (no verification), "warn" (default - install proceeds but
+	// Values: "off" (no verification), "warn" (install proceeds but
 	// unsigned/invalid plugins surface a finding in the security dashboard),
-	// "enforce" (block install when signature is missing or invalid).
+	// "enforce" (default - block install unless the signature verifies with a
+	// trusted publisher's key).
 	// EVEY_PLUGINS_COSIGN_POLICY
 	CosignPolicy string
 	// CosignPublicKey is a path to the PEM public key used to verify signatures.
@@ -1083,7 +1084,7 @@ func Load() (*Config, error) {
 			CPUNice:         envInt("EVEY_PLUGINS_CPU_NICE", 10),
 			PIDsMax:         envInt("EVEY_PLUGINS_PIDS_MAX", 64),
 			UIDSeparation:   strings.ToLower(strings.TrimSpace(envStr("EVEY_PLUGINS_UID_SEPARATION", "auto"))),
-			CosignPolicy:    strings.ToLower(strings.TrimSpace(envStr("EVEY_PLUGINS_COSIGN_POLICY", "warn"))),
+			CosignPolicy:    strings.ToLower(strings.TrimSpace(envStr("EVEY_PLUGINS_COSIGN_POLICY", "enforce"))),
 			CosignPublicKey: envStr("EVEY_PLUGINS_COSIGN_PUBLIC_KEY", ""),
 		},
 	}

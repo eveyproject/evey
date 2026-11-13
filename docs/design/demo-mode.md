@@ -214,10 +214,12 @@ progress is written, because playback needs it.
 keys, SMTP password, VAPID private key) is served masked by every admin read,
 the demo's open ones included.
 
-**Pre-installed rather than installable:** the bootstrap installs the `weather-v2`
-example plugin from the bundle the operator drops under `EVEY_DEMO_PLUGIN_DIR`
-(`weather-v2.zip`, built by `tests/plugins/weather-v2/build-zip.sh` with runtime deps only -
-a stale dev bundle carrying esbuild is refused by the installer's scan), sets
+**Pre-installed rather than installable:** the bootstrap installs the `weather`
+plugin from the bundle the operator drops under `EVEY_DEMO_PLUGIN_DIR`
+(`weather.zip` and `weather.zip.sig`, the release ZIP of
+`eveyproject/evey-plugin-weather` and its signature: the default signature
+policy refuses an unsigned package, and the project key is trusted out of the
+box), sets
 it on Paris and re-applies that config at every boot. It is the cheapest honest
 demonstration of the plugin system - it renders a real home-page section and
 fetches from a real third party through the egress broker. Visual only: the

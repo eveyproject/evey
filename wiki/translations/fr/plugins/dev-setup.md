@@ -1,5 +1,5 @@
 ---
-source_sha: 7d11b826f33cfa195e8f3f70d904164dfd609a7ae7e4214de84ee1327b8f0c61
+source_sha: e5498cbe162421216bad6ea8b820fff1d05e8752e13b5a31df1cec45ea69d1a6
 reviewed: true
 ---
 # Écrire un plugin { #writing-a-plugin }
@@ -302,9 +302,11 @@ l'envoi. Evey vérifie le paquet avec la clé qu'il porte et affiche l'un de :
   à la liste sous un nom.
 - **Non signé**, ou **Signature invalide**.
 
-La politique décide de la suite : `EVEY_PLUGINS_COSIGN_POLICY=warn` (défaut)
-enregistre le verdict et laisse passer toute installation ; `enforce` n'admet
-que les clés de confiance. Quelle que soit la politique, une mise à jour dont
+La politique décide de la suite : `EVEY_PLUGINS_COSIGN_POLICY=enforce`
+(défaut) n'admet que les clés de confiance, un paquet non signé ne s'installe
+donc pas ; `warn` enregistre le verdict et laisse passer toute installation.
+L'administrateur qui installe votre plugin voit votre clé dans l'aperçu
+d'installation et l'approuve là en un clic, puis installe. Quelle que soit la politique, une mise à jour dont
 la clé diffère de la version installée, ou qui abandonne la signature, est
 refusée tant que l'administrateur n'a pas coché **L'éditeur a changé,
 j'accepte la nouvelle clé** dans la fenêtre de mise à jour.

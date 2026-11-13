@@ -67,11 +67,13 @@ Node.js and the `-lean` image keeps Python only.
     rest:
 
     ```sh
-    EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (default) | enforce
+    EVEY_PLUGINS_COSIGN_POLICY=enforce   # off | warn | enforce (default)
     ```
 
-    With `warn`, the verdict is shown and nothing is blocked; with `enforce`,
-    only trusted publishers install. Authors: see
+    With `enforce`, only trusted publishers install: the Evey project's key is
+    trusted from the start, and another publisher's key can be trusted from
+    the install preview. With `warn`, the verdict is shown and nothing is
+    blocked. Authors: see
     [Sign your plugin](plugins/dev-setup.md#7-sign-your-plugin).
 
 ## Update a plugin

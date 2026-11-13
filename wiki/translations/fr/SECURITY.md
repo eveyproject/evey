@@ -1,5 +1,5 @@
 ---
-source_sha: 8933bd5b32a86441eec2e76625bc071fa3416099b98305fa9f8f4f01643c4af0
+source_sha: cd248efab1b67da1bac31b8aa74aa2efe53af88dd685f73cd4f56ef6e10f9c92
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace { #plugin-sandbox-and-threat-model }
@@ -179,8 +179,12 @@ découlent :
 | Politique | Effet |
 |---|---|
 | `off` | La signature n'est pas vérifiée et rien n'est enregistré. |
-| `warn` (défaut) | Le verdict est enregistré et montré ; les paquets non signés, non fiables et invalides s'installent. |
-| `enforce` | Seul un paquet signé par un éditeur de confiance s'installe ou se met à jour. |
+| `warn` | Le verdict est enregistré et montré ; les paquets non signés, non fiables et invalides s'installent. |
+| `enforce` (défaut) | Seul un paquet signé par un éditeur de confiance s'installe ou se met à jour. |
+
+La clé du projet Evey figure dans la liste dès le départ, sous **Evey
+project**. La clé d'un autre éditeur s'approuve depuis l'aperçu d'installation,
+avant que rien ne soit installé.
 
 Une signature prouve que le paquet est bien celui que son éditeur a publié, et
 qu'une mise à jour vient du même éditeur. Elle ne dit rien du code, que
@@ -488,7 +492,7 @@ refusés, binaires compilés inclus.
 |---|---|---|
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` ou `basic`. Modifiable aussi dans **Administration → Plugins**. |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` ou `off`. Incompatible avec `no_new_privs` sur le conteneur. |
-| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` ou `enforce`. |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `enforce` | `off`, `warn` ou `enforce`. |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | aucune | Facultatif : une clé publique PEM ajoutée aux éditeurs de confiance au démarrage. |
 | `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Valeurs par défaut au démarrage des limites de ressources ; le panneau les remplace, pour tous les plugins à la fois. |
 

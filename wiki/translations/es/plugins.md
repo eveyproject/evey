@@ -1,5 +1,5 @@
 ---
-source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
+source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -73,11 +73,13 @@ servidor: la imagen por defecto trae Python, Node.js, PHP, Ruby y Lua, la imagen
     resto:
 
     ```sh
-    EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (por defecto) | enforce
+    EVEY_PLUGINS_COSIGN_POLICY=enforce   # off | warn | enforce (por defecto)
     ```
 
-    Con `warn`, el veredicto se muestra y no se bloquea nada; con `enforce`,
-    solo se instalan los editores de confianza. Para los autores: consulta
+    Con `enforce`, solo se instalan los editores de confianza: la clave del
+    proyecto Evey es de confianza desde el principio, y la de otro editor se
+    aprueba desde la vista previa de instalación. Con `warn`, el veredicto se
+    muestra y no se bloquea nada. Para los autores: consulta
     [Firma tu plugin](plugins/dev-setup.md#7-sign-your-plugin).
 
 ## Actualizar un plugin { #update-a-plugin }

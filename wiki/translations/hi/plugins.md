@@ -1,5 +1,5 @@
 ---
-source_sha: 8a9059866e9093f62cbfdd1601db51fc0146830f8d60646bd00ef1a265a7245c
+source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
 reviewed: true
 ---
 # प्लगइन { #plugins }
@@ -71,11 +71,12 @@ Python, Node.js, PHP, Ruby और Lua हैं, `-nodejs` इमेज मे�
     तय करती है:
 
     ```sh
-    EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (डिफ़ॉल्ट) | enforce
+    EVEY_PLUGINS_COSIGN_POLICY=enforce   # off | warn | enforce (डिफ़ॉल्ट)
     ```
 
-    `warn` के साथ, फ़ैसला दिखता है और कुछ रोका नहीं जाता; `enforce` के साथ, सिर्फ़
-    भरोसेमंद प्रकाशक इंस्टॉल होते हैं। प्लगइन बनाने वालों के लिए: देखें
+    `enforce` के साथ, सिर्फ़ भरोसेमंद प्रकाशक इंस्टॉल होते हैं: Evey प्रोजेक्ट की
+    कुंजी पर शुरू से भरोसा है, और दूसरे प्रकाशक की कुंजी को इंस्टॉल की झलक में
+    भरोसेमंद बनाया जाता है। `warn` के साथ, फ़ैसला दिखता है और कुछ रोका नहीं जाता। प्लगइन बनाने वालों के लिए: देखें
     [अपने प्लगइन पर सिग्नेचर करें](plugins/dev-setup.md#7-sign-your-plugin)।
 
 ## प्लगइन अपडेट करें { #update-a-plugin }
