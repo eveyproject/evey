@@ -7,6 +7,10 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-13
+
+Server image `eveyproject/evey:0.1.7` (also `0.1` and `latest`).
+
 ### Upgrade notes
 - The plugin signature policy now defaults to `enforce`: a plugin installs
   or updates only when it is signed by a trusted publisher. Plugins already
