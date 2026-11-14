@@ -193,4 +193,18 @@ describe("useServerSettingsFormState", () => {
     expect(result.current.field("loginRateLimit").locked).toBe(true);
     expect(result.current.field("loginRateLimit").reset?.disabled).toBe(true);
   });
+
+  it("greys the per-rung hardware split while single-variant is on, following the unsaved toggle", async () => {
+    current = { ...current, transcodeSingleVariant: sv(true, true), transcodeHWPerVariant: sv(true, false, "override") };
+    const { result } = mount(["transcodeSingleVariant", "transcodeHWPerVariant"]);
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.field("transcodeHWPerVariant").locked).toBe(true);
+    // Not a demo lock: the stored override can still be cleared.
+    expect(result.current.field("transcodeHWPerVariant").reset?.disabled).toBe(false);
+    expect(result.current.field("transcodeSingleVariant").locked).toBe(false);
+
+    act(() => result.current.field("transcodeSingleVariant").onChange(false));
+    expect(result.current.field("transcodeHWPerVariant").locked).toBe(false);
+    expect(puts()).toEqual([]);
+  });
 });

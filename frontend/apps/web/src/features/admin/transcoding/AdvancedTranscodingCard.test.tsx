@@ -100,6 +100,14 @@ describe("AdvancedTranscodingCard", () => {
     expect(screen.getAllByTestId("setting-restart-badge")).toHaveLength(5);
   });
 
+  it("greys the per-rung hardware switch until single-variant is turned off", async () => {
+    mount();
+    const perRung = await screen.findByTestId("hw-per-variant-toggle");
+    expect(perRung).toBeDisabled();
+    fireEvent.click(screen.getByTestId("single-variant-toggle"));
+    expect(perRung).not.toBeDisabled();
+  });
+
   it("drops the restart hint once no knob needs a restart", async () => {
     current = { transcodeMaxSessions: sv(0, 0, "default", false), softwareMaxHeight: sv(0, 0, "default", false) };
     mount();
