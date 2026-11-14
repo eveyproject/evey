@@ -829,6 +829,12 @@ serverConfig:
   subtitle: Key-value configuration entries persisted in the database.
   feedConfig:
     pluginBadge: "Plugin"
+    hint: "Drag a section to change its place. This is the default order: each user can still rearrange their own home."
+    kindLibrary: "Library"
+    kindBuiltin: "Built-in section"
+    pluginMaxItems: "The plugin decides how much it shows"
+    unsaved: "Unsaved changes"
+    summary: "{{enabled}} of {{total}} sections shown"
     title: Home feeds
     subtitle: Choose which sections appear on the home page, in what order, and how many items each shows.
   languageRegion: Language & Region

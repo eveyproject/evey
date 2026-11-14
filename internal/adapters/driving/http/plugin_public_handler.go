@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"cmp"
 	"encoding/json"
 	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	domainplugin "github.com/eveyproject/evey/internal/domain/plugin"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
@@ -54,7 +56,7 @@ func toPublicPlugin(p *domainplugin.Plugin) publicPlugin {
 // registerPluginPublicRoutes mounts the authenticated-but-not-admin plugin
 // endpoints:
 //
-//	GET /api/v1/plugins            → list enabled+running plugins (public shape)
+//	GET /api/v1/plugins            → list enabled+running plugins (public shape), newest install first
 //	GET /api/v1/plugins/{id}/config → read saved config for an enabled+running plugin
 func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, repo domainplugin.PluginRepository) {
 	authMw := httpAuthMiddleware(tokenGen)
@@ -73,11 +75,20 @@ func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGen
 			return
 		}
 
-		result := make([]publicPlugin, 0)
+		visible := make([]*domainplugin.Plugin, 0, len(all))
 		for _, p := range all {
 			if !p.Enabled || p.Status != domainplugin.Running {
 				continue
 			}
+			visible = append(visible, p)
+		}
+		// Newest install first: every client renders the home.section plugins
+		// the feed config does not place yet in this order, at the top.
+		slices.SortStableFunc(visible, func(a, b *domainplugin.Plugin) int {
+			return cmp.Or(b.InstalledAt.Compare(a.InstalledAt), cmp.Compare(a.Name, b.Name))
+		})
+		result := make([]publicPlugin, 0, len(visible))
+		for _, p := range visible {
 			result = append(result, toPublicPlugin(p))
 		}
 
