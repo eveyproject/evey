@@ -40,9 +40,9 @@ type StreamPlan struct {
 // The first condition keeps the ceiling frozen under an actively-fetching
 // player. The second protects a PAUSED player whose session still holds its
 // slot: re-evaluating there would price the stream's own reserved cost against
-// itself and wrongly lower it mid-play. Conversely, a stream that lost the
-// spawn race and was shed re-evaluates naturally on retry - its pin is cold
-// and holds nothing - so a refused 1440p viewer comes back and gets 1080p
+// itself and wrongly lower it mid-play. A stream that lost the spawn race and
+// was shed is the exception: the shed drops its pin (ForgetRefused), so the
+// viewer's retry is planned afresh - a lower rung, or the software route -
 // instead of being poisoned by their own first attempt.
 type VideoAdmissionShaper struct {
 	limiter *VideoSessionLimiter
@@ -51,8 +51,7 @@ type VideoAdmissionShaper struct {
 	pins map[string]*streamPin
 
 	// pinFreshFor is how long a pin stays authoritative after its last touch.
-	// Segments refresh it every few seconds during playback; Retry-After on a
-	// shed is 5s, so a retrying viewer always finds their pin cold.
+	// Segments refresh it every few seconds during playback.
 	pinFreshFor time.Duration
 	maxPins     int
 	now         func() time.Time
@@ -80,6 +79,13 @@ type streamPin struct {
 	// reported once per move, not once per segment.
 	route    string
 	lastSeen time.Time
+	// charges is what the planned stream reserves when it spawns. Until it
+	// does, the next streams are planned beside it (see plannedBeside).
+	charges []poolCharge
+	// started records that a session was seen holding this plan. A started
+	// stream that holds nothing anymore has ended: it is about to reserve
+	// nothing, so it is not planned beside.
+	started bool
 	// boundHashes are the decision-fingerprint hashes built under this pin
 	// (several can share one: audio tracks x subtitle burn-ins x offsets of
 	// the same title). If any still holds a limiter slot, the pin must not
@@ -147,7 +153,7 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, req RouteAdmission) RouteG
 	if s == nil || s.limiter == nil || len(req.Heights) == 0 {
 		return RouteGrant{}
 	}
-	natural, heights, src := req.Natural, req.Heights, req.Src
+	heights := req.Heights
 	top := heights[0]
 	for _, h := range heights[1:] {
 		if h > top {
@@ -161,7 +167,7 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, req RouteAdmission) RouteG
 
 	if pin, ok := s.pins[key]; ok {
 		fresh := now.Sub(pin.lastSeen) < s.pinFreshFor
-		if fresh || s.anyBoundHeld(pin) {
+		if s.sessionHeld(pin) || fresh {
 			pin.lastSeen = now
 			return RouteGrant{Class: pin.plan.Class, Ceiling: pin.plan.Ceiling, OK: true}
 		}
@@ -171,10 +177,27 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, req RouteAdmission) RouteG
 		delete(s.pins, key)
 	}
 
-	if granted, ok := s.tallestAdmittable(key, natural, heights, src, req.Route, req.SourceFPS); ok {
+	// Plan beside the streams already planned but not yet spawned: streams
+	// that start together would otherwise all be planned on the same free
+	// pool, and the ones that lose the spawn refused. Should nothing fit beside
+	// them, plan on what is really reserved - a plan that never spawns must not
+	// turn a viewer away.
+	planned := s.plannedBeside(key, now)
+	if g := s.plan(key, req, top, now, planned); g.OK || planned.count == 0 {
+		return g
+	}
+	return s.plan(key, req, top, now, plannedStreams{})
+}
+
+// plan pins and returns the tallest rung key's stream fits - on its natural
+// route, else on the software route a hardware stream spills to - with planned
+// counted as reserved. Called with s.mu held.
+func (s *VideoAdmissionShaper) plan(key string, req RouteAdmission, top int, now time.Time, planned plannedStreams) RouteGrant {
+	natural, src := req.Natural, req.Src
+	if granted, ok := s.tallestAdmittable(key, natural, req.Heights, src, req.Route, req.SourceFPS, planned); ok {
 		s.evictIfFull(now)
 		plan := StreamPlan{Class: natural, Ceiling: granted}
-		s.pins[key] = &streamPin{plan: plan, lastSeen: now}
+		s.pins[key] = &streamPin{plan: plan, lastSeen: now, charges: s.limiter.plannedCharges(natural, granted, src, req.Route, req.SourceFPS)}
 		if granted < top {
 			slog.Info("video admission: ladder ceiling forced by load",
 				slog.String("stream", key), slog.Int("requested_top", top), slog.Int("granted", granted))
@@ -188,10 +211,10 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, req RouteAdmission) RouteG
 	// shaping), never guessed from the hw ladder.
 	if natural == LadderClassHW && req.FallbackHeights != nil {
 		if fh := req.FallbackHeights(); len(fh) > 0 {
-			if granted, ok := s.tallestAdmittable(key, LadderClassSoftware, fh, src, req.FallbackRoute, req.SourceFPS); ok {
+			if granted, ok := s.tallestAdmittable(key, LadderClassSoftware, fh, src, req.FallbackRoute, req.SourceFPS, planned); ok {
 				s.evictIfFull(now)
 				plan := StreamPlan{Class: LadderClassSoftware, Ceiling: granted}
-				s.pins[key] = &streamPin{plan: plan, lastSeen: now}
+				s.pins[key] = &streamPin{plan: plan, lastSeen: now, charges: s.limiter.plannedCharges(LadderClassSoftware, granted, src, req.FallbackRoute, req.SourceFPS)}
 				slog.Info("video admission: gpu pool full, stream spilled to the software route",
 					slog.String("stream", key), slog.Int("granted", granted))
 				return RouteGrant{Class: plan.Class, Ceiling: plan.Ceiling, OK: true}
@@ -202,6 +225,19 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, req RouteAdmission) RouteG
 	// Nothing fits anywhere. Deliberately NOT pinned: the next attempt must
 	// see the budget of ITS moment, not this one's.
 	return RouteGrant{}
+}
+
+// plannedBeside sums what the other streams with a fresh plan and no session
+// yet are about to reserve. Called with s.mu held.
+func (s *VideoAdmissionShaper) plannedBeside(key string, now time.Time) plannedStreams {
+	var planned plannedStreams
+	for k, pin := range s.pins {
+		if k == key || s.sessionHeld(pin) || pin.started || len(pin.charges) == 0 || now.Sub(pin.lastSeen) >= s.pinFreshFor {
+			continue
+		}
+		planned.add(pin.charges)
+	}
+	return planned
 }
 
 // PinnedClass reports the class key's live pin was granted under, refreshing
@@ -262,7 +298,7 @@ func (s *VideoAdmissionShaper) FrozenLadder(key string) ([]transcoding.HLSProfil
 		return nil, false
 	}
 	now := s.now()
-	if now.Sub(pin.lastSeen) >= s.pinFreshFor && !s.anyBoundHeld(pin) {
+	if !s.sessionHeld(pin) && now.Sub(pin.lastSeen) >= s.pinFreshFor {
 		return nil, false // cold and unheld: let the caller re-derive (GrantRoute supersedes)
 	}
 	pin.lastSeen = now
@@ -336,7 +372,7 @@ func (s *VideoAdmissionShaper) Bind(key, fingerprintHash string) {
 // authoritative reservation stays TryAcquire at spawn - a lost race is shed
 // at the segment, and the retry re-evaluates because a shed stream's pin
 // goes cold holding nothing.
-func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, heights []int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) (int, bool) {
+func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, heights []int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64, planned plannedStreams) (int, bool) {
 	sorted := make([]int, 0, len(heights))
 	seen := make(map[int]bool, len(heights))
 	for _, h := range heights {
@@ -347,11 +383,40 @@ func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, 
 	}
 	slices.SortFunc(sorted, func(a, b int) int { return b - a }) // tallest first
 	for _, h := range sorted {
-		if s.limiter.CanAdmitRoute(key, class, h, src, route, sourceFPS) {
+		if s.limiter.canAdmitRouteBeside(key, class, h, src, route, sourceFPS, planned) {
 			return h, true
 		}
 	}
 	return 0, false
+}
+
+// ForgetRefused drops key's pin when the stream it plans was just refused and
+// no session holds it. A refused stream retries well inside pinFreshFor, and
+// every retry refreshes the pin: left in place, a plan made while its pool had
+// room - several streams starting together all pin the hardware route - is
+// refused for as long as the viewer insists, with the other pool idle. Dropped,
+// the next attempt is planned on the budget of its moment and may spill.
+func (s *VideoAdmissionShaper) ForgetRefused(key string) {
+	if s == nil || s.limiter == nil || key == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pin, ok := s.pins[key]
+	if !ok || s.anyBoundHeld(pin) {
+		return
+	}
+	delete(s.pins, key)
+}
+
+// sessionHeld is anyBoundHeld that also remembers the stream has started.
+// Called with s.mu held.
+func (s *VideoAdmissionShaper) sessionHeld(pin *streamPin) bool {
+	held := s.anyBoundHeld(pin)
+	if held {
+		pin.started = true
+	}
+	return held
 }
 
 // anyBoundHeld reports whether a live session still holds this pin's plan.

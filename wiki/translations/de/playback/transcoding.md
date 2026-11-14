@@ -1,5 +1,5 @@
 ---
-source_sha: 8409828551fb37b2c675f36eab993aed4c224ba6a45f3073a76b096d458bbf74
+source_sha: 094de61e87bd4b210bd193dec1b9cb85897d53a58b46c3e90584227058ce4f59
 reviewed: true
 ---
 # Transkodierung und Serverkapazität { #transcoding-and-server-capacity }
@@ -86,6 +86,18 @@ Stream braucht (zum Beispiel HDR-Tone-Mapping oder Ausgabe in HEVC), oder den
 Prozessor. Prozessor und Beschleuniger sind zwei getrennte Pools. Ein Stream
 auf der Grafikkarte braucht trotzdem ein wenig Prozessor, für seinen Ton und
 seine Verpackung.
+
+Die Kapazität zählt beide Pools zusammen: die Streams, die die Beschleuniger
+aufnehmen, plus die Streams, die der Prozessor daneben noch aufnimmt.
+**Verwaltung → Systemzustand** zeigt für jede Ausgabeauflösung, wie viele
+Streams jeder Pool aufnimmt.
+
+Streams, die im selben Moment starten, werden nebeneinander eingeplant: Die
+ersten nehmen den Beschleuniger, die nächsten gehen auf den Prozessor, und
+keiner wird abgelehnt, solange Platz ist. Ein Stream, der aus dem Cache
+bedient wird, behält seinen Plan, obwohl er nichts kodiert. Er kann einen
+Neuankömmling auf den Prozessor schicken, während die Grafikkarte frei ist;
+eine Ablehnung verursacht er nie.
 
 Wird der Platz knapp, reagiert der Server in dieser Reihenfolge:
 

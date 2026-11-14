@@ -76,6 +76,16 @@ or HEVC output), or the processor. The processor and the accelerators are two
 separate pools, and a stream on the graphics card still spends a little
 processor for its audio and packaging.
 
+The capacity counts the two pools together: the streams the accelerators
+fit, plus the streams the processor still fits beside them. **Admin → System
+Health** lists, for each output resolution, how many streams each pool fits.
+
+Streams that start at the same moment are planned one beside the other: the
+first ones take the accelerator, the next ones go to the processor, and none
+is refused while there is room. A stream served from the cache keeps its plan
+although it encodes nothing. It can send a newcomer to the processor while
+the graphics card is free; it never causes a refusal.
+
 When room runs short, the server answers in this order:
 
 1. **A lower quality.** A new stream whose tallest quality does not fit is
@@ -191,7 +201,7 @@ not be measured and gives no figure for outside viewers.
 disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After, ErrCodeSourceTooHeavy, tooHeavyForIdleHost) ; i18n player.sourceTooHeavy ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full
 clear all empties extracted subtitles: internal/app/transcoding/service.go - WithDerivedCachePurge ; internal/adapters/driving/http/subtitle_cache.go - SubtitleCachePurger (/data/subtitles)
 calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - swBenchLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
-capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability
+capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts, admin.systemHealth.videoCapacityTotalNote ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan, plannedBeside, ForgetRefused, TestAdmissionShaper_StreamsStartingTogether_ArePlannedBesideEachOther ; internal/app/transcoding/video_session_limiter.go - AutoCountCap, TestAutoCountCap_RouteEvidenceCountsSoftwareInTheCPULeftOver ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability
 busy: i18n errors max_concurrent_reached
 output codec: internal/app/transcoding/resolver_route.go ; internal/app/transcoding/decision.go ; internal/app/transcoding/testdata/route_golden.txt ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
 single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT, default on)

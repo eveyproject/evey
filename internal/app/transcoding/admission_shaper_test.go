@@ -761,3 +761,135 @@ func TestAdmissionShaper_NoteRoute_DetectsADriftOnceThenAdopts(t *testing.T) {
 	shaper.NoteRoute("s1", "h264/nvenc/zero-copy")
 	assert.Equal(t, base+1, drifts(), "a cold, unheld pin records the new stream's route without a drift")
 }
+
+// routeShaperFixture is a host measured on both routes: the accelerator fits
+// two hardware streams, the CPU pool two software ones beside them.
+func routeShaperFixture() (*VideoAdmissionShaper, *VideoSessionLimiter, *time.Time, func(string) RouteGrant, transcoding.RouteCostKey, transcoding.RouteCostKey) {
+	hwKey := rk("nvenc", "h264_nvenc", transcoding.RouteCostSDR)
+	swKey := rk("", "libx264", transcoding.RouteCostSDR)
+	limiter := NewVideoSessionLimiter(0).WithRouteModel(NewRouteCostModel([]transcoding.RouteSample{
+		{Key: hwKey, Height: 1080, FPS: 75.28, SourceFPS: 24, CPUCores: 0.57},
+		{Key: swKey, Height: 1080, FPS: 64.99, SourceFPS: 24, CPUCores: 5.41},
+	}, 8))
+	limiter.SetLimit(limiter.AutoCountCap())
+	shaper := NewVideoAdmissionShaper(limiter)
+	clock := time.Unix(1_700_000_000, 0)
+	shaper.now = func() time.Time { return clock }
+	ask := func(key string) RouteGrant {
+		return shaper.GrantRoute(key, RouteAdmission{
+			Natural: LadderClassHW, Heights: []int{1080}, Route: hwKey, SourceFPS: 24,
+			FallbackHeights: func() []int { return []int{1080} }, FallbackRoute: swKey,
+		})
+	}
+	return shaper, limiter, &clock, ask, hwKey, swKey
+}
+
+// Streams that start together are planned before any of them holds a slot.
+// Planned one beside the other, the accelerator takes two and the next two go
+// to the CPU pool; planned alone, all four took the hardware route and two were
+// refused at the spawn with the CPU idle.
+func TestAdmissionShaper_StreamsStartingTogether_ArePlannedBesideEachOther(t *testing.T) {
+	t.Parallel()
+	shaper, limiter, _, ask, hwKey, swKey := routeShaperFixture()
+
+	want := map[string]LadderClass{"v1": LadderClassHW, "v2": LadderClassHW, "v3": LadderClassSoftware, "v4": LadderClassSoftware}
+	for _, v := range []string{"v1", "v2", "v3", "v4"} {
+		g := ask(v)
+		require.True(t, g.OK, v)
+		require.Equal(t, want[v], g.Class, v)
+	}
+	// Every one of them then wins its spawn.
+	for _, v := range []string{"v1", "v2", "v3", "v4"} {
+		route := hwKey
+		if want[v] == LadderClassSoftware {
+			route = swKey
+		}
+		require.True(t, limiter.TryAcquireRoute("hash-"+v, want[v], 1080, transcoding.SourceClass{}, route, 24), v)
+		shaper.Bind(v, "hash-"+v)
+	}
+	assert.Equal(t, 4, limiter.Active())
+
+	// Once they hold their slots they are reserved for real, not planned twice:
+	// a stream leaving frees its place for the next plan.
+	limiter.Release("hash-v1")
+	assert.Equal(t, LadderClassHW, ask("v5").Class, "the freed accelerator slot is planned again")
+}
+
+// A stream that played and stopped keeps a fresh plan for a while, but it is
+// about to reserve nothing: an audience that replaces another at once must be
+// planned on the pools the leavers freed, two on the accelerator and the rest
+// on the processor, not beside the leavers' plans.
+func TestAdmissionShaper_EndedStreamsAreNotPlannedBeside(t *testing.T) {
+	t.Parallel()
+	shaper, limiter, _, ask, hwKey, swKey := routeShaperFixture()
+	classes := map[string]LadderClass{"a": LadderClassHW, "b": LadderClassHW, "c": LadderClassSoftware}
+	for _, v := range []string{"a", "b", "c"} {
+		require.Equal(t, classes[v], ask(v).Class, v)
+		route := hwKey
+		if classes[v] == LadderClassSoftware {
+			route = swKey
+		}
+		require.True(t, limiter.TryAcquireRoute("hash-"+v, classes[v], 1080, transcoding.SourceClass{}, route, 24), v)
+		shaper.Bind(v, "hash-"+v)
+		ask(v) // a segment request: the plan is seen held
+	}
+	for _, v := range []string{"a", "b", "c"} {
+		limiter.Release("hash-" + v)
+	}
+
+	// The next audience arrives in the same instant, the old plans still fresh.
+	assert.Equal(t, LadderClassHW, ask("d").Class)
+	assert.Equal(t, LadderClassHW, ask("e").Class)
+	assert.Equal(t, LadderClassSoftware, ask("f").Class, "planned beside d and e, not on a full accelerator")
+}
+
+// A plan that never spawns must not turn a viewer away: when nothing fits
+// beside the planned streams, the newcomer is planned on what is really
+// reserved.
+func TestAdmissionShaper_PlannedStreamsNeverRefuseANewcomer(t *testing.T) {
+	t.Parallel()
+	_, limiter, _, ask, _, _ := routeShaperFixture()
+	for _, v := range []string{"v1", "v2", "v3", "v4"} {
+		require.True(t, ask(v).OK, v)
+	}
+	require.Zero(t, limiter.Active(), "nothing spawned")
+
+	g := ask("v5")
+	require.True(t, g.OK, "four plans and no session: the host is idle")
+	assert.Equal(t, LadderClassHW, g.Class)
+}
+
+// A stream planned on the hardware route that then loses its spawn retries
+// every few seconds, well inside pinFreshFor, and each retry refreshes the pin:
+// unless the refusal drops it, the viewer is refused on the hardware route for
+// as long as they insist while the CPU pool sits idle.
+func TestAdmissionShaper_RefusedHardwarePin_SpillsOnRetryOnceForgotten(t *testing.T) {
+	t.Parallel()
+	shaper, limiter, clock, ask, hwKey, swKey := routeShaperFixture()
+
+	require.True(t, limiter.TryAcquireRoute("hash-a", LadderClassHW, 1080, transcoding.SourceClass{}, hwKey, 24))
+	require.Equal(t, LadderClassHW, ask("late").Class, "one accelerator slot is left")
+	// Another stream takes that slot first.
+	require.True(t, limiter.TryAcquireRoute("hash-b", LadderClassHW, 1080, transcoding.SourceClass{}, hwKey, 24))
+	require.False(t, limiter.TryAcquireRoute("hash-late", LadderClassHW, 1080, transcoding.SourceClass{}, hwKey, 24))
+
+	// Retrying on the pin alone never gets out: each retry keeps it fresh.
+	for range 10 {
+		*clock = clock.Add(5 * time.Second)
+		require.Equal(t, LadderClassHW, ask("late").Class, "a refreshed pin keeps the refused route")
+	}
+
+	// The refusal drops the pin: the retry is planned on the CPU pool.
+	shaper.ForgetRefused("late")
+	g := ask("late")
+	require.True(t, g.OK)
+	assert.Equal(t, LadderClassSoftware, g.Class, "spilled to the software route")
+	require.True(t, limiter.TryAcquireRoute("hash-late", LadderClassSoftware, g.Ceiling, transcoding.SourceClass{}, swKey, 24))
+	shaper.Bind("late", "hash-late")
+
+	// A stream that holds its session is never forgotten.
+	shaper.ForgetRefused("late")
+	cls, ok := shaper.PinnedClass("late")
+	require.True(t, ok)
+	assert.Equal(t, LadderClassSoftware, cls)
+}
