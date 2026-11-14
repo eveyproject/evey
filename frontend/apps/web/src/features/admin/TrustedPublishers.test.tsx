@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { TrustedPublishers } from "./TrustedPublishers";
+import { AddTrustedPublisherButton, TrustedPublishers, publisherInitials } from "./TrustedPublishers";
 
 vi.mock("react-dom", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-dom")>();
@@ -40,16 +40,37 @@ beforeEach(() => {
 });
 
 describe("TrustedPublishers", () => {
-  it("lists publishers, badges the seeded one and hides its Remove button", () => {
+  it("lists publishers as tiles, badges the seeded one and hides its Remove button", async () => {
     render(<TrustedPublishers />, { wrapper: Wrapper });
     expect(screen.getAllByTestId("publisher-row")).toHaveLength(2);
     expect(screen.getAllByTestId("publisher-seeded")).toHaveLength(1);
-    expect(screen.getAllByTestId("publisher-remove")).toHaveLength(1);
+    // Details stay folded until a tile is opened.
+    expect(screen.queryByTestId("publisher-details")).not.toBeInTheDocument();
+    const [first, second] = screen.getAllByTestId("publisher-toggle");
+    await userEvent.click(first!);
+    await userEvent.click(second!);
+    expect(screen.getAllByTestId("publisher-details")).toHaveLength(1);
+    await userEvent.click(first!);
+    expect(screen.getAllByTestId("publisher-details")).toHaveLength(1);
+  });
+
+  it("shows a tile's fingerprint and Remove once opened, never Remove on the seeded key", async () => {
+    render(<TrustedPublishers />, { wrapper: Wrapper });
+    await userEvent.click(screen.getByRole("button", { name: /Acme/ }));
     expect(screen.getByText("sha256:cccc3333...")).toBeInTheDocument();
+    expect(screen.getByTestId("publisher-remove")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Server operator key/ }));
+    expect(screen.queryByTestId("publisher-remove")).not.toBeInTheDocument();
+  });
+
+  it("monograms a publisher from its first two words", () => {
+    expect(publisherInitials("Evey project")).toBe("EP");
+    expect(publisherInitials("acme")).toBe("A");
+    expect(publisherInitials("  ")).toBe("?");
   });
 
   it("adds a publisher by name and PEM", async () => {
-    render(<TrustedPublishers />, { wrapper: Wrapper });
+    render(<AddTrustedPublisherButton />, { wrapper: Wrapper });
     await userEvent.click(screen.getByTestId("publisher-add-open"));
     expect(screen.getByTestId("publisher-add-confirm")).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Name"), "New Pub");
@@ -60,6 +81,7 @@ describe("TrustedPublishers", () => {
 
   it("removes a publisher after confirmation", async () => {
     render(<TrustedPublishers />, { wrapper: Wrapper });
+    await userEvent.click(screen.getByRole("button", { name: /Acme/ }));
     await userEvent.click(screen.getByTestId("publisher-remove"));
     await userEvent.click(screen.getByTestId("publisher-remove-confirm"));
     expect(mockRemove).toHaveBeenCalledWith({ fingerprint: "sha256:cccc3333dddd4444" });

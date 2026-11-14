@@ -111,6 +111,8 @@ export interface AdminNavProps {
   onNavigate?: () => void;
 }
 
+const PLUGIN_PAGES_KEY = "admin.nav.pluginPages";
+
 export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
   const { t } = useTranslation();
   const { location } = useRouterState();
@@ -122,6 +124,8 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
     link.demoLockKey === undefined || !(demo || demoLocked.includes(link.demoLockKey));
 
   const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>({});
+
+  const pluginPagesCollapsed = sectionCollapsed[PLUGIN_PAGES_KEY] ?? false;
 
   function toggleSection(title: string) {
     setSectionCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
@@ -189,28 +193,51 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
           gets a sidebar link to its own dedicated full-page route
           (/admin/extensions/<id>), where its sandboxed iframe renders. */}
       {pluginEntries.length > 0 && (
-        <div className="mt-2 flex flex-col gap-0.5">
-          {pluginEntries.map((entry) => {
-            const href = `/admin/extensions/${entry.pluginId}`;
-            const active = isLinkActive(pathname, href);
-            return (
-              <Link
-                key={entry.pluginId}
-                to="/admin/extensions/$pluginId"
-                params={{ pluginId: entry.pluginId }}
-                onClick={onNavigate}
-                className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast overflow-hidden ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
-                style={{
-                  backgroundColor: active ? "var(--accent)" : undefined,
-                  color: active ? "white" : "var(--text)",
-                }}
-                title={collapsed ? entry.name : undefined}
-              >
-                <Puzzle size={ICON.md} className="shrink-0" />
-                {!collapsed && <span className="min-w-0 flex-1">{entry.name}</span>}
-              </Link>
-            );
-          })}
+        <div className="mt-2" data-testid="admin-nav-plugin-pages">
+          {!collapsed && (
+            <button
+              type="button"
+              onClick={() => toggleSection(PLUGIN_PAGES_KEY)}
+              className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
+              aria-expanded={!pluginPagesCollapsed}
+              aria-label={t(PLUGIN_PAGES_KEY)}
+            >
+              <span className="text-xs font-semibold uppercase tracking-wider select-none">
+                {t(PLUGIN_PAGES_KEY)}
+              </span>
+              <ChevronDown
+                size={ICON.xs}
+                className="transition-transform-fast"
+                style={{ transform: pluginPagesCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+                aria-hidden="true"
+              />
+            </button>
+          )}
+          {(collapsed || !pluginPagesCollapsed) && (
+            <div className="flex flex-col gap-0.5 mt-0.5">
+              {pluginEntries.map((entry) => {
+                const href = `/admin/extensions/${entry.pluginId}`;
+                const active = isLinkActive(pathname, href);
+                return (
+                  <Link
+                    key={entry.pluginId}
+                    to="/admin/extensions/$pluginId"
+                    params={{ pluginId: entry.pluginId }}
+                    onClick={onNavigate}
+                    className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast overflow-hidden ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
+                    style={{
+                      backgroundColor: active ? "var(--accent)" : undefined,
+                      color: active ? "white" : "var(--text)",
+                    }}
+                    title={collapsed ? `${entry.name} - ${t(PLUGIN_PAGES_KEY)}` : undefined}
+                  >
+                    <Puzzle size={ICON.md} className="shrink-0" />
+                    {!collapsed && <span className="min-w-0 flex-1">{entry.name}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

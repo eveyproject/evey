@@ -163,6 +163,20 @@ describe("PluginsPage", () => {
       fireEvent.change(screen.getByLabelText("Source URL"), { target: { value: " https://example.com/p.zip#sha256:abc " } });
     }
 
+    // A link is the usual way in: its tab comes first and opens by default.
+    it("opens on the URL tab, before the file upload", async () => {
+      const { useAdminPluginServiceListPlugins } = await import("@evey/api");
+      vi.mocked(useAdminPluginServiceListPlugins).mockReturnValue({ data: { plugins: [] }, isLoading: false } as ReturnType<typeof useAdminPluginServiceListPlugins>);
+      const mod = await import("./plugins.lazy");
+      const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+      render(React.createElement(PluginsPage), { wrapper: createWrapper() });
+      fireEvent.click(screen.getByRole("button", { name: /Install Plugin/i }));
+      expect(screen.getByLabelText("Source URL")).toBeInTheDocument();
+      const url = screen.getByRole("button", { name: /From URL/i });
+      const file = screen.getByRole("button", { name: /Upload a file|Upload File/i });
+      expect(url.compareDocumentPosition(file) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     // The page also fetches the available runtimes through eveyFetch: answer
     // by URL so the preview stub is not consumed by that query.
     function stubPreview(impl: () => Promise<unknown>) {
