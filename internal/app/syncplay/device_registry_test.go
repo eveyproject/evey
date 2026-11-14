@@ -198,3 +198,77 @@ func TestDeviceRegistry_ConcurrentSafe(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+type countingSender struct {
+	mu   sync.Mutex
+	got  [][]byte
+	fail bool
+}
+
+func (s *countingSender) SendMessage(data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.fail {
+		return errors.New("socket gone")
+	}
+	s.got = append(s.got, data)
+	return nil
+}
+
+func (s *countingSender) frames() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, 0, len(s.got))
+	for _, f := range s.got {
+		out = append(out, string(f))
+	}
+	return out
+}
+
+func TestDeviceRegistry_BroadcastReachesEveryClientOfTheUserOnly(t *testing.T) {
+	r := NewDeviceRegistry()
+	tv, web, dead, other := &countingSender{}, &countingSender{}, &countingSender{fail: true}, &countingSender{}
+	if _, err := r.Register("usr-1", "tv", "TV", "tv", tv); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.RegisterListener("usr-1", "web", "Browser", "web", web); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Register("usr-1", "dead", "Phone", "mobile", dead); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Register("usr-2", "tv", "TV", "tv", other); err != nil {
+		t.Fatal(err)
+	}
+
+	sent := r.Broadcast("usr-1", syncplay.DeviceCommand{
+		Type: syncplay.DeviceCmdSettingsChanged, Scope: syncplay.SettingsScopeProfile, ProfileID: "prf-1",
+	})
+	if sent != 2 {
+		t.Errorf("sent = %d, want 2 (the dead socket is skipped)", sent)
+	}
+	want := `{"type":"settingsChanged","scope":"profile","profileId":"prf-1"}`
+	for name, s := range map[string]*countingSender{"tv": tv, "web": web} {
+		if f := s.frames(); len(f) != 1 || f[0] != want {
+			t.Errorf("%s got %v, want one %s", name, f, want)
+		}
+	}
+	if f := other.frames(); len(f) != 0 {
+		t.Errorf("another user's device heard the change: %v", f)
+	}
+}
+
+func TestDeviceRegistry_ListenerIsNotAPlayOnTarget(t *testing.T) {
+	r := NewDeviceRegistry()
+	web := &countingSender{}
+	if _, err := r.RegisterListener("usr-1", "web", "Browser", "web", web); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.List("usr-1"); len(got) != 0 {
+		t.Errorf("a listener is offered as a Play On target: %v", got)
+	}
+	err := r.SendCommand("usr-1", "web", syncplay.DeviceCommand{Type: syncplay.DeviceCmdPlay})
+	if !errors.Is(err, ErrDeviceNotConnected) {
+		t.Errorf("SendCommand to a listener = %v, want ErrDeviceNotConnected", err)
+	}
+}

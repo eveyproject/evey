@@ -251,7 +251,7 @@ function parseEscalationEntries(msg: string): string[] {
 
 function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<"file" | "url">("file");
+  const [mode, setMode] = useState<"file" | "url">("url");
   const [step, setStep] = useState<InstallStep>("idle");
   const [preview, setPreview] = useState<PluginPreview | null>(null);
   const [error, setError] = useState("");
@@ -422,16 +422,16 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     <div className="flex flex-col gap-4">
       <div className="flex gap-2">
         <Button
-          variant={mode === "file" ? "primary" : "ghost"}
-          onClick={() => { setMode("file"); resetFileFlow(); }}
-        >
-          {t("admin.plugins.uploadFile")}
-        </Button>
-        <Button
           variant={mode === "url" ? "primary" : "ghost"}
           onClick={() => { setMode("url"); resetFileFlow(); }}
         >
           {t("admin.plugins.fromUrl")}
+        </Button>
+        <Button
+          variant={mode === "file" ? "primary" : "ghost"}
+          onClick={() => { setMode("file"); resetFileFlow(); }}
+        >
+          {t("admin.plugins.uploadFile")}
         </Button>
       </div>
 
@@ -702,7 +702,6 @@ function PluginsPage() {
         <h2 className="text-xl font-semibold text-[var(--text)]">
           {t("admin.plugins.title")}
         </h2>
-        <Button onClick={() => setShowModal(true)} {...lock}>{t("admin.plugins.installPlugin")}</Button>
       </div>
 
       {runtimes.length > 0 && (
@@ -723,6 +722,11 @@ function PluginsPage() {
       <PluginResourceLimits />
 
       <TrustedPublishers />
+
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-lg font-semibold text-[var(--text)]">{t("admin.plugins.installedTitle")}</h3>
+        <Button onClick={() => setShowModal(true)} {...lock}>{t("admin.plugins.installPlugin")}</Button>
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center py-16">

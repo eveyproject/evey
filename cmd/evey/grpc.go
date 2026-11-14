@@ -223,6 +223,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		Photo:                  deps.media.photoSvc,
 		SyncplayHub:            deps.media.syncPlayHub,
 		QuickConnectHub:        qcHub,
+		SettingsNotifier:       deps.media.deviceRegistry,
 		IntroCache:             deps.repos.introMetaCache,
 		IntroBackfill:          deps.library.introDetectionSvc,
 		SeekIndex:              seekIndexSvc,

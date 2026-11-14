@@ -116,8 +116,11 @@ type GRPCServerDeps struct {
 	PushRegisterRL  *ratelimit.Limiter
 	SyncplayHub     *appsyncplay.Hub // optional
 	QuickConnectHub *quickconnecthub.Hub
-	IntroCache      IntroCacheInvalidator // optional
-	IntroBackfill   IntroBackfiller       // optional
+	// SettingsNotifier tells a user's other clients that a setting changed.
+	// Optional: nil leaves them to notice on their own next reload.
+	SettingsNotifier SettingsNotifier
+	IntroCache       IntroCacheInvalidator // optional
+	IntroBackfill    IntroBackfiller       // optional
 	// SeekIndex backs the admin MKV/WebM seek-index scan/reindex/rollback RPCs.
 	// Optional: nil → those RPCs return Unimplemented ("service not configured").
 	SeekIndex *appmaintenance.SeekIndexService
@@ -208,7 +211,7 @@ func (s *GRPCServer) RegisterServices() {
 	// admin PUT writes it under the same lock). nil cfg (tests) leaves it off.
 	playbackRemoteAccess := remoteAccessFromConfig(d.Cfg)
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, scheduler: d.Scheduler, translator: d.Translator})
-	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg})
+	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg, settings: d.SettingsNotifier})
 	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteAccess: playbackRemoteAccess, serverLang: serverLanguageFromConfig(d.Cfg), hours: d.ProfileHours, rescanLibrary: backgroundLibraryRescan(d.LibCmd)}
 	eveyv1.RegisterPlaybackServiceServer(s.server, s.playback)
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
@@ -295,7 +298,7 @@ func (s *GRPCServer) RegisterServices() {
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, cmd: d.ActivityCmd, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator, artwork: d.MetadataQuery})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, translator: d.Translator})
-	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery, translator: d.Translator})
+	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery, translator: d.Translator, settings: d.SettingsNotifier})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook, translator: d.Translator})
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{cmd: d.CollectionCmd, query: d.CollectionQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator, music: playlistTracksFrom(d.Music)})

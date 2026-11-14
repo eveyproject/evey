@@ -42,6 +42,19 @@ export function resumableMs(progress?: ResumeProgress | null): number {
   return positionMs;
 }
 
+// The server's floor for the continue-watching rail (playback.MinResumeRailPosition).
+const RESUME_RAIL_FLOOR_MS = 180_000;
+
+// showsWatched is whether a card wears the watched mark. A title seen once and
+// started again keeps its played flag (filters, play count and next-episode
+// read it), but while that viewing sits in the continue-watching rail the card
+// shows its progress, not a mark saying there is nothing left to watch. Same
+// rule as the rail: past the floor, short of the completion point.
+export function showsWatched(progress?: ResumeProgress | null): boolean {
+  if (progress?.played !== true) return false;
+  return resumableMs(progress) < RESUME_RAIL_FLOOR_MS;
+}
+
 // firstStartMs: the position the first stream of a session starts at (the
 // restart and cast hints apply once), then the saved progress by the rule of
 // every player (resolveStartPositionMs).

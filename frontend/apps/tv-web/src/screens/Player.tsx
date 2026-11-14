@@ -87,7 +87,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const [ladderBitrates, setLadderBitrates] = useState<number[]>([]);
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
-  const { audioLangs: profileAudioLangs, subtitleLangs: profileSubLangs, autoplayNext: autoAdvance, setAutoplayNext } = usePlayerProfilePrefs();
+  const { audioLangs: profileAudioLangs, subtitleLangs: profileSubLangs, autoplayNext: autoAdvance, setAutoplayNext, subtitleStyle: profileSubtitleStyle, saveSubtitleStyle: saveProfileSubtitleStyle } = usePlayerProfilePrefs();
   const queryClient = useQueryClient();
   const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, progress, restartWithTracks } =
     useTvPlaySession(mediaId, TV_DEVICE, {
@@ -104,13 +104,19 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const setOsd = useCallback((v: boolean) => { osdRef.current = v; setOsdState(v); }, []);
   const [streamInfoOpen, setStreamInfoOpen] = useState(false);
   const [volume, setVolume] = useState(1);
-  // The subtitle appearance the viewer chose, kept in this browser as the
-  // phone and the Android television keep theirs.
+  // The subtitle appearance the viewer chose: the profile's, with this
+  // browser's last value for a profile that never chose or an offline start.
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(() => getSubtitleStylePref() ?? DEFAULT_SUBTITLE_STYLE);
   const applySubtitleStyle = useCallback((next: SubtitleStyle) => {
     setSubtitleStyle(next);
     saveSubtitleStylePref(next);
-  }, []);
+    saveProfileSubtitleStyle(next);
+  }, [saveProfileSubtitleStyle]);
+  // The profile's appearance wins over this device's last value, and a change
+  // made on another device lands here while the title plays.
+  useEffect(() => {
+    if (profileSubtitleStyle) setSubtitleStyle(profileSubtitleStyle);
+  }, [profileSubtitleStyle]);
   const [panel, setPanel] = useState(false);
   const [barFocus, setBarFocusState] = useState<BarFocus | null>(null);
   const barFocusRef = useRef<BarFocus | null>(null);

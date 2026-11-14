@@ -11,7 +11,7 @@ import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
 import { setupOnlineManager } from "@/lib/online-manager";
 import { mutationErrorNet } from "@/lib/mutationErrorNet";
-import { localQueryStorage, onDocumentVisible, persistQueryCache, queryCacheScope, refreshHomeLayoutOnForeground, restoreQueryCache } from "@evey/client";
+import { localQueryStorage, onDocumentVisible, persistQueryCache, queryCacheScope, followSettingsChanges, restoreQueryCache } from "@evey/client";
 import { shouldRetryQuery } from "@/lib/queryRetry";
 import { nextRefreshDelay } from "@/lib/tokenRefreshDelay";
 import { ThemeLoader } from "@/features/themes/ThemeLoader";
@@ -225,7 +225,7 @@ const queryClient = queryClientRef = new QueryClient({
 });
 
 // The home layout changed from another device shows as soon as this tab is looked at again.
-refreshHomeLayoutOnForeground(queryClient, onDocumentVisible);
+followSettingsChanges(queryClient, onDocumentVisible);
 
 // The last visit's first screens are shown while they refresh (see queryPersist).
 const currentQueryScope = () => queryCacheScope(location.origin, useAuthStore.getState().profileId);

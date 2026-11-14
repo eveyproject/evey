@@ -233,6 +233,9 @@ settings:
     subtitleBurnAuto: Auto
     subtitleBurnAlways: Immer einbrennen
     subtitleBurnNever: Nie einbrennen
+    subtitleStyleTitle: "Aussehen der Untertitel"
+    subtitleStyleDesc: "So sehen Untertitel auf allen Geräten aus, die mit diesem Profil angemeldet sind. Das Menü des Players ändert dieselbe Einstellung."
+    subtitleStylePreview: "So werden die Untertitel aussehen."
     autoplayNextTitle: "Nächste Folge automatisch abspielen"
     autoplayNextDesc: "Die nächste Folge startet von selbst, wenn diese endet. Der Button Nächste Folge bleibt in jedem Fall verfügbar."
     stillWatchingTitle: "Fragen, ob ich noch schaue"

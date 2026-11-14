@@ -15,6 +15,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/feed"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	domainsyncplay "github.com/eveyproject/evey/internal/domain/syncplay"
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
@@ -28,6 +29,7 @@ type feedHandler struct {
 	libQuery   *applibrary.QueryService
 	userQuery  *appuser.QueryService
 	translator *eveyi18n.Translator
+	settings   SettingsNotifier
 }
 
 func (h *feedHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
@@ -292,6 +294,7 @@ func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.U
 	if err := h.commands.UpdateProfileConfig(ctx, cfg); err != nil {
 		return nil, internalError(ctx, "update profile feed config", err)
 	}
+	notifySettingsChanged(h.settings, claims.UserID, profileID, domainsyncplay.SettingsScopeHomeLayout)
 	return profileConfigToProto(cfg), nil
 }
 
@@ -309,6 +312,7 @@ func (h *feedHandler) ResetProfileFeedConfig(ctx context.Context, req *eveyv1.Re
 	if err := h.commands.ResetProfileConfig(ctx, profileID, feed.Type(req.FeedType)); err != nil {
 		return nil, internalError(ctx, "reset profile feed config", err)
 	}
+	notifySettingsChanged(h.settings, claims.UserID, profileID, domainsyncplay.SettingsScopeHomeLayout)
 	return &eveyv1.ResetProfileFeedConfigResponse{}, nil
 }
 

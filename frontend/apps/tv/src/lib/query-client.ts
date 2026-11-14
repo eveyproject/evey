@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { AppState } from "react-native";
 import { shouldRetryQuery, useServerListStore } from "@evey/store";
-import { refreshHomeLayoutOnForeground, setupReachability } from "@evey/client";
+import { followSettingsChanges, setupReachability } from "@evey/client";
 import { mutationErrorNet } from "./mutationErrorNet";
 import { pingServer, resolveServerUrl } from "./server-config";
 
@@ -38,7 +38,7 @@ setupReachability({
 
 // The home tab never unmounts: a layout changed on another device stayed
 // invisible here until the app was killed.
-refreshHomeLayoutOnForeground(queryClient, onForeground);
+followSettingsChanges(queryClient, onForeground);
 
 // Switching the active server invalidates EVERYTHING the cache holds: query
 // keys do not carry the server, so home rows, media details and profile data

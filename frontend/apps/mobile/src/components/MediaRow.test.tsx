@@ -15,7 +15,7 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("expo-router", () => ({ router }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (_k: string, f?: string) => f ?? _k }) }));
 vi.mock("../providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { text: "#fff", accent: "#f00" }, spacing: { sm: 8, md: 12, lg: 16 } }) }));
-vi.mock("../hooks/useWatchedMap", () => ({ useWatchedMap: () => new Map([["m1", true]]) }));
+vi.mock("../hooks/useWatchedMap", () => ({ useWatchProgressMaps: () => ({ watchedMap: new Map([["m1", true]]), percentMap: new Map() }) }));
 vi.mock("./MediaCard", () => ({
   MediaCard: ({ item, onPress, watchPercent, watched }: any) =>
     React.createElement("button", { "aria-label": item.title, onClick: onPress, "data-pct": watchPercent, "data-watched": String(!!watched) }),

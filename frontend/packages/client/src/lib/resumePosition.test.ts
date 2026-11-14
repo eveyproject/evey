@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstStartMs, resolveStartPositionMs, resumableMs } from "./resumePosition";
+import { firstStartMs, resolveStartPositionMs, resumableMs, showsWatched } from "./resumePosition";
 
 describe("firstStartMs", () => {
   const watched = { positionMs: "65000", durationMs: "600000", played: true };
@@ -42,5 +42,31 @@ describe("resolveStartPositionMs on a title watched again", () => {
     expect(resolveStartPositionMs(false, { positionMs: "6600000", durationMs: "7200000", played: true })).toBe(0);
     expect(resolveStartPositionMs(false, { positionMs: "1800000", played: true })).toBe(0);
     expect(resumableMs({ positionMs: "0", durationMs: "7200000", played: true })).toBe(0);
+  });
+});
+
+describe("showsWatched", () => {
+  const hour = 3_600_000;
+
+  it("marks a title seen to the end", () => {
+    expect(showsWatched({ positionMs: "0", durationMs: String(hour), played: true })).toBe(true);
+    expect(showsWatched({ positionMs: String(hour * 0.95), durationMs: String(hour), played: true })).toBe(true);
+  });
+
+  it("drops the mark while a second viewing is under way", () => {
+    expect(showsWatched({ positionMs: "600000", durationMs: String(hour), played: true })).toBe(false);
+  });
+
+  it("keeps the mark on a second viewing left before the rail's floor", () => {
+    expect(showsWatched({ positionMs: "120000", durationMs: String(hour), played: true })).toBe(true);
+  });
+
+  it("keeps the mark when the length is unknown", () => {
+    expect(showsWatched({ positionMs: "600000", played: true })).toBe(true);
+  });
+
+  it("never marks a title that was not finished", () => {
+    expect(showsWatched({ positionMs: "600000", durationMs: String(hour), played: false })).toBe(false);
+    expect(showsWatched(undefined)).toBe(false);
   });
 });

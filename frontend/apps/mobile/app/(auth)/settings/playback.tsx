@@ -12,6 +12,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useActiveProfile } from "../../../src/hooks/useActiveProfile";
+import { SubtitleStyleSection } from "../../../src/components/SubtitleStyleSection";
 import { AUDIO_CHANNELS_OPTIONS, AUDIO_CODEC_OPTIONS, BITRATE_OPTIONS, SUBTITLE_BURN_OPTIONS, VIDEO_CODEC_OPTIONS } from "@evey/client";
 import { STILL_WATCHING_DEFAULT, STILL_WATCHING_PREF_KEY, STILL_WATCHING_STEPS, stillWatchingLimit } from "@evey/client";
 import { DATA_SAVER_LABEL_KEY, DATA_SAVER_LEVELS, dataSaverLabelValues, useDataSaverStore } from "@evey/store";
@@ -523,6 +524,23 @@ export default function PlaybackSettingsScreen() {
           </View>
         </>
       )}
+
+      {/* Subtitle appearance */}
+      <Text style={s.sectionTitle}>
+        {t("auth.settings.playback.subtitleStyleTitle", "Subtitle appearance")}
+      </Text>
+      <View style={s.hint}>
+        <Text style={s.hintText}>
+          {t("auth.settings.playback.subtitleStyleDesc", "How subtitles look on every device signed in to this profile.")}
+        </Text>
+      </View>
+      <SubtitleStyleSection
+        preferences={editedProfile?.preferences}
+        // The profile reloads once saved and the section redraws from it; a
+        // failed save is already toasted by the global mutation handler.
+        onSave={(patch) => void savePref(patch).catch(() => undefined)}
+        disabled={!editedProfile}
+      />
 
       {updatePreference.isPending && (
         <View style={{ padding: theme.spacing.md, alignItems: "center" }}>

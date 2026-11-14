@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAuthStore } from "@evey/store";
 import { clientLogger } from "../log";
 import { isAccessExpired } from "./authRefreshCore";
+import { emitSettingsChanged } from "./homeLayoutRefresh";
 
 const log = clientLogger("device");
 
@@ -35,11 +36,22 @@ interface PlaybackCommand {
   type: "play" | "pause" | "seek";
   positionMs?: number;
 }
-type DeviceCommand = LoadAndPlayCommand | PlaybackCommand;
+interface SettingsChangedCommand {
+  type: "settingsChanged";
+  scope?: string;
+  profileId?: string;
+}
+type DeviceCommand = LoadAndPlayCommand | PlaybackCommand | SettingsChangedCommand;
 
 export interface DeviceRegistrationOptions {
-  /** What the server files this client as: "mobile" or "tv". */
-  deviceType: "mobile" | "tv";
+  /** What the server files this client as. */
+  deviceType: "mobile" | "tv" | "web";
+  /**
+   * Hold the socket only to hear about changes: the server does not offer
+   * this client as a Play On target. The browser app is one.
+   */
+  listenOnly?: boolean;
+
   /** The label the Play On picker shows, resolved at registration time. */
   deviceName: () => string;
   /** The server to register with; nothing happens until it is known. */
@@ -79,7 +91,7 @@ export interface DeviceRegistrationOptions {
  */
 export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { serverUrl, deviceType, deviceName, pauseInBackground, onLoadAndPlay, getDeviceId, subscribeBackground } = options;
+  const { serverUrl, deviceType, deviceName, pauseInBackground, onLoadAndPlay, getDeviceId, subscribeBackground, listenOnly } = options;
   // Latest router/token/url/name in a ref so the reconnect loop's closures see
   // fresh values without restarting the WS on every render.
   const stateRef = useRef({ accessToken, serverUrl, deviceName, onLoadAndPlay, getDeviceId, subscribeBackground });
@@ -133,6 +145,7 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
           deviceId,
           name: stateRef.current.deviceName(),
           deviceType,
+          ...(listenOnly ? { listenOnly: true } : {}),
         }));
         schedulePing();
       };
@@ -145,6 +158,8 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
               cmd.mediaId,
               typeof cmd.positionMs === "number" && cmd.positionMs > 0 ? cmd.positionMs : undefined,
             );
+          } else if (cmd.type === "settingsChanged") {
+            emitSettingsChanged(cmd.scope);
           }
           // play / pause / seek: see hook-level doc comment above - not
           // relayed at this layer.
@@ -249,5 +264,5 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
       unsubscribe?.();
       teardownSocket();
     };
-  }, [accessToken, serverUrl, deviceType, pauseInBackground]);
+  }, [accessToken, serverUrl, deviceType, pauseInBackground, listenOnly]);
 }

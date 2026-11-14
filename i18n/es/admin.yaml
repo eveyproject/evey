@@ -18,6 +18,7 @@ nav:
   mediaRequests: Solicitudes de contenido
   shareLinks: "Enlaces compartidos"
   integrations: Integraciones
+  pluginPages: "Páginas de plugins"
   plugins: Plugins
   webhooks: Webhooks
   apiKeys: "Claves API"
@@ -298,6 +299,9 @@ plugins:
     saveFailed: "No se pudieron actualizar los límites de recursos"
   title: "Plugins"
   installPlugin: "Instalar plugin"
+  installedTitle: "Plugins instalados"
+  pageBadge: "Plugin"
+  pageProvidedBy: "Esta página la muestra un plugin, no Evey."
   uploadFile: "Subir archivo"
   fromUrl: "Desde URL"
   installFromUrl: Instalar desde URL

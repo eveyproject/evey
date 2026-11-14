@@ -796,34 +796,84 @@ func TestUpdateProfile_Success(t *testing.T) {
 	}
 }
 
-// Sending `preferences` REPLACES the whole map - it does not merge key by key,
-// even though the verb is PATCH and every other field of this request is a
-// partial update. A caller that writes {"theme": "amoled"} alone therefore
-// erases the viewer's audio and subtitle languages. That is why every client
-// merges before writing (themePreferences in @evey/store), and this test is
-// what tells the next reader - and stops someone "fixing" the semantics by
-// accident: omitting a key is how a client REMOVES one (the theme-plugin id).
-// Reproduced against the running server on 2026-08-05.
-func TestUpdateProfile_PreferencesReplaceTheWholeMap(t *testing.T) {
+// Sending `preferences` merges key by key: two devices each hold their own
+// copy of the profile, and a write must only change the keys it names.
+func TestUpdateProfile_PreferencesMergeKeyByKey(t *testing.T) {
 	env := setupUserHandler()
 	env.profileRepo.Create(context.Background(), &user.Profile{
 		ID: "prf-1", UserID: "usr-1", Name: "Default",
-		Preferences: map[string]string{"audio_languages": "fr", "subtitle_languages": "fr"},
+		Preferences: map[string]string{
+			"audio_languages": "fr", "subtitle_languages": "fr",
+			"theme": "default", "theme_plugin_id": "plg-1",
+		},
 	})
+	ctx := userCtx("usr-1", "prf-1")
 
-	resp, err := env.handler.UpdateProfile(userCtx("usr-1", "prf-1"), &eveyv1.UpdateProfileRequest{
+	resp, err := env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{
 		Id:          "prf-1",
 		Preferences: map[string]string{"theme": "amoled"},
 	})
 	if err != nil {
 		t.Fatalf("UpdateProfile: %v", err)
 	}
-	if _, still := resp.Preferences["audio_languages"]; still {
-		t.Error("audio_languages survived a partial write: the semantics changed to merge - " +
-			"if that is deliberate, give clients another way to REMOVE a preference key")
+	if resp.Preferences["audio_languages"] != "fr" || resp.Preferences["subtitle_languages"] != "fr" {
+		t.Errorf("a theme write touched the languages: %v", resp.Preferences)
 	}
 	if resp.Preferences["theme"] != "amoled" {
 		t.Errorf("theme = %q, want amoled", resp.Preferences["theme"])
+	}
+	if _, still := resp.Preferences["theme_plugin_id"]; still {
+		t.Error("a theme sent without a plugin id kept the previous plugin")
+	}
+
+	resp, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{
+		Id:          "prf-1",
+		Preferences: map[string]string{"subtitle_languages": "", "theme_plugin_id": "plg-2"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateProfile: %v", err)
+	}
+	if _, still := resp.Preferences["subtitle_languages"]; still {
+		t.Error("an empty value did not remove its key")
+	}
+	if resp.Preferences["theme"] != "amoled" || resp.Preferences["theme_plugin_id"] != "plg-2" {
+		t.Errorf("a plugin id sent alone changed the theme pair wrongly: %v", resp.Preferences)
+	}
+}
+
+type recordedSettingsChange struct{ userID, profileID, scope string }
+
+type fakeSettingsNotifier struct{ changes []recordedSettingsChange }
+
+func (f *fakeSettingsNotifier) SettingsChanged(userID, profileID, scope string) {
+	f.changes = append(f.changes, recordedSettingsChange{userID, profileID, scope})
+}
+
+// A saved profile is announced to the owner's other clients; a refused write
+// is not, or every device would reload for nothing.
+func TestUpdateProfile_TellsTheOwnersOtherClients(t *testing.T) {
+	env := setupUserHandler()
+	notifier := &fakeSettingsNotifier{}
+	env.handler.settings = notifier
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-1", UserID: "usr-1", Name: "Default"})
+
+	if _, err := env.handler.UpdateProfile(userCtx("usr-1", "prf-1"), &eveyv1.UpdateProfileRequest{
+		Id: "prf-1", Preferences: map[string]string{"theme": "amoled"},
+	}); err != nil {
+		t.Fatalf("UpdateProfile: %v", err)
+	}
+	want := []recordedSettingsChange{{"usr-1", "prf-1", "profile"}}
+	if len(notifier.changes) != 1 || notifier.changes[0] != want[0] {
+		t.Fatalf("changes = %v, want %v", notifier.changes, want)
+	}
+
+	if _, err := env.handler.UpdateProfile(userCtx("usr-2", "prf-9"), &eveyv1.UpdateProfileRequest{
+		Id: "prf-1", Preferences: map[string]string{"theme": "default"},
+	}); err == nil {
+		t.Fatal("another user's write was accepted")
+	}
+	if len(notifier.changes) != 1 {
+		t.Errorf("a refused write was announced: %v", notifier.changes)
 	}
 }
 

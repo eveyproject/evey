@@ -66,7 +66,7 @@ import { MetadataEditSheet } from "../../../src/components/media/MetadataEditShe
 import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { RESUME_PROGRESS_QUERY, compareEpisodeIndex, invalidateWatchedState, resumableMs, useSeriesPlayTarget } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, compareEpisodeIndex, invalidateWatchedState, resumableMs, showsWatched, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { StarIcons } from "../../../src/components/media/StarIcons";
 import { personKeyExtractor, renderCastItem } from "../../../src/components/media/CastCard";
@@ -348,7 +348,7 @@ export default function MediaDetailScreen() {
     const map = new Map<string, EpisodeProgress>();
     for (const w of episodeHistory?.items ?? []) {
       if (!w.mediaItemId) continue;
-      map.set(w.mediaItemId, { percent: w.percentComplete ?? 0, played: w.played === true });
+      map.set(w.mediaItemId, { percent: w.percentComplete ?? 0, played: showsWatched(w) });
     }
     for (const [epId, played] of episodeMarks) {
       map.set(epId, { percent: map.get(epId)?.percent ?? 0, played });

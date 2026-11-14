@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getUserServiceListProfilesQueryKey, useUserServiceUpdateProfile, type V1Profile } from "@evey/api";
-import { autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
+import { autoplayNextEpisode, autoplayNextPreferences, isDemoMode } from "@evey/store";
 import { useActiveProfile } from "./useActiveProfile";
 import { setStillWatchingLimit, stillWatchingLimit } from "../lib/stillWatching";
+import { parseSubtitleStylePref, subtitleStylePreferences, SUBTITLE_STYLE_PREF_KEY, type SubtitleStyle } from "../lib/subtitleStyle";
+
+// A size slider fires on every step: one save once the viewer stops.
+const SUBTITLE_STYLE_SAVE_DELAY_MS = 600;
 
 /** A profile preference stored as a comma-separated list ("fr,en"). */
 export function profileLangList(raw: string | undefined): string[] {
@@ -17,6 +21,10 @@ export function profileLangList(raw: string | undefined): string[] {
  * profile, so the choice follows the viewer from one client to the next; a
  * failed save falls back to the server value (the global mutation handler
  * already reported it).
+ *
+ * The subtitle appearance follows the profile the same way: subtitleStyle is
+ * what the profile holds (null when it never chose, the player then keeps its
+ * own last value), saveSubtitleStyle stores a change on it.
  */
 export function usePlayerProfilePrefs(): {
   profile: V1Profile | undefined;
@@ -24,6 +32,8 @@ export function usePlayerProfilePrefs(): {
   subtitleLangs: string[];
   autoplayNext: boolean;
   setAutoplayNext: (enabled: boolean) => Promise<void>;
+  subtitleStyle: SubtitleStyle | null;
+  saveSubtitleStyle: (style: SubtitleStyle) => void;
 } {
   const { profile, userId } = useActiveProfile();
   const qc = useQueryClient();
@@ -52,5 +62,43 @@ export function usePlayerProfilePrefs(): {
     }
   }, [profile, updateProfile, qc, userId]);
 
-  return { profile, audioLangs, subtitleLangs, autoplayNext, setAutoplayNext };
+  // The profile's value, unless a change made here is still on its way to the
+  // server: a reload landing in between must not put the previous one back.
+  const storedStyleRaw = profile?.preferences?.[SUBTITLE_STYLE_PREF_KEY];
+  const storedStyle = useMemo(
+    () => parseSubtitleStylePref(storedStyleRaw ? { [SUBTITLE_STYLE_PREF_KEY]: storedStyleRaw } : undefined),
+    [storedStyleRaw],
+  );
+  const [pendingStyle, setPendingStyle] = useState<SubtitleStyle | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = useRef({ profile, updateProfile, qc, userId });
+  latest.current = { profile, updateProfile, qc, userId };
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+  }, []);
+  const saveSubtitleStyle = useCallback((style: SubtitleStyle) => {
+    // Demo: the shared profile's appearance is not this visitor's pick.
+    if (isDemoMode()) return;
+    setPendingStyle(style);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      const { profile: p, updateProfile: update, qc: client, userId: uid } = latest.current;
+      if (!p?.id) {
+        setPendingStyle(null);
+        return;
+      }
+      update
+        .mutateAsync({ id: p.id, data: { preferences: subtitleStylePreferences(p.preferences, style) } })
+        .then(() => (uid ? client.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(uid) }) : undefined))
+        .catch(() => undefined)
+        .finally(() => {
+          // A newer change restarted the timer: it owns the pending value now.
+          if (!saveTimer.current) setPendingStyle(null);
+        });
+    }, SUBTITLE_STYLE_SAVE_DELAY_MS);
+  }, []);
+  const subtitleStyle = pendingStyle ?? storedStyle;
+
+  return { profile, audioLangs, subtitleLangs, autoplayNext, setAutoplayNext, subtitleStyle, saveSubtitleStyle };
 }

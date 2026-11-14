@@ -18,6 +18,7 @@ nav:
   mediaRequests: "媒体请求"
   shareLinks: "分享链接"
   integrations: "集成"
+  pluginPages: "插件页面"
   plugins: "插件"
   webhooks: Webhooks
   apiKeys: "API 密钥"
@@ -298,6 +299,9 @@ plugins:
     saveFailed: "更新资源限制失败"
   title: "插件"
   installPlugin: "安装插件"
+  installedTitle: "已安装的插件"
+  pageBadge: "插件"
+  pageProvidedBy: "此页面由插件呈现，而非 Evey。"
   uploadFile: "上传文件"
   fromUrl: "从 URL 安装"
   installFromUrl: "从 URL 安装"
