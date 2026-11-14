@@ -74,9 +74,14 @@
          activity portrait-only. Android 16 ignores that lock on large screens
          and Play flags it as a resize/orientation restriction, so lift it. -->
     <activity android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity" android:screenOrientation="unspecified" tools:replace="android:screenOrientation"/>
-    <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
+    <meta-data android:name="expo.modules.updates.CODE_SIGNING_CERTIFICATE" android:value="-----BEGIN CERTIFICATE-----&#xD;&#xA;MIIC6zCCAdOgAwIBAgIJQj2aCgKy67tSMA0GCSqGSIb3DQEBCwUAMB4xHDAaBgNV&#xD;&#xA;BAMTE0V2ZXkgY2xpZW50IHVwZGF0ZXMwIBcNMjYxMTE0MjAzMzQwWhgPMjA1NjEx&#xD;&#xA;MTQyMDMzNDBaMB4xHDAaBgNVBAMTE0V2ZXkgY2xpZW50IHVwZGF0ZXMwggEiMA0G&#xD;&#xA;CSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDbeYQVxCzlPw5RE6ddZ/lqNQdhvS0R&#xD;&#xA;+UCkvudH+HXMBwhHPfeuScC9gFxFA5sOWZSyypAIJQ2xQ1d9+4v7DmZySjH3vH50&#xD;&#xA;RyC0QOGfwu4eS/YosZqoiy8F2WaaNlNXk8KbY8FIA4w7Vh4jcLY6UC82DeDgy1K8&#xD;&#xA;1ZzeBweViBmIRa8TwZkgIIaAJ+cbSSkqmihs/VRhP3cvZa2IHX1PFB32awv+XmBq&#xD;&#xA;0H4tBqkc2r+iqvo3cyqdUsemWVKBlqVse81bx95lvxgz/fediE6oNhzmPmW2Be5t&#xD;&#xA;INoAzAZ7yZ8NQwS28SkWoOrFajxPH3A8WyAcNEhh8nd6k8NrBhptpQyBAgMBAAGj&#xD;&#xA;KjAoMA4GA1UdDwEB/wQEAwIHgDAWBgNVHSUBAf8EDDAKBggrBgEFBQcDAzANBgkq&#xD;&#xA;hkiG9w0BAQsFAAOCAQEAUlk7cYydUwj4MBuWKSzCtwy9vKLOHlxGmUqgzVvMdyRi&#xD;&#xA;hAXJx4E/x0OIaoqWqJSHTIbmT1NUBkCohMGb1KIVyYtsD2CgBzsf3mwIIuZ0+SbE&#xD;&#xA;kjO2oH+dC+o3Spr9F9kS0BscO+ks3NG5G7YlzegAuWz//vXq4RTuPgPRAm6J2AFY&#xD;&#xA;X0TKXn03AQygJUf13iW21TeEW6P1mW17SlmP8AVlAVw1e/N4+mlcvfz4S+dvYNJy&#xD;&#xA;YRvypegPT7Pk0gZNFE4Kode2G3BiiOYR79tnaOk/eqOAIPQmZ4icZS2JBnrKKxtI&#xD;&#xA;l076nkxi5Rfyt5KewWBmEFU4hdlE7OjB8Zptz/ti7w==&#xD;&#xA;-----END CERTIFICATE-----&#xD;&#xA;"/>
+    <meta-data android:name="expo.modules.updates.CODE_SIGNING_METADATA" android:value="{&quot;keyid&quot;:&quot;main&quot;,&quot;alg&quot;:&quot;rsa-v1_5-sha256&quot;}"/>
+    <meta-data android:name="expo.modules.updates.DISABLE_ANTI_BRICKING_MEASURES" android:value="true"/>
+    <meta-data android:name="expo.modules.updates.ENABLED" android:value="true"/>
+    <meta-data android:name="expo.modules.updates.EXPO_RUNTIME_VERSION" android:value="@string/expo_runtime_version"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
+    <meta-data android:name="expo.modules.updates.EXPO_UPDATE_URL" android:value="https://updates.invalid/"/>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|locale|layoutDirection" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="unspecified" android:supportsPictureInPicture="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>

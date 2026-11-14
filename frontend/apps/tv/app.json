@@ -54,6 +54,19 @@
           "androidTVBanner": "./assets/tv_banner.png"
         }
       ]
-    ]
+    ],
+    "runtimeVersion": "tv-1",
+    "updates": {
+      "url": "https://updates.invalid/",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "codeSigningCertificate": "../../client-updates/certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
+      },
+      "disableAntiBrickingMeasures": true
+    }
   }
 }

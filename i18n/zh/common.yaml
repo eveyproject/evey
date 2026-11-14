@@ -273,3 +273,8 @@ demo:
   readOnly: "演示中为只读：设置仅供查看，不可编辑。"
 attribution:
   tmdb: "本产品使用 TMDB API，但未经 TMDB 认可或认证。"
+clientUpdate:
+  title: "更新已就绪"
+  body: "已从您的服务器下载新版本的应用。"
+  restart: "重新启动"
+  later: "稍后"

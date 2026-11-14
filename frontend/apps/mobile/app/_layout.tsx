@@ -1,3 +1,4 @@
+import { ClientUpdatePrompt } from "../src/components/ClientUpdatePrompt";
 import { useEffect, useState } from "react";
 import { AppState, StatusBar, View } from "react-native";
 import { Stack } from "expo-router";
@@ -142,6 +143,7 @@ function RootStack() {
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <StatusBar barStyle={isLightBg(theme.colors.bg) ? "dark-content" : "light-content"} />
       <Stack screenOptions={{ headerShown: false }} />
+      <ClientUpdatePrompt />
     </View>
   );
 }

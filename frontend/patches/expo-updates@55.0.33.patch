@@ -1,0 +1,115 @@
+diff --git a/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt b/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt
+index 2d9e075..320117d 100644
+--- a/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt
++++ b/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt
+@@ -127,6 +127,17 @@ abstract class UpdateDao {
+   @Query("UPDATE updates SET failed_launch_count = failed_launch_count + 1 WHERE id = :id;")
+   abstract fun incrementFailedLaunchCountInternal(id: UUID)
+ 
++  // Evey: an update with a successful launch on record stays launchable
++  // whatever fails later. Dropping one for good clears that record too.
++  fun markUpdateUnlaunchable(update: UpdateEntity) {
++    update.successfulLaunchCount = 0
++    update.failedLaunchCount++
++    markUpdateUnlaunchableInternal(update.id)
++  }
++
++  @Query("UPDATE updates SET successful_launch_count = 0, failed_launch_count = failed_launch_count + 1 WHERE id = :id;")
++  abstract fun markUpdateUnlaunchableInternal(id: UUID)
++
+   fun markUpdatesWithMissingAssets(missingAssets: List<AssetEntity>) {
+     val missingAssetIds = mutableListOf<Long>()
+     for (asset in missingAssets) {
+diff --git a/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryDelegate.kt b/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryDelegate.kt
+index 095667b..fc20215 100644
+--- a/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryDelegate.kt
++++ b/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryDelegate.kt
+@@ -20,6 +20,7 @@ interface ErrorRecoveryDelegate {
+   fun throwException(exception: Exception)
+ 
+   fun markFailedLaunchForLaunchedUpdate()
++  fun dropLaunchedUpdate()
+   fun markSuccessfulLaunchForLaunchedUpdate()
+ 
+   fun getRemoteLoadStatus(): RemoteLoadStatus
+diff --git a/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryHandler.kt b/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryHandler.kt
+index 2c06897..346dc6f 100644
+--- a/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryHandler.kt
++++ b/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryHandler.kt
+@@ -115,7 +115,15 @@ internal class ErrorRecoveryHandler(
+ 
+   private fun maybeStartPipeline(exception: Exception) {
+     encounteredErrors.add(exception)
+-    if (delegate.getLaunchedUpdateSuccessfulLaunchCount() > 0) {
++    // Evey: the app's crash-loop guard asks for a rollback by throwing this
++    // marker before anything renders. Honour it whatever the update's launch
++    // history: an update that started fine and then dies on every launch has
++    // a successful launch on record and would otherwise never be dropped.
++    val rollbackRequested = !hasContentAppeared &&
++      (exception.message ?: exception.toString()).contains("EVEY_CLIENT_UPDATE_ROLLBACK")
++    if (rollbackRequested) {
++      delegate.dropLaunchedUpdate()
++    } else if (delegate.getLaunchedUpdateSuccessfulLaunchCount() > 0) {
+       pipeline.remove(Task.LAUNCH_CACHED_UPDATE)
+     } else if (!hasContentAppeared) {
+       delegate.markFailedLaunchForLaunchedUpdate()
+diff --git a/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt b/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt
+index cfe31ec..6194491 100644
+--- a/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt
++++ b/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt
+@@ -42,6 +42,16 @@ class ExpoUpdatesUpdate private constructor(
+     }
+   }
+ 
++  // Evey: one signed manifest is served by every instance, so it names its
++  // assets by relative path. Resolve those against the manifest URL.
++  private fun resolveAssetUrl(raw: String): Uri {
++    val parsed = Uri.parse(raw)
++    if (parsed.isAbsolute) {
++      return parsed
++    }
++    return Uri.parse(java.net.URI(url.toString()).resolve(raw).toString())
++  }
++
+   private val assetHeaders: Map<String, JSONObject> by lazy {
+     val assetRequestHeadersJSON = (extensions ?: JSONObject()).getNullable<JSONObject>("assetRequestHeaders")
+     assetRequestHeadersJSON?.let { it.keys().asSequence().associateWith { key -> it.require(key) } } ?: mapOf()
+@@ -56,7 +66,7 @@ class ExpoUpdatesUpdate private constructor(
+           // the fileExtension is not necessary for the launch asset and EAS servers will not include it.
+           launchAsset.getNullable("fileExtension")
+         ).apply {
+-          url = Uri.parse(launchAsset.getString("url"))
++          url = resolveAssetUrl(launchAsset.getString("url"))
+           extraRequestHeaders = assetHeaders[launchAsset.getString("key")]
+           isLaunchAsset = true
+           embeddedAssetFilename = EmbeddedLoader.BUNDLE_FILENAME
+@@ -75,7 +85,7 @@ class ExpoUpdatesUpdate private constructor(
+               assetObject.getString("key"),
+               assetObject.getString("fileExtension")
+             ).apply {
+-              url = Uri.parse(assetObject.getString("url"))
++              url = resolveAssetUrl(assetObject.getString("url"))
+               extraRequestHeaders = assetHeaders[assetObject.getString("key")]
+               embeddedAssetFilename = assetObject.getNullable("embeddedAssetFilename")
+               expectedHash = assetObject.getNullable("hash")
+diff --git a/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt b/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt
+index 365958f..4ced28f 100644
+--- a/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt
++++ b/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt
+@@ -294,6 +294,16 @@ class StartupProcedure(
+         }
+       }
+ 
++      override fun dropLaunchedUpdate() {
++        if (emergencyLaunchException != null) {
++          return
++        }
++        procedureScope.launch {
++          val launchedUpdate = launchedUpdate ?: return@launch
++          databaseHolder.withDatabase { it.updateDao().markUpdateUnlaunchable(launchedUpdate) }
++        }
++      }
++
+       override fun markSuccessfulLaunchForLaunchedUpdate() {
+         if (emergencyLaunchException != null) {
+           return

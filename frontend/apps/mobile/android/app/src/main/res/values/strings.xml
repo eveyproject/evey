@@ -1,3 +1,4 @@
 <resources>
   <string name="app_name">Evey</string>
+  <string name="expo_runtime_version">mobile-1</string>
 </resources>

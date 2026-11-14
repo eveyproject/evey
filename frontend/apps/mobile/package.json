@@ -1,7 +1,7 @@
 {
   "name": "mobile",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -40,6 +40,7 @@
     "expo-router": "55.0.14",
     "expo-screen-orientation": "55.0.14",
     "expo-secure-store": "55.0.13",
+    "expo-updates": "~55.0.33",
     "expo-video": "55.0.16",
     "i18next": "26.4.0",
     "i18next-http-backend": "4.0.6",

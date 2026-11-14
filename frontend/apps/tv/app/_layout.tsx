@@ -9,6 +9,7 @@ import { queryClient } from "../src/lib/query-client";
 import { ThemeProvider, useTheme } from "../src/providers/ThemeProvider";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { ToastContainer } from "../src/components/ToastContainer";
+import { ClientUpdatePrompt } from "../src/components/ClientUpdatePrompt";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
 import { applyServerLanguage, initI18n } from "../src/i18n";
@@ -109,6 +110,7 @@ export default function RootLayout() {
             <RootStack />
           </ErrorBoundary>
           <ToastContainer />
+          <ClientUpdatePrompt />
         </ThemeProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
