@@ -1104,12 +1104,16 @@ systemHealth:
     production: "Produktion"
   backgroundTasksSection: "Hintergrundarbeiten"
   videoCapacitySection: "Video-Transcodierkapazität"
-  videoCapacityTitle: "Video-Transcodierkapazität"
+  videoCapacityTitle: "Streams in Transcodierung"
   videoCapacityRatio: "{{active}} / {{limit}} Streams"
   videoCapacityAutoNote: "Automatische Kapazität: {{auto}} Streams (vom Administrator reduziert)"
   videoCapacityEvidence: "Gemessen: {{height}}p bei {{fps}} fps, {{requiredFps}} benötigt, {{cpuBudget}} Kerne"
   videoCapacityNotMeasured: "Kapazität nicht gemessen (kein Benchmark verfügbar), vorsichtiger Rückfall auf 1"
   videoCapacityHint: "Zählt gleichzeitig transkodierte Videostreams. Reine Audio-Transkodierungen (Video wird durchgereicht) belegen keinen Platz, und ein Zuschauer, der die Qualität wechselt, belegt weiterhin nur einen."
+  videoCapacityTotalNote: "Höchstens {{limit}} Streams gleichzeitig, alle Encoder zusammen."
+  videoCapacityOutput: "Ausgabe"
+  videoCapacityCpuHdr: "Prozessor, HDR"
+  videoCapacityCpuAv1: "Prozessor, AV1"
 
 transcodeCache:
   title: Transkodierungs-Cache

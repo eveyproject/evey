@@ -109,6 +109,7 @@ export * from "./lib/collectionSubtitle";
 export * from "./lib/loadTest";
 export * from "./lib/reachability";
 export * from "./lib/repairLabels";
+export * from "./lib/videoCapacityTable";
 export * from "./lib/skipSegments";
 export * from "./lib/parentalPin";
 export * from "./lib/ssoError";

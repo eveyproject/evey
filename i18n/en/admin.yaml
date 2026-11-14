@@ -1104,12 +1104,16 @@ systemHealth:
     production: "production"
   backgroundTasksSection: "Background work"
   videoCapacitySection: Video Transcode Capacity
-  videoCapacityTitle: Video Transcode Capacity
+  videoCapacityTitle: "Streams being transcoded"
   videoCapacityRatio: "{{active}} / {{limit}} streams"
   videoCapacityAutoNote: "Auto capacity is {{auto}} streams (reduced by admin override)"
   videoCapacityEvidence: "Measured: {{height}}p at {{fps}} fps for {{requiredFps}} required, {{cpuBudget}} cores"
   videoCapacityNotMeasured: "Capacity not measured (no benchmark available), conservative fallback to 1"
   videoCapacityHint: "Counts simultaneous transcoded video streams. Audio-only transcodes (video copied through) don't use a slot, and a viewer switching quality still uses just one."
+  videoCapacityTotalNote: "At most {{limit}} streams at once, all encoders together."
+  videoCapacityOutput: "Output"
+  videoCapacityCpuHdr: "Processor, HDR"
+  videoCapacityCpuAv1: "Processor, AV1"
 
 transcodeCache:
   title: Transcode Cache

@@ -1104,12 +1104,16 @@ systemHealth:
     production: "生产"
   backgroundTasksSection: "后台工作"
   videoCapacitySection: "视频转码容量"
-  videoCapacityTitle: "视频转码容量"
+  videoCapacityTitle: "正在转码的视频流"
   videoCapacityRatio: "{{active}} / {{limit}} 路流"
   videoCapacityAutoNote: "自动容量：{{auto}} 路流（已被管理员降低）"
   videoCapacityEvidence: "实测：{{height}}p，{{fps}} fps，需要 {{requiredFps}}，{{cpuBudget}} 核"
   videoCapacityNotMeasured: "容量未测量（缺少基准测试），保守回退为 1"
   videoCapacityHint: "统计同时转码的视频流数量。仅音频转码（视频直接拷贝）不占用名额，同一观众切换画质仍只占用一个名额。"
+  videoCapacityTotalNote: "所有编码器合计，最多同时 {{limit}} 路。"
+  videoCapacityOutput: "输出"
+  videoCapacityCpuHdr: "处理器，HDR"
+  videoCapacityCpuAv1: "处理器，AV1"
 
 transcodeCache:
   title: "转码缓存"
