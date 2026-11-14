@@ -5,7 +5,7 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
-import { useWatchedMap } from "../hooks/useWatchedMap";
+import { useWatchProgressMaps } from "../hooks/useWatchedMap";
 import { MediaCard } from "./MediaCard";
 import { RowTitle } from "./RowTitle";
 import { FONT_SIZE } from "@evey/theme";
@@ -32,7 +32,7 @@ const getItemLayout = (_: unknown, index: number) => ({
 export const MediaRow = memo(function MediaRow({ title, seeAllHref, items, onItemPress, onItemLongPress, watchPercents }: MediaRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const watchedMap = useWatchedMap();
+  const { watchedMap } = useWatchProgressMaps();
 
   const titleStyle = useMemo(() => ({ paddingHorizontal: theme.spacing.md }), [theme.spacing.md]);
 
