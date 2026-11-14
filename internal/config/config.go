@@ -235,10 +235,13 @@ type ServerConfig struct {
 	// interface therefore offered a way around the gate that no operator was
 	// warned about and no code documented. Set EVEY_GRPC_BIND=0.0.0.0 to
 	// expose it deliberately; boot then WARNS that the gate does not apply.
-	GRPCBindAddr       string
-	BaseURL            string
-	Name               string
-	WebDir             string
+	GRPCBindAddr string
+	BaseURL      string
+	Name         string
+	WebDir       string
+	// ClientUpdatesDir holds the signed JavaScript bundles this image ships for
+	// the mobile and TV apps. Empty or missing: the instance serves none.
+	ClientUpdatesDir   string
 	TrustedProxies     []string
 	RealIPHeader       string
 	ForwardedProto     bool
@@ -929,6 +932,7 @@ func Load() (*Config, error) {
 			BaseURL:            baseURL,
 			Name:               envStr("EVEY_SERVER_NAME", DefaultServerName),
 			WebDir:             envStr("EVEY_WEB_DIR", "/srv"),
+			ClientUpdatesDir:   envStr("EVEY_CLIENT_UPDATES_DIR", "/app/client-updates"),
 			TrustedProxies:     trustedProxies,
 			RealIPHeader:       envStr("EVEY_REAL_IP_HEADER", "X-Forwarded-For"),
 			ForwardedProto:     forwardedProtoFromEnv(baseURL),

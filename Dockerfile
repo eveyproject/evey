@@ -452,6 +452,9 @@ RUN setcap cap_setuid+ep /evey-plugin-launcher
 COPY --from=sandbox-glibc /libevey-sandbox.so /app/libevey-sandbox.so
 COPY --from=builder /src/i18n /i18n
 COPY --from=builder /src/sdk /app/sdk
+# Signed JavaScript bundles served to the phone and TV apps (empty unless
+# `make client-updates` ran before the build). Matches EVEY_CLIENT_UPDATES_DIR.
+COPY --from=builder /src/client-updates /app/client-updates
 # Generated OpenAPI v2 specs, served (filtered to the API-key surface) at
 # /api/v1/openapi.json. Matches publicOpenAPIDirs in openapi_handler.go;
 # without this the endpoint 503s (the specs live only in the build stages).
