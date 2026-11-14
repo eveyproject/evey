@@ -166,6 +166,8 @@ export default function PlayerScreen() {
     subtitleLangs: profileSubtitleLangs,
     autoplayNext,
     setAutoplayNext,
+    subtitleStyle: profileSubtitleStyle,
+    saveSubtitleStyle: saveProfileSubtitleStyle,
   } = usePlayerProfilePrefs();
   const handleToggleAutoplayNext = useCallback(() => setAutoplayNext(!autoplayNext), [setAutoplayNext, autoplayNext]);
 
@@ -1277,7 +1279,13 @@ export default function PlayerScreen() {
   const handleSubtitleStyleChange = useCallback((next: SubtitleStyle) => {
     setSubtitleStyle(next);
     void saveSubtitleStylePref(next);
-  }, []);
+    saveProfileSubtitleStyle(next);
+  }, [saveProfileSubtitleStyle]);
+  // The profile's appearance wins over this device's last value, and a change
+  // made on another device lands here while the title plays.
+  useEffect(() => {
+    if (profileSubtitleStyle) setSubtitleStyle(profileSubtitleStyle);
+  }, [profileSubtitleStyle]);
 
   // BACK belongs to whatever is on top. A submenu is an RN Modal, so Android
   // hands it onRequestClose - and then delivers the SAME press to the screen

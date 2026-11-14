@@ -29,6 +29,7 @@ export * from "./hooks/useParentalGate";
 export * from "./hooks/useWatchedMap";
 export * from "./hooks/useActiveProfile";
 export * from "./hooks/useProfileSettingsFollower";
+export * from "./hooks/useSubtitleStyleSetting";
 export * from "./hooks/usePlayerProfilePrefs";
 export * from "./hooks/usePlayerTrackSelection";
 export * from "./hooks/useFileAudioSelection";
