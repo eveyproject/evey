@@ -873,6 +873,12 @@ serverConfig:
     keyframeBackfillIdleSecLabel: "Intervalo de inactividad del relleno de fotogramas clave (s)"
   feedConfig:
     pluginBadge: "Plugin"
+    hint: "Arrastra una sección para cambiar su posición. Es el orden predeterminado: cada usuario puede reorganizar su propia página de inicio."
+    kindLibrary: "Biblioteca"
+    kindBuiltin: "Sección integrada"
+    pluginMaxItems: "El plugin decide cuánto muestra"
+    unsaved: "Cambios sin guardar"
+    summary: "{{enabled}} de {{total}} secciones visibles"
     title: "Feeds de inicio"
     subtitle: "Elige qué secciones aparecen en la página de inicio, en qué orden y cuántos elementos muestra cada una."
   introProvidersInfo: "Dos bases de datos comunitarias distintas para las marcas de tiempo de intro / resumen / créditos. Omite la detección local intensiva en CPU en los elementos que cubren. Principal - TheIntroDB (theintrodb.org): películas + series, requiere clave API gratuita. Alternativa - IntroDB (introdb.app): solo episodios de series, sin clave."

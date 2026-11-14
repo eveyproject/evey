@@ -873,6 +873,12 @@ serverConfig:
     keyframeBackfillIdleSecLabel: "Leerlaufintervall Keyframe-Nachtrag (s)"
   feedConfig:
     pluginBadge: "Plugin"
+    hint: "Ziehe einen Abschnitt, um seine Position zu ändern. Das ist die Standardreihenfolge: Jeder Benutzer kann seine eigene Startseite weiterhin umordnen."
+    kindLibrary: "Bibliothek"
+    kindBuiltin: "Integrierter Abschnitt"
+    pluginMaxItems: "Das Plugin bestimmt, wie viel es anzeigt"
+    unsaved: "Ungespeicherte Änderungen"
+    summary: "{{enabled}} von {{total}} Abschnitten angezeigt"
     title: "Startseiten-Feeds"
     subtitle: "Wählen Sie, welche Bereiche auf der Startseite erscheinen, in welcher Reihenfolge und wie viele Einträge jeder zeigt."
   introProvidersInfo: "Zwei separate Community-Datenbanken für Intro-/Recap-/Abspann-Zeitstempel. Überspringt die lokale, CPU-intensive Erkennung bei abgedeckten Titeln. Primär - TheIntroDB (theintrodb.org): Filme + Serien, kostenloser API-Schlüssel erforderlich. Fallback - IntroDB (introdb.app): nur Serienepisoden, kein Schlüssel erforderlich."

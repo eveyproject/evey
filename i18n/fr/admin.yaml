@@ -828,6 +828,12 @@ serverConfig:
   subtitle: "Entrées de configuration clé-valeur stockées dans la base de données."
   feedConfig:
     pluginBadge: "Plugin"
+    hint: "Fais glisser une section pour changer sa place. C'est l'ordre par défaut : chaque utilisateur peut encore réarranger son propre accueil."
+    kindLibrary: "Bibliothèque"
+    kindBuiltin: "Section intégrée"
+    pluginMaxItems: "Le plugin décide de ce qu'il affiche"
+    unsaved: "Modifications non enregistrées"
+    summary: "{{enabled}} sections affichées sur {{total}}"
     title: "Flux d'accueil"
     subtitle: "Choisis quelles sections apparaissent sur la page d'accueil, dans quel ordre, et combien d'éléments chacune affiche."
   languageRegion: "Langue et région"
