@@ -21,10 +21,10 @@ export const THEME_PLUGIN_PREF_KEY = "theme_plugin_id";
 /**
  * The preferences map to send when saving the theme.
  *
- * ⚠️ MERGES on purpose. UpdateProfile REPLACES the whole map server-side
- * (adapters/driving/grpcapi/user_handler_profile.go: `p.Preferences =
- * req.Preferences`), so sending just `{theme}` would silently wipe
- * audio_languages, subtitle_languages and every other stored preference.
+ * Sends the whole map on purpose. A current server merges key by key, but an
+ * older one replaces the map, and an app can be newer than the server it
+ * talks to: sending just `{theme}` there would wipe every other preference.
+ * Leaving the plugin id out is how a built-in theme clears it, on both.
  */
 export function themePreferences(
   current: Record<string, string> | undefined,

@@ -12,6 +12,7 @@ import (
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	domainsyncplay "github.com/eveyproject/evey/internal/domain/syncplay"
 	"github.com/eveyproject/evey/internal/domain/user"
 	"github.com/eveyproject/evey/internal/pkg/auth"
 	"github.com/eveyproject/evey/internal/pkg/id"
@@ -271,13 +272,46 @@ func (h *userHandler) enforceProfilePINProof(ctx context.Context, span trace.Spa
 	return h.verifyCurrentPIN(ctx, span, p, req.GetCurrentPin())
 }
 
+// Preference keys with a meaning of their own in the merge.
+const (
+	prefKeyTheme         = "theme"
+	prefKeyThemePluginID = "theme_plugin_id"
+	prefKeyMaxBitrate    = "max_bitrate_kbps"
+)
+
+// mergeProfilePreferences writes the keys of a request onto the stored map,
+// one by one. Clients on several devices each hold their own copy of the
+// profile, so a write that replaced the whole map would put back whatever the
+// writer last saw of the keys it did not mean to touch. An empty value removes
+// its key. The theme and the plugin that paints it are one choice: a theme
+// sent without a plugin id clears the stored one. The bitrate cap has its own
+// column and never stays in the map.
+func mergeProfilePreferences(p *user.Profile, incoming map[string]string) {
+	if len(incoming) == 0 {
+		return
+	}
+	if p.Preferences == nil {
+		p.Preferences = make(map[string]string, len(incoming))
+	}
+	if _, themed := incoming[prefKeyTheme]; themed {
+		if _, withPlugin := incoming[prefKeyThemePluginID]; !withPlugin {
+			delete(p.Preferences, prefKeyThemePluginID)
+		}
+	}
+	for k, v := range incoming {
+		if v == "" || k == prefKeyMaxBitrate {
+			delete(p.Preferences, k)
+			continue
+		}
+		p.Preferences[k] = v
+	}
+}
+
 // applyProfileUpdateFields patches every non-nil field of req onto p. Fields
 // left unset in the request leave the existing column untouched, so p must
 // be freshly loaded from storage (see loadProfileForUpdate) before this call.
 func (h *userHandler) applyProfileUpdateFields(ctx context.Context, span trace.Span, req *eveyv1.UpdateProfileRequest, p *user.Profile) error {
-	if req.Preferences != nil {
-		p.Preferences = req.Preferences
-	}
+	mergeProfilePreferences(p, req.Preferences)
 	if req.Name != nil {
 		p.Name = *req.Name
 	}
@@ -296,8 +330,7 @@ func (h *userHandler) applyProfileUpdateFields(ctx context.Context, span trace.S
 			p.Region = &r
 		}
 	}
-	if v, ok := p.Preferences["max_bitrate_kbps"]; ok {
-		delete(p.Preferences, "max_bitrate_kbps")
+	if v, ok := req.Preferences["max_bitrate_kbps"]; ok {
 		if v == "" || v == "0" {
 			p.MaxBitrateKbps = nil
 		} else if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -378,7 +411,12 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	if err := h.applyProfileUpdateFields(ctx, span, req, p); err != nil {
 		return nil, err
 	}
-	return h.persistProfileUpdate(ctx, span, p)
+	out, err := h.persistProfileUpdate(ctx, span, p)
+	if err != nil {
+		return nil, err
+	}
+	notifySettingsChanged(h.settings, string(p.UserID), string(p.ID), domainsyncplay.SettingsScopeProfile)
+	return out, nil
 }
 
 func (h *userHandler) SetDefaultProfile(ctx context.Context, req *eveyv1.SetDefaultProfileRequest) (*eveyv1.Profile, error) {

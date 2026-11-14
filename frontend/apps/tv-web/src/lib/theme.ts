@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { themeVars, THEME_NAMES, type ThemeCSSName } from "@evey/theme";
 import { useThemeStore } from "@evey/store";
 import { isPluginThemeName, useActiveProfile, usePluginThemes } from "@evey/client";
+import { isDemoMode } from "@evey/store";
+import i18n, { saveLocale, supportedLanguages } from "../i18n";
 
 // The palette the web app reads from a generated stylesheet is set here as
 // the same CSS variables, from the same source of truth. A built-in by
@@ -30,6 +32,18 @@ export function useAppliedTheme(): void {
   useEffect(() => {
     applyFromPreferences(profile?.preferences);
   }, [profile?.preferences, applyFromPreferences]);
+
+  // The profile's language too: this client used to start from its own
+  // storage and never look at the profile, so a language picked on the phone
+  // never reached it. An empty value is "automatic" and leaves the local one.
+  const profileLocale = profile?.locale;
+  useEffect(() => {
+    const lang = profileLocale ? profileLocale.split("-")[0] : "";
+    if (!lang || isDemoMode() || !(supportedLanguages as readonly string[]).includes(lang)) return;
+    if (i18n.language === lang) return;
+    saveLocale(lang);
+    void i18n.changeLanguage(lang);
+  }, [profileLocale]);
 
   useEffect(() => {
     if (isPlugin) {

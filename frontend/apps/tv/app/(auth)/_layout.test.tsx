@@ -59,6 +59,7 @@ vi.mock("react-i18next", () => ({
 // --- hooks/components mocks ---------------------------------------------------
 vi.mock("../../src/hooks/useDeviceRegistration", () => ({ useDeviceRegistration: () => {} }));
 vi.mock("../../src/hooks/usePresenceHeartbeat", () => ({ usePresenceHeartbeat: () => {} }));
+vi.mock("../../src/hooks/useProfileSettingsFollower", () => ({ useProfileSettingsFollower: () => {} }));
 vi.mock("../../src/components/TVMusicPlayer", () => ({ TVMusicPlayer: () => null }));
 // The layout now renews a stale token before deciding where to send the
 // viewer; auth-refresh pulls in expo-secure-store, which has no native side

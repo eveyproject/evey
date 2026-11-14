@@ -50,7 +50,18 @@ func NewDeviceRegistry() *DeviceRegistry {
 // user. deviceID is client-generated and stable per install, so a
 // reconnect with the same ID cleanly supersedes the stale connection.
 func (r *DeviceRegistry) Register(userID, deviceID, name, deviceType string, sender syncplay.MessageSender) (syncplay.Device, error) {
+	return r.register(userID, deviceID, name, deviceType, false, sender)
+}
+
+// RegisterListener adds a client that only listens: it receives what is
+// broadcast to the user but is not a Play On target.
+func (r *DeviceRegistry) RegisterListener(userID, deviceID, name, deviceType string, sender syncplay.MessageSender) (syncplay.Device, error) {
+	return r.register(userID, deviceID, name, deviceType, true, sender)
+}
+
+func (r *DeviceRegistry) register(userID, deviceID, name, deviceType string, listenOnly bool, sender syncplay.MessageSender) (syncplay.Device, error) {
 	dev := syncplay.Device{
+		ListenOnly:  listenOnly,
 		ID:          deviceID,
 		UserID:      userID,
 		Name:        name,
@@ -99,6 +110,9 @@ func (r *DeviceRegistry) List(userID string) []syncplay.Device {
 	byUser := r.devices[userID]
 	out := make([]syncplay.Device, 0, len(byUser))
 	for _, e := range byUser {
+		if e.device.ListenOnly {
+			continue
+		}
 		out = append(out, e.device)
 	}
 	r.mu.RUnlock()
@@ -119,7 +133,7 @@ func (r *DeviceRegistry) SendCommand(userID, deviceID string, cmd syncplay.Devic
 	r.mu.RLock()
 	var sender syncplay.MessageSender
 	if byUser := r.devices[userID]; byUser != nil {
-		if e, ok := byUser[deviceID]; ok {
+		if e, ok := byUser[deviceID]; ok && !e.device.ListenOnly {
 			sender = e.sender
 		}
 	}
@@ -135,4 +149,44 @@ func (r *DeviceRegistry) SendCommand(userID, deviceID string, cmd syncplay.Devic
 		return fmt.Errorf("send device command: %w", err)
 	}
 	return nil
+}
+
+// Broadcast pushes a command to every client the user has connected,
+// listeners included, and returns how many took it. A client that fails to
+// take it is skipped: it reloads its settings when it reconnects anyway.
+func (r *DeviceRegistry) Broadcast(userID string, cmd syncplay.DeviceCommand) int {
+	r.mu.RLock()
+	senders := make([]syncplay.MessageSender, 0, len(r.devices[userID]))
+	for _, e := range r.devices[userID] {
+		senders = append(senders, e.sender)
+	}
+	r.mu.RUnlock()
+	if len(senders) == 0 {
+		return 0
+	}
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		return 0
+	}
+	sent := 0
+	for _, s := range senders {
+		if s.SendMessage(data) == nil {
+			sent++
+		}
+	}
+	return sent
+}
+
+// SettingsChanged tells the user's clients that a setting of the given scope
+// changed. It does not wait for the sockets: the caller is answering the
+// client that made the change.
+func (r *DeviceRegistry) SettingsChanged(userID, profileID, scope string) {
+	if r == nil || userID == "" {
+		return
+	}
+	go r.Broadcast(userID, syncplay.DeviceCommand{
+		Type:      syncplay.DeviceCmdSettingsChanged,
+		Scope:     scope,
+		ProfileID: profileID,
+	})
 }

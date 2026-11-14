@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { AppState } from "react-native";
-import { refreshHomeLayoutOnForeground } from "@evey/client";
+import { followSettingsChanges } from "@evey/client";
 import { shouldRetryQuery, useServerListStore, clearProfileCache } from "@evey/store";
 import { setupOnlineManager } from "./online-manager";
 import { mutationErrorNet } from "./mutationErrorNet";
@@ -26,7 +26,7 @@ export const queryClient = new QueryClient({
 
 // The home tab never unmounts: a layout changed on another device stayed
 // invisible here until the app was killed.
-refreshHomeLayoutOnForeground(queryClient, (listener) => {
+followSettingsChanges(queryClient, (listener) => {
   const sub = AppState.addEventListener("change", (next) => {
     if (next === "active") listener();
   });

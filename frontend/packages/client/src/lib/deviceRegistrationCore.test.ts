@@ -2,6 +2,7 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useAuthStore } from "@evey/store";
 import { useDeviceRegistrationCore } from "./deviceRegistrationCore";
+import { subscribeSettingsChanged } from "./homeLayoutRefresh";
 
 class FakeSocket {
   static instances: FakeSocket[] = [];
@@ -158,5 +159,59 @@ describe("useDeviceRegistrationCore", () => {
     await flush();
     expect(FakeSocket.instances).toHaveLength(1);
     unmount();
+  });
+
+  // A setting saved on another device: the app reloads its copy, told what
+  // changed. The socket itself stays as it is.
+  it("hands a settingsChanged push to the app with its scope", async () => {
+    const onSettingsChanged = vi.fn();
+    const unsubscribe = subscribeSettingsChanged(onSettingsChanged);
+    const onLoadAndPlay = vi.fn();
+    const { unmount } = renderHook(() =>
+      useDeviceRegistrationCore({
+        deviceType: "tv",
+        deviceName: () => "d",
+        serverUrl: "http://srv",
+        pauseInBackground: false,
+        onLoadAndPlay,
+        getDeviceId: async () => "id",
+      }),
+    );
+    await flush();
+    const sock = FakeSocket.instances[0];
+    const push = sock.onmessage as (e: { data: string }) => void;
+    act(() => push({ data: JSON.stringify({ type: "settingsChanged", scope: "profile", profileId: "p1" }) }));
+    expect(onSettingsChanged).toHaveBeenCalledWith("profile");
+    expect(onLoadAndPlay).not.toHaveBeenCalled();
+    expect(FakeSocket.instances).toHaveLength(1);
+    unsubscribe();
+    unmount();
+  });
+
+  // The browser app listens without being a Play On target: it says so when
+  // it registers, and a client that can be played on does not.
+  it("registers as listen-only only when asked to", async () => {
+    const base = {
+      deviceName: () => "d",
+      serverUrl: "http://srv",
+      pauseInBackground: false,
+      onLoadAndPlay: vi.fn(),
+      getDeviceId: async () => "id",
+    };
+    const web = renderHook(() => useDeviceRegistrationCore({ ...base, deviceType: "web", listenOnly: true }));
+    await flush();
+    act(() => FakeSocket.instances[0].onopen?.());
+    expect(JSON.parse(FakeSocket.instances[0].sent[0])).toEqual({
+      type: "register", deviceId: "id", name: "d", deviceType: "web", listenOnly: true,
+    });
+    web.unmount();
+
+    const tv = renderHook(() => useDeviceRegistrationCore({ ...base, deviceType: "tv" }));
+    await flush();
+    act(() => FakeSocket.instances[1].onopen?.());
+    expect(JSON.parse(FakeSocket.instances[1].sent[0])).toEqual({
+      type: "register", deviceId: "id", name: "d", deviceType: "tv",
+    });
+    tv.unmount();
   });
 });

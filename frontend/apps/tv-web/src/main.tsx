@@ -9,7 +9,7 @@ import {
   onDocumentVisible,
   persistQueryCache,
   queryCacheScope,
-  refreshHomeLayoutOnForeground,
+  followSettingsChanges,
   restoreQueryCache,
 } from "@evey/client";
 import { initTvNavigation, useTvKeys } from "./tv/focus";
@@ -92,7 +92,7 @@ const queryClient = new QueryClient({
 
 const currentQueryScope = () => queryCacheScope(activeServerUrl(), useAuthStore.getState().profileId);
 persistQueryCache(queryClient, localQueryStorage, currentQueryScope);
-refreshHomeLayoutOnForeground(queryClient, onDocumentVisible);
+followSettingsChanges(queryClient, onDocumentVisible);
 
 const PUBLIC_ROUTES = new Set<Route["name"]>(["server", "login", "quickconnect"]);
 

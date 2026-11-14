@@ -3,6 +3,7 @@ import { ActivityIndicator, View } from "react-native";
 import { Redirect, Stack, router, usePathname } from "expo-router";
 import { useAuthStore, useServerListStore } from "@evey/store";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
+import { useProfileSettingsFollower } from "../../src/hooks/useProfileSettingsFollower";
 import { useCastConnectReceiver } from "../../src/hooks/useCastConnectReceiver";
 import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
 import { TVMusicPlayer, TV_MUSIC_BAR_HEIGHT } from "../../src/components/TVMusicPlayer";
@@ -57,6 +58,7 @@ export default function AuthLayout() {
   // authenticated (the hook bails if accessToken/serverUrl are absent),
   // so calling it before the redirect-on-no-auth guard is safe.
   useDeviceRegistration();
+  useProfileSettingsFollower();
   // Cast Connect: this television answers casts itself, with its own player.
   // Same placement rationale as the registration above - the hook no-ops
   // until there is a session to mirror, so it is safe before the guards.

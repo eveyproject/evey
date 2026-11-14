@@ -7,6 +7,7 @@ import { PresenceHeartbeat } from "@/components/PresenceHeartbeat";
 import { RouteErrorComponent } from "@/components/ui/RouteErrorComponent";
 import { isTokenExpired, refreshTokenWithOutcome } from "@/lib/authRefresh";
 import { ProfileCacheSync } from "@/components/ProfileCacheSync";
+import { SettingsSync } from "@/components/SettingsSync";
 
 // "Who is watching", asked once per DOCUMENT LOAD - the browser's equivalent of
 // the cold start the phone and the television use. A module-level flag is what
@@ -45,6 +46,7 @@ export const Route = createFileRoute("/_auth")({
   component: () => (
     <AuthLayout>
       <ProfileCacheSync />
+      <SettingsSync />
       <PresenceHeartbeat />
       <ImpersonationBanner />
       <DemoBanner />
