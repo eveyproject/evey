@@ -1104,12 +1104,16 @@ systemHealth:
     production: "producción"
   backgroundTasksSection: "Trabajos en segundo plano"
   videoCapacitySection: "Capacidad de transcodificación de vídeo"
-  videoCapacityTitle: "Capacidad de transcodificación de vídeo"
+  videoCapacityTitle: "Flujos en transcodificación"
   videoCapacityRatio: "{{active}} / {{limit}} flujos"
   videoCapacityAutoNote: "Capacidad automática: {{auto}} flujos (reducida por el administrador)"
   videoCapacityEvidence: "Medido: {{height}}p a {{fps}} fps, {{requiredFps}} requeridos, {{cpuBudget}} núcleos"
   videoCapacityNotMeasured: "Capacidad no medida (sin benchmark disponible), repliegue prudente a 1"
   videoCapacityHint: "Cuenta los flujos de vídeo transcodificados simultáneos. Las transcodificaciones solo de audio (vídeo copiado) no consumen ninguna plaza, y un espectador que cambia de calidad sigue usando solo una."
+  videoCapacityTotalNote: "Como máximo {{limit}} flujos a la vez, entre todos los codificadores."
+  videoCapacityOutput: "Salida"
+  videoCapacityCpuHdr: "Procesador, HDR"
+  videoCapacityCpuAv1: "Procesador, AV1"
 
 transcodeCache:
   title: "Caché de transcodificación"

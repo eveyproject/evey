@@ -1104,12 +1104,16 @@ systemHealth:
     production: "प्रोडक्शन"
   backgroundTasksSection: "पृष्ठभूमि का काम"
   videoCapacitySection: "वीडियो ट्रांसकोडिंग क्षमता"
-  videoCapacityTitle: "वीडियो ट्रांसकोडिंग क्षमता"
+  videoCapacityTitle: "ट्रांसकोड हो रही स्ट्रीम"
   videoCapacityRatio: "{{active}} / {{limit}} स्ट्रीम"
   videoCapacityAutoNote: "ऑटो क्षमता: {{auto}} स्ट्रीम (व्यवस्थापक द्वारा घटाई गई)"
   videoCapacityEvidence: "मापा गया: {{height}}p पर {{fps}} fps, आवश्यक {{requiredFps}}, {{cpuBudget}} कोर"
   videoCapacityNotMeasured: "क्षमता मापी नहीं गई (कोई बेंचमार्क उपलब्ध नहीं), सतर्कता से 1 पर वापस"
   videoCapacityHint: "एक साथ ट्रांसकोड की गई वीडियो स्ट्रीम गिनता है। केवल-ऑडियो ट्रांसकोड (वीडियो कॉपी की गई) कोई स्लॉट उपयोग नहीं करते, और गुणवत्ता बदलने वाला दर्शक केवल एक ही उपयोग करता है।"
+  videoCapacityTotalNote: "एक साथ अधिकतम {{limit}} स्ट्रीम, सभी एन्कोडर मिलाकर।"
+  videoCapacityOutput: "आउटपुट"
+  videoCapacityCpuHdr: "प्रोसेसर, HDR"
+  videoCapacityCpuAv1: "प्रोसेसर, AV1"
 
 transcodeCache:
   title: "ट्रांसकोड कैश"

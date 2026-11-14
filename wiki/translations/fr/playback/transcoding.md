@@ -1,5 +1,5 @@
 ---
-source_sha: 8409828551fb37b2c675f36eab993aed4c224ba6a45f3073a76b096d458bbf74
+source_sha: 094de61e87bd4b210bd193dec1b9cb85897d53a58b46c3e90584227058ce4f59
 reviewed: true
 ---
 # Transcodage et capacité du serveur { #transcoding-and-server-capacity }
@@ -85,6 +85,18 @@ HDR ou une sortie HEVC, par exemple), ou le processeur. Le processeur et les
 accélérateurs forment deux réserves distinctes, et un flux sur la carte
 graphique consomme encore un peu de processeur pour son audio et son
 empaquetage.
+
+La capacité compte les deux réserves ensemble : les flux que les
+accélérateurs peuvent accueillir, plus ceux que le processeur accueille encore
+à côté d'eux. **Administration → Santé du système** indique, pour chaque
+résolution de sortie, combien de flux chaque réserve peut accueillir.
+
+Des flux qui démarrent au même instant sont planifiés les uns à côté des
+autres : les premiers prennent l'accélérateur, les suivants vont sur le
+processeur, et aucun n'est refusé tant qu'il reste de la place. Un flux servi
+depuis le cache garde son plan alors qu'il n'encode rien. Il peut envoyer un
+nouveau venu sur le processeur alors que la carte graphique est libre ; il ne
+provoque jamais de refus.
 
 Quand la place vient à manquer, le serveur répond dans cet ordre :
 

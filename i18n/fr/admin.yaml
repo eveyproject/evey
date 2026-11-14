@@ -1103,12 +1103,16 @@ systemHealth:
     production: "production"
   backgroundTasksSection: "Travaux en arrière-plan"
   videoCapacitySection: "Capacité de transcodage vidéo"
-  videoCapacityTitle: "Capacité de transcodage vidéo"
+  videoCapacityTitle: "Flux en cours de transcodage"
   videoCapacityRatio: "{{active}} / {{limit}} flux"
   videoCapacityAutoNote: "Capacité auto : {{auto}} flux (réduite par l'administrateur)"
   videoCapacityEvidence: "Mesuré : {{height}}p à {{fps}} img/s pour {{requiredFps}} requis, {{cpuBudget}} cœurs"
   videoCapacityNotMeasured: "Capacité non mesurée (benchmark absent), repli prudent sur 1"
   videoCapacityHint: "Compte les flux vidéo transcodés simultanés. Les transcodages audio seuls (vidéo copiée) ne consomment aucun emplacement, et un spectateur qui change de qualité n'en utilise qu'un seul."
+  videoCapacityTotalNote: "Au plus {{limit}} flux en même temps, tous encodeurs confondus."
+  videoCapacityOutput: "Sortie"
+  videoCapacityCpuHdr: "Processeur, HDR"
+  videoCapacityCpuAv1: "Processeur, AV1"
 
 transcodeCache:
   title: "Cache de transcodage"
