@@ -7,6 +7,7 @@ import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
 import type { QualityLevel } from "@evey/api";
 import { useMediaSession } from "./hooks/useMediaSession";
 import { useVolumeBoost } from "./hooks/useVolumeBoost";
+import { usePersistentVolume } from "./hooks/usePersistentVolume";
 import { getVolumeBoost, setVolumeBoost } from "@/hooks/usePlaybackPrefs";
 
 // Stable empty defaults: inline `= []` default params allocate a fresh array on
@@ -201,6 +202,7 @@ export function PlayerProvider({
   const [isPip, setIsPip] = useState(false);
   const lastTimeUpdate = useRef(0);
 
+  usePersistentVolume(videoRef);
   const applyBoost = useVolumeBoost(videoRef);
   // Read-latest mirror so the "play" listener can re-arm the persisted boost
   // without the boost value being a dependency of the (element-scoped) effect.
