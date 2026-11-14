@@ -4,6 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-vite-plugin";
 import { resolve } from "path";
 
+// The Evey server the dev server forwards to.
+const serverTarget = process.env.VITE_API_TARGET ?? "http://localhost:9091";
+
 export default defineConfig({
   plugins: [
     TanStackRouterVite({
@@ -64,12 +67,14 @@ export default defineConfig({
     } : true,
     proxy: {
       "/api": {
-        target: process.env.VITE_API_TARGET ?? "http://localhost:9091",
+        target: serverTarget,
         changeOrigin: true,
         // The SyncPlay room and the Play On device sockets live under /api:
         // without it the dev server never forwarded the upgrade.
         ws: true,
       },
+      // The page plugin UIs run in is served by the Evey server, not by the app.
+      "/plugin-frame.html": { target: serverTarget, changeOrigin: true },
     },
   },
 });
