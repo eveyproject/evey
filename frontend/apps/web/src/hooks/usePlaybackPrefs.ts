@@ -46,6 +46,23 @@ export function setVolumeBoost(boost: number) {
   set(VOLUME_BOOST_KEY, boost > 1 ? String(boost) : null);
 }
 
+const VOLUME_KEY = "evey:volume";
+
+// The 0-100% level of the player (the element's own volume, 0..1). Each title
+// gets a fresh <video>, which starts at full volume: without this the level
+// chosen on one episode is lost on the next.
+export function getPlayerVolume(): number {
+  const raw = get(VOLUME_KEY);
+  if (raw === null) return 1;
+  const n = Number(raw);
+  if (!isFinite(n)) return 1;
+  return Math.min(1, Math.max(0, n));
+}
+
+export function setPlayerVolume(volume: number) {
+  set(VOLUME_KEY, volume < 1 ? String(volume) : null);
+}
+
 interface SeriesTrackPrefs {
   audioLang?: string;
   subtitleLang?: string | null;

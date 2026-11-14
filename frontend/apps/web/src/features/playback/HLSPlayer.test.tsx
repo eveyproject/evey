@@ -88,6 +88,8 @@ vi.mock("@/hooks/usePlaybackSettings", () => ({
 vi.mock("@/hooks/usePlaybackPrefs", () => ({
   getVolumeBoost: vi.fn(() => 1),
   setVolumeBoost: vi.fn(),
+  getPlayerVolume: vi.fn(() => 1),
+  setPlayerVolume: vi.fn(),
   getPreferredAudioLang: vi.fn(() => null),
   setPreferredAudioLang: vi.fn(),
   getPreferredSubtitleLang: vi.fn(() => null),
