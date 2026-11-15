@@ -21,7 +21,7 @@ import (
 func (r *IntroAudioFingerprintCacheRepository) Page(ctx context.Context, afterID string, limit int) ([]*library.IntroAudioFingerprintCacheEntry, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT media_item_id, file_fingerprint, window_sec, fingerprint, algo_version, extracted_at
 		 FROM intro_audio_fingerprint_cache WHERE media_item_id > $1 ORDER BY media_item_id LIMIT $2`, afterID, limit)
 	if err != nil {
@@ -57,7 +57,7 @@ func (r *IntroAudioFingerprintCacheRepository) DeleteIDs(ctx context.Context, id
 func (r *IntroFingerprintCacheRepository) Page(ctx context.Context, afterID string, limit int) ([]*library.IntroFingerprintCacheEntry, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT media_item_id, file_fingerprint, phash_tiles, phash_timestamps, algo_version, extracted_at
 		 FROM intro_fingerprint_cache WHERE media_item_id > $1 ORDER BY media_item_id LIMIT $2`, afterID, limit)
 	if err != nil {
@@ -93,7 +93,7 @@ func deleteFingerprintRows(ctx context.Context, db *sql.DB, table string, ids []
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	//nolint:gosec // G201: table is one of two constants of this file, never input
-	_, err := db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE media_item_id = ANY($1)`, table), pq.Array(ids))
+	_, err := txFromCtx(ctx, db).ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE media_item_id = ANY($1)`, table), pq.Array(ids))
 	return err
 }
 
@@ -105,7 +105,7 @@ func ExistingMediaItemIDs(ctx context.Context, db *sql.DB, ids []string) (map[st
 	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := db.QueryContext(ctx, `SELECT id FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
+	rows, err := txFromCtx(ctx, db).QueryContext(ctx, `SELECT id FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
