@@ -299,3 +299,22 @@ androidComponents {
         tasks.matching { it.name == "bundle${cap}" }.configureEach { finalizedBy bundleCheck }
     }
 }
+
+// No APK or AAB from a tree where the updates served by an instance would not
+// be verified (frontend/scripts/check-expo-updates-patch.mjs).
+tasks.register("checkClientUpdates", Exec) {
+    workingDir rootProject.projectDir
+    commandLine "node", "../../../scripts/check-expo-updates-patch.mjs", "--app", "mobile"
+}
+preBuild.dependsOn("checkClientUpdates")
+
+// The release this build is made from: the oldest served update the app
+// accepts (EveyReleaseFloor in the expo-updates patch), in milliseconds.
+def clientUpdateFloor = providers.exec {
+    workingDir rootProject.projectDir
+    commandLine "git", "log", "-1", "--format=%ct"
+}.standardOutput.asText.get().trim()
+if (!(clientUpdateFloor ==~ /[0-9]+/)) {
+    throw new GradleException("client updates: git gave no commit time, the app would accept no update")
+}
+android.defaultConfig.resValue "string", "evey_client_update_floor", "${clientUpdateFloor}000"

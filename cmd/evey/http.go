@@ -264,6 +264,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		DataDir:                    "/data",
 		PluginDir:                  "/data/plugins",
 		WebDir:                     cfg.Server.WebDir,
+		ClientUpdatesDir:           cfg.Server.ClientUpdatesDir,
 		DLNASvc:                    appdlna.New(cfg.EffectiveBaseURL()),
 		CastSvc:                    appcast.New(cfg.EffectiveBaseURL()),
 		// Receiver beacons feed the same presence registry as the app

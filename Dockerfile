@@ -111,6 +111,19 @@ RUN set -eu; \
 
 COPY . .
 COPY --from=protogen /src/gen/ gen/
+# Client bundles in the tree must be the signed ones built from this very
+# commit, for the native runtime the apps declare at this commit. Anything
+# else left behind by an earlier build fails here instead of shipping.
+RUN set -eu; \
+    for d in client-updates/*/*/*/; do \
+      [ -d "${d}" ] || continue; \
+      app="$(echo "${d}" | cut -d/ -f2)"; runtime="$(echo "${d}" | cut -d/ -f4)"; \
+      [ -f "${d}manifest.signed" ] || { echo "ERROR: ${d} has no manifest.signed (unsigned or partial bundle)" >&2; exit 1; }; \
+      built="$(cat "${d}commit" 2>/dev/null || true)"; \
+      [ "${built}" = "${COMMIT}" ] || { echo "ERROR: ${d} was built from '${built}', this image is '${COMMIT}': run make client-updates on this commit" >&2; exit 1; }; \
+      want="$(sed -n 's/.*"runtimeVersion": *"\([^"]*\)".*/\1/p' "frontend/apps/${app}/app.json")"; \
+      [ "${runtime}" = "${want}" ] || { echo "ERROR: ${d} is for runtime '${runtime}', apps/${app} declares '${want}'" >&2; exit 1; }; \
+    done
 # The TV and mobile app builds released with this server (read from their
 # app.json), which /healthz advertises so an app can tell it is behind. An
 # image must carry them: a missing stamp fails here instead of silently
@@ -452,6 +465,9 @@ RUN setcap cap_setuid+ep /evey-plugin-launcher
 COPY --from=sandbox-glibc /libevey-sandbox.so /app/libevey-sandbox.so
 COPY --from=builder /src/i18n /i18n
 COPY --from=builder /src/sdk /app/sdk
+# Signed JavaScript bundles served to the phone and TV apps (empty unless
+# `make client-updates` ran before the build). Matches EVEY_CLIENT_UPDATES_DIR.
+COPY --from=builder /src/client-updates /app/client-updates
 # Generated OpenAPI v2 specs, served (filtered to the API-key surface) at
 # /api/v1/openapi.json. Matches publicOpenAPIDirs in openapi_handler.go;
 # without this the endpoint 503s (the specs live only in the build stages).

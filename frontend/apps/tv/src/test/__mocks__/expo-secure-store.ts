@@ -15,3 +15,11 @@ export async function setItemAsync(key: string, value: string): Promise<void> {
 export async function deleteItemAsync(key: string): Promise<void> {
   store.delete(key);
 }
+
+export function getItem(key: string): string | null {
+  return store.get(key) ?? null;
+}
+
+export function setItem(key: string, value: string): void {
+  store.set(key, value);
+}
