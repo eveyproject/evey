@@ -25,13 +25,14 @@ interface SigningLib {
 const libPath = path.resolve(__dirname, "../../../../scripts/client-update-signing.mjs");
 const lib = (await import(/* @vite-ignore */ libPath)) as SigningLib;
 
-const NOW = Date.parse("2027-01-01T00:00:00.000Z");
+const T = fixture.times;
+const NOW = Date.parse(T.now);
 const valid: Check = {
   leafPem: fixture.leaf,
   rootPem: fixture.root,
   manifest: fixture.manifest,
   signature: fixture.signature,
-  createdAt: "2026-12-01T00:00:00.000Z",
+  createdAt: T.released,
   now: NOW,
 };
 
@@ -54,18 +55,18 @@ describe("checkSigningCertificate", () => {
   });
 
   it("refuses a certificate that is not valid yet or about to expire", () => {
-    expect(lib.checkSigningCertificate({ ...valid, now: Date.parse("2020-01-01T00:00:00.000Z") })).toContain("not valid yet");
-    expect(lib.checkSigningCertificate({ ...valid, now: Date.parse("2126-10-01T00:00:00.000Z") })).toContain("expires in less than 30 days");
+    expect(lib.checkSigningCertificate({ ...valid, now: Date.parse(T.beforeCertificate) })).toContain("not valid yet");
+    expect(lib.checkSigningCertificate({ ...valid, now: Date.parse(T.lastWeeksOfCertificate) })).toContain("expires in less than 30 days");
   });
 
   it("refuses a release dated after the certificate expires", () => {
-    expect(lib.checkSigningCertificate({ ...valid, createdAt: "2127-01-01T00:00:00.000Z" })).toContain("after the expiry");
+    expect(lib.checkSigningCertificate({ ...valid, createdAt: T.afterCertificate })).toContain("after the expiry");
   });
 
   it("refuses to publish over a newer release", () => {
-    expect(lib.checkSigningCertificate({ ...valid, previousCreatedAt: "2026-12-02T00:00:00.000Z" })).toContain("older than the one already in the output");
-    expect(lib.checkSigningCertificate({ ...valid, previousCreatedAt: "2026-12-01T00:00:00.000Z" })).toBe("");
-    expect(lib.checkSigningCertificate({ ...valid, previousCreatedAt: "2026-11-30T00:00:00.000Z" })).toBe("");
+    expect(lib.checkSigningCertificate({ ...valid, previousCreatedAt: T.dayAfterRelease })).toContain("older than the one already in the output");
+    expect(lib.checkSigningCertificate({ ...valid, previousCreatedAt: T.released })).toBe("");
+    expect(lib.checkSigningCertificate({ ...valid, previousCreatedAt: T.dayBeforeRelease })).toBe("");
   });
 });
 
@@ -80,7 +81,7 @@ describe("the signed manifest file", () => {
         signature: 'sig="abc", keyid="main"',
         certificate: fixture.leaf,
         manifest: fixture.manifest,
-        createdAt: "2026-12-01T00:00:00.000Z",
+        createdAt: T.released,
       });
       expect(fs.readdirSync(dir)).toEqual(["manifest.signed"]);
       expect(lib.readSignedManifest(path.join(dir, "absent"))).toBeNull();
