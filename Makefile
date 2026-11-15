@@ -443,20 +443,21 @@ ci-fast-frontend-test-gate:
 	  echo "→ frontend unit tests skipped (no frontend/ or i18n/ change since $$base)"; \
 	fi
 
-# ci-android-patch-gate: the two changes patched into expo-updates must be in
-# the sources the Android build compiles (docs/client-updates.md). Only on a
-# branch that touches what decides that since its fork point with dev: the
-# dependencies and their patches, or an app's native side. ANDROID_PATCH=1
-# forces it.
+# ci-android-patch-gate: the changes patched into expo-updates and the apps'
+# signing configuration must be what the Android build compiles
+# (docs/client-updates.md). Only on a branch that touches what decides that
+# since its fork point with dev: the dependencies and their patches, the
+# certificate, or an app's native side. ANDROID_PATCH=1 forces it. Every
+# Gradle build of the apps runs the same check on its own.
 ANDROID_PATCH_PATHS := frontend/patches frontend/package.json frontend/pnpm-lock.yaml \
-	frontend/apps/mobile/android frontend/apps/mobile/app.json frontend/apps/mobile/plugins \
-	frontend/apps/tv/app.json frontend/apps/tv/plugins \
-	frontend/packages/client/src/native/clientUpdates.ts frontend/scripts/check-expo-updates-patch.mjs
+	frontend/apps/mobile/android frontend/apps/mobile/app.json frontend/apps/mobile/package.json frontend/apps/mobile/plugins \
+	frontend/apps/tv/app.json frontend/apps/tv/package.json frontend/apps/tv/plugins \
+	frontend/client-updates frontend/packages/client/src/native/clientUpdates.ts frontend/scripts/check-expo-updates-patch.mjs
 
 ci-android-patch-gate:
 	@base=$$(git merge-base origin/dev HEAD 2>/dev/null || git merge-base origin/master HEAD 2>/dev/null || git rev-parse HEAD~1); \
 	if [ "$(ANDROID_PATCH)" = "1" ] || ! git diff --quiet $$base -- $(ANDROID_PATCH_PATHS); then \
-	  echo "→ expo-updates patch (evey-web)"; \
+	  echo "→ client updates: expo-updates patch and signing configuration (evey-web)"; \
 	  docker exec -w /app evey-web node scripts/check-expo-updates-patch.mjs; \
 	else \
 	  echo "→ expo-updates patch check skipped (no Android-side change since $$base)"; \
@@ -967,9 +968,9 @@ wiki-drafts:
 	  python3 assemble.py --drafts && mkdocs serve -a 0.0.0.0:8001'
 
 # Signed JavaScript bundles the image serves to the phone and TV apps. Run
-# before the image build of a release; EVEY_CLIENT_UPDATE_KEY is the project
-# signing key (never in the repo). Without it the bundles are left unsigned
-# and the server offers none.
+# before the image build of a release; EVEY_CLIENT_UPDATE_KEY_FILE is the path
+# of the project signing key (never in the repo, never the key itself). Without
+# it the bundles are left unsigned and the server serves none.
 .PHONY: client-updates
 client-updates:
 	cd frontend && node scripts/build-client-update.mjs --app mobile --out ../client-updates
