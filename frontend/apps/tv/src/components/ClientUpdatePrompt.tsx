@@ -27,6 +27,15 @@ export function ClientUpdatePrompt() {
   const { offerRestart, dismiss } = useClientUpdates(clientUpdateBinding, isUpdatePending && isOtherVersion);
   if (!offerRestart || pathname?.startsWith("/player")) return null;
 
+  // A reload that fails leaves the app as it was: the bundle still starts
+  // with the next launch, so the offer simply goes away.
+  const restart = () => {
+    Updates.reloadAsync().catch((error: unknown) => {
+      clientUpdateBinding.onError?.(error);
+      dismiss();
+    });
+  };
+
   return (
     <Modal visible transparent animationType="fade" onRequestClose={dismiss}>
       <View style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}>
@@ -38,7 +47,7 @@ export function ClientUpdatePrompt() {
           <View style={styles.actions}>
             <FocusableCard
               hasTVPreferredFocus={true}
-              onPress={() => void Updates.reloadAsync()}
+              onPress={restart}
               accessibilityLabel={t("common.clientUpdate.restart", "Restart")}
               style={[styles.button, { backgroundColor: theme.colors.accent }]}
             >

@@ -1,5 +1,6 @@
 import {
   checkForUpdateAsync,
+  createdAt,
   fetchUpdateAsync,
   isEmbeddedLaunch,
   isEnabled,
@@ -18,6 +19,7 @@ export const clientUpdateBinding: ClientUpdateBinding = {
     enabled: isEnabled,
     updateId,
     isEmbeddedLaunch,
+    releasedAt: createdAt ? createdAt.getTime() : null,
     setUpdateURLAndRequestHeadersOverride,
     checkForUpdateAsync,
     fetchUpdateAsync,

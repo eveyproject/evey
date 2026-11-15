@@ -27,7 +27,8 @@ const hook = vi.hoisted(() => ({ dismiss: vi.fn() }));
 vi.mock("@evey/client/native/useClientUpdates", () => ({
   useClientUpdates: (_binding: unknown, pending: boolean) => ({ offerRestart: pending, dismiss: hook.dismiss }),
 }));
-vi.mock("../lib/clientUpdates", () => ({ clientUpdateBinding: {} }));
+const onError = vi.hoisted(() => vi.fn());
+vi.mock("../lib/clientUpdates", () => ({ clientUpdateBinding: { onError } }));
 vi.mock("../../app.json", () => ({ default: { expo: { version: "1.0.0" } } }));
 
 import { ClientUpdatePrompt } from "./ClientUpdatePrompt";
@@ -70,6 +71,19 @@ describe("ClientUpdatePrompt", () => {
     updates.version = "1.0.0";
     const { container } = render(<ClientUpdatePrompt />);
     expect(container.innerHTML).toBe("");
+  });
+
+  it("drops the offer when the restart fails, instead of leaving a dead button", async () => {
+    updates.pending = true;
+    updates.reloadAsync.mockRejectedValueOnce(new Error("reload refused"));
+    const { getAllByRole } = render(<ClientUpdatePrompt />);
+
+    fireEvent.click(getAllByRole("button")[0]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(hook.dismiss).toHaveBeenCalledTimes(1);
   });
 
   it("never opens over the player", () => {

@@ -14,6 +14,8 @@ export interface ClientUpdatesApi {
   enabled: boolean;
   updateId: string | null;
   isEmbeddedLaunch: boolean;
+  /** When the running update was released, in milliseconds. */
+  releasedAt: number | null;
   setUpdateURLAndRequestHeadersOverride(
     override: { updateUrl: string; requestHeaders: Record<string, string> } | null,
   ): void;
@@ -29,6 +31,7 @@ export interface ClientUpdateStore {
 
 const SOURCE_KEY = "evey.clientUpdate.source";
 const GUARD_KEY = "evey.clientUpdate.guard";
+const FLOOR_KEY = "evey.clientUpdate.floor";
 
 /**
  * Thrown by the boot guard. The patched expo-updates recognises it in a fatal
@@ -54,8 +57,9 @@ export type ClientUpdateSourceResult = "disabled" | "unchanged" | "up-to-date" |
  * source, downloads what the instance offers. "ready" means a bundle is
  * waiting for the next start (or a reload).
  *
- * Nothing happens while the source is unchanged: expo-updates already checks
- * it at every launch.
+ * The override is put back at every call: it lives in expo-updates' own
+ * storage, which can drift from ours. The download only happens for a new
+ * source, since expo-updates already checks the current one at every launch.
  */
 export async function followClientUpdateSource(deps: {
   updates: ClientUpdatesApi;
@@ -68,8 +72,8 @@ export async function followClientUpdateSource(deps: {
   if (!updates.enabled) return "disabled";
   const url = clientUpdateManifestUrl(serverUrl, app);
   try {
-    if (store.getItem(SOURCE_KEY) === url) return "unchanged";
     updates.setUpdateURLAndRequestHeadersOverride({ updateUrl: url, requestHeaders: {} });
+    if (store.getItem(SOURCE_KEY) === url) return "unchanged";
     // Recorded once the override is in place and before the network: a
     // failed download must not make every later launch redo the switch, the
     // launch-time check picks it up from here.
@@ -84,9 +88,35 @@ export async function followClientUpdateSource(deps: {
   }
 }
 
+/**
+ * No server is active any more: stop asking the last one. Without this the
+ * app keeps contacting a server the user removed, at every launch and before
+ * any sign-in.
+ */
+export function stopFollowingClientUpdateSource(deps: {
+  updates: ClientUpdatesApi;
+  store: ClientUpdateStore;
+  onError?: (error: unknown) => void;
+}): void {
+  const { updates, store } = deps;
+  if (!updates.enabled) return;
+  try {
+    updates.setUpdateURLAndRequestHeadersOverride(null);
+    if (store.getItem(SOURCE_KEY)) store.setItem(SOURCE_KEY, "");
+  } catch (error) {
+    deps.onError?.(error);
+  }
+}
+
 interface GuardState {
   id: string;
   deaths: number;
+}
+
+/** The newest release that settled on this device, 0 when none did. */
+function readFloor(store: ClientUpdateStore): number {
+  const floor = Number(store.getItem(FLOOR_KEY) ?? "0");
+  return Number.isFinite(floor) ? floor : 0;
 }
 
 function readGuard(store: ClientUpdateStore): GuardState | null {
@@ -110,6 +140,10 @@ function readGuard(store: ClientUpdateStore): GuardState | null {
  * expo-updates, which only rolls back crashes that happen before the first
  * render; this guard turns the next launch into exactly that, by throwing.
  *
+ * Also refuses to run a release older than one that already settled here.
+ * The native side enforces the same floor before starting an update; this
+ * is the second lock, kept by the code that is being protected.
+ *
  * Never throws for the bundle built into the app: there is nothing behind it.
  */
 export function clientUpdateBootGuard(deps: { updates: ClientUpdatesApi; store: ClientUpdateStore }): void {
@@ -117,7 +151,9 @@ export function clientUpdateBootGuard(deps: { updates: ClientUpdatesApi; store: 
   if (!updates.enabled || updates.isEmbeddedLaunch || !updates.updateId) return;
   const id = updates.updateId;
   let deaths = 0;
+  let floor = 0;
   try {
+    floor = readFloor(store);
     const state = readGuard(store);
     deaths = state?.id === id ? state.deaths : 0;
     // Written before deciding: if this launch is the one that asks for the
@@ -127,6 +163,9 @@ export function clientUpdateBootGuard(deps: { updates: ClientUpdatesApi; store: 
     // A store that cannot be read or written must not take the app down.
     return;
   }
+  if (updates.releasedAt !== null && updates.releasedAt < floor) {
+    throw new Error(`${CLIENT_UPDATE_ROLLBACK_MARKER}: update ${id} is older than a release that already ran on this device`);
+  }
   if (deaths >= CLIENT_UPDATE_MAX_EARLY_DEATHS) {
     throw new Error(`${CLIENT_UPDATE_ROLLBACK_MARKER}: update ${id} ended ${deaths} launches in a row without settling`);
   }
@@ -134,14 +173,41 @@ export function clientUpdateBootGuard(deps: { updates: ClientUpdatesApi; store: 
 
 /**
  * Records that the running update settled: it stayed up, or the user left the
- * app on their own. Clears the count the boot guard keeps.
+ * app on their own. Clears the count the boot guard keeps, and makes this
+ * release the oldest one the guard lets run.
  */
 export function clientUpdateMarkSettled(deps: { updates: ClientUpdatesApi; store: ClientUpdateStore }): void {
   const { updates, store } = deps;
   if (!updates.enabled || updates.isEmbeddedLaunch || !updates.updateId) return;
   try {
+    if (updates.releasedAt !== null && updates.releasedAt > readFloor(store)) {
+      store.setItem(FLOOR_KEY, String(updates.releasedAt));
+    }
+    const state = readGuard(store);
+    // Nothing to clear: spare the keystore a write on every exit.
+    if (state?.id === updates.updateId && state.deaths === 0) return;
     store.setItem(GUARD_KEY, JSON.stringify({ id: updates.updateId, deaths: 0 }));
   } catch {
     // best effort
   }
+}
+
+/**
+ * Arms what settles a launch: the timer, and the user leaving the app. Call
+ * right after the boot guard, outside React. A screen that never mounts (a
+ * server that does not answer) must not turn a healthy bundle into one that
+ * "died early" because the user pressed Home.
+ */
+export function watchClientUpdateSettle(deps: {
+  updates: ClientUpdatesApi;
+  store: ClientUpdateStore;
+  /** Calls back whenever the app leaves the foreground. */
+  onLeave: (listener: () => void) => void;
+  schedule?: (callback: () => void, ms: number) => void;
+}): void {
+  const { updates, store } = deps;
+  if (!updates.enabled || updates.isEmbeddedLaunch || !updates.updateId) return;
+  const settle = () => clientUpdateMarkSettled({ updates, store });
+  (deps.schedule ?? ((callback, ms) => void setTimeout(callback, ms)))(settle, CLIENT_UPDATE_SETTLE_MS);
+  deps.onLeave(settle);
 }

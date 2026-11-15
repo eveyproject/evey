@@ -29,7 +29,7 @@
     "expo-localization": "55.0.13",
     "expo-router": "55.0.14",
     "expo-secure-store": "55.0.13",
-    "expo-updates": "~55.0.33",
+    "expo-updates": "55.0.33",
     "expo-video": "55.0.16",
     "i18next": "26.4.0",
     "i18next-http-backend": "4.0.6",

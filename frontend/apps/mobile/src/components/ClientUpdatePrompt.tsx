@@ -14,7 +14,7 @@ const APP_VERSION: string = appConfig.expo.version;
  * Offers a restart once the server's bundle has been downloaded and is
  * another app version than the one running. Same version: nothing the viewer
  * would notice, it starts with the next launch without asking. "Later" costs
- * nothing either. Never over the player.
+ * nothing either. Never over the player, the guest one included.
  */
 export function ClientUpdatePrompt() {
   const { t } = useTranslation();
@@ -24,7 +24,16 @@ export function ClientUpdatePrompt() {
   const downloaded = downloadedUpdate?.manifest as { extra?: { expoClient?: { version?: string } } } | undefined;
   const isOtherVersion = downloaded?.extra?.expoClient?.version !== APP_VERSION;
   const { offerRestart, dismiss } = useClientUpdates(clientUpdateBinding, isUpdatePending && isOtherVersion);
-  if (!offerRestart || pathname?.startsWith("/player")) return null;
+  if (!offerRestart || pathname?.startsWith("/player") || pathname?.startsWith("/watch")) return null;
+
+  // A reload that fails leaves the app as it was: the bundle still starts
+  // with the next launch, so the offer simply goes away.
+  const restart = () => {
+    Updates.reloadAsync().catch((error: unknown) => {
+      clientUpdateBinding.onError?.(error);
+      dismiss();
+    });
+  };
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={dismiss}>
@@ -44,7 +53,7 @@ export function ClientUpdatePrompt() {
               <Text style={[styles.laterText, { color: theme.colors.text }]}>{t("common.clientUpdate.later", "Later")}</Text>
             </Pressable>
             <Pressable
-              onPress={() => void Updates.reloadAsync()}
+              onPress={restart}
               accessibilityRole="button"
               style={[styles.button, { backgroundColor: theme.colors.accent }]}
               testID="client-update-restart"

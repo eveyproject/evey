@@ -3,6 +3,7 @@
 export const isEnabled = false;
 export const updateId: string | null = null;
 export const isEmbeddedLaunch = true;
+export const createdAt: Date | null = null;
 
 export function setUpdateURLAndRequestHeadersOverride(): void {}
 
