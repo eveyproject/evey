@@ -7,6 +7,51 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-15
+
+Server image `eveyproject/evey:0.1.8` (also `0.1` and `latest`). The app
+changes below ship with the phone build 0.1.3 and the TV build 0.2.12.
+
+### Upgrade notes
+- No migration.
+- The image now carries the JavaScript of the phone and TV apps, signed by
+  the project. Apps built from this release on take it from the instance
+  they are connected to; earlier store builds are not affected. See
+  `docs/client-updates.md`.
+
+### Added
+- The phone and TV apps take their JavaScript updates from their Evey
+  instance: a fix reaches a device when its server is upgraded, without a
+  store release. Updates are signed by the project and verified on the
+  device, and an app never takes a release older than what it already ran.
+- Profile settings (theme, language, home layout) changed on one device are
+  taken up by the others within seconds.
+- The subtitle appearance is saved on the profile and follows the viewer,
+  with a section in the playback settings of every client.
+- System health lists, per output resolution, how many video streams each
+  encode budget fits.
+- Plugin pages get their own section in the admin menu.
+
+### Changed
+- The video capacity counts hardware and software encodes together: a host
+  with an accelerator also serves the streams its processor can take.
+- The admin home feed card lines up its columns and moves plugin sections
+  like any other; plugins not placed yet are listed first, newest on top.
+
+### Fixed
+- Video streams started at the same moment are no longer refused while the
+  server still has room for them.
+- The sync preview applies its shift to the audio track it played, on files
+  where audio tracks are not numbered in a row.
+- The web player keeps its volume from one episode to the next.
+- A title watched once and started again shows its progress instead of the
+  watched mark while it sits in the continue-watching rail.
+- Plugin frames on the browser TV client receive the colours of the active
+  theme.
+- The per-rung hardware encoder switch is greyed while single-rung encoding
+  is on, since it has no effect then.
+- Dashboard charts fill their card.
+
 ## [0.1.7] - 2026-11-13
 
 Server image `eveyproject/evey:0.1.7` (also `0.1` and `latest`).
