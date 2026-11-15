@@ -92,6 +92,8 @@ neither an installation id nor the text of a previous crash.
   own guard (`clientUpdateBootGuard`): after three launches in a row that
   ended without settling, the next one asks for the same fallback.
 - A dropped bundle is not tried again. The instance must publish another one.
+- When the dropped bundle leaves nothing to start (the one before it is below
+  the floor), the app starts again by itself on its built-in code.
 
 ## The expo-updates patch
 
@@ -102,6 +104,8 @@ expo-updates has no setting for:
   address, so one signed manifest is valid on every instance;
 - the guard's rollback request drops an update even when it has started
   successfully before;
+- when that leaves nothing to start, the app is started again instead of
+  crashing;
 - the release floor, and launching by release instead of by server address;
 - the code built into the app is dated by its commit;
 - a release already stored is adopted, not downloaded again, when another

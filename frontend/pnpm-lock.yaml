@@ -54,7 +54,7 @@ patchedDependencies:
     hash: 548365be3366481a85997ee6ab2df80bd6ec68d686328da88f488bf181bc21ba
     path: patches/@kesha-antonov__react-native-background-downloader@4.5.4.patch
   expo-updates@55.0.33:
-    hash: acb1c3e504bbe715e3800e240226c5cf0fe047b6d39afa15c6eb2e080a14a50a
+    hash: 71a25dfda1fcf8bc9ffbbba9f958698b23c7e2c2b35294affcb5af82bf927d05
     path: patches/expo-updates@55.0.33.patch
   expo-video@55.0.16:
     hash: 5a7124d08bc8723cb3e5131e9b5dd03fd7d19659b6a23a25a438bb1874f33578
@@ -171,7 +171,7 @@ importers:
         version: 55.0.13(expo@55.0.23)
       expo-updates:
         specifier: 55.0.33
-        version: 55.0.33(patch_hash=acb1c3e504bbe715e3800e240226c5cf0fe047b6d39afa15c6eb2e080a14a50a)(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.7)(@react-native/metro-config@0.84.1(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
+        version: 55.0.33(patch_hash=71a25dfda1fcf8bc9ffbbba9f958698b23c7e2c2b35294affcb5af82bf927d05)(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.7)(@react-native/metro-config@0.84.1(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
       expo-video:
         specifier: 55.0.16
         version: 55.0.16(patch_hash=5a7124d08bc8723cb3e5131e9b5dd03fd7d19659b6a23a25a438bb1874f33578)(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.7)(@react-native/metro-config@0.84.1(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
@@ -301,7 +301,7 @@ importers:
         version: 55.0.13(expo@55.0.23)
       expo-updates:
         specifier: 55.0.33
-        version: 55.0.33(patch_hash=acb1c3e504bbe715e3800e240226c5cf0fe047b6d39afa15c6eb2e080a14a50a)(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0)
+        version: 55.0.33(patch_hash=71a25dfda1fcf8bc9ffbbba9f958698b23c7e2c2b35294affcb5af82bf927d05)(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0)
       expo-video:
         specifier: 55.0.16
         version: 55.0.16(patch_hash=5a7124d08bc8723cb3e5131e9b5dd03fd7d19659b6a23a25a438bb1874f33578)(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0)
@@ -11883,7 +11883,7 @@ snapshots:
     dependencies:
       expo: 55.0.23(@babel/core@7.29.7)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.6)(expo-router@55.0.14)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.6(@babel/core@7.29.7)(@react-native/metro-config@0.84.1(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-worklets@0.7.1(@babel/core@7.29.7)(react-native@0.83.6(@babel/core@7.29.7)(@react-native/metro-config@0.84.1(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.7)(@react-native/metro-config@0.84.1(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
 
-  expo-updates@55.0.33(patch_hash=acb1c3e504bbe715e3800e240226c5cf0fe047b6d39afa15c6eb2e080a14a50a)(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0):
+  expo-updates@55.0.33(patch_hash=71a25dfda1fcf8bc9ffbbba9f958698b23c7e2c2b35294affcb5af82bf927d05)(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0):
     dependencies:
       '@expo/code-signing-certificates': 0.0.6
       '@expo/plist': 0.5.4
@@ -11905,7 +11905,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  expo-updates@55.0.33(patch_hash=acb1c3e504bbe715e3800e240226c5cf0fe047b6d39afa15c6eb2e080a14a50a)(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.7)(@react-native/metro-config@0.84.1(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
+  expo-updates@55.0.33(patch_hash=71a25dfda1fcf8bc9ffbbba9f958698b23c7e2c2b35294affcb5af82bf927d05)(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.7)(@react-native/metro-config@0.84.1(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
     dependencies:
       '@expo/code-signing-certificates': 0.0.6
       '@expo/plist': 0.5.4

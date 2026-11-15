@@ -108,6 +108,11 @@ function checkPatch(packageDir, label) {
       read("loader/Loader.kt").includes("deleteOtherUpdatesAt(updateEntity!!)"),
     `${label}: the built-in code is dated by its build, not by its commit: a release of the same commit would never be taken (EmbeddedManifestUtils.kt, Loader.kt)`,
   );
+  expect(
+    read("procedures/RelaunchProcedure.kt").includes("restartAppWhenNothingStarts && getCurrentLauncher().launchedUpdate != null") &&
+      read("EnabledUpdatesController.kt").includes("restartAppWhenNothingStarts = true"),
+    `${label}: dropping the running update with nothing left to start ends in a crash instead of a restart on the built-in code (RelaunchProcedure.kt)`,
+  );
   expect(startup.includes("EveyReleaseFloor.raiseTo(launchedUpdate)"), `${label}: a release that rendered does not raise the floor (StartupProcedure.kt)`);
   expect(
     dao.includes("SET url = :url, headers = :requestHeaders") && read("loader/Loader.kt").includes("setUpdateSource(existingUpdateEntity"),

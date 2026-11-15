@@ -1,5 +1,5 @@
 diff --git a/android/src/main/java/expo/modules/updates/EnabledUpdatesController.kt b/android/src/main/java/expo/modules/updates/EnabledUpdatesController.kt
-index ac27fc3..cbc1e16 100644
+index ac27fc3..ecdde34 100644
 --- a/android/src/main/java/expo/modules/updates/EnabledUpdatesController.kt
 +++ b/android/src/main/java/expo/modules/updates/EnabledUpdatesController.kt
 @@ -62,6 +62,11 @@ class EnabledUpdatesController(
@@ -14,6 +14,36 @@ index ac27fc3..cbc1e16 100644
    /** Keep the activity for [RelaunchProcedure] to relaunch the app. */
    private var weakActivity: WeakReference<Activity>? = null
    private val logger = UpdatesLogger(context.filesDir)
+@@ -132,7 +137,9 @@ class EnabledUpdatesController(
+       }
+ 
+       override fun onRequestRelaunch(shouldRunReaper: Boolean, callback: LauncherCallback) {
+-        relaunchReactApplication(shouldRunReaper, callback)
++        // Evey: a relaunch asked by error recovery must not end in a crash
++        // when no stored update is left to start.
++        relaunchReactApplication(shouldRunReaper, callback, restartAppWhenNothingStarts = true)
+       }
+     },
+     controllerScope
+@@ -193,7 +200,7 @@ class EnabledUpdatesController(
+     stateMachine.queueExecution(startupProcedure)
+   }
+ 
+-  private fun relaunchReactApplication(shouldRunReaper: Boolean, callback: LauncherCallback) {
++  private fun relaunchReactApplication(shouldRunReaper: Boolean, callback: LauncherCallback, restartAppWhenNothingStarts: Boolean = false) {
+     val procedure = RelaunchProcedure(
+       context,
+       weakActivity,
+@@ -208,7 +215,8 @@ class EnabledUpdatesController(
+       shouldRunReaper = shouldRunReaper,
+       reloadScreenManager = reloadScreenManager,
+       callback,
+-      controllerScope
++      controllerScope,
++      restartAppWhenNothingStarts
+     )
+     stateMachine.queueExecution(procedure)
+   }
 diff --git a/android/src/main/java/expo/modules/updates/EveyReleaseFloor.kt b/android/src/main/java/expo/modules/updates/EveyReleaseFloor.kt
 new file mode 100644
 index 0000000..10ad77f
@@ -478,6 +508,56 @@ index 38953f0..c3f90b2 100644
      if (launchedUpdate == null) {
        // this shouldn't ever happen, but if we don't have anything to compare
        // the new manifest to, let the user know an update is available
+diff --git a/android/src/main/java/expo/modules/updates/procedures/RelaunchProcedure.kt b/android/src/main/java/expo/modules/updates/procedures/RelaunchProcedure.kt
+index 5011fc6..29a1a3c 100644
+--- a/android/src/main/java/expo/modules/updates/procedures/RelaunchProcedure.kt
++++ b/android/src/main/java/expo/modules/updates/procedures/RelaunchProcedure.kt
+@@ -2,6 +2,7 @@ package expo.modules.updates.procedures
+ 
+ import android.app.Activity
+ import android.content.Context
++import android.content.Intent
+ import expo.modules.updates.UpdatesConfiguration
+ import expo.modules.updates.db.DatabaseHolder
+ import expo.modules.updates.db.Reaper
+@@ -35,7 +36,8 @@ class RelaunchProcedure(
+   private val shouldRunReaper: Boolean,
+   private val reloadScreenManager: ReloadScreenManager?,
+   private val callback: Launcher.LauncherCallback,
+-  private val procedureScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
++  private val procedureScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
++  private val restartAppWhenNothingStarts: Boolean = false
+ ) : StateMachineProcedure() {
+   override val loggerTimerLabel = "timer-relaunch"
+ 
+@@ -62,8 +64,25 @@ class RelaunchProcedure(
+       throw e
+     } catch (e: Exception) {
+       logger.error("Error launching new launcher", e, UpdatesErrorCode.Unknown)
+-      callback.onFailure(e)
+-      procedureContext.onComplete()
++      // Evey: error recovery dropped the update that was running and nothing
++      // stored is left to start. Failing here makes it crash the app. Start
++      // the app again instead: with nothing to start, it runs the code built
++      // into it. Only when an update was running, so that a failure of the
++      // built-in code itself cannot loop.
++      val restartIntent = if (restartAppWhenNothingStarts && getCurrentLauncher().launchedUpdate != null) {
++        context.packageManager.getLeanbackLaunchIntentForPackage(context.packageName)
++          ?: context.packageManager.getLaunchIntentForPackage(context.packageName)
++      } else {
++        null
++      }
++      if (restartIntent == null) {
++        callback.onFailure(e)
++        procedureContext.onComplete()
++        return
++      }
++      restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
++      context.startActivity(restartIntent)
++      Runtime.getRuntime().exit(0)
+       return
+     }
+ 
 diff --git a/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt b/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt
 index 365958f..e560204 100644
 --- a/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt
