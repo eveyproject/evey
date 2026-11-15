@@ -137,8 +137,10 @@ try {
     ? Number(process.env.SOURCE_DATE_EPOCH)
     : Number(git(["log", "-1", "--format=%ct"]));
   // The apps store one update per date. The milliseconds come from the
-  // content, so two builds of one commit do not claim the same slot.
-  const createdAt = new Date(commitSeconds * 1000 + (parseInt(digest.slice(32, 40), 16) % 1000)).toISOString();
+  // content, so two builds of one commit do not claim the same slot, and are
+  // never zero: the code built into an app is dated to the second of its
+  // commit, and the release of that commit must come after it.
+  const createdAt = new Date(commitSeconds * 1000 + 1 + (parseInt(digest.slice(32, 40), 16) % 999)).toISOString();
 
   const manifestObject = {
     id,

@@ -16,15 +16,16 @@ index ac27fc3..cbc1e16 100644
    private val logger = UpdatesLogger(context.filesDir)
 diff --git a/android/src/main/java/expo/modules/updates/EveyReleaseFloor.kt b/android/src/main/java/expo/modules/updates/EveyReleaseFloor.kt
 new file mode 100644
-index 0000000..46bf7a5
+index 0000000..10ad77f
 --- /dev/null
 +++ b/android/src/main/java/expo/modules/updates/EveyReleaseFloor.kt
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,87 @@
 +package expo.modules.updates
 +
 +import android.content.Context
 +import expo.modules.updates.db.entity.UpdateEntity
 +import expo.modules.updates.db.enums.UpdateStatus
++import expo.modules.updates.manifest.EmbeddedManifestUtils
 +import java.util.Date
 +
 +/**
@@ -51,14 +52,19 @@ index 0000000..46bf7a5
 +    appContext = context.applicationContext
 +  }
 +
++  /** The release time of the commit this app was built from, as recorded by the build. */
++  fun builtFrom(context: Context): Long? {
++    val resource = context.resources.getIdentifier(BUILT_FROM_RESOURCE, "string", context.packageName)
++    if (resource == 0) {
++      return null
++    }
++    return context.getString(resource).toLongOrNull()
++  }
++
 +  @Synchronized
 +  fun current(): Long {
 +    val context = appContext ?: return Long.MAX_VALUE
-+    val resource = context.resources.getIdentifier(BUILT_FROM_RESOURCE, "string", context.packageName)
-+    if (resource == 0) {
-+      return Long.MAX_VALUE
-+    }
-+    val builtFrom = context.getString(resource).toLongOrNull() ?: return Long.MAX_VALUE
++    val builtFrom = builtFrom(context) ?: return Long.MAX_VALUE
 +    val reached = context.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE).getLong(PREFS_KEY, 0L)
 +    return maxOf(builtFrom, reached)
 +  }
@@ -66,13 +72,27 @@ index 0000000..46bf7a5
 +  fun admits(update: UpdateEntity): Boolean = update.commitTime.time >= current()
 +
 +  fun admitsForLaunch(update: UpdateEntity): Boolean =
-+    update.status == UpdateStatus.EMBEDDED || admits(update)
++    isBuiltIn(update) || (admits(update) && !isLeftBehind(update))
++
++  /**
++   * The code built into another build of the same commit, still stored after
++   * this build replaced it. It has the date of this build's own code and
++   * would be started in its place, without the files it needs. No served
++   * release is dated to the exact second.
++   */
++  private fun isLeftBehind(update: UpdateEntity): Boolean {
++    val context = appContext ?: return false
++    return update.commitTime.time == builtFrom(context)
++  }
++
++  private fun isBuiltIn(update: UpdateEntity): Boolean =
++    update.status == UpdateStatus.EMBEDDED || EmbeddedManifestUtils.isBuiltIn(update)
 +
 +  /** Called once a served update has rendered. */
 +  @Synchronized
 +  fun raiseTo(update: UpdateEntity) {
 +    val context = appContext ?: return
-+    if (update.status == UpdateStatus.EMBEDDED) {
++    if (isBuiltIn(update)) {
 +      return
 +    }
 +    val prefs = context.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
@@ -143,7 +163,7 @@ index 9b8bd4d..db0a4d0 100644
        if (isValid) ValidationResult.VALID else ValidationResult.INVALID,
        certificateChain.codeSigningCertificate.expoProjectInformation()
 diff --git a/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt b/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt
-index 2d9e075..87cb0f2 100644
+index 2d9e075..bb22437 100644
 --- a/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt
 +++ b/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt
 @@ -1,5 +1,6 @@
@@ -153,7 +173,7 @@ index 2d9e075..87cb0f2 100644
  import androidx.room.*
  import expo.modules.updates.db.entity.AssetEntity
  import expo.modules.updates.db.entity.UpdateEntity
-@@ -78,6 +79,19 @@ abstract class UpdateDao {
+@@ -78,6 +79,31 @@ abstract class UpdateDao {
    @Query("UPDATE updates SET scope_key = :newScopeKey WHERE id = :id;")
    abstract fun _setUpdateScopeKeyInternal(id: UUID, newScopeKey: String)
  
@@ -170,10 +190,22 @@ index 2d9e075..87cb0f2 100644
 +  @Query("UPDATE updates SET url = :url, headers = :requestHeaders WHERE id = :id;")
 +  abstract fun setUpdateSourceInternal(id: UUID, url: Uri?, requestHeaders: Map<String, String>?)
 +
++  // Evey: two builds of one commit carry two built-in updates with the same
++  // date, and one scope stores a single update per date. The one left by the
++  // build this app replaced makes room. Once stored, a built-in update has
++  // the same status as a served one: only its date tells it apart, and no
++  // served release is dated to the exact second.
++  @Query("DELETE FROM updates WHERE scope_key = :scopeKey AND commit_time = :commitTime AND id != :id;")
++  abstract fun deleteOtherUpdatesAtInternal(scopeKey: String, commitTime: Date, id: UUID)
++
++  fun deleteOtherUpdatesAt(update: UpdateEntity) {
++    deleteOtherUpdatesAtInternal(update.scopeKey, update.commitTime, update.id)
++  }
++
    fun setUpdateCommitTime(update: UpdateEntity, commitTime: Date) {
      update.commitTime = commitTime
      setUpdateCommitTimeInternal(update.id, commitTime)
-@@ -127,6 +141,17 @@ abstract class UpdateDao {
+@@ -127,6 +153,17 @@ abstract class UpdateDao {
    @Query("UPDATE updates SET failed_launch_count = failed_launch_count + 1 WHERE id = :id;")
    abstract fun incrementFailedLaunchCountInternal(id: UUID)
  
@@ -300,7 +332,7 @@ index 12baa4d..afedb07 100644
        .apply {
          for ((key, value) in configuration.requestHeaders) {
 diff --git a/android/src/main/java/expo/modules/updates/loader/Loader.kt b/android/src/main/java/expo/modules/updates/loader/Loader.kt
-index be2a19f..1e54556 100644
+index be2a19f..9f945c9 100644
 --- a/android/src/main/java/expo/modules/updates/loader/Loader.kt
 +++ b/android/src/main/java/expo/modules/updates/loader/Loader.kt
 @@ -166,6 +166,13 @@ abstract class Loader protected constructor(
@@ -317,6 +349,53 @@ index be2a19f..1e54556 100644
      // A READY update with no launch asset is not actually ready. Fall through to
      // downloadAllAssets so its assets are re-registered instead of staying broken forever.
      if (existingUpdateEntity != null && existingUpdateEntity.status == UpdateStatus.READY &&
+@@ -250,6 +257,7 @@ abstract class Loader protected constructor(
+     try {
+       database.withTransaction {
+         if (insertUpdateEntityOnFinish) {
++          database.updateDao().deleteOtherUpdatesAt(updateEntity!!)
+           database.updateDao().insertUpdate(updateEntity!!)
+         }
+ 
+diff --git a/android/src/main/java/expo/modules/updates/manifest/EmbeddedManifestUtils.kt b/android/src/main/java/expo/modules/updates/manifest/EmbeddedManifestUtils.kt
+index 0684630..97f6e27 100644
+--- a/android/src/main/java/expo/modules/updates/manifest/EmbeddedManifestUtils.kt
++++ b/android/src/main/java/expo/modules/updates/manifest/EmbeddedManifestUtils.kt
+@@ -2,7 +2,9 @@ package expo.modules.updates.manifest
+ 
+ import android.content.Context
+ import android.util.Log
++import expo.modules.updates.EveyReleaseFloor
+ import expo.modules.updates.UpdatesConfiguration
++import expo.modules.updates.db.entity.UpdateEntity
+ import org.json.JSONObject
+ 
+ /**
+@@ -37,6 +39,12 @@ object EmbeddedManifestUtils {
+     return getCachedEmbeddedUpdate(context, configuration)
+   }
+ 
++  /**
++   * Evey: whether this stored update is the code built into this app. Its
++   * status does not say so: once stored it is READY like a served release.
++   */
++  fun isBuiltIn(update: UpdateEntity): Boolean = sEmbeddedUpdate?.updateEntity?.id == update.id
++
+   private fun getCachedEmbeddedUpdate(context: Context, configuration: UpdatesConfiguration): EmbeddedUpdate =
+     sEmbeddedUpdate ?: loadEmbeddedUpdate(context, configuration).also { sEmbeddedUpdate = it }
+ 
+@@ -48,6 +56,11 @@ object EmbeddedManifestUtils {
+           .apply {
+             // automatically verify embedded manifest since it was already codesigned
+             put("isVerified", true)
++            // Evey: the built-in code is as old as its commit, not as the
++            // moment it was compiled. Dated by the build, it would outrank
++            // every release published from a commit made before that build,
++            // the release of its own commit first.
++            EveyReleaseFloor.builtFrom(context)?.let { put("commitTime", it) }
+           }
+           .let {
+             UpdateFactory.getEmbeddedUpdate(it, configuration)
 diff --git a/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt b/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt
 index cfe31ec..66fb8ab 100644
 --- a/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt

@@ -62,7 +62,9 @@ an old signed release and bring back a bug fixed since.
   holds at or above it, whichever server it came from. A server that serves
   nothing, or something older, leaves the app on what it has.
 - The code built into the app is always allowed to run. It is what starts when
-  nothing stored qualifies.
+  nothing stored qualifies. It is dated by its commit too, not by the moment
+  the app was compiled, so the release of the same commit, and of any later
+  one, is taken over it.
 - The JavaScript keeps the same floor on its side and refuses to run below it.
 
 What follows from it:
@@ -101,6 +103,7 @@ expo-updates has no setting for:
 - the guard's rollback request drops an update even when it has started
   successfully before;
 - the release floor, and launching by release instead of by server address;
+- the code built into the app is dated by its commit;
 - a release already stored is adopted, not downloaded again, when another
   address serves it (the same instance from the local network and from
   outside);

@@ -91,6 +91,7 @@ function checkPatch(packageDir, label) {
     floor = "";
   }
   expect(floor.includes(`"${FLOOR_RESOURCE}"`) && floor.includes("return Long.MAX_VALUE"), `${label}: EveyReleaseFloor is missing or no longer fails closed`);
+  expect(floor.includes("EmbeddedManifestUtils.isBuiltIn(update)") && floor.includes("!isLeftBehind(update)"), `${label}: the code built into the app is no longer told apart from a served release (EveyReleaseFloor.kt)`);
   expect(read("EnabledUpdatesController.kt").includes("EveyReleaseFloor.init(context)"), `${label}: the release floor is never initialised (EnabledUpdatesController.kt)`);
   expect(
     read("selectionpolicy/LoaderSelectionPolicyFilterAware.kt").includes("if (!EveyReleaseFloor.admits(newUpdate))"),
@@ -101,6 +102,11 @@ function checkPatch(packageDir, label) {
   expect(
     launcher.includes("EveyReleaseFloor.admitsForLaunch(it)") && !launcher.includes("config.updateUrl"),
     `${label}: the launcher must pick the newest release at or above the floor, whatever address served it (LauncherSelectionPolicyFilterAware.kt)`,
+  );
+  expect(
+    read("manifest/EmbeddedManifestUtils.kt").includes('EveyReleaseFloor.builtFrom(context)?.let { put("commitTime", it) }') &&
+      read("loader/Loader.kt").includes("deleteOtherUpdatesAt(updateEntity!!)"),
+    `${label}: the built-in code is dated by its build, not by its commit: a release of the same commit would never be taken (EmbeddedManifestUtils.kt, Loader.kt)`,
   );
   expect(startup.includes("EveyReleaseFloor.raiseTo(launchedUpdate)"), `${label}: a release that rendered does not raise the floor (StartupProcedure.kt)`);
   expect(
