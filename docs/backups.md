@@ -57,6 +57,8 @@ It does **not** contain:
 - your media files;
 - the video cache (it fills up again by itself);
 - the search index (rebuilt from the database);
+- the intro detection fingerprints, kept in `./evey-data/fingerprints`
+  (computed again from the media files when they are missing);
 - the keys kept in `./evey-data`: `jwt.key`, which protects every sign-in,
   the `keys` folder (database password, search key), and `hls_aes.key`, the
   key that encrypts streaming segments (created at first boot, mode 0600);

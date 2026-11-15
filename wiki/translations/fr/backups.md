@@ -67,6 +67,9 @@ Elle ne contient **pas** :
 - vos fichiers de médias ;
 - le cache vidéo (il se reconstitue automatiquement) ;
 - l'index de recherche (reconstruit à partir de la base de données) ;
+- les empreintes de détection des intros, gardées dans
+  `./evey-data/fingerprints` (recalculées à partir des fichiers de médias
+  quand elles manquent) ;
 - les clés gardées dans `./evey-data` : `jwt.key`, qui protège toutes les
   connexions, le dossier `keys` (mot de passe de la base de données, clé de
   recherche), et `hls_aes.key`, la clé qui chiffre les segments de diffusion

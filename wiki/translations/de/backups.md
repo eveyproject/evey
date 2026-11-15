@@ -67,6 +67,8 @@ Sie enthält **nicht**:
 - Ihre Mediendateien;
 - den Video-Cache (er füllt sich von selbst wieder);
 - den Suchindex (er wird aus der Datenbank neu aufgebaut);
+- die Fingerabdrücke der Intro-Erkennung in `./evey-data/fingerprints`
+  (sie werden aus den Mediendateien neu berechnet, wenn sie fehlen);
 - die Schlüssel in `./evey-data`: `jwt.key`, der jede Anmeldung schützt, und
   den Ordner `keys` (Datenbankpasswort, Suchschlüssel) und `hls_aes.key`, den
   Schlüssel, der die Streaming-Segmente verschlüsselt (beim ersten Start

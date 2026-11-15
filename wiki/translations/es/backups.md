@@ -67,6 +67,8 @@ auditoría.
 - tus archivos de vídeo, música y fotos;
 - la caché de vídeo (se vuelve a llenar sola);
 - el índice de búsqueda (se reconstruye a partir de la base de datos);
+- las huellas de detección de intros, guardadas en `./evey-data/fingerprints`
+  (se vuelven a calcular a partir de los archivos cuando faltan);
 - las claves guardadas en `./evey-data`: `jwt.key`, que protege todos los
   inicios de sesión, la carpeta `keys` (contraseña de la base de datos,
   clave de búsqueda) y `hls_aes.key`, la clave que cifra los segmentos de
