@@ -1,5 +1,5 @@
 ---
-source_sha: 183d5d31f8aa84f9a8c2422bb3ca3ca04b531e43e8bfb4f1a2c6047199ff4871
+source_sha: 240cd74711c9616842947f45e87cbeb2ac83c28f83771f8909b58080ca420f80
 reviewed: true
 ---
 # 备份和更新 { #backups-and-updates }
@@ -48,6 +48,7 @@ reviewed: true
 - 您的媒体文件；
 - 视频缓存（它会自动重新生成）；
 - 搜索索引（会根据数据库重建）；
+- 片头检测的指纹，保存在 `./evey-data/fingerprints` 里（缺失时会根据媒体文件重新计算）；
 - 保存在 `./evey-data` 里的密钥：保护每次登录的 `jwt.key`，`keys` 文件夹（数据库密码、搜索密钥），以及 `hls_aes.key`（加密流媒体分段的密钥，首次启动时创建，权限 0600）；
 - 已安装的插件文件。
 

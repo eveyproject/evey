@@ -1,5 +1,5 @@
 ---
-source_sha: 183d5d31f8aa84f9a8c2422bb3ca3ca04b531e43e8bfb4f1a2c6047199ff4871
+source_sha: 240cd74711c9616842947f45e87cbeb2ac83c28f83771f8909b58080ca420f80
 reviewed: true
 ---
 # Sauvegardes et mises à jour { #backups-and-updates }
@@ -67,6 +67,9 @@ Elle ne contient **pas** :
 - vos fichiers de médias ;
 - le cache vidéo (il se reconstitue automatiquement) ;
 - l'index de recherche (reconstruit à partir de la base de données) ;
+- les empreintes de détection des intros, gardées dans
+  `./evey-data/fingerprints` (recalculées à partir des fichiers de médias
+  quand elles manquent) ;
 - les clés gardées dans `./evey-data` : `jwt.key`, qui protège toutes les
   connexions, le dossier `keys` (mot de passe de la base de données, clé de
   recherche), et `hls_aes.key`, la clé qui chiffre les segments de diffusion

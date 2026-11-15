@@ -1,5 +1,5 @@
 ---
-source_sha: 183d5d31f8aa84f9a8c2422bb3ca3ca04b531e43e8bfb4f1a2c6047199ff4871
+source_sha: 240cd74711c9616842947f45e87cbeb2ac83c28f83771f8909b58080ca420f80
 reviewed: true
 ---
 # Sicherungen und Updates { #backups-and-updates }
@@ -67,6 +67,8 @@ Sie enthält **nicht**:
 - Ihre Mediendateien;
 - den Video-Cache (er füllt sich von selbst wieder);
 - den Suchindex (er wird aus der Datenbank neu aufgebaut);
+- die Fingerabdrücke der Intro-Erkennung in `./evey-data/fingerprints`
+  (sie werden aus den Mediendateien neu berechnet, wenn sie fehlen);
 - die Schlüssel in `./evey-data`: `jwt.key`, der jede Anmeldung schützt, und
   den Ordner `keys` (Datenbankpasswort, Suchschlüssel) und `hls_aes.key`, den
   Schlüssel, der die Streaming-Segmente verschlüsselt (beim ersten Start

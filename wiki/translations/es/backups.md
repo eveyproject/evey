@@ -1,5 +1,5 @@
 ---
-source_sha: 183d5d31f8aa84f9a8c2422bb3ca3ca04b531e43e8bfb4f1a2c6047199ff4871
+source_sha: 240cd74711c9616842947f45e87cbeb2ac83c28f83771f8909b58080ca420f80
 reviewed: true
 ---
 # Copias de seguridad y actualizaciones { #backups-and-updates }
@@ -67,6 +67,8 @@ auditoría.
 - tus archivos de vídeo, música y fotos;
 - la caché de vídeo (se vuelve a llenar sola);
 - el índice de búsqueda (se reconstruye a partir de la base de datos);
+- las huellas de detección de intros, guardadas en `./evey-data/fingerprints`
+  (se vuelven a calcular a partir de los archivos cuando faltan);
 - las claves guardadas en `./evey-data`: `jwt.key`, que protege todos los
   inicios de sesión, la carpeta `keys` (contraseña de la base de datos,
   clave de búsqueda) y `hls_aes.key`, la clave que cifra los segmentos de
