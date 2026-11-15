@@ -614,12 +614,12 @@ jobs:
     permissions:
       contents: read
       packages: write # required to push to ghcr.io
-    # What docker-sign signs: one "<repo>@<digest> <tag>" line per published
-    # manifest list. The OIDC token stays out of this job, which runs the
-    # build harness and third-party actions.
+    # What docker-sign signs: one "<digest> <tag>" line per published
+    # manifest list. No image name in it: GitHub drops an output that holds
+    # the value of a secret, and the registry account is one. The OIDC token
+    # stays out of this job, which runs the build harness and third-party actions.
     outputs:
       sign-refs: ${{ steps.sign-refs.outputs.refs }}
-      ghcr-image: ghcr.io/${{ steps.owner.outputs.name }}/evey
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -740,7 +740,7 @@ jobs:
               [ -n "$ref" ] || continue
               digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)
               case "$digest" in sha256:*) ;; *) echo "::error::no digest for $ref"; exit 1 ;; esac
-              echo "${ref%:*}@${digest} ${ref##*:}"
+              echo "${digest} ${ref##*:}"
             done
             echo 'EOF_REFS'
           } >> "$GITHUB_OUTPUT"
@@ -783,7 +783,7 @@ jobs:
     name: Docker - sign
     runs-on: ubuntu-latest  # GitHub-hosted
     needs: [docker]
-    if: ${{ !cancelled() && needs.docker.result == 'success' && needs.docker.outputs.sign-refs != '' }}
+    if: ${{ !cancelled() && needs.docker.result == 'success' }}
     permissions:
       contents: read
       packages: write # the signatures copied to the ghcr mirror
@@ -805,15 +805,19 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
+      # A published image always has something to sign: an empty list is a
+      # lost output, not a reason to skip.
       - name: Sign the published manifest lists (keyless)
         env:
           REFS: ${{ needs.docker.outputs.sign-refs }}
+          IMAGE: docker.io/eveyproject/evey
         run: |
           set -eu
-          printf '%s\n' "$REFS" | while read -r ref _tag; do
-            [ -n "$ref" ] || continue
-            echo "sign $ref"
-            cosign sign --yes "$ref"
+          [ -n "$REFS" ] || { echo "::error::no manifest list to sign: the docker job published an image and handed nothing over"; exit 1; }
+          printf '%s\n' "$REFS" | while read -r digest _tag; do
+            [ -n "$digest" ] || continue
+            echo "sign ${IMAGE}@${digest}"
+            cosign sign --yes "${IMAGE}@${digest}"
           done
 
       # The mirror holds the same manifest lists (same digests): without their
@@ -822,13 +826,15 @@ jobs:
         continue-on-error: true
         env:
           REFS: ${{ needs.docker.outputs.sign-refs }}
-          GHCR_IMAGE: ${{ needs.docker.outputs.ghcr-image }}
+          IMAGE: docker.io/eveyproject/evey
+          OWNER: ${{ github.repository_owner }}
         run: |
           set -eu
-          printf '%s\n' "$REFS" | while read -r ref tag; do
-            [ -n "$ref" ] || continue
-            echo "copy the signature of $ref -> ${GHCR_IMAGE}:${tag}"
-            cosign copy --only=sig --force "$ref" "${GHCR_IMAGE}:${tag}"
+          ghcr="ghcr.io/$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')/evey"
+          printf '%s\n' "$REFS" | while read -r digest tag; do
+            [ -n "$digest" ] || continue
+            echo "copy the signature of ${IMAGE}@${digest} -> ${ghcr}:${tag}"
+            cosign copy --only=sig --force "${IMAGE}@${digest}" "${ghcr}:${tag}"
           done
 
   # Single required check for branch protection; tolerates `docker` being skipped on PRs.
@@ -862,4 +868,8 @@ jobs:
               echo "OK: $name -> $result"
             fi
           done
+          if [[ "$DOCKER" == "success" && "$DOCKER_SIGN" != "success" ]]; then
+            echo "::error::An image was published and not signed (docker-sign: $DOCKER_SIGN)"
+            fail=1
+          fi
           exit $fail
