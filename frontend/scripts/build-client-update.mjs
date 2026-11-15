@@ -16,9 +16,10 @@
 //
 // The signing key and its certificate come from client-update-certificate.sh
 // leaf (--key-file and --cert-file, or EVEY_CLIENT_UPDATE_KEY_FILE and
-// EVEY_CLIENT_UPDATE_CERT_FILE). Without them only manifest.json is written,
-// which the server does not serve: enough to inspect the output, not to ship
-// it. The key is always a path, never the key itself.
+// EVEY_CLIENT_UPDATE_CERT_FILE). Without them manifest.json is written in
+// place of manifest.signed, which the server does not serve: the output a
+// release pipeline hands to sign-client-update.mjs, where the key is. The key
+// is always a path, never the key itself.
 
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -27,11 +28,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { checkSigningCertificate, readSignedManifest, writeSignedManifest } from "./client-update-signing.mjs";
+import { deriveRelease, PLATFORM, readSignedManifest, signManifest } from "./client-update-signing.mjs";
 
 const FRONTEND = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PLATFORM = "android";
-const KEY_ID = "main";
 const MIME = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", ttf: "font/ttf", otf: "font/otf", json: "application/json" };
 
 function fail(message) {
@@ -127,20 +126,10 @@ try {
   const launchAsset = addAsset(exported.bundle, "hbc", true);
   const assets = exported.assets.map((asset) => addAsset(asset.path, asset.ext, false));
 
-  // Same content, same id.
-  const digest = crypto
-    .createHash("sha256")
-    .update([runtimeVersion, launchAsset.hash, ...assets.map((a) => a.hash).sort()].join("\n"))
-    .digest("hex");
-  const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-4${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
   const commitSeconds = process.env.SOURCE_DATE_EPOCH
     ? Number(process.env.SOURCE_DATE_EPOCH)
     : Number(git(["log", "-1", "--format=%ct"]));
-  // The apps store one update per date. The milliseconds come from the
-  // content, so two builds of one commit do not claim the same slot, and are
-  // never zero: the code built into an app is dated to the second of its
-  // commit, and the release of that commit must come after it.
-  const createdAt = new Date(commitSeconds * 1000 + 1 + (parseInt(digest.slice(32, 40), 16) % 999)).toISOString();
+  const { id, createdAt } = deriveRelease({ runtimeVersion, launchHash: launchAsset.hash, assetHashes: assets.map((a) => a.hash), commitSeconds });
 
   const manifestObject = {
     id,
@@ -156,19 +145,10 @@ try {
   if (Object.keys(manifestObject.metadata).length > 0) fail("the manifest metadata must stay empty");
   const manifest = JSON.stringify(manifestObject);
 
+  fs.writeFileSync(path.join(bundleDir, "commit"), `${commit}${dirty ? "-dirty" : ""}\n`);
   if (signingKey) {
-    let signature;
-    try {
-      signature = crypto.createSign("RSA-SHA256").update(manifest, "utf8").sign(signingKey, "base64");
-    } catch {
-      fail("the signing key file does not hold a usable private key");
-    }
-    // Everything a device will check, checked here first: a bundle the apps
-    // refuse must not leave this machine.
-    const problem = checkSigningCertificate({ leafPem: signingCertificate, rootPem: rootCertificate, manifest, signature, createdAt, previousCreatedAt: previous?.createdAt });
+    const problem = signManifest({ bundleDir, manifest, keyPem: signingKey, certPem: signingCertificate, rootPem: rootCertificate, previousCreatedAt: previous?.createdAt });
     if (problem) fail(problem);
-    writeSignedManifest(path.join(bundleDir, "manifest.signed"), { signature: `sig="${signature}", keyid="${KEY_ID}"`, certificate: signingCertificate, manifest });
-    fs.writeFileSync(path.join(bundleDir, "commit"), `${commit}${dirty ? "-dirty" : ""}\n`);
   } else {
     fs.writeFileSync(path.join(bundleDir, "manifest.json"), manifest);
     console.warn("build-client-update: no signing key, bundle left unsigned (the server will not serve it)");

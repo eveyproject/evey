@@ -334,11 +334,127 @@ jobs:
             echo "matrix={\"include\":[$(IFS=,; echo "${legs[*]}")]}"
           } >> "$GITHUB_OUTPUT"
 
+  # Release tags only: a bundle signed for a branch image would be accepted by every released app, from any server, and raise its floor.
+  # No secret here: this job runs every dependency of the apps, the next one holds the key and runs none.
+  client-updates-build:
+    name: App bundles - build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+
+      - name: enable corepack
+        run: corepack enable
+
+      - name: install pnpm
+        run: corepack prepare pnpm@10.33.0 --activate
+
+      - name: install buf
+        uses: bufbuild/buf-action@8c6a16e16f12ba20b6470afa9c2ba9b5ba8c97c3 # v1
+        with:
+          version: "1.68.2"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          setup_only: true
+
+      - name: generate proto (swagger)
+        run: buf generate
+
+      - name: install deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: generate api client
+        working-directory: frontend
+        run: pnpm --filter @evey/api run generate
+
+      - name: build the bundles, unsigned
+        working-directory: frontend
+        run: |
+          set -eu
+          node scripts/build-client-update.mjs --app mobile --out "${RUNNER_TEMP}/client-updates-unsigned"
+          node scripts/build-client-update.mjs --app tv --out "${RUNNER_TEMP}/client-updates-unsigned"
+
+      - name: Upload the unsigned bundles
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: client-updates-unsigned
+          path: ${{ runner.temp }}/client-updates-unsigned/
+          if-no-files-found: error
+          retention-days: 1
+
+  # Signs once: the bytecode is not reproducible, so every platform leg ships this same output.
+  # A checkout and Node built-ins, nothing installed. The environment keeps the key away from any run that is not a release tag.
+  client-updates-sign:
+    name: App bundles - sign
+    runs-on: ubuntu-latest
+    needs: [client-updates-build]
+    if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    environment: client-update-signing
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+
+      - name: Download the unsigned bundles
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: client-updates-unsigned
+          path: ${{ runner.temp }}/client-updates-unsigned
+
+      # A release without its bundles would leave every app on the code it has: fail instead.
+      - name: signing key
+        env:
+          SIGNING_KEY: ${{ secrets.EVEY_CLIENT_UPDATE_SIGNING_KEY }}
+          SIGNING_CERT: ${{ secrets.EVEY_CLIENT_UPDATE_SIGNING_CERT }}
+        run: |
+          set -eu
+          if [ -z "${SIGNING_KEY}" ] || [ -z "${SIGNING_CERT}" ]; then
+            echo "::error::EVEY_CLIENT_UPDATE_SIGNING_KEY / EVEY_CLIENT_UPDATE_SIGNING_CERT are not set in the client-update-signing environment"
+            exit 1
+          fi
+          umask 077
+          mkdir -p "${RUNNER_TEMP}/client-update-signing"
+          printf '%s\n' "${SIGNING_KEY}" > "${RUNNER_TEMP}/client-update-signing/key.pem"
+          printf '%s\n' "${SIGNING_CERT}" > "${RUNNER_TEMP}/client-update-signing/certificate.pem"
+
+      # Refuses a bundle that is not this commit's, for this commit's runtimes, dated by this commit.
+      - name: check and sign the bundles
+        run: |
+          set -eu
+          node frontend/scripts/sign-client-update.mjs \
+            --in "${RUNNER_TEMP}/client-updates-unsigned" --out client-updates \
+            --key-file "${RUNNER_TEMP}/client-update-signing/key.pem" \
+            --cert-file "${RUNNER_TEMP}/client-update-signing/certificate.pem"
+
+      - name: remove the signing key
+        if: always()
+        run: rm -rf "${RUNNER_TEMP}/client-update-signing"
+
+      - name: Upload the signed bundles
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: client-updates
+          path: client-updates/
+          if-no-files-found: error
+          retention-days: 1
+
   # One leg per platform, pushed BY DIGEST (no tag): legs start alongside backend/frontend, `docker` merges and tags only after both pass.
   # ubuntu-24.04-arm is public-repo only: arm64 is native there, QEMU-emulated while the repo is private.
   docker-build:
     name: Docker - build (${{ matrix.platform }})
-    needs: [docker-plan]
+    needs: [docker-plan, client-updates-sign]
+    # The signing job is skipped outside release tags, and a skipped job skips everything after it unless told otherwise.
+    if: ${{ !cancelled() && !failure() && needs.docker-plan.result == 'success' }}
     # arm64 goes native only when the repo is public.
     runs-on: ${{ matrix.platform == 'linux/arm64' && github.event.repository.private == false && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     strategy:
@@ -348,6 +464,14 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # Into the build context: the image copies client-updates/ and refuses a bundle of another commit.
+      - name: Download the signed app bundles
+        if: needs.client-updates-sign.result == 'success'
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: client-updates
+          path: client-updates
 
       # Emulation only for arm64 on an amd64 runner (private repo).
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
@@ -484,8 +608,9 @@ jobs:
     runs-on: ubuntu-latest  # GitHub-hosted
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
     needs: [backend, frontend, docker-plan, docker-build]
+    # !cancelled() && !failure(): see docker-build.
     # Never on PRs; backend/frontend gate this so a failing test blocks the image.
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: ${{ !cancelled() && !failure() && needs.docker-build.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     permissions:
       contents: read
       packages: write # required to push to ghcr.io
@@ -658,7 +783,7 @@ jobs:
     name: Docker - sign
     runs-on: ubuntu-latest  # GitHub-hosted
     needs: [docker]
-    if: needs.docker.result == 'success' && needs.docker.outputs.sign-refs != ''
+    if: ${{ !cancelled() && needs.docker.result == 'success' && needs.docker.outputs.sign-refs != '' }}
     permissions:
       contents: read
       packages: write # the signatures copied to the ghcr mirror
@@ -711,7 +836,7 @@ jobs:
     name: CI passed
     runs-on: ubuntu-latest  # GitHub-hosted
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
-    needs: [backend, frontend, docker-plan, docker-build, docker, docker-sign]
+    needs: [backend, frontend, docker-plan, client-updates-build, client-updates-sign, docker-build, docker, docker-sign]
     if: always()
     steps:
       - name: verify required jobs
@@ -719,13 +844,15 @@ jobs:
           BACKEND: ${{ needs.backend.result }}
           FRONTEND: ${{ needs.frontend.result }}
           DOCKER_PLAN: ${{ needs.docker-plan.result }}
+          CLIENT_UPDATES_BUILD: ${{ needs.client-updates-build.result }}
+          CLIENT_UPDATES_SIGN: ${{ needs.client-updates-sign.result }}
           DOCKER_BUILD: ${{ needs.docker-build.result }}
           DOCKER: ${{ needs.docker.result }}
           DOCKER_SIGN: ${{ needs.docker-sign.result }}
         run: |
           set -e
           fail=0
-          for kv in "backend=$BACKEND" "frontend=$FRONTEND" "docker-plan=$DOCKER_PLAN" "docker-build=$DOCKER_BUILD" "docker=$DOCKER" "docker-sign=$DOCKER_SIGN"; do
+          for kv in "backend=$BACKEND" "frontend=$FRONTEND" "docker-plan=$DOCKER_PLAN" "client-updates-build=$CLIENT_UPDATES_BUILD" "client-updates-sign=$CLIENT_UPDATES_SIGN" "docker-build=$DOCKER_BUILD" "docker=$DOCKER" "docker-sign=$DOCKER_SIGN"; do
             name="${kv%%=*}"
             result="${kv#*=}"
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then

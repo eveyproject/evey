@@ -160,8 +160,35 @@ cut-off.
 2. Build the image. The build fails on a bundle that is unsigned, was built
    from another commit, or is for a runtime the apps no longer declare.
 
-Not wired yet: a release pipeline that signs once and hands the same output to
-every architecture's image build.
+CI does this for release tags (`v*.*.*`) only, in two jobs
+(`.github/workflows/ci.yml`):
+
+- one builds the bundles unsigned, with every dependency of the apps and no
+  key;
+- one signs them, with the key and nothing but a checkout:
+  `frontend/scripts/sign-client-update.mjs` loads no dependency, and refuses a
+  bundle that is not the tagged commit's, for the runtimes the apps declare at
+  that commit, dated by that commit, with files that are what the manifest
+  says.
+
+Every architecture's image build then takes that same signed output. A tag
+whose bundles cannot be signed fails, it does not ship without them.
+
+What the signature does not cover: the building job runs the apps'
+dependencies, and one of them could alter the JavaScript before it is signed.
+The signing job checks the shape, the commit and the date of a bundle, not
+what its bytecode does. The defence is the frozen lockfile and the review of
+every dependency bump.
+
+Images built from a branch or by hand carry no bundle. A bundle signed for a
+branch would be accepted by every released app, from any server, and raise
+its floor above the releases.
+
+The signing job runs in the GitHub environment `client-update-signing`, which
+holds the two secrets `EVEY_CLIENT_UPDATE_SIGNING_KEY` and
+`EVEY_CLIENT_UPDATE_SIGNING_CERT` (both PEM files, whole) and only lets
+`v*.*.*` tags in: a branch that edits the workflow cannot read them. Replace
+both when the signing certificate is renewed.
 
 No private key ever enters the repository or an image, and keys are only ever
 given as file paths.
