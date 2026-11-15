@@ -67,7 +67,7 @@ import {
   selectableMediaIds,
   SORT_OPTIONS,
 } from "../../../src/components/library/libraryFilterUtils";
-import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState, nextFilterOffset, libraryFilterOptions } from "@evey/client";
+import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState, nextFilterOffset, libraryFilterOptions, showsWatched } from "@evey/client";
 import { POSTER_GRID } from "../../../src/lib/posterGrid";
 
 const NUM_COLUMNS = POSTER_GRID.columns;
@@ -412,7 +412,7 @@ export default function LibraryDetailScreen() {
   const watchedMap = useMemo(() => {
     const map = new Map<string, boolean>();
     for (const w of watchHistoryData?.items ?? []) {
-      if (w.mediaItemId && w.played) map.set(w.mediaItemId, true);
+      if (w.mediaItemId && showsWatched(w)) map.set(w.mediaItemId, true);
     }
     return map;
   }, [watchHistoryData]);

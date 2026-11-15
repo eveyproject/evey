@@ -17,6 +17,7 @@ nav:
   mediaRequests: Media Requests
   shareLinks: "Share links"
   integrations: Integrations
+  pluginPages: "Plugin pages"
   plugins: Plugins
   webhooks: Webhooks
   apiKeys: API Keys
@@ -287,6 +288,9 @@ plugins:
   installFromFile: "Install from file (.zip)"
   title: Plugins
   installPlugin: Install Plugin
+  installedTitle: Installed plugins
+  pageBadge: "Plugin"
+  pageProvidedBy: "This page is drawn by a plugin, not by Evey."
   uploadFile: Upload File
   fromUrl: From URL
   installFromUrl: Install from URL
@@ -829,6 +833,12 @@ serverConfig:
   subtitle: Key-value configuration entries persisted in the database.
   feedConfig:
     pluginBadge: "Plugin"
+    hint: "Drag a section to change its place. This is the default order: each user can still rearrange their own home."
+    kindLibrary: "Library"
+    kindBuiltin: "Built-in section"
+    pluginMaxItems: "The plugin decides how much it shows"
+    unsaved: "Unsaved changes"
+    summary: "{{enabled}} of {{total}} sections shown"
     title: Home feeds
     subtitle: Choose which sections appear on the home page, in what order, and how many items each shows.
   languageRegion: Language & Region
@@ -1098,12 +1108,16 @@ systemHealth:
     production: "production"
   backgroundTasksSection: "Background work"
   videoCapacitySection: Video Transcode Capacity
-  videoCapacityTitle: Video Transcode Capacity
+  videoCapacityTitle: "Streams being transcoded"
   videoCapacityRatio: "{{active}} / {{limit}} streams"
   videoCapacityAutoNote: "Auto capacity is {{auto}} streams (reduced by admin override)"
   videoCapacityEvidence: "Measured: {{height}}p at {{fps}} fps for {{requiredFps}} required, {{cpuBudget}} cores"
   videoCapacityNotMeasured: "Capacity not measured (no benchmark available), conservative fallback to 1"
   videoCapacityHint: "Counts simultaneous transcoded video streams. Audio-only transcodes (video copied through) don't use a slot, and a viewer switching quality still uses just one."
+  videoCapacityTotalNote: "At most {{limit}} streams at once, all encoders together."
+  videoCapacityOutput: "Output"
+  videoCapacityCpuHdr: "Processor, HDR"
+  videoCapacityCpuAv1: "Processor, AV1"
 
 transcodeCache:
   title: Transcode Cache
@@ -2112,4 +2126,4 @@ settingsHelp:
   softwareHDRMaxHeight: 'The same ceiling for HDR video, which is much heavier for the processor to convert. On Auto, the measured value applies. Lower it if HDR films stutter while others play fine; raise it with care if the measure was too cautious. Possible values: 480, 720, 1080, 1440 and 2160.'
   softwareAV1MaxHeight: 'The highest resolution of AV1 encoded by the processor. Today live playback never encodes AV1 on the processor: AV1 output needs a graphics chip that supports it (see "AV1 output"). Auto follows the calibration, which allows AV1 on the processor only where it measured it viable. Leave it on Auto unless support asks otherwise. Applies at once.'
   singleVariant: 'Converts only the quality the viewer is watching, instead of every quality at once. It needs far less processing power. Leave it on unless support asks otherwise. Default: on.'
-  hwPerVariant: 'Runs a separate encoding process on the graphics chip for each quality instead of one process for all of them. It helps with some graphics drivers that crash when producing several qualities at once, but uses more memory. Default: off.'
+  hwPerVariant: 'Runs a separate encoding process on the graphics chip for each quality instead of one process for all of them. It helps with some graphics drivers that crash when producing several qualities at once, but uses more memory. It has no effect while "Encode one ladder rung at a time" is on, because only one quality is then encoded at a time. Default: off.'

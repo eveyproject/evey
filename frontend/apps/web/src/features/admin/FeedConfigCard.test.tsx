@@ -31,6 +31,7 @@ let mockPluginsData: {
     name: string;
     enabled: boolean;
     frontend: Array<{ slot: string }>;
+    installedAt?: string;
   }>;
 } = { plugins: [] };
 
@@ -86,6 +87,14 @@ function createWrapper() {
 
 function renderCard() {
   return render(<FeedConfigCard />, { wrapper: createWrapper() });
+}
+
+// Save stays disabled until something changed: flip the first switch twice so
+// the form is dirty while every value is back to what the server sent.
+function makeDirty() {
+  const first = screen.getAllByRole("switch")[0];
+  fireEvent.click(first);
+  fireEvent.click(first);
 }
 
 const BASE_CONFIGS = [
@@ -238,6 +247,25 @@ describe("FeedConfigCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps Save disabled until something changed, then offers to discard", () => {
+    renderCard();
+    expect(screen.getByTestId("feeds-save-btn")).toBeDisabled();
+    expect(screen.queryByTestId("feeds-discard-btn")).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("switch")[0]);
+    expect(screen.getByTestId("feeds-save-btn")).not.toBeDisabled();
+    expect(screen.getByTestId("feeds-status")).toHaveTextContent("Unsaved changes");
+
+    fireEvent.click(screen.getByTestId("feeds-discard-btn"));
+    expect(screen.getAllByRole("switch")[0]).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("feeds-save-btn")).toBeDisabled();
+  });
+
+  it("summarises how many sections are shown", () => {
+    renderCard();
+    expect(screen.getByTestId("feeds-status")).toHaveTextContent("2 of 3 sections shown");
+  });
+
   // ── Plugin rows ──────────────────────────────────────────────────────────────
 
   it("synthesises a virtual row for a plugin with home.section slot not yet in persisted configs", () => {
@@ -297,6 +325,60 @@ describe("FeedConfigCard", () => {
     expect(screen.queryByRole("spinbutton")).toBeNull();
     // Dash placeholder rendered instead
     expect(screen.getByText("-")).toBeInTheDocument();
+  });
+
+  // The admin order is the default for every user, plugin sections included:
+  // the server merges it for plugin rows exactly as for built-in ones.
+  it("moves a plugin section like any other and saves its new order", async () => {
+    mockPluginsData = {
+      plugins: [
+        {
+          id: "plug-1",
+          name: "My Plugin",
+          enabled: true,
+          frontend: [{ slot: "home.section" }],
+        },
+      ],
+    };
+    renderCard();
+    // A new plugin starts on top; move it to the bottom.
+    for (let i = 0; i < 3; i++) {
+      fireEvent.click(screen.getAllByLabelText("Move section down")[i]);
+    }
+    fireEvent.click(screen.getByTestId("feeds-save-btn"));
+    await waitFor(() => expect(mockBatchUpdate).toHaveBeenCalledOnce());
+    const payload = mockBatchUpdate.mock.calls[0][0] as {
+      configs: typeof BASE_CONFIGS;
+    };
+    expect(payload.configs.map((c) => c.feedType)).toEqual([
+      "resume_playback",
+      "recommended",
+      "most_popular",
+      "plugin:plug-1",
+    ]);
+    expect(payload.configs.map((c) => c.displayOrder)).toEqual([0, 1, 2, 3]);
+  });
+
+  // Every client's home renders a plugin the config does not place on top, so
+  // the admin list shows new plugins there too, the last installed first.
+  it("puts newly installed plugins first, the most recent on top", () => {
+    mockPluginsData = {
+      plugins: [
+        { id: "old", name: "Older", enabled: true, frontend: [{ slot: "home.section" }], installedAt: new Date(1_000).toISOString() },
+        { id: "new", name: "Newer", enabled: true, frontend: [{ slot: "home.section" }], installedAt: new Date(60_500).toISOString() },
+      ],
+    };
+    const { container } = renderCard();
+    const order = Array.from(container.querySelectorAll("[data-feedrow]")).map(
+      (el) => el.getAttribute("data-feedrow"),
+    );
+    expect(order).toEqual([
+      "plugin:new",
+      "plugin:old",
+      "resume_playback",
+      "recommended",
+      "most_popular",
+    ]);
   });
 
   it("does not list disabled plugins as virtual rows", () => {
@@ -381,6 +463,7 @@ describe("FeedConfigCard", () => {
 
   it("clicking Save calls feedServiceBatchUpdateAdminFeedConfigs with current rows", async () => {
     renderCard();
+    makeDirty();
     fireEvent.click(screen.getByTestId("feeds-save-btn"));
     await waitFor(() => expect(mockBatchUpdate).toHaveBeenCalledOnce());
     const payload = mockBatchUpdate.mock.calls[0][0] as {
@@ -420,6 +503,7 @@ describe("FeedConfigCard", () => {
     // Drag is exercised via the handleDragEnd logic - test via direct state
     // by verifying the payload includes displayOrder field for each row.
     renderCard();
+    makeDirty();
     fireEvent.click(screen.getByTestId("feeds-save-btn"));
     // Just assert the shape includes displayOrder (ordering drag is DOM-level,
     // fully tested by CustomizePanel which uses the same drag pattern).
@@ -443,20 +527,23 @@ describe("FeedConfigCard", () => {
       }),
     );
     renderCard();
+    makeDirty();
     fireEvent.click(screen.getByTestId("feeds-save-btn"));
     // While in-flight: button is disabled
     await waitFor(() =>
       expect(screen.getByTestId("feeds-save-btn")).toBeDisabled(),
     );
     resolveSave();
-    // After completion: button re-enabled
+    // After completion: back to the Save label, and nothing left to save.
     await waitFor(() =>
-      expect(screen.getByTestId("feeds-save-btn")).not.toBeDisabled(),
+      expect(screen.getByTestId("feeds-save-btn")).toHaveTextContent("Save"),
     );
+    expect(screen.getByTestId("feeds-status")).not.toHaveTextContent("Unsaved changes");
   });
 
   it("save invalidates admin feed configs query on success", async () => {
     renderCard();
+    makeDirty();
     fireEvent.click(screen.getByTestId("feeds-save-btn"));
     await waitFor(() => expect(mockInvalidateQueries).toHaveBeenCalled());
     const calls = mockInvalidateQueries.mock.calls.map(
@@ -469,6 +556,7 @@ describe("FeedConfigCard", () => {
 
   it("save invalidates home feed config query on success (stale merged result fix)", async () => {
     renderCard();
+    makeDirty();
     fireEvent.click(screen.getByTestId("feeds-save-btn"));
     await waitFor(() => expect(mockInvalidateQueries).toHaveBeenCalledTimes(2));
     const calls = mockInvalidateQueries.mock.calls.map(
@@ -484,6 +572,7 @@ describe("FeedConfigCard", () => {
     mockBatchUpdate.mockRejectedValue(new Error("network"));
     const { toast } = await import("@evey/store");
     renderCard();
+    makeDirty();
     fireEvent.click(screen.getByTestId("feeds-save-btn"));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });

@@ -144,8 +144,17 @@ func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, med
 		return true
 	}
 	slog.Info("hls-vod: shedding, host at video capacity", slog.String("media_id", mediaID))
+	h.forgetRefused(rp)
 	writeTooManyStreams(w, 5, "server at video transcoding capacity")
 	return true
+}
+
+// forgetRefused lets the retry of a stream refused for capacity be planned
+// afresh instead of on the route it was refused on.
+func (h *hlsVODServe) forgetRefused(rp *requestPlan) {
+	if h.admissionForgetRefused != nil && rp != nil {
+		h.admissionForgetRefused(rp.Plan.Admission.PinKey)
+	}
 }
 
 // tooHeavyForIdleHost reports that NO candidate height would fit even an idle
@@ -299,6 +308,14 @@ func freezeLadderOf(s *apptranscoding.VideoAdmissionShaper) func(string, []domai
 		return nil
 	}
 	return s.FreezeLadder
+}
+
+// forgetRefusedOf adapts the shaper's refused-pin release (nil-safe).
+func forgetRefusedOf(s *apptranscoding.VideoAdmissionShaper) func(string) {
+	if s == nil {
+		return nil
+	}
+	return s.ForgetRefused
 }
 
 // noteRouteOf adapts the shaper's route-drift detector (nil-safe).

@@ -74,6 +74,7 @@
     },
     "patchedDependencies": {
       "@kesha-antonov/react-native-background-downloader@4.5.4": "patches/@kesha-antonov__react-native-background-downloader@4.5.4.patch",
+      "expo-updates@55.0.33": "patches/expo-updates@55.0.33.patch",
       "expo-video@55.0.16": "patches/expo-video@55.0.16.patch"
     }
   }

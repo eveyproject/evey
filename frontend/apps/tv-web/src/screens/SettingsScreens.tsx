@@ -37,7 +37,22 @@ import { SettingsGroup, SettingsRow } from "../components/SettingsList";
 import { goBack, navigate, replace } from "../app/router";
 import { selectServer, signOut } from "../lib/session";
 import { SavedServers } from "./ServerConnect";
-import { STILL_WATCHING_PREF_KEY, STILL_WATCHING_STEPS, stillWatchingLimit } from "@evey/client";
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  STILL_WATCHING_PREF_KEY,
+  STILL_WATCHING_STEPS,
+  SUBTITLE_BG_COLORS,
+  SUBTITLE_STYLE_PREF_KEY,
+  SUBTITLE_TEXT_COLORS,
+  parseSubtitleStylePref,
+  stillWatchingLimit,
+  subtitleBgRgba,
+  type SubtitleStyle,
+} from "@evey/client";
+
+// The sizes a remote can step through; the browser app's slider covers the
+// same range.
+const SUBTITLE_SIZES = [75, 100, 125, 150, 200] as const;
 
 interface Option<T> { value: T; labelKey: string; fallback: string }
 
@@ -89,6 +104,11 @@ export function PlaybackSettingsScreen() {
       <SettingsRow key={String(o.value)} label={label(o)} checked={value === o.value} onPress={() => onPick(o.value)} />
     ));
   const toggle = (key: string) => (v: boolean) => void save({ [key]: v ? "true" : "false" });
+  // The subtitle appearance is one preference holding the whole style: each
+  // row saves the style with its own field changed.
+  const subtitleStyle = parseSubtitleStylePref(prefs) ?? DEFAULT_SUBTITLE_STYLE;
+  const saveSubtitleStyle = (patch: Partial<SubtitleStyle>) =>
+    void save({ [SUBTITLE_STYLE_PREF_KEY]: JSON.stringify({ ...subtitleStyle, ...patch }) });
 
   if (user.isLoading || profiles.isLoading || user.isError || profiles.isError) {
     return (
@@ -135,6 +155,51 @@ export function PlaybackSettingsScreen() {
       </SettingsGroup>
       <SettingsGroup title={t("auth.settings.playback.subtitleBurnIn")} hint={t("auth.settings.playback.subtitleBurnInDesc")}>
         {rows(SUBTITLE_BURN_OPTIONS, prefs.subtitle_burn_in ?? "auto", (v) => void save({ subtitle_burn_in: v }))}
+      </SettingsGroup>
+      <h2 className="set-section-title">{t("auth.settings.playback.subtitleStyleTitle")}</h2>
+      <p className="set-hint">{t("auth.settings.playback.subtitleStyleDesc")}</p>
+      {/* The cue as it will look: on a television the preview is the only
+          way to judge a colour without starting a title. */}
+      <div className="set-subtitle-preview" aria-hidden="true">
+        <span
+          data-testid="subtitle-style-preview"
+          style={{
+            color: subtitleStyle.color,
+            fontSize: `${(28 * subtitleStyle.fontSize) / 100}px`,
+            backgroundColor: subtitleBgRgba(subtitleStyle.bgColor, subtitleStyle.bgOpacity),
+            textShadow: subtitleStyle.shadow ? "0 0 4px #000, 0 1px 2px #000" : undefined,
+          }}
+        >
+          {t("auth.settings.playback.subtitleStylePreview")}
+        </span>
+      </div>
+      <SettingsGroup label={t("player.subtitleStyle.textColor")}>
+        {SUBTITLE_TEXT_COLORS.map((c) => (
+          <SettingsRow key={c.value} label={t(c.labelKey)} checked={subtitleStyle.color === c.value} onPress={() => saveSubtitleStyle({ color: c.value })} />
+        ))}
+      </SettingsGroup>
+      <SettingsGroup label={t("player.subtitleStyle.background")}>
+        {SUBTITLE_BG_COLORS.map((c) => (
+          <SettingsRow
+            key={c.labelKey}
+            label={t(c.labelKey)}
+            checked={c.opacity === 0 ? subtitleStyle.bgOpacity === 0 : subtitleStyle.bgColor === c.value && subtitleStyle.bgOpacity > 0}
+            onPress={() => saveSubtitleStyle({ bgColor: c.value, bgOpacity: c.opacity === 0 ? 0 : subtitleStyle.bgOpacity || 75 })}
+          />
+        ))}
+      </SettingsGroup>
+      <SettingsGroup label={t("player.subtitleStyle.size")}>
+        {SUBTITLE_SIZES.map((size) => (
+          <SettingsRow key={size} label={`${size} %`} checked={subtitleStyle.fontSize === size} onPress={() => saveSubtitleStyle({ fontSize: size })} />
+        ))}
+      </SettingsGroup>
+      <SettingsGroup label={t("player.subtitleStyle.position")}>
+        {(["bottom", "top"] as const).map((pos) => (
+          <SettingsRow key={pos} label={t(`player.subtitleStyle.${pos}`)} checked={subtitleStyle.position === pos} onPress={() => saveSubtitleStyle({ position: pos })} />
+        ))}
+      </SettingsGroup>
+      <SettingsGroup label={t("player.subtitleStyle.textShadow")}>
+        {rows(TOGGLE_OPTIONS, subtitleStyle.shadow, (v) => saveSubtitleStyle({ shadow: v }))}
       </SettingsGroup>
       <SettingsGroup label={t("auth.settings.playback.autoplayNextTitle")} hint={t("auth.settings.playback.autoplayNextDesc")}>
         {rows(TOGGLE_OPTIONS, bool("autoplay_next_episode"), toggle("autoplay_next_episode"))}

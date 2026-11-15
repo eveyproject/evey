@@ -15,6 +15,9 @@ type Device struct {
 	Name        string // user-facing, e.g. "Living room TV"
 	Type        string // "tv" | "mobile" | "web"
 	ConnectedAt time.Time
+	// ListenOnly marks a client that holds the socket to hear about changes
+	// but cannot be told to play: it is never offered as a Play On target.
+	ListenOnly bool
 }
 
 // Device.Type values. Clients send one of these at registration; unknown
@@ -33,6 +36,7 @@ type DeviceRegisterRequest struct {
 	DeviceID   string `json:"deviceId"`   // stable per install
 	Name       string `json:"name"`       // user-facing
 	DeviceType string `json:"deviceType"` // see DeviceType* constants
+	ListenOnly bool   `json:"listenOnly,omitempty"`
 }
 
 // DeviceCommand is a server→device push: a playback instruction the
@@ -43,6 +47,8 @@ type DeviceCommand struct {
 	Type       string `json:"type"`                 // "loadAndPlay" | "play" | "pause" | "seek"
 	MediaID    string `json:"mediaId,omitempty"`    // for loadAndPlay
 	PositionMs int64  `json:"positionMs,omitempty"` // for loadAndPlay (resume) / seek
+	Scope      string `json:"scope,omitempty"`      // for settingsChanged, see SettingsScope*
+	ProfileID  string `json:"profileId,omitempty"`  // for settingsChanged
 }
 
 // DeviceCommand.Type values.
@@ -51,4 +57,13 @@ const (
 	DeviceCmdPlay        = "play"
 	DeviceCmdPause       = "pause"
 	DeviceCmdSeek        = "seek"
+	// DeviceCmdSettingsChanged tells every client of a user that a setting
+	// stored on the server changed elsewhere, so each reloads its copy.
+	DeviceCmdSettingsChanged = "settingsChanged"
+)
+
+// DeviceCommand.Scope values for a settingsChanged command.
+const (
+	SettingsScopeProfile    = "profile"
+	SettingsScopeHomeLayout = "homeLayout"
 )

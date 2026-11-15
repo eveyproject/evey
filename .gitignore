@@ -172,3 +172,7 @@ wiki/.cache/
 # operations harness output
 tests/ops/test-results/
 tests/ops/test-results-upgrade/
+
+# Signed client bundles, built by `make client-updates`
+/client-updates/*
+!/client-updates/.gitkeep

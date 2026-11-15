@@ -24,6 +24,7 @@ export default defineConfig({
       { find: "react-native-webview", replacement: resolve(__dirname, "./src/test/__mocks__/react-native-webview.ts") },
       { find: "expo-file-system/legacy", replacement: resolve(__dirname, "./src/test/__mocks__/expo-file-system-legacy.ts") },
       { find: "expo-secure-store", replacement: resolve(__dirname, "./src/test/__mocks__/expo-secure-store.ts") },
+      { find: "expo-updates", replacement: resolve(__dirname, "./src/test/__mocks__/expo-updates.ts") },
       { find: "@expo/vector-icons/Ionicons", replacement: resolve(__dirname, "./src/test/__mocks__/vector-icon.ts") },
       { find: "@expo/vector-icons/MaterialIcons", replacement: resolve(__dirname, "./src/test/__mocks__/vector-icon.ts") },
     ],

@@ -171,7 +171,11 @@ func (h *devicesHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		if _, err := h.registry.Register(userID, reg.DeviceID, reg.Name, reg.DeviceType, sender); err != nil {
+		register := h.registry.Register
+		if reg.ListenOnly {
+			register = h.registry.RegisterListener
+		}
+		if _, err := register(userID, reg.DeviceID, reg.Name, reg.DeviceType, sender); err != nil {
 			// Past the per-user cap: the socket is already upgraded (HTTP 101),
 			// so there's no status code to return - closing the connection is
 			// the rejection. The client can retry after dropping a device.

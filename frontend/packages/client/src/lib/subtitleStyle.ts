@@ -21,6 +21,52 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   shadow: false,
 };
 
+// Where the appearance lives on the profile, as JSON, so it follows the
+// viewer from one client to the next. Each client also keeps its last value
+// locally: that is what an offline start, or a profile that never chose, uses.
+export const SUBTITLE_STYLE_PREF_KEY = "subtitle_style";
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+function clampPct(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+/**
+ * Reads the appearance stored on a profile. null when the profile has none or
+ * the value is not JSON; a field out of range falls back to its default, since
+ * the value was written by another client, possibly an older or newer one.
+ */
+export function parseSubtitleStylePref(prefs: Record<string, string> | undefined): SubtitleStyle | null {
+  const raw = prefs?.[SUBTITLE_STYLE_PREF_KEY];
+  if (!raw) return null;
+  let v: Partial<Record<keyof SubtitleStyle, unknown>>;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    v = parsed as Partial<Record<keyof SubtitleStyle, unknown>>;
+  } catch {
+    return null;
+  }
+  const d = DEFAULT_SUBTITLE_STYLE;
+  return {
+    fontSize: clampPct(v.fontSize, 50, 200, d.fontSize),
+    color: typeof v.color === "string" && HEX_COLOR.test(v.color) ? v.color : d.color,
+    bgColor: typeof v.bgColor === "string" && HEX_COLOR.test(v.bgColor) ? v.bgColor : d.bgColor,
+    bgOpacity: clampPct(v.bgOpacity, 0, 100, d.bgOpacity),
+    position: v.position === "top" ? "top" : "bottom",
+    shadow: v.shadow === true,
+  };
+}
+
+/** The preferences map to send when saving the appearance (whole map, as for the theme). */
+export function subtitleStylePreferences(
+  current: Record<string, string> | undefined,
+  style: SubtitleStyle,
+): Record<string, string> {
+  return { ...current, [SUBTITLE_STYLE_PREF_KEY]: JSON.stringify(style) };
+}
+
 export const SUBTITLE_TEXT_COLORS = [
   { labelKey: "player.colors.white", value: "#ffffff" },
   { labelKey: "player.colors.yellow", value: "#fde047" },

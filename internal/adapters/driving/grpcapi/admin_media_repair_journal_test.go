@@ -223,3 +223,36 @@ func TestApplyAudioShift_RefusalsAreNotServerFaults(t *testing.T) {
 	assert.Contains(t, status.Convert(err).Message(), "60")
 	assert.Zero(t, r.calls, "nothing may be written for a value out of range")
 }
+
+type shiftRecorder struct{ shifts []map[uint64]float64 }
+
+func (r *shiftRecorder) RetimeTracks(_ context.Context, _ string, s map[uint64]float64) error {
+	r.shifts = append(r.shifts, s)
+	return nil
+}
+
+type fixedAudioTracks []uint64
+
+func (f fixedAudioTracks) AudioTrackNumbers(context.Context, string) ([]uint64, error) { return f, nil }
+
+// The clients send the preview's audio index; the server moves the Matroska
+// track behind it, and an index the file does not have is the caller's fault.
+func TestApplyAudioShift_AudioIndexMovesTheTrackBehindIt(t *testing.T) {
+	ctx := context.Background()
+	catalog := fakeSeekCatalog{ref: appmaintenance.MediaRef{MediaID: "mi-1", Path: "/media/m.mkv"}}
+	r := &shiftRecorder{}
+	svc := appmaintenance.NewSeekIndexService(fakeReindexer{}, catalog, nil).
+		WithTrackRetimer(r).WithAudioTrackLister(fixedAudioTracks{1, 5})
+	d := &adminMediaHandler{seekIndex: svc, translator: realTranslator(t)}
+
+	idx := int32(1)
+	_, err := d.ApplyAudioShift(ctx, &eveyv1.ApplyAudioShiftRequest{MediaId: "mi-1", AudioIndex: &idx, ShiftSec: 5})
+	require.NoError(t, err)
+	require.Len(t, r.shifts, 1)
+	assert.Equal(t, map[uint64]float64{5: 5}, r.shifts[0])
+
+	missing := int32(2)
+	_, err = d.ApplyAudioShift(ctx, &eveyv1.ApplyAudioShiftRequest{MediaId: "mi-1", AudioIndex: &missing, ShiftSec: 5})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Len(t, r.shifts, 1, "nothing may be written for a track the file does not have")
+}

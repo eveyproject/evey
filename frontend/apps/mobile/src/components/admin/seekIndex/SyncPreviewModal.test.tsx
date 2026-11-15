@@ -140,14 +140,14 @@ describe("SyncPreviewModal", () => {
     expect(player.currentTime).toBeCloseTo(5.02, 5);
   });
 
-  it("applies the 1-based track only with a non-zero offset, and reports a render failure", async () => {
+  it("applies to the previewed audio index only with a non-zero offset, and reports a render failure", async () => {
     mount(<SyncPreviewModal item={item} title="x" onClose={() => {}} />);
     const apply = btn("admin.syncPreview.apply:0");
     expect(apply.disabled).toBe(true);
     fireEvent.click(nth("+1", 1));
     fireEvent.click(btn("2 - eng · AAC · 2ch"));
     fireEvent.click(btn("admin.syncPreview.apply:+1"));
-    await waitFor(() => expect(applyShift.fn).toHaveBeenCalledWith({ mediaId: "m 1", data: { track: "2", shiftSec: 1 } }));
+    await waitFor(() => expect(applyShift.fn).toHaveBeenCalledWith({ mediaId: "m 1", data: { audioIndex: 1, shiftSec: 1 } }));
 
     player.replaceAsync.mockRejectedValueOnce(new Error("no clip"));
     fireEvent.click(btn("Render clip"));

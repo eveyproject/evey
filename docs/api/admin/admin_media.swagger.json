@@ -148,7 +148,7 @@
     },
     "/api/v1/admin/media/repairs": {
       "get": {
-        "summary": "ListMediaRepairs answers \"what did the repairs touch\" across the whole\nlibrary: every journal entry in a time window, newest first, optionally\none batch kind. The 98 files rewritten on 2026-07-13 were only ever found\nby a hand-written query on file modification times; this is that\nquestion, asked of the journal, from the health page.",
+        "summary": "ListMediaRepairs answers \"what did the repairs touch\" across the whole\nlibrary: every journal entry in a time window, newest first, optionally\none batch kind. The 98 files rewritten in one night were only ever found\nby a hand-written query on file modification times; this is that\nquestion, asked of the journal, from the health page.",
         "operationId": "AdminMediaService_ListMediaRepairs",
         "responses": {
           "200": {
@@ -552,7 +552,7 @@
     },
     "/api/v1/admin/media/{mediaId}/audio-remux": {
       "post": {
-        "summary": "RemuxAudioMedia is RETIRED: it always fails with FAILED_PRECONDITION.\nIt used to pull every audio track that started after the picture back\nonto it by its own declared delay, with no upper bound - which is exactly\nhow a deliberate dub alignment looks - and rewrote 98 files that way on\n2026-07-13 with no surviving backup. An audio start offset is a fact\nabout a file, measured and shown by the scan (audio_delay_sec,\naudio_tracks_lag_sec), never something Evey rewrites. The RPC stays so a\ndeployed client gets a translated refusal instead of UNIMPLEMENTED.",
+        "summary": "RemuxAudioMedia is RETIRED: it always fails with FAILED_PRECONDITION.\nIt used to pull every audio track that started after the picture back\nonto it by its own declared delay, with no upper bound - which is exactly\nhow a deliberate dub alignment looks - and rewrote 98 files that way in\none night with no surviving backup. An audio start offset is a fact\nabout a file, measured and shown by the scan (audio_delay_sec,\naudio_tracks_lag_sec), never something Evey rewrites. The RPC stays so a\ndeployed client gets a translated refusal instead of UNIMPLEMENTED.",
         "operationId": "AdminMediaService_RemuxAudioMedia",
         "responses": {
           "200": {
@@ -860,12 +860,17 @@
         "track": {
           "type": "string",
           "format": "uint64",
-          "description": "track is the Matroska track number to move, as listed by the preview."
+          "description": "track is the Matroska track number to move. Ignored when audio_index is\nset."
         },
         "shiftSec": {
           "type": "number",
           "format": "double",
           "description": "shift_sec is signed: positive delays the track against the picture."
+        },
+        "audioIndex": {
+          "type": "integer",
+          "format": "int32",
+          "description": "audio_index names the track the way the sync preview does: 0 is the\nfirst audio track of the file. The server reads the file's Matroska track\nnumber from it, so the track moved is the one that was heard. A client\ncannot derive that number by adding one: tracks are numbered across all\ntypes, subtitles and video included."
         }
       }
     },
@@ -1118,7 +1123,7 @@
         },
         "evidenceMethod": {
           "type": "string",
-          "description": "evidence_method says what justified acting: \"track-coherence\" is a\nmeasurement, \"declared-defect\" is the file's own claim taken at face\nvalue - the weak case that caused the 2026-07-13 incident."
+          "description": "evidence_method says what justified acting: \"track-coherence\" is a\nmeasurement, \"declared-defect\" is the file's own claim taken at face\nvalue - the weak case that caused the mass retime incident."
         },
         "evidenceLagSec": {
           "type": "number",
@@ -1551,7 +1556,7 @@
         },
         "audioTrackZeroed": {
           "type": "boolean",
-          "description": "audio_track_zeroed is the fingerprint of a track that was retimed onto the\npicture: one audio track starts at exactly 0 while a sibling keeps its\nsmall priming offset. A muxer treats sibling tracks alike; only a repair\nthat pulled ONE track back by its own declared delay leaves this shape\n(the 2026-07-13 batch). It names the touched file; the amount removed is\ngone from the file and nothing here can restore it. Informational."
+          "description": "audio_track_zeroed is the fingerprint of a track that was retimed onto the\npicture: one audio track starts at exactly 0 while a sibling keeps its\nsmall priming offset. A muxer treats sibling tracks alike; only a repair\nthat pulled ONE track back by its own declared delay leaves this shape\n(the mass retime batch). It names the touched file; the amount removed is\ngone from the file and nothing here can restore it. Informational."
         },
         "resyncRequired": {
           "type": "boolean",

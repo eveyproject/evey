@@ -85,6 +85,7 @@ admin:
   loadtest_streams_active: "有正在进行的播放 - 负载测试绝不会在真实观众观看时运行"
   loadtest_already_running: "负载测试已在运行"
   sync_shift_out_of_range: "此工具不会将音轨移动超过 {max} 秒"
+  sync_audio_track_missing: "此文件没有该音轨"
   repair_undo_none: "此文件没有修复记录"
   repair_not_reversible: "此文件的上次修复无法通过软件撤销"
   repair_journal_newer: "此修复由较新版本记录，无法安全读取"

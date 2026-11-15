@@ -2,7 +2,7 @@
   "expo": {
     "name": "Evey",
     "slug": "evey",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "evey",
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "com.evey.app",
-      "versionCode": 98,
+      "versionCode": 109,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
@@ -66,6 +66,19 @@
       ],
       "./plugins/withCastConnectSender",
       "@kesha-antonov/react-native-background-downloader"
-    ]
+    ],
+    "runtimeVersion": "mobile-1",
+    "updates": {
+      "url": "https://updates.invalid/",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "codeSigningCertificate": "../../client-updates/certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
+      },
+      "disableAntiBrickingMeasures": true
+    }
   }
 }

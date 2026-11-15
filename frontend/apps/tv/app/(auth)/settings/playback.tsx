@@ -24,7 +24,8 @@ import {
   resolveLangPref,
   type PrefMap,
 } from "@evey/client";
-import { STILL_WATCHING_DEFAULT, STILL_WATCHING_PREF_KEY, STILL_WATCHING_STEPS, stillWatchingLimit } from "@evey/client";
+import { STILL_WATCHING_DEFAULT, STILL_WATCHING_PREF_KEY, STILL_WATCHING_STEPS, stillWatchingLimit, useSubtitleStyleSetting } from "@evey/client";
+import { SubtitleStylePicker } from "../../../src/components/SubtitleStylePicker";
 
 // resolveLangPref stays exported here: the screen's test imports it by this path.
 export { resolveLangPref };
@@ -209,6 +210,11 @@ export default function PlaybackSettingsScreen() {
     ],
     [focusedItem, theme],
   );
+
+  // The subtitle appearance: the profile's, edited with the picker the player
+  // itself opens, so both show the same choices.
+  const { style: subtitleStyle, update: updateSubtitleStyle } = useSubtitleStyleSetting();
+  const [stylePickerOpen, setStylePickerOpen] = useState(false);
 
   function OptionRow({
     rowKey,
@@ -396,6 +402,28 @@ export default function PlaybackSettingsScreen() {
           />
         ))}
       </View>
+
+      {/* Subtitle appearance */}
+      <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
+        {t("auth.settings.playback.subtitleStyleTitle", "Subtitle appearance")}
+      </Text>
+      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
+        {t("auth.settings.playback.subtitleStyleDesc", "How subtitles look on every device signed in to this profile.")}
+      </Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        <OptionRow
+          rowKey="subtitle-style"
+          label={t("player.settings.subtitleStyle", "Subtitle style")}
+          selected={false}
+          onPress={() => setStylePickerOpen(true)}
+        />
+      </View>
+      <SubtitleStylePicker
+        visible={stylePickerOpen}
+        style={subtitleStyle}
+        onChange={updateSubtitleStyle}
+        onClose={() => setStylePickerOpen(false)}
+      />
 
       {/* Auto-play next episode */}
       <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>

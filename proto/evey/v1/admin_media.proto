@@ -140,8 +140,8 @@ service AdminMediaService {
   // RemuxAudioMedia is RETIRED: it always fails with FAILED_PRECONDITION.
   // It used to pull every audio track that started after the picture back
   // onto it by its own declared delay, with no upper bound - which is exactly
-  // how a deliberate dub alignment looks - and rewrote 98 files that way on
-  // 2026-07-13 with no surviving backup. An audio start offset is a fact
+  // how a deliberate dub alignment looks - and rewrote 98 files that way in
+  // one night with no surviving backup. An audio start offset is a fact
   // about a file, measured and shown by the scan (audio_delay_sec,
   // audio_tracks_lag_sec), never something Evey rewrites. The RPC stays so a
   // deployed client gets a translated refusal instead of UNIMPLEMENTED.
@@ -203,7 +203,7 @@ service AdminMediaService {
 
   // ListMediaRepairs answers "what did the repairs touch" across the whole
   // library: every journal entry in a time window, newest first, optionally
-  // one batch kind. The 98 files rewritten on 2026-07-13 were only ever found
+  // one batch kind. The 98 files rewritten in one night were only ever found
   // by a hand-written query on file modification times; this is that
   // question, asked of the journal, from the health page.
   rpc ListMediaRepairs(ListMediaRepairsRequest) returns (ListMediaRepairsResponse) {
@@ -314,7 +314,7 @@ message MediaRepairEntry {
   string job = 5;
   // evidence_method says what justified acting: "track-coherence" is a
   // measurement, "declared-defect" is the file's own claim taken at face
-  // value - the weak case that caused the 2026-07-13 incident.
+  // value - the weak case that caused the mass retime incident.
   string evidence_method = 6;
   double evidence_lag_sec = 7;
   double evidence_confidence = 8;
@@ -358,10 +358,17 @@ message ListMediaRepairsResponse {
 
 message ApplyAudioShiftRequest {
   string media_id = 1;
-  // track is the Matroska track number to move, as listed by the preview.
+  // track is the Matroska track number to move. Ignored when audio_index is
+  // set.
   uint64 track = 2;
   // shift_sec is signed: positive delays the track against the picture.
   double shift_sec = 3;
+  // audio_index names the track the way the sync preview does: 0 is the
+  // first audio track of the file. The server reads the file's Matroska track
+  // number from it, so the track moved is the one that was heard. A client
+  // cannot derive that number by adding one: tracks are numbered across all
+  // types, subtitles and video included.
+  optional int32 audio_index = 4;
 }
 message ApplyAudioShiftResponse {}
 
@@ -480,7 +487,7 @@ message SeekIndexItem {
   // picture: one audio track starts at exactly 0 while a sibling keeps its
   // small priming offset. A muxer treats sibling tracks alike; only a repair
   // that pulled ONE track back by its own declared delay leaves this shape
-  // (the 2026-07-13 batch). It names the touched file; the amount removed is
+  // (the mass retime batch). It names the touched file; the amount removed is
   // gone from the file and nothing here can restore it. Informational.
   bool audio_track_zeroed = 21;
   // resync_required = a repair ALREADY ran on this file and the strict rewrite

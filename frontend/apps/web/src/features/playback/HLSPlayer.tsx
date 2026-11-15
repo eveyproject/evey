@@ -205,6 +205,8 @@ export function HLSPlayer({
     subtitleLangs: profileSubtitleLangs,
     autoplayNext,
     setAutoplayNext: handleAutoplayNextChange,
+    subtitleStyle: profileSubtitleStyle,
+    saveSubtitleStyle: saveProfileSubtitleStyle,
   } = usePlayerProfilePrefs();
   // The next-episode card and the skip button share the bottom-right corner:
   // the button steps aside while the card is up.
@@ -593,12 +595,23 @@ export function HLSPlayer({
   const [externalSubUrl, setExternalSubUrl] = useState<{ url: string; label: string } | null>(null);
   const [subtitleStyle, setSubtitleStyleState] = useState<SubtitleStyle>(() => getSubtitleStyle());
 
+  const subtitleStyleRef = useRef(subtitleStyle);
+  subtitleStyleRef.current = subtitleStyle;
+  // The profile's appearance wins over this device's last value, and a change
+  // made on another device lands here while the title plays.
+  // The font is this browser's own (it depends on what is installed here), so
+  // it stays local; every other field is the profile's.
+  useEffect(() => {
+    if (profileSubtitleStyle) setSubtitleStyleState((prev) => ({ ...prev, ...profileSubtitleStyle }));
+  }, [profileSubtitleStyle]);
+
   function updateSubtitleStyle(patch: Partial<SubtitleStyle>) {
-    setSubtitleStyleState((prev) => {
-      const next = { ...prev, ...patch };
-      setSubtitleStyle(next);
-      return next;
-    });
+    const next = { ...subtitleStyleRef.current, ...patch };
+    subtitleStyleRef.current = next;
+    setSubtitleStyleState(next);
+    setSubtitleStyle(next);
+    const { fontFamily: _localFont, ...shared } = next;
+    saveProfileSubtitleStyle(shared);
   }
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);

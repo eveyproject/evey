@@ -1,5 +1,7 @@
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Puzzle } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Badge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PluginIframe } from "@/features/plugins/PluginIframe";
 import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
@@ -15,6 +17,7 @@ export const Route = createLazyFileRoute("/_auth/admin/extensions/$pluginId")({
 // allow-list (isAllowedNavPath) only covers /home, /library, /media, /player,
 // /settings, /search.
 function PluginExtensionPage() {
+  const { t } = useTranslation();
   const { pluginId } = Route.useParams();
   const entry = usePluginSlotEntries("admin.nav").find((e) => e.pluginId === pluginId);
 
@@ -24,11 +27,19 @@ function PluginExtensionPage() {
         to="/admin/plugins"
         className="inline-flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)] mb-4"
       >
-        <ChevronLeft size={16} /> Plugins
+        <ChevronLeft size={16} /> {t("admin.plugins.title")}
       </Link>
       {entry ? (
         <>
-          <PageHeader title={entry.name} />
+          <PageHeader
+            title={entry.name}
+            subtitle={t("admin.plugins.pageProvidedBy")}
+            actions={
+              <Badge className="gap-1">
+                <Puzzle size={12} aria-hidden="true" /> {t("admin.plugins.pageBadge")}
+              </Badge>
+            }
+          />
           <div className="mt-4">
             <PluginIframe
               pluginId={entry.pluginId}
@@ -40,7 +51,7 @@ function PluginExtensionPage() {
         </>
       ) : (
         <p className="text-[var(--text-muted)]">
-          This plugin is not installed, not enabled, or has no admin page.
+          {t("admin.plugins.notFound")}
         </p>
       )}
     </div>

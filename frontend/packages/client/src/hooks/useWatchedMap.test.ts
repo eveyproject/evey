@@ -92,3 +92,26 @@ describe("useWatchedMap", () => {
     expect(result.current.size).toBe(0);
   });
 });
+
+describe("the watched mark on a title being watched again", () => {
+  const rewatching = { mediaItemId: "m1", played: true, positionMs: "600000", durationMs: "3600000", percentComplete: 16.6 };
+
+  it("is absent from the badge maps, with the progress kept", async () => {
+    const { buildWatchProgressMaps } = await import("./useWatchedMap");
+    const { watchedMap, percentMap } = buildWatchProgressMaps([rewatching, { mediaItemId: "m2", played: true }]);
+
+    expect(watchedMap.get("m1")).toBeUndefined();
+    expect(watchedMap.get("m2")).toBe(true);
+    expect(percentMap.get("m1")).toBeCloseTo(16.6);
+  });
+
+  it("stays in the stored flag the lists filter by", async () => {
+    const mock = await getWatchHistoryMock();
+    mock.mockReturnValue({ data: { items: [rewatching] } } as ReturnType<typeof mock>);
+
+    const { useWatchedMap } = await import("./useWatchedMap");
+    const { result } = renderHook(() => useWatchedMap());
+
+    expect(result.current.get("m1")).toBe(true);
+  });
+});

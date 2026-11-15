@@ -18,6 +18,7 @@ nav:
   mediaRequests: "媒体请求"
   shareLinks: "分享链接"
   integrations: "集成"
+  pluginPages: "插件页面"
   plugins: "插件"
   webhooks: Webhooks
   apiKeys: "API 密钥"
@@ -298,6 +299,9 @@ plugins:
     saveFailed: "更新资源限制失败"
   title: "插件"
   installPlugin: "安装插件"
+  installedTitle: "已安装的插件"
+  pageBadge: "插件"
+  pageProvidedBy: "此页面由插件呈现，而非 Evey。"
   uploadFile: "上传文件"
   fromUrl: "从 URL 安装"
   installFromUrl: "从 URL 安装"
@@ -873,6 +877,12 @@ serverConfig:
     keyframeBackfillIdleSecLabel: "关键帧补齐空闲间隔（秒）"
   feedConfig:
     pluginBadge: "插件"
+    hint: "拖动分区即可调整其位置。这是默认顺序：每位用户仍可自行重新排列自己的主页。"
+    kindLibrary: "媒体库"
+    kindBuiltin: "内置分区"
+    pluginMaxItems: "由插件决定显示数量"
+    unsaved: "有未保存的更改"
+    summary: "已显示 {{enabled}}/{{total}} 个分区"
     title: "首页信息流"
     subtitle: "选择主页上显示哪些板块、顺序以及每个板块显示多少项。"
   introProvidersInfo: "用于片头/回顾/片尾时间戳的两个独立社区数据库。对其覆盖的条目跳过本地高 CPU 占用的检测。主要 - TheIntroDB (theintrodb.org)：电影 + 剧集，需要免费 API 密钥。备用 - IntroDB (introdb.app)：仅剧集，无需密钥。"
@@ -1098,12 +1108,16 @@ systemHealth:
     production: "生产"
   backgroundTasksSection: "后台工作"
   videoCapacitySection: "视频转码容量"
-  videoCapacityTitle: "视频转码容量"
+  videoCapacityTitle: "正在转码的视频流"
   videoCapacityRatio: "{{active}} / {{limit}} 路流"
   videoCapacityAutoNote: "自动容量：{{auto}} 路流（已被管理员降低）"
   videoCapacityEvidence: "实测：{{height}}p，{{fps}} fps，需要 {{requiredFps}}，{{cpuBudget}} 核"
   videoCapacityNotMeasured: "容量未测量（缺少基准测试），保守回退为 1"
   videoCapacityHint: "统计同时转码的视频流数量。仅音频转码（视频直接拷贝）不占用名额，同一观众切换画质仍只占用一个名额。"
+  videoCapacityTotalNote: "所有编码器合计，最多同时 {{limit}} 路。"
+  videoCapacityOutput: "输出"
+  videoCapacityCpuHdr: "处理器，HDR"
+  videoCapacityCpuAv1: "处理器，AV1"
 
 transcodeCache:
   title: "转码缓存"
@@ -2112,4 +2126,4 @@ settingsHelp:
   softwareHDRMaxHeight: HDR 视频的同类上限，HDR 对处理器来说转换负担重得多。选择“自动”时使用测得的值。如果 HDR 影片卡顿而其他影片流畅，请调低；如果测量过于保守，可谨慎调高。可选值：480、720、1080、1440 和 2160。
   softwareAV1MaxHeight: 处理器编码 AV1 时的最高分辨率。目前实时播放从不在处理器上编码 AV1：AV1 输出需要支持它的图形芯片（见“AV1 输出”）。“自动”遵循校准结果，只在测得可行时才允许处理器编码 AV1。除非技术支持另有要求，请保持“自动”。立即生效。
   singleVariant: 只转换观众正在观看的画质，而不是同时转换所有画质。所需算力少得多。除非技术支持另有要求，请保持开启。默认：开。
-  hwPerVariant: 为每种画质在图形芯片上单独运行一个编码进程，而不是用一个进程处理全部画质。对某些同时输出多种画质时会崩溃的显卡驱动有帮助，但会占用更多内存。默认：关。
+  hwPerVariant: 为每种画质在图形芯片上单独运行一个编码进程，而不是用一个进程处理全部画质。对某些同时输出多种画质时会崩溃的显卡驱动有帮助，但会占用更多内存。只要“一次只编码一个码率档”处于开启状态，此项就不起作用，因为那时每次只编码一种画质。默认：关。

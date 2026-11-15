@@ -425,6 +425,10 @@ type HTTPServer struct {
 	// WebDir is the path to the built frontend dist (e.g. /srv).
 	// If set and the directory exists, the server serves the SPA from it.
 	WebDir string
+
+	// ClientUpdatesDir is the directory of signed client bundles (see
+	// client_update_handler.go). Empty: the routes answer "nothing to offer".
+	ClientUpdatesDir string
 }
 
 // subtitleRouteHandler builds the subtitle-extraction route handler gated by
@@ -495,6 +499,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.Translator != nil {
 		mux.HandleFunc("GET /api/v1/i18n/{locale}", i18nHandler(s.Translator, s.Cfg.Log.DevMode))
 	}
+	registerClientUpdateRoutes(mux, s.ClientUpdatesDir)
 
 	// OpenAPI spec for the public (API-key) surface, consumed by the in-app
 	// Swagger UI linked from the API keys page.

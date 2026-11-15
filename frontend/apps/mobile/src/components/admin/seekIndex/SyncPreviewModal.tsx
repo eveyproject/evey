@@ -231,7 +231,7 @@ export function SyncPreviewModal({ item, title, onClose }: { item: V1SeekIndexIt
           {/* Apply */}
           <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: 10, gap: 6 }}>
             <Pressable
-              onPress={() => applyShift.mutate({ mediaId, data: { track: String(track + 1), shiftSec: shift } })}
+              onPress={() => applyShift.mutate({ mediaId, data: { audioIndex: track, shiftSec: shift } })}
               disabled={shift === 0 || applyShift.isPending}
               style={[s.primaryBtn, { backgroundColor: theme.colors.accent, opacity: shift === 0 || applyShift.isPending ? 0.5 : 1 }]}
             >

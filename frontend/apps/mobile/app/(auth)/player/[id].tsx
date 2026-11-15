@@ -355,8 +355,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // direct play serves the original file bytes untouched.
   const audioOffsetAvailable = !!streamInfo && streamInfo.playMethod !== "PLAY_METHOD_DIRECT_PLAY";
 
-  // Client-rendered text subtitles (SubtitleOverlay): style is a device-wide
-  // preference (loaded once below, see the SecureStore-backed effect), the
+  // Client-rendered text subtitles (SubtitleOverlay): style is the profile's,
+  // with this device's last value until the profile answers (see below), the
   // resync offset is per-title like audioOffsetMs (reset on mediaId change).
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
   const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(0);
@@ -364,13 +364,6 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     let cancelled = false;
     void getSubtitleStylePref().then((saved) => { if (!cancelled && saved) setSubtitleStyle(saved); });
     return () => { cancelled = true; };
-  }, []);
-  const handleSubtitleStyleChange = useCallback((patch: Partial<SubtitleStyle>) => {
-    setSubtitleStyle((prev) => {
-      const next = { ...prev, ...patch };
-      void saveSubtitleStylePref(next);
-      return next;
-    });
   }, []);
 
   // Client-picked external subtitle file (upload): purely client-side, same
@@ -393,7 +386,23 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     subtitleLangs: profileSubtitleLangs,
     autoplayNext,
     setAutoplayNext: handleAutoplayNextChange,
+    subtitleStyle: profileSubtitleStyle,
+    saveSubtitleStyle: saveProfileSubtitleStyle,
   } = usePlayerProfilePrefs();
+  const subtitleStyleRef = useRef(subtitleStyle);
+  subtitleStyleRef.current = subtitleStyle;
+  // The profile's appearance wins over this device's last value, and a change
+  // made on another device lands here while the title plays.
+  useEffect(() => {
+    if (profileSubtitleStyle) setSubtitleStyle(profileSubtitleStyle);
+  }, [profileSubtitleStyle]);
+  const handleSubtitleStyleChange = useCallback((patch: Partial<SubtitleStyle>) => {
+    const next = { ...subtitleStyleRef.current, ...patch };
+    subtitleStyleRef.current = next;
+    setSubtitleStyle(next);
+    void saveSubtitleStylePref(next);
+    saveProfileSubtitleStyle(next);
+  }, [saveProfileSubtitleStyle]);
 
   // The profile's burn-in choice decides which tracks go to the server.
   const burnMode = subtitleBurnMode(activeProfile?.preferences);

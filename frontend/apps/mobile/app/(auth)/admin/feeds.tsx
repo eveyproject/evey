@@ -39,8 +39,9 @@ function feedLabel(t: (k: string) => string, feedType: string, libraryNames: Map
 }
 
 // A plugin home.section row: admin can force-disable it (propagates to every
-// user as a hard override) but not reorder it (each user keeps their own drag
-// order), so its max-items is "-" and its move arrows are disabled.
+// user as a hard override) and place it like any other row (the default order;
+// a user who reorders their own home still wins). Its size is the plugin's
+// business, so its max-items is "-".
 function isPluginRow(feedType: string): boolean {
   return feedType.startsWith("plugin:");
 }
@@ -80,15 +81,18 @@ export default function AdminFeedsScreen() {
         displayOrder: c.displayOrder ?? 0,
         maxItems: c.maxItems ?? 20,
       }));
-      // Synthesise rows for plugins with no admin row yet, so a freshly
-      // installed plugin shows up at once - enabled, parked at the end.
+      // Plugins with no admin row yet are new: they go on top, the last
+      // installed first, which is where every client's home renders a plugin
+      // the config does not place (mirror web FeedConfigCard).
       const persistedTypes = new Set(persisted.map((r: FeedRow) => r.feedType));
-      const baseOrder = persisted.length;
       const virtualPluginRows: FeedRow[] = homePlugins
-        .map((p) => `plugin:${p.id ?? ""}`)
-        .filter((ft) => !persistedTypes.has(ft))
-        .map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: baseOrder + i, maxItems: 20 }));
-      setRows([...persisted, ...virtualPluginRows].sort((a, b) => a.displayOrder - b.displayOrder));
+        .filter((p) => !persistedTypes.has(`plugin:${p.id ?? ""}`))
+        .sort((a, b) => (Date.parse(b.installedAt ?? "") || 0) - (Date.parse(a.installedAt ?? "") || 0))
+        .map((p) => ({ feedType: `plugin:${p.id ?? ""}`, enabled: true, displayOrder: 0, maxItems: 20 }));
+      setRows(
+        [...virtualPluginRows, ...persisted.sort((a: FeedRow, b: FeedRow) => a.displayOrder - b.displayOrder)]
+          .map((r, i) => ({ ...r, displayOrder: i })),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- homePlugins derived from pluginsData; re-run on configs/plugins/dirty only
   }, [data, pluginsData, dirty]);
@@ -115,8 +119,6 @@ export default function AdminFeedsScreen() {
 
   const moveUp = (i: number) => {
     if (i === 0) return;
-    // Plugin rows keep each user's own order - admin can't reorder them.
-    if (isPluginRow(rows[i].feedType) || isPluginRow(rows[i - 1].feedType)) return;
     setRows((prev) => {
       const next = [...prev];
       [next[i - 1], next[i]] = [next[i], next[i - 1]];
@@ -127,7 +129,6 @@ export default function AdminFeedsScreen() {
 
   const moveDown = (i: number) => {
     if (i >= rows.length - 1) return;
-    if (isPluginRow(rows[i].feedType) || isPluginRow(rows[i + 1].feedType)) return;
     setRows((prev) => {
       const next = [...prev];
       [next[i], next[i + 1]] = [next[i + 1], next[i]];
@@ -229,11 +230,11 @@ export default function AdminFeedsScreen() {
 
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View style={{ gap: 2 }}>
-                  <Pressable onPress={() => moveUp(i)} disabled={i === 0 || plugin} hitSlop={12} accessibilityRole="button" accessibilityLabel={t("common.feeds.moveUp")}>
-                    <Ionicons name="chevron-up" size={16} color={i === 0 || plugin ? theme.colors.border : theme.colors.textMuted} />
+                  <Pressable onPress={() => moveUp(i)} disabled={i === 0} hitSlop={12} accessibilityRole="button" accessibilityLabel={t("common.feeds.moveUp")}>
+                    <Ionicons name="chevron-up" size={16} color={i === 0 ? theme.colors.border : theme.colors.textMuted} />
                   </Pressable>
-                  <Pressable onPress={() => moveDown(i)} disabled={i >= rows.length - 1 || plugin} hitSlop={12} accessibilityRole="button" accessibilityLabel={t("common.feeds.moveDown")}>
-                    <Ionicons name="chevron-down" size={16} color={i >= rows.length - 1 || plugin ? theme.colors.border : theme.colors.textMuted} />
+                  <Pressable onPress={() => moveDown(i)} disabled={i >= rows.length - 1} hitSlop={12} accessibilityRole="button" accessibilityLabel={t("common.feeds.moveDown")}>
+                    <Ionicons name="chevron-down" size={16} color={i >= rows.length - 1 ? theme.colors.border : theme.colors.textMuted} />
                   </Pressable>
                 </View>
                 <Switch

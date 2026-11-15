@@ -20,6 +20,7 @@ import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { LanguageSettings } from "@/features/user/LanguageSettings";
 import { RegionSettings } from "@/features/user/RegionSettings";
 import { AutoplayNextSettings } from "@/features/user/AutoplayNextSettings";
+import { SubtitleStyleSettings } from "@/features/user/SubtitleStyleSettings";
 import { PlaybackSettings } from "@/features/user/PlaybackSettings";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
@@ -354,6 +355,12 @@ function SettingsPage() {
           {tab === "playback" && (
             <>
               <AutoplayNextSettings />
+              <div className="border-t border-[var(--border)] mt-6 pt-6">
+                {/* Stored on the shared profile: not a demo visitor's to change. */}
+                <DemoReadOnly>
+                  <SubtitleStyleSettings />
+                </DemoReadOnly>
+              </div>
               <div className="border-t border-[var(--border)] mt-6 pt-6">
                 {/* Read by the SERVER off the shared profile: nowhere private to keep them on the demo. */}
                 <DemoReadOnly>

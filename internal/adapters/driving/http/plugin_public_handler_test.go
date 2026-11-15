@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -118,6 +119,45 @@ func TestPluginPublicList_UserToken_200(t *testing.T) {
 		if _, ok := got[field]; ok {
 			t.Errorf("sensitive field %q MUST NOT appear in public response", field)
 		}
+	}
+}
+
+// The home renders the plugins its feed config does not place yet in the list
+// order, so the list must put the most recently installed plugin first.
+func TestPluginPublicList_NewestInstallFirst(t *testing.T) {
+	repo := pluginfakes.NewFakePluginRepository()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for i, id := range []string{"a-first", "b-second", "c-third"} {
+		p := runningPlugin()
+		p.ID, p.Name = id, id
+		p.InstalledAt = base.Add(time.Duration(i) * time.Hour)
+		if err := repo.Create(t.Context(), p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mux, _, userToken := newPluginPublicTestMux(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/plugins", nil)
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		Plugins []struct {
+			ID string `json:"id"`
+		} `json:"plugins"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	var got []string
+	for _, p := range resp.Plugins {
+		got = append(got, p.ID)
+	}
+	want := []string{"c-third", "b-second", "a-first"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("order = %v, want %v", got, want)
 	}
 }
 

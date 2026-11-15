@@ -121,6 +121,57 @@ func (s *SeekIndexService) SyncPreviewOfMedia(ctx context.Context, mediaID strin
 	return s.preview.RenderSyncPreview(ctx, normalizeSyncPreview(req))
 }
 
+// ErrAudioTrackMissing is an audio index past the file's last audio track: the
+// caller named a track the file does not have, refused before anything is
+// written.
+var ErrAudioTrackMissing = errors.New("the file has no such audio track")
+
+// ErrAudioTracksUnavailable means no lister is wired, so an audio index cannot
+// be turned into the track number a retime needs.
+var ErrAudioTracksUnavailable = errors.New("audio track lookup is not available on this server")
+
+// AudioTrackLister reads a file's audio tracks as Matroska track numbers, in
+// the order the preview counts them (index 0 = the first audio track).
+// Satisfied by the mkvgo adapter; optional.
+type AudioTrackLister interface {
+	AudioTrackNumbers(ctx context.Context, path string) ([]uint64, error)
+}
+
+// WithAudioTrackLister wires the audio track lookup. Optional and chainable.
+func (s *SeekIndexService) WithAudioTrackLister(l AudioTrackLister) *SeekIndexService {
+	s.audioTracks = l
+	return s
+}
+
+// ApplyOperatorShiftToAudio is ApplyOperatorShift for the track the preview
+// played: audioIndex counts audio tracks only, the way the clip picks one.
+// The Matroska number is read from the file because it cannot be derived:
+// tracks are numbered across every type, so the second audio track of a file
+// with subtitles in between is not track 2.
+func (s *SeekIndexService) ApplyOperatorShiftToAudio(ctx context.Context, mediaID string, audioIndex int, shiftSec float64) error {
+	if s.audioTracks == nil {
+		return ErrAudioTracksUnavailable
+	}
+	if shiftSec > SyncPreviewMaxShiftSec || shiftSec < -SyncPreviewMaxShiftSec {
+		return fmt.Errorf("apply shift: %+.3fs: %w", shiftSec, ErrShiftOutOfRange)
+	}
+	f, err := s.catalog.GetMediaFile(ctx, mediaID)
+	if err != nil {
+		return fmt.Errorf("apply shift: lookup media %s: %w", mediaID, err)
+	}
+	if f.Path == "" {
+		return fmt.Errorf("apply shift: media %s has no file", mediaID)
+	}
+	numbers, err := s.audioTracks.AudioTrackNumbers(ctx, f.Path)
+	if err != nil {
+		return fmt.Errorf("apply shift: list audio tracks of %s: %w", mediaID, err)
+	}
+	if audioIndex < 0 || audioIndex >= len(numbers) {
+		return fmt.Errorf("apply shift: audio index %d of %d: %w", audioIndex, len(numbers), ErrAudioTrackMissing)
+	}
+	return s.ApplyOperatorShift(ctx, mediaID, numbers[audioIndex], shiftSec)
+}
+
 // ApplyOperatorShift moves one audio track by the amount a person judged by
 // ear, and journals it as exactly that. This is the one path where a media
 // rewrite is justified by a human rather than a measurement, and the entry

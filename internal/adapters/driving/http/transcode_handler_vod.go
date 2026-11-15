@@ -147,6 +147,9 @@ type hlsVODServe struct {
 	admissionFreezeLadder func(key string, ladder []domaintranscoding.HLSProfile)
 	// admissionNoteRoute is the pin's route-drift detector (NoteRoute). Optional.
 	admissionNoteRoute func(key, routeIdentity string)
+	// admissionForgetRefused drops the pin of a stream this handler just
+	// refused, so its retry is planned afresh (ForgetRefused). Optional.
+	admissionForgetRefused func(key string)
 
 	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS -
 	// zero-storage, stateless, byte-identical HLS + DASH - when wired. It
@@ -1213,6 +1216,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 			slog.WarnContext(r.Context(), "hls-vod: at video transcoding capacity, shedding segment",
 				slog.String("media_id", mediaID),
 				slog.Int("seg", segmentIdx))
+			h.forgetRefused(rp)
 			writeTooManyStreams(w, 5, "server at video transcoding capacity")
 			return
 		}

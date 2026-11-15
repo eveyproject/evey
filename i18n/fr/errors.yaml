@@ -85,6 +85,7 @@ admin:
   loadtest_streams_active: "Des lectures sont en cours - un test de charge ne tourne jamais pendant que de vrais spectateurs regardent"
   loadtest_already_running: "Un test de charge est déjà en cours"
   sync_shift_out_of_range: "Cet outil ne décale pas une piste de plus de {max} s"
+  sync_audio_track_missing: "Ce fichier n'a pas cette piste audio"
   repair_undo_none: "Aucune réparation n'est enregistrée pour ce fichier"
   repair_not_reversible: "La dernière réparation de ce fichier ne peut pas être annulée par logiciel"
   repair_journal_newer: "Cette réparation a été enregistrée par une version plus récente et ne peut pas être lue sans risque"

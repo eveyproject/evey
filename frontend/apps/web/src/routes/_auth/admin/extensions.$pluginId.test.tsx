@@ -52,7 +52,7 @@ describe("plugin extension page", () => {
     entries.list = [{ pluginId: "p1", name: "Stats", entryPath: "/x", externalFetch: false }];
     render(<Page />);
     expect(screen.queryByTestId("frame")).toBeNull();
-    expect(screen.getByText(/not installed, not enabled, or has no admin page/)).toBeInTheDocument();
+    expect(screen.getByText(/not installed, enabled, or has no admin page/)).toBeInTheDocument();
     expect(screen.getByRole("link").getAttribute("href")).toBe("/admin/plugins");
   });
 });

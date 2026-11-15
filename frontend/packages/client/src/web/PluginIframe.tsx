@@ -45,18 +45,24 @@ interface PluginIframeProps {
   pixelScale?: number;
 }
 
-function getThemeVars(): string {
-  const computed = getComputedStyle(document.documentElement);
-  const vars: string[] = [];
+/**
+ * The host theme's custom properties, as declarations for the frame. A theme
+ * reaches the page two ways: `:root` rules in a stylesheet (the browser app)
+ * and properties set on the root element itself (the browser television,
+ * which paints a theme by setting them one by one). Both are collected, or a
+ * plugin on the television only ever sees its own fallback colours.
+ */
+export function collectThemeVars(): string {
+  const root = document.documentElement;
+  const computed = getComputedStyle(root);
+  const names = new Set<string>();
   for (const sheet of document.styleSheets) {
     try {
       for (const rule of sheet.cssRules) {
         if (rule instanceof CSSStyleRule && rule.selectorText === ":root") {
           for (let i = 0; i < rule.style.length; i++) {
             const prop = rule.style[i];
-            if (prop.startsWith("--")) {
-              vars.push(`${prop}: ${computed.getPropertyValue(prop).trim()};`);
-            }
+            if (prop.startsWith("--")) names.add(prop);
           }
         }
       }
@@ -64,6 +70,12 @@ function getThemeVars(): string {
       // cross-origin stylesheets - skip
     }
   }
+  for (let i = 0; i < root.style.length; i++) {
+    const prop = root.style[i];
+    if (prop.startsWith("--")) names.add(prop);
+  }
+  const vars: string[] = [];
+  for (const prop of names) vars.push(`${prop}: ${computed.getPropertyValue(prop).trim()};`);
   return vars.join("\n    ");
 }
 
@@ -84,7 +96,7 @@ function detectThemeMode(): "dark" | "light" {
 // The frame's stylesheet: the host theme's variables, so a plugin styled
 // with var(--text) looks native.
 function frameCss(): string {
-  return `:root {\n    ${getThemeVars()}\n  }\n  body { color: var(--text, #f1f5f9); }`;
+  return `:root {\n    ${collectThemeVars()}\n  }\n  body { color: var(--text, #f1f5f9); }`;
 }
 
 // The height the host recommends for a slot on this surface. A plugin that

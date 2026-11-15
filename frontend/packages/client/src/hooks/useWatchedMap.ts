@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { progressPercent } from "../lib/progressPercent";
+import { showsWatched } from "../lib/resumePosition";
 import type { V1WatchProgress } from "@evey/api";
 import { usePlaybackServiceGetWatchHistory, WATCH_HISTORY_OVERLAY_LIMIT } from "@evey/api";
 import type { V1GetWatchHistoryResponse } from "@evey/api";
@@ -8,11 +9,12 @@ import type { V1GetWatchHistoryResponse } from "@evey/api";
 // as useWatchedMap but selects a single boolean, so a refetch only re-renders
 // the cards whose watched state actually changed. useWatchedMap hands every
 // subscriber a NEW Map on each resolution - fine for one list-level filter,
-// pathological for 100+ mounted cards.
+// pathological for 100+ mounted cards. It answers for the card's mark
+// (showsWatched), not for the stored flag.
 export function useIsWatched(id: string | undefined) {
   const select = useCallback(
     (data: V1GetWatchHistoryResponse) =>
-      !!id && (data?.items ?? []).some((it) => it.mediaItemId === id && it.played === true),
+      !!id && (data?.items ?? []).some((it) => it.mediaItemId === id && showsWatched(it)),
     [id],
   );
   const { data } = usePlaybackServiceGetWatchHistory(
@@ -22,6 +24,8 @@ export function useIsWatched(id: string | undefined) {
   return data === true;
 }
 
+// useWatchedMap is the stored flag: what a list filters "already seen" by.
+// A card's mark reads buildWatchProgressMaps instead.
 export function useWatchedMap() {
   const { data } = usePlaybackServiceGetWatchHistory(
     { limit: WATCH_HISTORY_OVERLAY_LIMIT },
@@ -40,8 +44,8 @@ export function useWatchedMap() {
 }
 
 /**
- * The watched flag and the progress percent, keyed by media id, from one
- * watch-history response. What a grid needs to badge its cards.
+ * The watched mark (showsWatched) and the progress percent, keyed by media id,
+ * from one watch-history response. What a grid needs to badge its cards.
  */
 export function buildWatchProgressMaps(items: readonly V1WatchProgress[]): {
   watchedMap: Map<string, boolean>;
@@ -50,7 +54,7 @@ export function buildWatchProgressMaps(items: readonly V1WatchProgress[]): {
   const watchedMap = new Map<string, boolean>();
   const percentMap = new Map<string, number>();
   for (const w of items) {
-    if (w.mediaItemId && w.played) watchedMap.set(w.mediaItemId, true);
+    if (w.mediaItemId && showsWatched(w)) watchedMap.set(w.mediaItemId, true);
     if (w.mediaItemId && w.percentComplete != null) percentMap.set(w.mediaItemId, progressPercent(w.percentComplete));
   }
   return { watchedMap, percentMap };

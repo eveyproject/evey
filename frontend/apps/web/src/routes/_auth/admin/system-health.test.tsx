@@ -293,6 +293,36 @@ describe("SystemHealthPage", () => {
     expect(card).toHaveTextContent("Auto capacity is 3 streams (reduced by admin override)");
   });
 
+  it("lists the streams each budget fits per output height instead of the legacy measure", async () => {
+    const sysWithPools = {
+      ...sysData,
+      videoSessions: {
+        autoCapacity: 2,
+        effectiveLimit: 2,
+        active: 0,
+        evidence: { height: 1440, fps: 49.9, requiredFps: 28.8, cpuBudget: 8, derived: true },
+        benchSource: { codec: "hevc", height: 2160 },
+        pools: [
+          { pool: "cpu", classes: [{ ladderClass: "software", rungFits: [{ height: 1440, maxStreams: 2 }] }] },
+          { pool: "gpu", classes: [{ ladderClass: "hw", rungFits: [{ height: 1440, maxStreams: 1 }, { height: 2160, maxStreams: 1 }] }] },
+        ],
+      },
+    };
+    mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysWithPools, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    const table = screen.getByTestId("video-capacity-table");
+    const rows = table.querySelectorAll("tbody tr");
+    expect(rows[0]).toHaveTextContent("1440p~2 streams~1 stream");
+    expect(rows[1]).toHaveTextContent("2160p-~1 stream");
+    expect(table).toHaveTextContent("Processor (CPU)");
+    expect(table).toHaveTextContent("Graphics card (GPU)");
+    expect(table).toHaveTextContent("Calibrated against HEVC 2160p");
+    expect(table).toHaveTextContent("At most 2 streams at once, all encoders together.");
+    expect(screen.getByTestId("video-capacity-card")).not.toHaveTextContent("Measured:");
+  });
+
   it("shows an unmeasured-capacity warning when evidence.derived is false", async () => {
     const sysWithVideo = {
       ...sysData,

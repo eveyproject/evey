@@ -1,7 +1,7 @@
 {
   "name": "tv",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "start": "EXPO_TV=1 expo start",
     "android-tv": "EXPO_TV=1 expo run:android --device tv",
@@ -29,6 +29,7 @@
     "expo-localization": "55.0.13",
     "expo-router": "55.0.14",
     "expo-secure-store": "55.0.13",
+    "expo-updates": "55.0.33",
     "expo-video": "55.0.16",
     "i18next": "26.4.0",
     "i18next-http-backend": "4.0.6",

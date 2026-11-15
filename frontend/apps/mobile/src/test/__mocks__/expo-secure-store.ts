@@ -9,3 +9,9 @@ export async function getItemAsync(_key: string): Promise<string | null> {
 export async function setItemAsync(_key: string, _value: string): Promise<void> {}
 
 export async function deleteItemAsync(_key: string): Promise<void> {}
+
+export function getItem(_key: string): string | null {
+  return null;
+}
+
+export function setItem(_key: string, _value: string): void {}

@@ -273,3 +273,8 @@ demo:
   readOnly: "Schreibgeschützt in der Demo: die Einstellungen werden angezeigt, nicht bearbeitet."
 attribution:
   tmdb: "Dieses Produkt nutzt die TMDB-API, wird aber von TMDB weder unterstützt noch zertifiziert."
+clientUpdate:
+  title: "Update bereit"
+  body: "Eine neue Version der App wurde von Ihrem Server heruntergeladen."
+  restart: "Neu starten"
+  later: "Später"

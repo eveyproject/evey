@@ -6,6 +6,7 @@ import { authGateDecision } from "../../src/lib/authGate";
 import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
 import { useProfileCacheSync } from "../../src/hooks/useProfileCacheSync";
 import { initI18n } from "../../src/i18n";
+import { useProfileSettingsFollower } from "../../src/hooks/useProfileSettingsFollower";
 import { resolveServerUrl } from "../../src/lib/server-config";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
 import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
@@ -49,6 +50,7 @@ export default function AuthLayout() {
   // covers the whole session, and it costs no request - React Query dedupes it
   // against every other caller of the same list.
   useProfileCacheSync();
+  useProfileSettingsFollower();
   // Second chance for the translation catalogue: a boot whose single i18n
   // fetch failed (server asleep, flaky link) otherwise renders raw keys for
   // the WHOLE session. initI18n no-ops when the catalogue already arrived.

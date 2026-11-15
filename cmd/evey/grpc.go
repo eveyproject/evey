@@ -90,6 +90,9 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// journal holds the shift that was applied, and this replays its
 		// opposite - losslessly, whatever the codec.
 		WithTrackRetimer(mkvgo.NewTrackRetimer()).
+		// The preview names a track by its rank among the audio tracks; a
+		// retime needs its Matroska number. Read from the file, never derived.
+		WithAudioTrackLister(mkvgo.NewTrackRetimer()).
 		// A few seconds of picture with one audio track, rendered small enough
 		// for a browser. Nothing measurable here says whether the sound follows
 		// the IMAGE - only someone watching can, and this is what they watch.
@@ -220,6 +223,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		Photo:                  deps.media.photoSvc,
 		SyncplayHub:            deps.media.syncPlayHub,
 		QuickConnectHub:        qcHub,
+		SettingsNotifier:       deps.media.deviceRegistry,
 		IntroCache:             deps.repos.introMetaCache,
 		IntroBackfill:          deps.library.introDetectionSvc,
 		SeekIndex:              seekIndexSvc,

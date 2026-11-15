@@ -10,6 +10,7 @@ import { DiskIOList } from "@/features/admin/DiskIO";
 import { SystemTrends } from "@/features/admin/SystemTrends";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 import type { V1SystemInfo } from "@evey/api";
+import { videoCapacityTable, type VideoCapacityTable } from "@evey/client";
 
 export const Route = createLazyFileRoute("/_auth/admin/system-health")({
   // Every control here is an operator write the demo refuses (DemoReadOnly).
@@ -243,12 +244,74 @@ function VideoCapacityEvidenceRow({ evidence }: { evidence: VideoCapacityEvidenc
   );
 }
 
+// The streams each budget fits per output height - the numbers admission
+// enforces, next to the source they were measured against.
+function VideoCapacityTableView({
+  table,
+  limit,
+  benchSource,
+}: {
+  table: VideoCapacityTable;
+  limit: number;
+  benchSource: VideoSessionCapacity["benchSource"];
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="video-capacity-table">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs text-left">
+          <thead>
+            <tr className="text-[var(--text-muted)]">
+              <th scope="col" className="py-1 pr-3 font-medium">
+                {t("admin.systemHealth.videoCapacityOutput")}
+              </th>
+              {table.columns.map((c) => (
+                <th key={`${c.pool}-${c.ladderClass}`} scope="col" className="py-1 pr-3 font-medium">
+                  {t(c.labelKey)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row) => (
+              <tr key={row.height} className="border-t border-[var(--border)]">
+                <th scope="row" className="py-1 pr-3 font-mono font-normal text-[var(--text)]">
+                  {row.height}p
+                </th>
+                {row.streams.map((count, i) => (
+                  <td key={`${table.columns[i]?.pool}-${table.columns[i]?.ladderClass}`} className="py-1 pr-3 tabular-nums text-[var(--text)]">
+                    {count === undefined ? "-" : t("admin.transcoding.videoSourceStreams", { count })}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {limit > 0 && (
+        <p className="text-xs text-[var(--text-muted)]">
+          {t("admin.systemHealth.videoCapacityTotalNote", { limit })}
+        </p>
+      )}
+      {benchSource?.codec && (
+        <p className="text-xs text-[var(--text-muted)]">
+          {t("admin.transcoding.videoBenchSource", {
+            codec: benchSource.codec.toUpperCase(),
+            height: benchSource.height,
+          })}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function VideoCapacityCard({ capacity }: { capacity: VideoSessionCapacity }) {
   const { t } = useTranslation();
   const active = capacity.active ?? 0;
   const limit = capacity.effectiveLimit ?? 0;
   const auto = capacity.autoCapacity ?? 0;
   const reduced = limit < auto;
+  const table = videoCapacityTable(capacity.pools);
   return (
     <div
       className="p-4 rounded-[var(--radius-lg)] flex flex-col gap-2 bg-[var(--surface)] border border-[var(--border)]"
@@ -267,7 +330,11 @@ function VideoCapacityCard({ capacity }: { capacity: VideoSessionCapacity }) {
           {t("admin.systemHealth.videoCapacityAutoNote", { auto })}
         </p>
       )}
-      <VideoCapacityEvidenceRow evidence={capacity.evidence} />
+      {table.columns.length > 0 ? (
+        <VideoCapacityTableView table={table} limit={limit} benchSource={capacity.benchSource} />
+      ) : (
+        <VideoCapacityEvidenceRow evidence={capacity.evidence} />
+      )}
       <p className="text-xs text-[var(--text-muted)]">
         {t("admin.systemHealth.videoCapacityHint")}
       </p>

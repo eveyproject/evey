@@ -85,6 +85,7 @@ admin:
   loadtest_streams_active: "Hay reproducciones activas - una prueba de carga nunca se ejecuta con espectadores reales"
   loadtest_already_running: "Ya hay una prueba de carga en curso"
   sync_shift_out_of_range: "Esta herramienta no desplaza una pista más de {max} s"
+  sync_audio_track_missing: "Este archivo no tiene esa pista de audio"
   repair_undo_none: "No hay ninguna reparación registrada para este archivo"
   repair_not_reversible: "La última reparación de este archivo no se puede deshacer por software"
   repair_journal_newer: "Esta reparación fue registrada por una versión más reciente y no se puede leer de forma segura"

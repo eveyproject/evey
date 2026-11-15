@@ -443,6 +443,26 @@ ci-fast-frontend-test-gate:
 	  echo "→ frontend unit tests skipped (no frontend/ or i18n/ change since $$base)"; \
 	fi
 
+# ci-android-patch-gate: the changes patched into expo-updates and the apps'
+# signing configuration must be what the Android build compiles
+# (docs/client-updates.md). Only on a branch that touches what decides that
+# since its fork point with dev: the dependencies and their patches, the
+# certificate, or an app's native side. ANDROID_PATCH=1 forces it. Every
+# Gradle build of the apps runs the same check on its own.
+ANDROID_PATCH_PATHS := frontend/patches frontend/package.json frontend/pnpm-lock.yaml \
+	frontend/apps/mobile/android frontend/apps/mobile/app.json frontend/apps/mobile/package.json frontend/apps/mobile/plugins \
+	frontend/apps/tv/app.json frontend/apps/tv/package.json frontend/apps/tv/plugins \
+	frontend/client-updates frontend/packages/client/src/native/clientUpdates.ts frontend/scripts/check-expo-updates-patch.mjs
+
+ci-android-patch-gate:
+	@base=$$(git merge-base origin/dev HEAD 2>/dev/null || git merge-base origin/master HEAD 2>/dev/null || git rev-parse HEAD~1); \
+	if [ "$(ANDROID_PATCH)" = "1" ] || ! git diff --quiet $$base -- $(ANDROID_PATCH_PATHS); then \
+	  echo "→ client updates: expo-updates patch and signing configuration (evey-web)"; \
+	  docker exec -w /app evey-web node scripts/check-expo-updates-patch.mjs; \
+	else \
+	  echo "→ expo-updates patch check skipped (no Android-side change since $$base)"; \
+	fi
+
 ci-fast-frontend: ci-fast-frontend-static
 	@echo "→ frontend unit tests (vitest, all projects)"
 	@docker exec -w /app evey-web sh -c 'pnpm run test'
@@ -501,8 +521,8 @@ perf:
 	@echo "→ web bundle budget"
 	@sh scripts/bundle-budget.sh frontend/apps/web/dist || echo "   (build the web app first: docker exec evey-web pnpm --filter web build)"
 
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate tv-audit
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite + transcode contract + audit TV)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-android-patch-gate ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate tv-audit
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + expo-updates patch if touched + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite + transcode contract + audit TV)."
 
 # pre-push-dev: the gate for a push to dev or to a work branch (the hook picks it
 # from the destination). Everything above except what the pull request's CI
@@ -512,8 +532,8 @@ pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend c
 # run only when the branch touches what they cover: left to CI, they were the
 # usual first red run of a pull request.
 pre-push-dev: TRANSCODE_ITEST_SKIP = TestCodecStringIntegration
-pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit-changed ci-fast-frontend-static ci-fast-frontend-test-gate ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate
-	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race on changed packages + frontend typecheck/lint + frontend tests if touched + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite if touched + transcode contract). The pull request's CI runs the rest."
+pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit-changed ci-fast-frontend-static ci-fast-frontend-test-gate ci-android-patch-gate ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate
+	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race on changed packages + frontend typecheck/lint + frontend tests if touched + expo-updates patch if touched + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite if touched + transcode contract). The pull request's CI runs the rest."
 
 # ci-hygiene: the house rules a regex can decide - plain dashes, no AI attribution
 # trailer, no conflict marker, no elision placeholder, no .claude/ in
@@ -946,3 +966,12 @@ wiki-drafts:
 	@echo "→ wiki drafts: http://localhost:8001 (Ctrl-C to stop)"
 	@$(WIKI_DOCKER) -e EVEY_WIKI_DRAFTS=true -p 8001:8001 $(WIKI_IMAGE) sh -c 'pip install -q --disable-pip-version-check -r requirements.txt && \
 	  python3 assemble.py --drafts && mkdocs serve -a 0.0.0.0:8001'
+
+# Signed JavaScript bundles the image serves to the phone and TV apps. Run
+# before the image build of a release; EVEY_CLIENT_UPDATE_KEY_FILE is the path
+# of the project signing key (never in the repo, never the key itself). Without
+# it the bundles are left unsigned and the server serves none.
+.PHONY: client-updates
+client-updates:
+	cd frontend && node scripts/build-client-update.mjs --app mobile --out ../client-updates
+	cd frontend && node scripts/build-client-update.mjs --app tv --out ../client-updates

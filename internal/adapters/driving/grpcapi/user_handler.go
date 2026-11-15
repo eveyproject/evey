@@ -32,6 +32,20 @@ type userHandler struct {
 	translator      *eveyi18n.Translator
 	quickConnectHub *quickconnecthub.Hub
 	cfg             *config.Config
+	settings        SettingsNotifier
+}
+
+// SettingsNotifier tells every client a user has connected that a setting
+// stored on the server changed, so each reloads its own copy.
+type SettingsNotifier interface {
+	SettingsChanged(userID, profileID, scope string)
+}
+
+func notifySettingsChanged(n SettingsNotifier, userID, profileID, scope string) {
+	if n == nil {
+		return
+	}
+	n.SettingsChanged(userID, profileID, scope)
 }
 
 func (h *userHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Evey TV",
     "slug": "evey-tv",
-    "version": "0.2.10",
+    "version": "0.2.11",
     "scheme": "evey",
     "icon": "./assets/icon.png",
     "splash": {
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.evey.app",
-      "versionCode": 108,
+      "versionCode": 110,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-background.png",
@@ -44,6 +44,7 @@
       "./plugins/withTvHardwareFeatures",
       "./plugins/withWidgetFocusGuard",
       "./plugins/withNoWindowBackground",
+      "./plugins/withClientUpdateCheck",
       "expo-router",
       "expo-video",
       [
@@ -54,6 +55,19 @@
           "androidTVBanner": "./assets/tv_banner.png"
         }
       ]
-    ]
+    ],
+    "runtimeVersion": "tv-1",
+    "updates": {
+      "url": "https://updates.invalid/",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "codeSigningCertificate": "../../client-updates/certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
+      },
+      "disableAntiBrickingMeasures": true
+    }
   }
 }

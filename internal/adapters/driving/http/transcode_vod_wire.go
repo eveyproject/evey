@@ -122,16 +122,17 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	prefsLookup, _ := pkgcache.NewWithMaxSize[apptranscoding.TranscodingPreferences](0, mediaLookupMax)
 	userBitrateLookup, _ := pkgcache.NewWithMaxSize[int](0, mediaLookupMax)
 	h := &hlsVODServe{
-		keyframeWarmer:        s.KeyframeWarmer,
-		videoAdmission:        videoAdmissionOf(s.VideoLimiter),
-		videoFitsIdle:         videoFitsIdleOf(s.VideoLimiter),
-		calibrating:           calibratingOf(s.CalibrationSvc),
-		admissionRoute:        admissionRouteOf(s.VideoAdmissionShaper),
-		admissionPinnedClass:  pinnedClassOf(s.VideoAdmissionShaper),
-		admissionBind:         admissionBindOf(s.VideoAdmissionShaper),
-		admissionFrozenLadder: frozenLadderOf(s.VideoAdmissionShaper),
-		admissionFreezeLadder: freezeLadderOf(s.VideoAdmissionShaper),
-		admissionNoteRoute:    noteRouteOf(s.VideoAdmissionShaper),
+		keyframeWarmer:         s.KeyframeWarmer,
+		videoAdmission:         videoAdmissionOf(s.VideoLimiter),
+		videoFitsIdle:          videoFitsIdleOf(s.VideoLimiter),
+		calibrating:            calibratingOf(s.CalibrationSvc),
+		admissionRoute:         admissionRouteOf(s.VideoAdmissionShaper),
+		admissionPinnedClass:   pinnedClassOf(s.VideoAdmissionShaper),
+		admissionBind:          admissionBindOf(s.VideoAdmissionShaper),
+		admissionFrozenLadder:  frozenLadderOf(s.VideoAdmissionShaper),
+		admissionFreezeLadder:  freezeLadderOf(s.VideoAdmissionShaper),
+		admissionNoteRoute:     noteRouteOf(s.VideoAdmissionShaper),
+		admissionForgetRefused: forgetRefusedOf(s.VideoAdmissionShaper),
 		// Per-stream hash bookkeeping: pure in-memory, no dependency, so it is
 		// always on. reclaimHash is attached below, once both producers exist.
 		streamHashes:         apptranscoding.NewStreamHashRegistry(0, 0),

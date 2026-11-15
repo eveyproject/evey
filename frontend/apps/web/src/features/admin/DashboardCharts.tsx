@@ -1,36 +1,77 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useActivityServiceGetAnalytics } from "@evey/api";
-import { BarChart, Bar, XAxis, YAxis } from "recharts";
-
-import { useCssVar } from "@/hooks/useCssVar";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
 const CHART_HEIGHT = 200;
 
-// recharts is driven with an explicit width (not ResponsiveContainer): a fixed
-// width per bar keeps the horizontal-scroll behaviour these charts had with
-// gifted-charts, and it renders under jsdom (ResponsiveContainer measures 0x0
-// there and draws nothing).
-function barChartWidth(count: number, step: number, pad = 48) {
-  return Math.max(count * step + pad, 240);
+// Colours are CSS variables, not values read once from getComputedStyle: the
+// chart then follows the theme as it loads or changes, like the rest of the page.
+const ACCENT = "var(--accent)";
+const TEXT_MUTED = "var(--text-muted)";
+const GRID = "var(--border)";
+
+// The chart fills its card. A minimum width per bar keeps the labels readable
+// on a narrow screen, where the chart scrolls sideways instead of squeezing.
+// recharts gets an explicit width (not ResponsiveContainer, which measures 0x0
+// under jsdom and draws nothing), measured from the wrapper. A callback ref,
+// not an effect on a ref object: the wrapper only mounts once the analytics
+// arrive, after the first render, and an effect would never see it.
+function useContainerWidth(): [(el: HTMLDivElement | null) => void, number, HTMLDivElement | null] {
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    if (!el) return;
+    setWidth(el.clientWidth);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, width, el];
 }
+
+function chartWidth(available: number, count: number, minStep: number): number {
+  return Math.max(available, count * minStep + 48);
+}
+
+function ChartCard({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)] min-w-0">
+      <div className="flex items-center justify-between gap-2 h-7 mb-3">
+        <h3 className="text-sm font-semibold text-[var(--text)] truncate min-w-0">{title}</h3>
+        {actions}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ChartTooltip({ active, payload, label, format }: {
+  active?: boolean;
+  payload?: Array<{ value?: number }>;
+  label?: string;
+  format: (v: number) => string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="px-2.5 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-xs shadow-[var(--shadow-md)]">
+      <div className="text-[var(--text-muted)]">{label}</div>
+      <div className="font-semibold text-[var(--text)] tabular-nums">{format(payload[0].value ?? 0)}</div>
+    </div>
+  );
+}
+
+const axisTick = { fill: TEXT_MUTED, fontSize: 11 };
 
 export function PlayActivityChart() {
   const { t } = useTranslation();
   const [mode, setMode] = useState<"plays" | "watchTime">("plays");
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollToEnd = useCallback(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
-  }, []);
+  const [scrollRef, available, scrollEl] = useContainerWidth();
   const { data } = useActivityServiceGetAnalytics({
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const daily = useMemo(() => data?.dailyPlays ?? [], [data?.dailyPlays]);
-  const accent = useCssVar("--accent", "#c81e1e");
-  const textMuted = useCssVar("--text-muted");
-
-  useEffect(() => { scrollToEnd(); }, [daily.length, scrollToEnd]);
 
   const barData = useMemo(() => daily.map((d) => {
     const parts = (d.date ?? "").split("-");
@@ -41,97 +82,98 @@ export function PlayActivityChart() {
     return { value, label };
   }), [daily, mode]);
 
-  const maxVal = Math.max(...barData.map((d) => d.value), 1);
+  const width = chartWidth(available, barData.length, 36);
+  // On a narrow screen the chart scrolls: show the latest days first.
+  useEffect(() => {
+    if (scrollEl) scrollEl.scrollLeft = scrollEl.scrollWidth;
+  }, [scrollEl, width]);
 
   if (daily.length === 0) return null;
 
+  const format = (v: number) => (mode === "watchTime" ? `${v} h` : `${v}`);
+  const toggle = (value: "plays" | "watchTime", label: string) => (
+    <button
+      type="button"
+      className={`px-2.5 py-1 rounded-[var(--radius-sm)] transition-colors ${mode === value ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}`}
+      onClick={() => setMode(value)}
+      aria-label={label}
+      aria-pressed={mode === value}
+    >
+      {label}
+    </button>
+  );
+
   return (
-    <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)] min-w-0">
-      <div className="flex items-center justify-between mb-3 gap-2">
-        <h3 className="text-sm font-semibold text-[var(--text)] truncate min-w-0">
-          {t("admin.dashboardStats.playActivity")}
-        </h3>
-        <div className="flex rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden text-xs shrink-0">
-          <button
-            className={`px-2 py-1 transition-colors ${mode === "plays" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface)] text-[var(--text-muted)]"}`}
-            onClick={() => setMode("plays")}
-            aria-label={t("admin.dashboardStats.plays")}
-            aria-pressed={mode === "plays"}
-          >
-            {t("admin.dashboardStats.plays")}
-          </button>
-          <button
-            className={`px-2 py-1 transition-colors ${mode === "watchTime" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface)] text-[var(--text-muted)]"}`}
-            onClick={() => setMode("watchTime")}
-            aria-label={t("admin.dashboardStats.watchTime")}
-            aria-pressed={mode === "watchTime"}
-          >
-            {t("admin.dashboardStats.watchTime")}
-          </button>
+    <ChartCard
+      title={t("admin.dashboardStats.playActivity")}
+      actions={
+        <div className="flex p-0.5 gap-0.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] text-xs shrink-0">
+          {toggle("plays", t("admin.dashboardStats.plays"))}
+          {toggle("watchTime", t("admin.dashboardStats.watchTime"))}
         </div>
-      </div>
+      }
+    >
       <div
-        className="overflow-x-scroll overflow-y-hidden"
+        className="overflow-x-auto overflow-y-hidden"
         style={{ scrollbarWidth: "thin" }}
         ref={scrollRef}
         role="img"
         aria-label={t("admin.dashboardStats.playActivity")}
       >
-        <BarChart width={barChartWidth(barData.length, 40)} height={CHART_HEIGHT} data={barData} barCategoryGap={12}>
-          <XAxis dataKey="label" tick={{ fill: textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+        <BarChart width={width} height={CHART_HEIGHT} data={barData} barCategoryGap="25%" margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <CartesianGrid vertical={false} stroke={GRID} strokeDasharray="3 3" />
+          <XAxis dataKey="label" tick={{ ...axisTick, fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
           <YAxis
-            tick={{ fill: textMuted, fontSize: 11 }}
+            tick={axisTick}
             axisLine={false}
             tickLine={false}
-            width={34}
-            tickCount={5}
-            domain={[0, Math.ceil(maxVal * 1.1)]}
-            tickFormatter={(v: number) => (mode === "watchTime" ? `${v}h` : `${v}`)}
+            width={36}
+            allowDecimals={mode === "watchTime"}
+            domain={[0, "auto"]}
+            tickFormatter={format}
           />
-          <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+          <Tooltip cursor={{ fill: "var(--surface-hover)" }} content={<ChartTooltip format={format} />} isAnimationActive={false} />
+          <Bar dataKey="value" fill={ACCENT} radius={[4, 4, 0, 0]} maxBarSize={32} isAnimationActive={false} />
         </BarChart>
       </div>
-    </div>
+    </ChartCard>
   );
 }
 
 export function PeakHours() {
   const { t } = useTranslation();
+  const [scrollRef, available] = useContainerWidth();
   const { data } = useActivityServiceGetAnalytics({
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const hourly = useMemo(() => data?.hourlyPlays ?? [], [data?.hourlyPlays]);
-  const accent = useCssVar("--accent", "#c81e1e");
-  const textMuted = useCssVar("--text-muted");
 
   const allHours = useMemo(() => Array.from({ length: 24 }, (_, i) => {
     const entry = hourly.find((h) => h.hour === i);
     return { value: entry?.count ?? 0, label: `${i}h` };
   }), [hourly]);
 
-  const maxVal = Math.max(...allHours.map((d) => d.value), 1);
-
   if (hourly.length === 0) return null;
 
+  const format = (v: number) => `${v}`;
+
   return (
-    <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
-      <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">
-        {t("admin.dashboardStats.peakHours")}
-      </h3>
-      <div className="overflow-x-auto" role="img" aria-label={t("admin.dashboardStats.peakHours")}>
-        <BarChart width={barChartWidth(allHours.length, 22)} height={CHART_HEIGHT} data={allHours} barCategoryGap={4}>
-          <XAxis dataKey="label" tick={{ fill: textMuted, fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
-          <YAxis
-            tick={{ fill: textMuted, fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            width={30}
-            tickCount={4}
-            domain={[0, Math.ceil(maxVal * 1.1)]}
-          />
-          <Bar dataKey="value" fill={accent} radius={[3, 3, 0, 0]} maxBarSize={14} isAnimationActive={false} />
+    <ChartCard title={t("admin.dashboardStats.peakHours")}>
+      <div
+        className="overflow-x-auto overflow-y-hidden"
+        style={{ scrollbarWidth: "thin" }}
+        ref={scrollRef}
+        role="img"
+        aria-label={t("admin.dashboardStats.peakHours")}
+      >
+        <BarChart width={chartWidth(available, allHours.length, 20)} height={CHART_HEIGHT} data={allHours} barCategoryGap="20%" margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <CartesianGrid vertical={false} stroke={GRID} strokeDasharray="3 3" />
+          <XAxis dataKey="label" tick={{ ...axisTick, fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={6} />
+          <YAxis tick={axisTick} axisLine={false} tickLine={false} width={36} allowDecimals={false} domain={[0, "auto"]} />
+          <Tooltip cursor={{ fill: "var(--surface-hover)" }} content={<ChartTooltip format={format} />} isAnimationActive={false} />
+          <Bar dataKey="value" fill={ACCENT} radius={[3, 3, 0, 0]} maxBarSize={24} isAnimationActive={false} />
         </BarChart>
       </div>
-    </div>
+    </ChartCard>
   );
 }

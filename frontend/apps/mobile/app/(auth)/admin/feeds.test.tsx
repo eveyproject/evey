@@ -3,9 +3,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
 // Home sections in display order, library rows named after their library; a
-// plugin with a home.section slot but no admin row yet appears at the end,
-// enabled, and can be switched off but never reordered (each user keeps
-// their own order); max-items is clamped to 1..100 and a blank keeps the old
+// plugin with a home.section slot but no admin row yet appears first (the
+// last installed on top), enabled, and moves like any other row; max-items is clamped to 1..100 and a blank keeps the old
 // value; Save appears only once dirty and sends every row, then refreshes
 // both the admin and the merged home config.
 const header = vi.hoisted(() => ({ right: null as null | (() => React.ReactNode) }));
@@ -78,7 +77,7 @@ beforeEach(() => {
 });
 
 describe("admin feeds screen (mobile)", () => {
-  it("orders rows by display order, names library rows, and parks a new home plugin at the end", () => {
+  it("orders rows by display order, names library rows, and puts a new home plugin first", () => {
     render(<AdminFeedsScreen />);
     expect(screen.getByText("Films")).toBeTruthy();
     expect(screen.getByText("Weather")).toBeTruthy();
@@ -86,16 +85,21 @@ describe("admin feeds screen (mobile)", () => {
     expect(screen.queryByText("Off")).toBeNull();
     expect(screen.getByText("Plugin")).toBeTruthy();
     const switches = screen.getAllByRole("switch") as HTMLInputElement[];
-    expect(switches.map((s) => s.checked)).toEqual([true, true, false, true]);
-    // Move arrows: the plugin row's are disabled, and the row above it cannot move down onto it.
+    expect(switches.map((s) => s.checked)).toEqual([true, true, true, false]);
+    // The plugin row on top can move down; only the edges are disabled.
     const downs = screen.getAllByRole("button", { name: "common.feeds.moveDown" }) as HTMLButtonElement[];
+    const ups = screen.getAllByRole("button", { name: "common.feeds.moveUp" }) as HTMLButtonElement[];
+    expect(ups[0].disabled).toBe(true);
+    expect(downs[0].disabled).toBe(false);
     expect(downs.at(-1)!.disabled).toBe(true);
     expect(screen.queryByTestId("header")).toBeNull();
   });
 
-  it("toggles, reorders regular rows, clamps max-items, and saves every row then refreshes both configs", async () => {
+  it("toggles, reorders rows (plugin included), clamps max-items, and saves every row then refreshes both configs", async () => {
     render(<AdminFeedsScreen />);
-    fireEvent.click(screen.getAllByRole("button", { name: "common.feeds.moveUp" })[1]);
+    // [weather, resume, next_up, lib] -> next_up above resume, then weather to the bottom.
+    fireEvent.click(screen.getAllByRole("button", { name: "common.feeds.moveUp" })[2]);
+    for (let i = 0; i < 3; i++) fireEvent.click(screen.getAllByRole("button", { name: "common.feeds.moveDown" })[i]);
     expect(screen.getByTestId("header")).toBeTruthy();
     const max = screen.getByLabelText("Éléments max: common.feeds.labels.resume_playback") as HTMLInputElement;
     fireEvent.change(max, { target: { value: "500" } });

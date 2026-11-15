@@ -15,6 +15,7 @@ import { BackgroundTasksPanel } from "../../../src/components/admin/BackgroundTa
 import { DiskIOList } from "../../../src/components/admin/DiskIO";
 import { SystemTrends } from "../../../src/components/admin/SystemTrends";
 import { formatBytes } from "@evey/api";
+import { videoCapacityTable } from "@evey/client";
 
 const HISTORY_SIZE = 30;
 
@@ -70,6 +71,7 @@ export default function SystemHealthScreen() {
     query: { refetchInterval: 5_000, refetchIntervalInBackground: false },
   });
   const { data: sysInfo, refetch: refetchSys } = useAdminSystemServiceGetSystemInfo();
+  const capacityTable = videoCapacityTable(sysInfo?.videoSessions?.pools);
   const { data: metrics, refetch: refetchMetrics } = useQuery<SystemMetrics>({
     queryKey: ["/api/v1/admin/system/metrics"],
     queryFn: () => eveyFetch<SystemMetrics>({ url: "/api/v1/admin/system/metrics", method: "GET" }),
@@ -385,7 +387,46 @@ export default function SystemHealthScreen() {
                 {t("admin.systemHealth.videoCapacityAutoNote", { auto: sysInfo.videoSessions.autoCapacity ?? 0 })}
               </Text>
             )}
-            {sysInfo.videoSessions.evidence?.derived === false ? (
+            {capacityTable.columns.length > 0 ? (
+              <View style={{ gap: 4 }} testID="video-capacity-table">
+                <View style={{ flexDirection: "row" }}>
+                  <Text style={{ flex: 1, color: theme.colors.textMuted, fontSize: 11 }}>
+                    {t("admin.systemHealth.videoCapacityOutput")}
+                  </Text>
+                  {capacityTable.columns.map((c) => (
+                    <Text key={`${c.pool}-${c.ladderClass}`} style={{ flex: 2, color: theme.colors.textMuted, fontSize: 11 }}>
+                      {t(c.labelKey)}
+                    </Text>
+                  ))}
+                </View>
+                {capacityTable.rows.map((row) => (
+                  <View key={row.height} style={{ flexDirection: "row" }}>
+                    <Text style={{ flex: 1, color: theme.colors.text, fontSize: 12 }}>{row.height}p</Text>
+                    {row.streams.map((count, i) => (
+                      <Text
+                        key={`${capacityTable.columns[i]?.pool}-${capacityTable.columns[i]?.ladderClass}`}
+                        style={{ flex: 2, color: theme.colors.text, fontSize: 12 }}
+                      >
+                        {count === undefined ? "-" : t("admin.transcoding.videoSourceStreams", { count })}
+                      </Text>
+                    ))}
+                  </View>
+                ))}
+                {(sysInfo.videoSessions.effectiveLimit ?? 0) > 0 ? (
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                    {t("admin.systemHealth.videoCapacityTotalNote", { limit: sysInfo.videoSessions.effectiveLimit })}
+                  </Text>
+                ) : null}
+                {sysInfo.videoSessions.benchSource?.codec ? (
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                    {t("admin.transcoding.videoBenchSource", {
+                      codec: sysInfo.videoSessions.benchSource.codec.toUpperCase(),
+                      height: sysInfo.videoSessions.benchSource.height,
+                    })}
+                  </Text>
+                ) : null}
+              </View>
+            ) : sysInfo.videoSessions.evidence?.derived === false ? (
               <Text style={{ color: theme.colors.warning, fontSize: 11 }}>
                 {t("admin.systemHealth.videoCapacityNotMeasured")}
               </Text>

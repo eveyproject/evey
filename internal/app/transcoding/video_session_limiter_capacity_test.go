@@ -46,7 +46,7 @@ func TestRungsFor_PerSourceMatchesAdmission(t *testing.T) {
 	}
 }
 
-// A GPU route draws on both pools: the cap is the tighter one, not their sum.
+// A GPU route draws on both pools: alone, its cap is the tighter one, not their sum.
 func TestAutoCountCap_RouteEvidenceIsMinOfPoolsNotSum(t *testing.T) {
 	t.Parallel()
 	// accel = 24*headroom/FPS = 0.25 (4 fit); cpu = 2*0.25/3 = 1/6 (6 fit).
@@ -59,5 +59,57 @@ func TestAutoCountCap_RouteEvidenceIsMinOfPoolsNotSum(t *testing.T) {
 	}
 	if got := mk().AutoCountCap(); got != 4 {
 		t.Errorf("AutoCountCap = %d, want 4 (GPU pool binds; CPU holds 6)", got)
+	}
+}
+
+// A hardware session that barely touches the CPU leaves room for software
+// ones: the belt must not refuse what the pool budgets admit together.
+func TestAutoCountCap_RouteEvidenceCountsSoftwareInTheCPULeftOver(t *testing.T) {
+	t.Parallel()
+	hwKey := rk("nvenc", "h264_nvenc", transcoding.RouteCostSDR)
+	swKey := rk("", "libx264", transcoding.RouteCostSDR)
+	// hw: accel 28.8/75.28 = 0.383 (2 fit), cpu 0.57*28.8/75.28/8 = 0.027.
+	// sw: cpu 5.41*36/64.99/8 = 0.375 (2 fit, and still 2 in the 0.945 left).
+	s := []transcoding.RouteSample{
+		{Key: hwKey, Height: 1080, FPS: 75.28, SourceFPS: 24, CPUCores: 0.57},
+		{Key: swKey, Height: 1080, FPS: 64.99, SourceFPS: 24, CPUCores: 5.41},
+	}
+	l := NewVideoSessionLimiter(0).WithRouteModel(NewRouteCostModel(s, 8))
+	if got := l.AutoCountCap(); got != 4 {
+		t.Fatalf("AutoCountCap = %d, want 4 (2 hardware + 2 software)", got)
+	}
+
+	l.SetLimit(l.AutoCountCap())
+	for i := range 2 {
+		if !l.TryAcquireRoute(fmt.Sprintf("hw-%d", i), LadderClassHW, 1080, transcoding.SourceClass{}, hwKey, 24) {
+			t.Fatalf("hardware viewer %d refused", i)
+		}
+	}
+	for i := range 2 {
+		if !l.TryAcquireRoute(fmt.Sprintf("sw-%d", i), LadderClassSoftware, 1080, transcoding.SourceClass{}, swKey, 24) {
+			t.Fatalf("software viewer %d refused while the CPU budget has room", i)
+		}
+	}
+	if l.TryAcquireRoute("hw-extra", LadderClassHW, 1080, transcoding.SourceClass{}, hwKey, 24) {
+		t.Error("a third hardware viewer was admitted past the accelerator budget")
+	}
+	if l.TryAcquireRoute("sw-extra", LadderClassSoftware, 1080, transcoding.SourceClass{}, swKey, 24) {
+		t.Error("a third software viewer was admitted past the CPU budget")
+	}
+}
+
+// A hardware route that eats the CPU leaves software nothing: no stream is
+// counted twice.
+func TestAutoCountCap_RouteEvidenceHardwareThatFillsTheCPULeavesNoSoftware(t *testing.T) {
+	t.Parallel()
+	// hw: accel 28.8/57.6 = 0.5 (2 fit), cpu 4*28.8/57.6/4 = 0.5 (2 fit).
+	// sw alone: cpu 2*36/36/4 = 0.5 (2 fit); nothing left once hardware runs.
+	s := []transcoding.RouteSample{
+		{Key: rk("nvenc", "h264_nvenc", transcoding.RouteCostSDR), Height: 1080, FPS: 57.6, SourceFPS: 24, CPUCores: 4},
+		{Key: rk("", "libx264", transcoding.RouteCostSDR), Height: 1080, FPS: 36, SourceFPS: 24, CPUCores: 2},
+	}
+	l := NewVideoSessionLimiter(0).WithRouteModel(NewRouteCostModel(s, 4))
+	if got := l.AutoCountCap(); got != 2 {
+		t.Errorf("AutoCountCap = %d, want 2 (the CPU is spent either way)", got)
 	}
 }

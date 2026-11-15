@@ -85,6 +85,7 @@ admin:
   loadtest_streams_active: "Es laufen Wiedergaben - ein Lasttest läuft nie, während echte Zuschauer schauen"
   loadtest_already_running: "Ein Lasttest läuft bereits"
   sync_shift_out_of_range: "Dieses Werkzeug verschiebt eine Spur um höchstens {max} s"
+  sync_audio_track_missing: "Diese Datei hat keine solche Tonspur"
   repair_undo_none: "Für diese Datei ist keine Reparatur verzeichnet"
   repair_not_reversible: "Die letzte Reparatur dieser Datei kann nicht per Software rückgängig gemacht werden"
   repair_journal_newer: "Diese Reparatur wurde von einer neueren Version aufgezeichnet und kann nicht sicher gelesen werden"

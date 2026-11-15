@@ -54,6 +54,8 @@ export interface ServerSettingFieldSpec {
   zeroIsDefault?: boolean;
   /** The text must be a Go duration (time.ParseDuration), greater than zero. */
   duration?: boolean;
+  /** A toggle that, while on, leaves this setting without effect: the control is greyed. */
+  mootWhenOn?: string;
 }
 
 // The software height ladder the server accepts (settings_handler.go
@@ -88,7 +90,9 @@ export const SERVER_SETTING_FIELDS = {
   softwareHDRMaxHeight: { kind: "segmented", labelKey: "admin.settingsLayout.softwareHDRMaxHeightLabel", infoKey: "admin.settingsHelp.softwareHDRMaxHeight", testId: "software-hdr-max-height", fallbackDefault: 0, options: SOFTWARE_HEIGHTS, autoKey: "admin.settingsLayout.autoMeasured", blank: "reset", zeroIsDefault: true },
   softwareAV1MaxHeight: { kind: "segmented", labelKey: "admin.serverSettings.softwareAV1MaxHeight", infoKey: "admin.settingsHelp.softwareAV1MaxHeight", testId: "software-av1-max-height", fallbackDefault: 0, options: SOFTWARE_AV1_HEIGHTS, autoKey: "admin.settingsLayout.autoPlain", blank: "reset", zeroIsDefault: true },
   transcodeSingleVariant: { kind: "toggle", labelKey: "admin.transcoding.singleVariant", infoKey: "admin.settingsHelp.singleVariant", testId: "single-variant-toggle", fallbackDefault: true },
-  transcodeHWPerVariant: { kind: "toggle", labelKey: "admin.transcoding.hwPerVariant", infoKey: "admin.settingsHelp.hwPerVariant", testId: "hw-per-variant-toggle", fallbackDefault: false },
+  // The server splits the hardware encode per rung only when a session carries
+  // several rungs, which single-variant never does.
+  transcodeHWPerVariant: { kind: "toggle", labelKey: "admin.transcoding.hwPerVariant", infoKey: "admin.settingsHelp.hwPerVariant", testId: "hw-per-variant-toggle", fallbackDefault: false, mootWhenOn: "transcodeSingleVariant" },
 } satisfies Record<string, ServerSettingFieldSpec>;
 
 export type ServerSettingField = keyof typeof SERVER_SETTING_FIELDS;
@@ -172,7 +176,7 @@ export interface ServerSettingFieldView {
   reset?: { overridden: boolean; defaultText: string; onReset: () => void; disabled: boolean };
   /** What the control shows: a boolean for a toggle, the text otherwise ("" = the default). */
   draft: ServerSettingDraft;
-  /** The demo greys it. */
+  /** Greyed: the demo locks it, or another setting leaves it without effect (the Reset link stays usable then). */
   locked: boolean;
   /** Choices of a select or a segmented field, the "" (default / Auto) one first. */
   options?: ServerSettingOption[];
@@ -321,6 +325,9 @@ export function useServerSettingsFormState(fields: ServerSettingField[], t: Serv
             ? t(f.placeholderKey, { value: String(def) })
             : String(def);
     const locked = s?.locked === true;
+    // Follows the other toggle's draft, so the row wakes up as soon as the
+    // admin flips it, before any save.
+    const moot = f.mootWhenOn !== undefined && Boolean(drafts[f.mootWhenOn] ?? serverSettingSeed(spec(f.mootWhenOn), data?.[f.mootWhenOn]));
     let options: ServerSettingOption[] | undefined;
     if (f.kind === "segmented") options = (f.options ?? []).map((v) => ({ value: v, label: optionLabel(v) }));
     else if (f.kind === "select")
@@ -345,7 +352,7 @@ export function useServerSettingsFormState(fields: ServerSettingField[], t: Serv
           }
         : undefined,
       draft: drafts[key] ?? serverSettingSeed(f, s),
-      locked,
+      locked: locked || moot,
       options,
       formatUnknown: (v) => `${v}p`,
       placeholder: f.placeholderKey ? t(f.placeholderKey, { value: String(def) }) : String(def),

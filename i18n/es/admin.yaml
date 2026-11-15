@@ -18,6 +18,7 @@ nav:
   mediaRequests: Solicitudes de contenido
   shareLinks: "Enlaces compartidos"
   integrations: Integraciones
+  pluginPages: "Páginas de plugins"
   plugins: Plugins
   webhooks: Webhooks
   apiKeys: "Claves API"
@@ -298,6 +299,9 @@ plugins:
     saveFailed: "No se pudieron actualizar los límites de recursos"
   title: "Plugins"
   installPlugin: "Instalar plugin"
+  installedTitle: "Plugins instalados"
+  pageBadge: "Plugin"
+  pageProvidedBy: "Esta página la muestra un plugin, no Evey."
   uploadFile: "Subir archivo"
   fromUrl: "Desde URL"
   installFromUrl: Instalar desde URL
@@ -873,6 +877,12 @@ serverConfig:
     keyframeBackfillIdleSecLabel: "Intervalo de inactividad del relleno de fotogramas clave (s)"
   feedConfig:
     pluginBadge: "Plugin"
+    hint: "Arrastra una sección para cambiar su posición. Es el orden predeterminado: cada usuario puede reorganizar su propia página de inicio."
+    kindLibrary: "Biblioteca"
+    kindBuiltin: "Sección integrada"
+    pluginMaxItems: "El plugin decide cuánto muestra"
+    unsaved: "Cambios sin guardar"
+    summary: "{{enabled}} de {{total}} secciones visibles"
     title: "Feeds de inicio"
     subtitle: "Elige qué secciones aparecen en la página de inicio, en qué orden y cuántos elementos muestra cada una."
   introProvidersInfo: "Dos bases de datos comunitarias distintas para las marcas de tiempo de intro / resumen / créditos. Omite la detección local intensiva en CPU en los elementos que cubren. Principal - TheIntroDB (theintrodb.org): películas + series, requiere clave API gratuita. Alternativa - IntroDB (introdb.app): solo episodios de series, sin clave."
@@ -1098,12 +1108,16 @@ systemHealth:
     production: "producción"
   backgroundTasksSection: "Trabajos en segundo plano"
   videoCapacitySection: "Capacidad de transcodificación de vídeo"
-  videoCapacityTitle: "Capacidad de transcodificación de vídeo"
+  videoCapacityTitle: "Flujos en transcodificación"
   videoCapacityRatio: "{{active}} / {{limit}} flujos"
   videoCapacityAutoNote: "Capacidad automática: {{auto}} flujos (reducida por el administrador)"
   videoCapacityEvidence: "Medido: {{height}}p a {{fps}} fps, {{requiredFps}} requeridos, {{cpuBudget}} núcleos"
   videoCapacityNotMeasured: "Capacidad no medida (sin benchmark disponible), repliegue prudente a 1"
   videoCapacityHint: "Cuenta los flujos de vídeo transcodificados simultáneos. Las transcodificaciones solo de audio (vídeo copiado) no consumen ninguna plaza, y un espectador que cambia de calidad sigue usando solo una."
+  videoCapacityTotalNote: "Como máximo {{limit}} flujos a la vez, entre todos los codificadores."
+  videoCapacityOutput: "Salida"
+  videoCapacityCpuHdr: "Procesador, HDR"
+  videoCapacityCpuAv1: "Procesador, AV1"
 
 transcodeCache:
   title: "Caché de transcodificación"
@@ -2112,4 +2126,4 @@ settingsHelp:
   softwareHDRMaxHeight: 'El mismo límite para el vídeo HDR, mucho más pesado de convertir para el procesador. En Auto se aplica el valor medido. Bájalo si las películas HDR se entrecortan mientras las demás van bien; súbelo con cuidado si la medición fue demasiado prudente. Valores posibles: 480, 720, 1080, 1440 y 2160.'
   softwareAV1MaxHeight: 'La resolución más alta del AV1 que codifica el procesador. Hoy la reproducción en directo nunca codifica AV1 en el procesador: la salida AV1 necesita un chip gráfico que lo admita (ver «Salida AV1»). Auto sigue la calibración, que solo permite AV1 en el procesador donde lo midió viable. Déjalo en Auto salvo que el soporte indique lo contrario. Se aplica al instante.'
   singleVariant: 'Convierte solo la calidad que se está viendo, en lugar de todas a la vez. Necesita mucha menos potencia. Déjalo activado salvo que el soporte indique lo contrario. Por defecto: activado.'
-  hwPerVariant: 'Lanza un proceso de codificación separado en el chip gráfico para cada calidad en lugar de uno solo para todas. Ayuda con algunos controladores gráficos que fallan al producir varias calidades a la vez, pero usa más memoria. Por defecto: desactivado.'
+  hwPerVariant: 'Lanza un proceso de codificación separado en el chip gráfico para cada calidad en lugar de uno solo para todas. Ayuda con algunos controladores gráficos que fallan al producir varias calidades a la vez, pero usa más memoria. No tiene efecto mientras «Codificar un peldaño a la vez» esté activado, porque entonces solo se codifica una calidad a la vez. Por defecto: desactivado.'

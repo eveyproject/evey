@@ -84,6 +84,7 @@ vi.mock("../providers/ThemeProvider", () => ({
 vi.mock("../i18n", () => ({ initI18n: vi.fn(async () => undefined) }));
 vi.mock("../hooks/useDeviceRegistration", () => ({ useDeviceRegistration: () => undefined }));
 vi.mock("../hooks/useProfileCacheSync", () => ({ useProfileCacheSync: () => undefined }));
+vi.mock("../hooks/useProfileSettingsFollower", () => ({ useProfileSettingsFollower: () => undefined }));
 vi.mock("../hooks/usePresenceHeartbeat", () => ({ usePresenceHeartbeat: () => undefined }));
 vi.mock("../providers/DrawerProvider", () => ({
   DrawerProvider: ({ children }: any) => React.createElement("div", null, children),

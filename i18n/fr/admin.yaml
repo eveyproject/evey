@@ -17,6 +17,7 @@ nav:
   mediaRequests: Demandes de média
   shareLinks: "Liens de partage"
   integrations: Intégrations
+  pluginPages: "Pages de plugins"
   plugins: Plugins
   webhooks: Webhooks
   apiKeys: "Clés API"
@@ -297,6 +298,9 @@ plugins:
     saveFailed: "Échec de la mise à jour des limites de ressources"
   title: "Plugins"
   installPlugin: "Installer un plugin"
+  installedTitle: "Plugins installés"
+  pageBadge: "Plugin"
+  pageProvidedBy: "Cette page est affichée par un plugin, pas par Evey."
   uploadFile: "Téléverser un fichier"
   fromUrl: "Depuis une URL"
   installFromUrl: Installer depuis une URL
@@ -828,6 +832,12 @@ serverConfig:
   subtitle: "Entrées de configuration clé-valeur stockées dans la base de données."
   feedConfig:
     pluginBadge: "Plugin"
+    hint: "Fais glisser une section pour changer sa place. C'est l'ordre par défaut : chaque utilisateur peut encore réarranger son propre accueil."
+    kindLibrary: "Bibliothèque"
+    kindBuiltin: "Section intégrée"
+    pluginMaxItems: "Le plugin décide de ce qu'il affiche"
+    unsaved: "Modifications non enregistrées"
+    summary: "{{enabled}} sections affichées sur {{total}}"
     title: "Flux d'accueil"
     subtitle: "Choisis quelles sections apparaissent sur la page d'accueil, dans quel ordre, et combien d'éléments chacune affiche."
   languageRegion: "Langue et région"
@@ -1097,12 +1107,16 @@ systemHealth:
     production: "production"
   backgroundTasksSection: "Travaux en arrière-plan"
   videoCapacitySection: "Capacité de transcodage vidéo"
-  videoCapacityTitle: "Capacité de transcodage vidéo"
+  videoCapacityTitle: "Flux en cours de transcodage"
   videoCapacityRatio: "{{active}} / {{limit}} flux"
   videoCapacityAutoNote: "Capacité auto : {{auto}} flux (réduite par l'administrateur)"
   videoCapacityEvidence: "Mesuré : {{height}}p à {{fps}} img/s pour {{requiredFps}} requis, {{cpuBudget}} cœurs"
   videoCapacityNotMeasured: "Capacité non mesurée (benchmark absent), repli prudent sur 1"
   videoCapacityHint: "Compte les flux vidéo transcodés simultanés. Les transcodages audio seuls (vidéo copiée) ne consomment aucun emplacement, et un spectateur qui change de qualité n'en utilise qu'un seul."
+  videoCapacityTotalNote: "Au plus {{limit}} flux en même temps, tous encodeurs confondus."
+  videoCapacityOutput: "Sortie"
+  videoCapacityCpuHdr: "Processeur, HDR"
+  videoCapacityCpuAv1: "Processeur, AV1"
 
 transcodeCache:
   title: "Cache de transcodage"
@@ -2111,4 +2125,4 @@ settingsHelp:
   softwareHDRMaxHeight: 'Le même plafond pour la vidéo HDR, bien plus lourde à convertir pour le processeur. En Auto, la valeur mesurée s''applique. Baissez-le si les films HDR saccadent alors que les autres passent bien ; montez-le avec précaution si la mesure s''est montrée trop prudente. Valeurs possibles : 480, 720, 1080, 1440 et 2160.'
   softwareAV1MaxHeight: 'La résolution la plus haute de l''AV1 encodé par le processeur. Aujourd''hui, la lecture en direct n''encode jamais d''AV1 sur le processeur : la sortie AV1 demande une puce graphique qui le gère (voir « Sortie AV1 »). Auto suit la calibration, qui n''autorise l''AV1 sur le processeur que là où elle l''a mesuré viable. Laissez Auto sauf demande de l''assistance. S''applique tout de suite.'
   singleVariant: 'Ne convertit que la qualité que le spectateur regarde, au lieu de toutes les qualités à la fois. Cela demande bien moins de puissance. Laissez-le activé sauf demande de l''assistance. Par défaut : activé.'
-  hwPerVariant: 'Lance un processus d''encodage séparé sur la puce graphique pour chaque qualité au lieu d''un seul pour toutes. Cela aide avec certains pilotes graphiques qui plantent quand ils produisent plusieurs qualités à la fois, mais consomme plus de mémoire. Par défaut : désactivé.'
+  hwPerVariant: 'Lance un processus d''encodage séparé sur la puce graphique pour chaque qualité au lieu d''un seul pour toutes. Cela aide avec certains pilotes graphiques qui plantent quand ils produisent plusieurs qualités à la fois, mais consomme plus de mémoire. Sans effet tant que « Encoder un seul palier à la fois » est activé, puisqu''une seule qualité est alors encodée à la fois. Par défaut : désactivé.'

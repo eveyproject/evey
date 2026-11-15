@@ -273,3 +273,8 @@ demo:
   readOnly: "Read-only on the demo: the settings are shown, not editable."
 attribution:
   tmdb: "This product uses the TMDB API but is not endorsed or certified by TMDB."
+clientUpdate:
+  title: "Update ready"
+  body: "A new version of the app was downloaded from your server."
+  restart: "Restart"
+  later: "Later"

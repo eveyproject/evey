@@ -468,19 +468,60 @@ func (l *VideoSessionLimiter) CanAdmitFor(key string, class LadderClass, topHeig
 
 // CanAdmitRoute is CanAdmitFor with the route + source fps (see TryAcquireRoute).
 func (l *VideoSessionLimiter) CanAdmitRoute(key string, class LadderClass, topHeight int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) bool {
+	return l.canAdmitRouteBeside(key, class, topHeight, src, route, sourceFPS, plannedStreams{})
+}
+
+// plannedStreams is what streams already planned but not yet spawned are about
+// to reserve: their count and their charges per pool.
+type plannedStreams struct {
+	count   int
+	charges map[ResourcePool]float64
+}
+
+// add counts one more planned stream.
+func (p *plannedStreams) add(charges []poolCharge) {
+	if p.charges == nil {
+		p.charges = make(map[ResourcePool]float64)
+	}
+	p.count++
+	for _, c := range charges {
+		p.charges[c.pool] += c.cost
+	}
+}
+
+// canAdmitRouteBeside is CanAdmitRoute with planned counted as if those
+// streams already held their slots.
+func (l *VideoSessionLimiter) canAdmitRouteBeside(key string, class LadderClass, topHeight int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64, planned plannedStreams) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if _, joining := l.refs[key]; joining {
 		return true
 	}
-	if l.limit > 0 && len(l.refs) >= l.limit {
+	if l.limit > 0 && len(l.refs)+planned.count >= l.limit {
 		return false
 	}
 	if l.costModel == nil && l.routeModel == nil {
 		return true
 	}
 	charges, ok := l.chargesFor(class, topHeight, src, route, sourceFPS)
-	return ok && l.fits(charges)
+	if !ok {
+		return false
+	}
+	for _, c := range charges {
+		if l.usedFor(c.pool)+planned.charges[c.pool]+c.cost > l.budgetFor(c.pool)+budgetEpsilon {
+			return false
+		}
+	}
+	return true
+}
+
+// plannedCharges is what a stream of this shape reserves when it spawns; nil
+// when the limiter prices nothing.
+func (l *VideoSessionLimiter) plannedCharges(class LadderClass, topHeight int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) []poolCharge {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	charges, _ := l.chargesFor(class, topHeight, src, route, sourceFPS)
+	return charges
 }
 
 // FitsIdleHost reports whether a stream priced as c would be admitted with
@@ -613,14 +654,16 @@ func sourceFitCosts(fits []SourceFit) []float64 {
 // AutoCountCap is the count cap this host's own calibration derives; 0 means
 // "no evidence to derive one from".
 //
-// With route evidence it is the MINIMUM over the pools of the most common
-// route (representativeRoute) - never a sum: a GPU session draws on the
-// accelerator AND the CPU pool at once, so the tighter pool is the ceiling and
-// adding the other pool's headroom would count streams that cannot exist.
+// With route evidence it is the most streams the pool budgets admit together:
+// the hardware streams of the most common route (representativeRoute), plus the
+// software streams that fit in the CPU those leave. A GPU session draws on the
+// accelerator AND the CPU pool, so the CPU it spends is taken off before the
+// software streams are counted - the pools are not blindly summed, and they are
+// not reduced to the tighter one either: a belt sized on the hardware route
+// alone refused the software streams the CPU budget still had room for.
 // Without route evidence a table-priced session charges ONE pool, so the pools
-// are independent and the cap is their sum (a host may fill its CPU pool with
-// software streams and its GPU pool with hardware ones; the per-pool budget
-// stays the gate, this is the belt).
+// are independent and the cap is their sum. The per-pool budget stays the gate,
+// this is the belt.
 //
 // It lives HERE, on the limiter that owns both the cost model and the budgets,
 // because the admin API once derived a DIFFERENT number from the tallest bench
@@ -629,25 +672,51 @@ func (l *VideoSessionLimiter) AutoCountCap() int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.routeModel != nil {
-		route, ok := representativeRoute(l.routeModel, LadderClassHW)
+		// h=0 selects each route's lowest measured rung, its cheapest session.
+		softwareAlone := l.routeStreamsFitting(LadderClassSoftware, 0)
+		hw, hwCPU, ok := l.routeStreams(LadderClassHW)
 		if !ok {
-			route, ok = representativeRoute(l.routeModel, LadderClassSoftware)
+			return softwareAlone
 		}
-		if !ok {
-			return 0
-		}
-		// h=0 selects the route's lowest measured rung, its cheapest session.
-		class := LadderClassSoftware
-		if route.Backend != "" {
-			class = LadderClassHW
-		}
-		charges, ok := l.chargesFor(class, 0, transcoding.SourceClass{}, route, 0)
-		if !ok {
-			return 0
-		}
-		return l.streamsFitting(charges)
+		return max(hw+l.routeStreamsFitting(LadderClassSoftware, float64(hw)*hwCPU), softwareAlone)
 	}
 	return l.autoCountCapFor(PoolCPU) + l.autoCountCapFor(PoolGPU)
+}
+
+// routeStreams reports how many sessions of class's representative route fit
+// its pools on an idle host, and the CPU share one of them spends. Held.
+func (l *VideoSessionLimiter) routeStreams(class LadderClass) (streams int, cpuEach float64, ok bool) {
+	route, ok := representativeRoute(l.routeModel, class)
+	if !ok {
+		return 0, 0, false
+	}
+	charges, ok := l.chargesFor(class, 0, transcoding.SourceClass{}, route, 0)
+	if !ok {
+		return 0, 0, false
+	}
+	for _, c := range charges {
+		if c.pool == PoolCPU {
+			cpuEach = c.cost
+		}
+	}
+	return l.streamsFitting(charges), cpuEach, true
+}
+
+// routeStreamsFitting reports how many sessions of class's representative
+// route fit once cpuTaken of the CPU budget is already spent. Held.
+func (l *VideoSessionLimiter) routeStreamsFitting(class LadderClass, cpuTaken float64) int {
+	streams, cpuEach, ok := l.routeStreams(class)
+	if !ok {
+		return 0
+	}
+	if cpuTaken <= 0 || cpuEach <= 0 {
+		return streams
+	}
+	left := l.budgetFor(PoolCPU) - cpuTaken
+	if left <= 0 {
+		return 0
+	}
+	return min(streams, int(math.Floor((left+budgetEpsilon)/cpuEach)))
 }
 
 // Limit reports the current cap (0 = unlimited).

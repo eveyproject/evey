@@ -1,0 +1,643 @@
+diff --git a/android/src/main/java/expo/modules/updates/EnabledUpdatesController.kt b/android/src/main/java/expo/modules/updates/EnabledUpdatesController.kt
+index ac27fc3..ecdde34 100644
+--- a/android/src/main/java/expo/modules/updates/EnabledUpdatesController.kt
++++ b/android/src/main/java/expo/modules/updates/EnabledUpdatesController.kt
+@@ -62,6 +62,11 @@ class EnabledUpdatesController(
+   private var updatesConfiguration: UpdatesConfiguration,
+   override val updatesDirectory: File
+ ) : IUpdatesController, UpdatesInterface {
++  // Evey: before any selection policy is asked anything.
++  init {
++    EveyReleaseFloor.init(context)
++  }
++
+   /** Keep the activity for [RelaunchProcedure] to relaunch the app. */
+   private var weakActivity: WeakReference<Activity>? = null
+   private val logger = UpdatesLogger(context.filesDir)
+@@ -132,7 +137,9 @@ class EnabledUpdatesController(
+       }
+ 
+       override fun onRequestRelaunch(shouldRunReaper: Boolean, callback: LauncherCallback) {
+-        relaunchReactApplication(shouldRunReaper, callback)
++        // Evey: a relaunch asked by error recovery must not end in a crash
++        // when no stored update is left to start.
++        relaunchReactApplication(shouldRunReaper, callback, restartAppWhenNothingStarts = true)
+       }
+     },
+     controllerScope
+@@ -193,7 +200,7 @@ class EnabledUpdatesController(
+     stateMachine.queueExecution(startupProcedure)
+   }
+ 
+-  private fun relaunchReactApplication(shouldRunReaper: Boolean, callback: LauncherCallback) {
++  private fun relaunchReactApplication(shouldRunReaper: Boolean, callback: LauncherCallback, restartAppWhenNothingStarts: Boolean = false) {
+     val procedure = RelaunchProcedure(
+       context,
+       weakActivity,
+@@ -208,7 +215,8 @@ class EnabledUpdatesController(
+       shouldRunReaper = shouldRunReaper,
+       reloadScreenManager = reloadScreenManager,
+       callback,
+-      controllerScope
++      controllerScope,
++      restartAppWhenNothingStarts
+     )
+     stateMachine.queueExecution(procedure)
+   }
+diff --git a/android/src/main/java/expo/modules/updates/EveyReleaseFloor.kt b/android/src/main/java/expo/modules/updates/EveyReleaseFloor.kt
+new file mode 100644
+index 0000000..10ad77f
+--- /dev/null
++++ b/android/src/main/java/expo/modules/updates/EveyReleaseFloor.kt
+@@ -0,0 +1,87 @@
++package expo.modules.updates
++
++import android.content.Context
++import expo.modules.updates.db.entity.UpdateEntity
++import expo.modules.updates.db.enums.UpdateStatus
++import expo.modules.updates.manifest.EmbeddedManifestUtils
++import java.util.Date
++
++/**
++ * Evey: the oldest release this device still accepts from a server.
++ *
++ * A signature proves an update was published by the project, not that it is
++ * recent: without a floor, any server could hand out an old signed release and
++ * bring back a bug that was fixed since. The floor is the newer of the release
++ * the app was built from and the newest served release that rendered here, and
++ * it only goes up. The code built into the app is not subject to it.
++ *
++ * Values are the release time in milliseconds, the manifest's signed
++ * `createdAt`. An app whose floor cannot be read accepts nothing.
++ */
++object EveyReleaseFloor {
++  private const val PREFS_FILE = "evey.client-updates"
++  private const val PREFS_KEY = "floor"
++  private const val BUILT_FROM_RESOURCE = "evey_client_update_floor"
++
++  @Volatile
++  private var appContext: Context? = null
++
++  fun init(context: Context) {
++    appContext = context.applicationContext
++  }
++
++  /** The release time of the commit this app was built from, as recorded by the build. */
++  fun builtFrom(context: Context): Long? {
++    val resource = context.resources.getIdentifier(BUILT_FROM_RESOURCE, "string", context.packageName)
++    if (resource == 0) {
++      return null
++    }
++    return context.getString(resource).toLongOrNull()
++  }
++
++  @Synchronized
++  fun current(): Long {
++    val context = appContext ?: return Long.MAX_VALUE
++    val builtFrom = builtFrom(context) ?: return Long.MAX_VALUE
++    val reached = context.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE).getLong(PREFS_KEY, 0L)
++    return maxOf(builtFrom, reached)
++  }
++
++  fun admits(update: UpdateEntity): Boolean = update.commitTime.time >= current()
++
++  fun admitsForLaunch(update: UpdateEntity): Boolean =
++    isBuiltIn(update) || (admits(update) && !isLeftBehind(update))
++
++  /**
++   * The code built into another build of the same commit, still stored after
++   * this build replaced it. It has the date of this build's own code and
++   * would be started in its place, without the files it needs. No served
++   * release is dated to the exact second.
++   */
++  private fun isLeftBehind(update: UpdateEntity): Boolean {
++    val context = appContext ?: return false
++    return update.commitTime.time == builtFrom(context)
++  }
++
++  private fun isBuiltIn(update: UpdateEntity): Boolean =
++    update.status == UpdateStatus.EMBEDDED || EmbeddedManifestUtils.isBuiltIn(update)
++
++  /** Called once a served update has rendered. */
++  @Synchronized
++  fun raiseTo(update: UpdateEntity) {
++    val context = appContext ?: return
++    if (isBuiltIn(update)) {
++      return
++    }
++    val prefs = context.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
++    if (update.commitTime.time > prefs.getLong(PREFS_KEY, 0L)) {
++      prefs.edit().putLong(PREFS_KEY, update.commitTime.time).commit()
++    }
++  }
++
++  /**
++   * The time certificates are checked against. A device clock can be set
++   * back; the floor is a time this device is known to have passed.
++   */
++  fun certificateCheckTime(): Date = Date(maxOf(System.currentTimeMillis(), current()))
++}
+diff --git a/android/src/main/java/expo/modules/updates/codesigning/CertificateChain.kt b/android/src/main/java/expo/modules/updates/codesigning/CertificateChain.kt
+index a19a151..8c9f706 100644
+--- a/android/src/main/java/expo/modules/updates/codesigning/CertificateChain.kt
++++ b/android/src/main/java/expo/modules/updates/codesigning/CertificateChain.kt
+@@ -1,5 +1,6 @@
+ package expo.modules.updates.codesigning
+ 
++import expo.modules.updates.EveyReleaseFloor
+ import org.bouncycastle.asn1.ASN1Primitive
+ import org.bouncycastle.asn1.DEROctetString
+ import java.security.cert.CertificateException
+@@ -48,7 +49,9 @@ class CertificateChain(private val certificateStrings: List<String>) {
+         CertificateFactory.getInstance("X.509")
+           .generateCertificate(certificateString.byteInputStream()) as X509Certificate
+         ).apply {
+-        checkValidity()
++        // Evey: not the device clock alone, which can be set back to revive
++        // an expired certificate.
++        checkValidity(EveyReleaseFloor.certificateCheckTime())
+       }
+     }
+ 
+diff --git a/android/src/main/java/expo/modules/updates/codesigning/CodeSigningConfiguration.kt b/android/src/main/java/expo/modules/updates/codesigning/CodeSigningConfiguration.kt
+index 9b8bd4d..db0a4d0 100644
+--- a/android/src/main/java/expo/modules/updates/codesigning/CodeSigningConfiguration.kt
++++ b/android/src/main/java/expo/modules/updates/codesigning/CodeSigningConfiguration.kt
+@@ -5,8 +5,11 @@ import android.util.Log
+ import expo.modules.structuredheaders.BooleanItem
+ import expo.modules.structuredheaders.Dictionary
+ import expo.modules.structuredheaders.StringItem
++import expo.modules.updates.UpdatesUtils
+ import expo.modules.updates.codesigning.CertificateChain.Companion.expoProjectInformation
++import org.json.JSONObject
+ import java.security.Signature
++import java.security.cert.CertificateExpiredException
+ 
+ private const val TAG = "CodeSigning"
+ 
+@@ -95,6 +98,16 @@ class CodeSigningConfiguration(
+       update(bodyBytes)
+     }.verify(Base64.decode(info.signature, Base64.DEFAULT))
+ 
++    // Evey: a release is never dated after the expiry of the certificate
++    // that signed it. A leaked signing key then cannot date a release beyond
++    // its own expiry and hold the release floor up there for good.
++    if (isValid) {
++      val createdAt = UpdatesUtils.parseDateString(JSONObject(bodyBytes.decodeToString()).getString("createdAt"))
++      if (createdAt.after(certificateChain.codeSigningCertificate.notAfter)) {
++        throw CertificateExpiredException("Release dated after the expiry of its signing certificate")
++      }
++    }
++
+     return SignatureValidationResult(
+       if (isValid) ValidationResult.VALID else ValidationResult.INVALID,
+       certificateChain.codeSigningCertificate.expoProjectInformation()
+diff --git a/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt b/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt
+index 2d9e075..bb22437 100644
+--- a/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt
++++ b/android/src/main/java/expo/modules/updates/db/dao/UpdateDao.kt
+@@ -1,5 +1,6 @@
+ package expo.modules.updates.db.dao
+ 
++import android.net.Uri
+ import androidx.room.*
+ import expo.modules.updates.db.entity.AssetEntity
+ import expo.modules.updates.db.entity.UpdateEntity
+@@ -78,6 +79,31 @@ abstract class UpdateDao {
+   @Query("UPDATE updates SET scope_key = :newScopeKey WHERE id = :id;")
+   abstract fun _setUpdateScopeKeyInternal(id: UUID, newScopeKey: String)
+ 
++  // Evey: one release is served under several addresses (the same instance
++  // on the local network and from outside, or two instances on one version).
++  // Updates are launched by address, so the row follows the address that
++  // served it last.
++  fun setUpdateSource(update: UpdateEntity, url: Uri?, requestHeaders: Map<String, String>?) {
++    update.url = url
++    update.requestHeaders = requestHeaders
++    setUpdateSourceInternal(update.id, url, requestHeaders)
++  }
++
++  @Query("UPDATE updates SET url = :url, headers = :requestHeaders WHERE id = :id;")
++  abstract fun setUpdateSourceInternal(id: UUID, url: Uri?, requestHeaders: Map<String, String>?)
++
++  // Evey: two builds of one commit carry two built-in updates with the same
++  // date, and one scope stores a single update per date. The one left by the
++  // build this app replaced makes room. Once stored, a built-in update has
++  // the same status as a served one: only its date tells it apart, and no
++  // served release is dated to the exact second.
++  @Query("DELETE FROM updates WHERE scope_key = :scopeKey AND commit_time = :commitTime AND id != :id;")
++  abstract fun deleteOtherUpdatesAtInternal(scopeKey: String, commitTime: Date, id: UUID)
++
++  fun deleteOtherUpdatesAt(update: UpdateEntity) {
++    deleteOtherUpdatesAtInternal(update.scopeKey, update.commitTime, update.id)
++  }
++
+   fun setUpdateCommitTime(update: UpdateEntity, commitTime: Date) {
+     update.commitTime = commitTime
+     setUpdateCommitTimeInternal(update.id, commitTime)
+@@ -127,6 +153,17 @@ abstract class UpdateDao {
+   @Query("UPDATE updates SET failed_launch_count = failed_launch_count + 1 WHERE id = :id;")
+   abstract fun incrementFailedLaunchCountInternal(id: UUID)
+ 
++  // Evey: an update with a successful launch on record stays launchable
++  // whatever fails later. Dropping one for good clears that record too.
++  fun markUpdateUnlaunchable(update: UpdateEntity) {
++    update.successfulLaunchCount = 0
++    update.failedLaunchCount++
++    markUpdateUnlaunchableInternal(update.id)
++  }
++
++  @Query("UPDATE updates SET successful_launch_count = 0, failed_launch_count = failed_launch_count + 1 WHERE id = :id;")
++  abstract fun markUpdateUnlaunchableInternal(id: UUID)
++
+   fun markUpdatesWithMissingAssets(missingAssets: List<AssetEntity>) {
+     val missingAssetIds = mutableListOf<Long>()
+     for (asset in missingAssets) {
+diff --git a/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryDelegate.kt b/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryDelegate.kt
+index 095667b..fc20215 100644
+--- a/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryDelegate.kt
++++ b/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryDelegate.kt
+@@ -20,6 +20,7 @@ interface ErrorRecoveryDelegate {
+   fun throwException(exception: Exception)
+ 
+   fun markFailedLaunchForLaunchedUpdate()
++  fun dropLaunchedUpdate()
+   fun markSuccessfulLaunchForLaunchedUpdate()
+ 
+   fun getRemoteLoadStatus(): RemoteLoadStatus
+diff --git a/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryHandler.kt b/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryHandler.kt
+index 2c06897..346dc6f 100644
+--- a/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryHandler.kt
++++ b/android/src/main/java/expo/modules/updates/errorrecovery/ErrorRecoveryHandler.kt
+@@ -115,7 +115,15 @@ internal class ErrorRecoveryHandler(
+ 
+   private fun maybeStartPipeline(exception: Exception) {
+     encounteredErrors.add(exception)
+-    if (delegate.getLaunchedUpdateSuccessfulLaunchCount() > 0) {
++    // Evey: the app's crash-loop guard asks for a rollback by throwing this
++    // marker before anything renders. Honour it whatever the update's launch
++    // history: an update that started fine and then dies on every launch has
++    // a successful launch on record and would otherwise never be dropped.
++    val rollbackRequested = !hasContentAppeared &&
++      (exception.message ?: exception.toString()).contains("EVEY_CLIENT_UPDATE_ROLLBACK")
++    if (rollbackRequested) {
++      delegate.dropLaunchedUpdate()
++    } else if (delegate.getLaunchedUpdateSuccessfulLaunchCount() > 0) {
+       pipeline.remove(Task.LAUNCH_CACHED_UPDATE)
+     } else if (!hasContentAppeared) {
+       delegate.markFailedLaunchForLaunchedUpdate()
+diff --git a/android/src/main/java/expo/modules/updates/loader/FileDownloader.kt b/android/src/main/java/expo/modules/updates/loader/FileDownloader.kt
+index 12baa4d..afedb07 100644
+--- a/android/src/main/java/expo/modules/updates/loader/FileDownloader.kt
++++ b/android/src/main/java/expo/modules/updates/loader/FileDownloader.kt
+@@ -497,8 +497,11 @@ class FileDownloader(
+     val responseHeaders = response.headers
+     val responseHeaderData = ResponseHeaderData(
+       protocolVersionRaw = responseHeaders["expo-protocol-version"],
+-      manifestFiltersRaw = responseHeaders["expo-manifest-filters"],
+-      serverDefinedHeadersRaw = responseHeaders["expo-server-defined-headers"]
++      // Evey: neither header is signed. Filters would let a server choose
++      // among stored releases, and server-defined headers are stored and sent
++      // back to whichever server is asked next.
++      manifestFiltersRaw = null,
++      serverDefinedHeadersRaw = null
+     )
+     val responseBody = response.body
+ 
+@@ -567,7 +570,8 @@ class FileDownloader(
+                 if (contentDispositionName != null) {
+                   when (contentDispositionName) {
+                     "manifest" -> manifestPartBodyAndHeaders = Pair(body.readUtf8(), headers)
+-                    "extensions" -> extensionsBody = body.readUtf8()
++                    // Evey: unsigned, and only carries request headers for assets.
++                    "extensions" -> Unit
+                     "certificate_chain" -> certificateChainString = body.readUtf8()
+                     "directive" -> directivePartBodyAndHeaders = Pair(body.readUtf8(), headers)
+                   }
+@@ -643,6 +647,10 @@ class FileDownloader(
+     directiveResponsePartInfo: ResponsePartInfo,
+     certificateChainFromManifestResponse: String?
+   ): UpdateResponsePart.DirectiveUpdateResponsePart {
++    // Evey: an instance only ever serves releases.
++    if (configuration.codeSigningConfiguration != null) {
++      throw IOException("Directives are not accepted")
++    }
+     val body = directiveResponsePartInfo.body
+ 
+     // check code signing if code signing is configured
+@@ -834,7 +842,6 @@ class FileDownloader(
+     .header("Expo-Protocol-Version", "1")
+     .header("Expo-API-Version", "1")
+     .header("Expo-Updates-Environment", "BARE")
+-    .header("EAS-Client-ID", easClientID)
+     .apply {
+       val shouldRequestPatch = allowPatch && assetEntity.isLaunchAsset && configuration.enableBsdiffPatchSupport
+       val currentId = extraHeaders.optString(EXPO_CURRENT_UPDATE_ID_HEADER, "")
+@@ -946,7 +953,6 @@ class FileDownloader(
+       .header("Expo-API-Version", "1")
+       .header("Expo-Updates-Environment", "BARE")
+       .header("Expo-JSON-Error", "true")
+-      .header("EAS-Client-ID", easClientID)
+       .apply {
+         val runtimeVersion = configuration.runtimeVersionRaw
+         if (!runtimeVersion.isNullOrEmpty()) {
+@@ -954,16 +960,9 @@ class FileDownloader(
+         }
+       }
+       .apply {
+-        val previousFatalError = NoDatabaseLauncher.consumeErrorLog(filesDirectory, logger)
+-        if (previousFatalError != null) {
+-          // some servers can have max length restrictions for headers,
+-          // so we restrict the length of the string to 1024 characters --
+-          // this should satisfy the requirements of most servers
+-          header(
+-            "Expo-Fatal-Error",
+-            previousFatalError.substring(0, min(1024, previousFatalError.length))
+-          )
+-        }
++        // Evey: the log is cleared but not sent. It is the text of a crash
++        // that may have happened while connected to another server.
++        NoDatabaseLauncher.consumeErrorLog(filesDirectory, logger)
+       }
+       .apply {
+         for ((key, value) in configuration.requestHeaders) {
+diff --git a/android/src/main/java/expo/modules/updates/loader/Loader.kt b/android/src/main/java/expo/modules/updates/loader/Loader.kt
+index be2a19f..9f945c9 100644
+--- a/android/src/main/java/expo/modules/updates/loader/Loader.kt
++++ b/android/src/main/java/expo/modules/updates/loader/Loader.kt
+@@ -166,6 +166,13 @@ abstract class Loader protected constructor(
+       database.updateDao().setUpdateScopeKey(existingUpdateEntity, newUpdateEntity.scopeKey)
+     }
+ 
++    // Evey: the same release served from another address is the same update.
++    if (existingUpdateEntity != null &&
++      (existingUpdateEntity.url != newUpdateEntity.url || existingUpdateEntity.requestHeaders != newUpdateEntity.requestHeaders)
++    ) {
++      database.updateDao().setUpdateSource(existingUpdateEntity, newUpdateEntity.url, newUpdateEntity.requestHeaders)
++    }
++
+     // A READY update with no launch asset is not actually ready. Fall through to
+     // downloadAllAssets so its assets are re-registered instead of staying broken forever.
+     if (existingUpdateEntity != null && existingUpdateEntity.status == UpdateStatus.READY &&
+@@ -250,6 +257,7 @@ abstract class Loader protected constructor(
+     try {
+       database.withTransaction {
+         if (insertUpdateEntityOnFinish) {
++          database.updateDao().deleteOtherUpdatesAt(updateEntity!!)
+           database.updateDao().insertUpdate(updateEntity!!)
+         }
+ 
+diff --git a/android/src/main/java/expo/modules/updates/manifest/EmbeddedManifestUtils.kt b/android/src/main/java/expo/modules/updates/manifest/EmbeddedManifestUtils.kt
+index 0684630..97f6e27 100644
+--- a/android/src/main/java/expo/modules/updates/manifest/EmbeddedManifestUtils.kt
++++ b/android/src/main/java/expo/modules/updates/manifest/EmbeddedManifestUtils.kt
+@@ -2,7 +2,9 @@ package expo.modules.updates.manifest
+ 
+ import android.content.Context
+ import android.util.Log
++import expo.modules.updates.EveyReleaseFloor
+ import expo.modules.updates.UpdatesConfiguration
++import expo.modules.updates.db.entity.UpdateEntity
+ import org.json.JSONObject
+ 
+ /**
+@@ -37,6 +39,12 @@ object EmbeddedManifestUtils {
+     return getCachedEmbeddedUpdate(context, configuration)
+   }
+ 
++  /**
++   * Evey: whether this stored update is the code built into this app. Its
++   * status does not say so: once stored it is READY like a served release.
++   */
++  fun isBuiltIn(update: UpdateEntity): Boolean = sEmbeddedUpdate?.updateEntity?.id == update.id
++
+   private fun getCachedEmbeddedUpdate(context: Context, configuration: UpdatesConfiguration): EmbeddedUpdate =
+     sEmbeddedUpdate ?: loadEmbeddedUpdate(context, configuration).also { sEmbeddedUpdate = it }
+ 
+@@ -48,6 +56,11 @@ object EmbeddedManifestUtils {
+           .apply {
+             // automatically verify embedded manifest since it was already codesigned
+             put("isVerified", true)
++            // Evey: the built-in code is as old as its commit, not as the
++            // moment it was compiled. Dated by the build, it would outrank
++            // every release published from a commit made before that build,
++            // the release of its own commit first.
++            EveyReleaseFloor.builtFrom(context)?.let { put("commitTime", it) }
+           }
+           .let {
+             UpdateFactory.getEmbeddedUpdate(it, configuration)
+diff --git a/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt b/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt
+index cfe31ec..66fb8ab 100644
+--- a/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt
++++ b/android/src/main/java/expo/modules/updates/manifest/ExpoUpdatesUpdate.kt
+@@ -42,6 +42,16 @@ class ExpoUpdatesUpdate private constructor(
+     }
+   }
+ 
++  // Evey: one signed manifest is served by every instance, so it names its
++  // assets by relative path. Resolve those against the manifest URL.
++  private fun resolveAssetUrl(raw: String): Uri {
++    val parsed = Uri.parse(raw)
++    if (parsed.isAbsolute) {
++      return parsed
++    }
++    return Uri.parse(java.net.URI(url.toString()).resolve(raw).toString())
++  }
++
+   private val assetHeaders: Map<String, JSONObject> by lazy {
+     val assetRequestHeadersJSON = (extensions ?: JSONObject()).getNullable<JSONObject>("assetRequestHeaders")
+     assetRequestHeadersJSON?.let { it.keys().asSequence().associateWith { key -> it.require(key) } } ?: mapOf()
+@@ -56,7 +66,7 @@ class ExpoUpdatesUpdate private constructor(
+           // the fileExtension is not necessary for the launch asset and EAS servers will not include it.
+           launchAsset.getNullable("fileExtension")
+         ).apply {
+-          url = Uri.parse(launchAsset.getString("url"))
++          url = resolveAssetUrl(launchAsset.getString("url"))
+           extraRequestHeaders = assetHeaders[launchAsset.getString("key")]
+           isLaunchAsset = true
+           embeddedAssetFilename = EmbeddedLoader.BUNDLE_FILENAME
+@@ -75,7 +85,7 @@ class ExpoUpdatesUpdate private constructor(
+               assetObject.getString("key"),
+               assetObject.getString("fileExtension")
+             ).apply {
+-              url = Uri.parse(assetObject.getString("url"))
++              url = resolveAssetUrl(assetObject.getString("url"))
+               extraRequestHeaders = assetHeaders[assetObject.getString("key")]
+               embeddedAssetFilename = assetObject.getNullable("embeddedAssetFilename")
+               expectedHash = assetObject.getNullable("hash")
+@@ -120,7 +130,15 @@ class ExpoUpdatesUpdate private constructor(
+         requestHeaders = configuration.requestHeaders
+       )
+ 
++      // Evey: every file of an update is named by its hash in the signed
++      // manifest. A file without one would be stored unchecked.
++      if (update.assetEntityList.none { it.isLaunchAsset }) {
++        throw IOException("Update ${manifest.getID()} has no readable launch asset")
++      }
+       update.assetEntityList.forEach { asset ->
++        if (asset.expectedHash.isNullOrEmpty()) {
++          throw IOException("Update ${manifest.getID()} names the asset \"${asset.key}\" without a hash")
++        }
+         val filename = UpdatesUtils.createFilenameForAsset(asset)
+         if (!UpdatesUtils.isSafeFilename(filename)) {
+           throw IOException(
+diff --git a/android/src/main/java/expo/modules/updates/procedures/CheckForUpdateProcedure.kt b/android/src/main/java/expo/modules/updates/procedures/CheckForUpdateProcedure.kt
+index 38953f0..c3f90b2 100644
+--- a/android/src/main/java/expo/modules/updates/procedures/CheckForUpdateProcedure.kt
++++ b/android/src/main/java/expo/modules/updates/procedures/CheckForUpdateProcedure.kt
+@@ -2,6 +2,7 @@ package expo.modules.updates.procedures
+ 
+ import android.content.Context
+ import expo.modules.core.logging.localizedMessageWithCauseLocalizedMessage
++import expo.modules.updates.EveyReleaseFloor
+ import expo.modules.updates.IUpdatesController
+ import expo.modules.updates.UpdatesConfiguration
+ import expo.modules.updates.db.DatabaseHolder
+@@ -137,6 +138,14 @@ class CheckForUpdateProcedure(
+       return
+     }
+ 
++    // Evey: running the built-in code, an update below the release floor is
++    // not one the app would take.
++    if (launchedUpdate == null && !EveyReleaseFloor.admits(update.updateEntity!!)) {
++      procedureContext.processStateEvent(UpdatesStateEvent.CheckCompleteUnavailable())
++      callback(IUpdatesController.CheckForUpdateResult.NoUpdateAvailable(LoaderTask.RemoteCheckResultNotAvailableReason.UPDATE_REJECTED_BY_SELECTION_POLICY))
++      procedureContext.onComplete()
++      return
++    }
+     if (launchedUpdate == null) {
+       // this shouldn't ever happen, but if we don't have anything to compare
+       // the new manifest to, let the user know an update is available
+diff --git a/android/src/main/java/expo/modules/updates/procedures/RelaunchProcedure.kt b/android/src/main/java/expo/modules/updates/procedures/RelaunchProcedure.kt
+index 5011fc6..29a1a3c 100644
+--- a/android/src/main/java/expo/modules/updates/procedures/RelaunchProcedure.kt
++++ b/android/src/main/java/expo/modules/updates/procedures/RelaunchProcedure.kt
+@@ -2,6 +2,7 @@ package expo.modules.updates.procedures
+ 
+ import android.app.Activity
+ import android.content.Context
++import android.content.Intent
+ import expo.modules.updates.UpdatesConfiguration
+ import expo.modules.updates.db.DatabaseHolder
+ import expo.modules.updates.db.Reaper
+@@ -35,7 +36,8 @@ class RelaunchProcedure(
+   private val shouldRunReaper: Boolean,
+   private val reloadScreenManager: ReloadScreenManager?,
+   private val callback: Launcher.LauncherCallback,
+-  private val procedureScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
++  private val procedureScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
++  private val restartAppWhenNothingStarts: Boolean = false
+ ) : StateMachineProcedure() {
+   override val loggerTimerLabel = "timer-relaunch"
+ 
+@@ -62,8 +64,25 @@ class RelaunchProcedure(
+       throw e
+     } catch (e: Exception) {
+       logger.error("Error launching new launcher", e, UpdatesErrorCode.Unknown)
+-      callback.onFailure(e)
+-      procedureContext.onComplete()
++      // Evey: error recovery dropped the update that was running and nothing
++      // stored is left to start. Failing here makes it crash the app. Start
++      // the app again instead: with nothing to start, it runs the code built
++      // into it. Only when an update was running, so that a failure of the
++      // built-in code itself cannot loop.
++      val restartIntent = if (restartAppWhenNothingStarts && getCurrentLauncher().launchedUpdate != null) {
++        context.packageManager.getLeanbackLaunchIntentForPackage(context.packageName)
++          ?: context.packageManager.getLaunchIntentForPackage(context.packageName)
++      } else {
++        null
++      }
++      if (restartIntent == null) {
++        callback.onFailure(e)
++        procedureContext.onComplete()
++        return
++      }
++      restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
++      context.startActivity(restartIntent)
++      Runtime.getRuntime().exit(0)
+       return
+     }
+ 
+diff --git a/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt b/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt
+index 365958f..e560204 100644
+--- a/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt
++++ b/android/src/main/java/expo/modules/updates/procedures/StartupProcedure.kt
+@@ -2,6 +2,7 @@ package expo.modules.updates.procedures
+ 
+ import android.content.Context
+ import com.facebook.react.devsupport.interfaces.DevSupportManager
++import expo.modules.updates.EveyReleaseFloor
+ import expo.modules.updates.UpdatesConfiguration
+ import expo.modules.updates.db.DatabaseHolder
+ import expo.modules.updates.db.entity.AssetEntity
+@@ -294,6 +295,16 @@ class StartupProcedure(
+         }
+       }
+ 
++      override fun dropLaunchedUpdate() {
++        if (emergencyLaunchException != null) {
++          return
++        }
++        procedureScope.launch {
++          val launchedUpdate = launchedUpdate ?: return@launch
++          databaseHolder.withDatabase { it.updateDao().markUpdateUnlaunchable(launchedUpdate) }
++        }
++      }
++
+       override fun markSuccessfulLaunchForLaunchedUpdate() {
+         if (emergencyLaunchException != null) {
+           return
+@@ -301,6 +312,8 @@ class StartupProcedure(
+         procedureScope.launch {
+           val launchedUpdate = launchedUpdate ?: return@launch
+           databaseHolder.withDatabase { it.updateDao().incrementSuccessfulLaunchCount(launchedUpdate) }
++          // Evey: a served release that rendered becomes the oldest one accepted.
++          EveyReleaseFloor.raiseTo(launchedUpdate)
+         }
+       }
+ 
+diff --git a/android/src/main/java/expo/modules/updates/selectionpolicy/LauncherSelectionPolicyFilterAware.kt b/android/src/main/java/expo/modules/updates/selectionpolicy/LauncherSelectionPolicyFilterAware.kt
+index da9df9b..8ce465a 100644
+--- a/android/src/main/java/expo/modules/updates/selectionpolicy/LauncherSelectionPolicyFilterAware.kt
++++ b/android/src/main/java/expo/modules/updates/selectionpolicy/LauncherSelectionPolicyFilterAware.kt
+@@ -1,5 +1,6 @@
+ package expo.modules.updates.selectionpolicy
+ 
++import expo.modules.updates.EveyReleaseFloor
+ import expo.modules.updates.UpdatesConfiguration
+ import expo.modules.updates.db.entity.UpdateEntity
+ import org.json.JSONObject
+@@ -21,6 +22,9 @@ class LauncherSelectionPolicyFilterAware(
+   ): UpdateEntity? =
+     updates
+       .filter { runtimeVersion == it.runtimeVersion && SelectionPolicies.matchesFilters(it, filters) }
+-      .filter { (it.url == null && it.requestHeaders == null) || (it.url == config.updateUrl && it.requestHeaders == config.requestHeaders) }
++      // Evey: the newest verified release at or above the floor, whichever
++      // address served it. Launching by address would let any server put the
++      // app back on the code it was built with, by serving nothing.
++      .filter { EveyReleaseFloor.admitsForLaunch(it) }
+       .maxByOrNull { it.commitTime }
+ }
+diff --git a/android/src/main/java/expo/modules/updates/selectionpolicy/LoaderSelectionPolicyFilterAware.kt b/android/src/main/java/expo/modules/updates/selectionpolicy/LoaderSelectionPolicyFilterAware.kt
+index 77a0a08..e869f4e 100644
+--- a/android/src/main/java/expo/modules/updates/selectionpolicy/LoaderSelectionPolicyFilterAware.kt
++++ b/android/src/main/java/expo/modules/updates/selectionpolicy/LoaderSelectionPolicyFilterAware.kt
+@@ -1,5 +1,6 @@
+ package expo.modules.updates.selectionpolicy
+ 
++import expo.modules.updates.EveyReleaseFloor
+ import expo.modules.updates.UpdatesConfiguration
+ import expo.modules.updates.db.entity.UpdateEntity
+ import expo.modules.updates.loader.UpdateDirective
+@@ -21,6 +22,11 @@ class LoaderSelectionPolicyFilterAware(private val config: UpdatesConfiguration)
+     if (newUpdate == null) {
+       return false
+     }
++    // Evey: nothing older than the release floor, whatever the server or the
++    // update running now.
++    if (!EveyReleaseFloor.admits(newUpdate)) {
++      return false
++    }
+     // if the new update doesn't pass its own manifest filters, we shouldn't load it
+     if (!SelectionPolicies.matchesFilters(newUpdate, filters)) {
+       return false

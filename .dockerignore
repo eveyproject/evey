@@ -10,8 +10,16 @@ evey-data/
 meili-data/
 postgres-data/
 tmp/
-*.pem
+**/*.pem
 .env
 **/node_modules
 **/.expo
 **/dist
+
+# Client bundles: only what make client-updates signs reaches the build, where
+# the Dockerfile checks its commit and runtime. Unsigned leftovers do not.
+client-updates/**
+!client-updates/.gitkeep
+!client-updates/*/*/*/manifest.signed
+!client-updates/*/*/*/commit
+!client-updates/*/*/*/assets/**

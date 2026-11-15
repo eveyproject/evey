@@ -1,5 +1,5 @@
 ---
-source_sha: 8409828551fb37b2c675f36eab993aed4c224ba6a45f3073a76b096d458bbf74
+source_sha: 094de61e87bd4b210bd193dec1b9cb85897d53a58b46c3e90584227058ce4f59
 reviewed: true
 ---
 # Transcodificación y capacidad del servidor { #transcoding-and-server-capacity }
@@ -87,6 +87,17 @@ un acelerador medido en lo que necesita el flujo (por ejemplo, convertir HDR
 a SDR, o sacar HEVC), o el procesador. El procesador y los aceleradores son
 dos reservas separadas, y un flujo en la tarjeta gráfica sigue gastando un
 poco de procesador para su audio y su empaquetado.
+
+La capacidad cuenta las dos reservas juntas: los flujos que caben en los
+aceleradores, más los que todavía caben en el procesador a su lado.
+**Administración → Estado del sistema** indica, para cada resolución de
+salida, cuántos flujos caben en cada reserva.
+
+Los flujos que empiezan en el mismo instante se planifican unos al lado de
+otros: los primeros toman el acelerador, los siguientes van al procesador, y
+ninguno se rechaza mientras quede sitio. Un flujo servido desde la caché
+conserva su plan aunque no codifique nada. Puede enviar a un recién llegado al
+procesador con la tarjeta gráfica libre; nunca provoca un rechazo.
 
 Cuando falta sitio, el servidor responde en este orden:
 
