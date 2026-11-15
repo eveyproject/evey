@@ -128,7 +128,7 @@ func (d fingerprintDir) read(mediaItemID string) ([]byte, error) {
 		}
 		return nil, err
 	}
-	defer f.Close() //nolint:errcheck // read-only
+	defer f.Close()
 	st, err := f.Stat()
 	if err != nil {
 		return nil, err
@@ -150,8 +150,8 @@ func (d fingerprintDir) write(mediaItemID string, blob []byte) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(d.dir, 0o750); err != nil {
-		return fmt.Errorf("fingerprint store: create dir: %w", err)
+	if mkErr := os.MkdirAll(d.dir, 0o750); mkErr != nil {
+		return fmt.Errorf("fingerprint store: create dir: %w", mkErr)
 	}
 	tmp, err := os.CreateTemp(d.dir, mediaItemID+".*.part")
 	if err != nil {

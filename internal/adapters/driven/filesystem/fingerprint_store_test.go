@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,8 +89,8 @@ func TestFingerprintStore_DamagedFileIsAMiss(t *testing.T) {
 	for name, content := range cases {
 		t.Run(name, func(t *testing.T) {
 			require.NoError(t, os.WriteFile(p, content, 0o600))
-			_, err := s.Get(ctx, "ep")
-			require.ErrorIs(t, err, shared.ErrNotFound)
+			_, getErr := s.Get(ctx, "ep")
+			require.ErrorIs(t, getErr, shared.ErrNotFound)
 		})
 	}
 
@@ -146,7 +145,7 @@ func TestFingerprintStore_UnsafeIDs(t *testing.T) {
 		require.NoError(t, s.Delete(ctx, id), id)
 	}
 	_, err := os.Stat(filepath.Join(root, "escape.fp"))
-	assert.True(t, errors.Is(err, os.ErrNotExist))
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestFingerprintStore_ListDeleteAndAlgoSweep(t *testing.T) {
