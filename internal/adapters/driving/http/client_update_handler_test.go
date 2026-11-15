@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/base64"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -15,8 +16,13 @@ import (
 const (
 	testClientUpdateManifest = `{"id":"0b5b7a32-6f0c-4c58-9d0e-0d0f6a6f0c11","runtimeVersion":"tv-1"}`
 	testClientUpdateSig      = `sig="c2lnbmVk", keyid="main"`
+	testClientUpdateChain    = "-----BEGIN CERTIFICATE-----\nbGVhZg==\n-----END CERTIFICATE-----\n"
 	testClientUpdateAsset    = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.hbc"
 )
+
+func testClientUpdateSigned(manifest string) string {
+	return testClientUpdateSig + "\n" + base64.StdEncoding.EncodeToString([]byte(testClientUpdateChain)) + "\n" + manifest
+}
 
 func newClientUpdateTestServer(t *testing.T, withSig bool) *httptest.Server {
 	t.Helper()
@@ -30,9 +36,11 @@ func newClientUpdateTestServer(t *testing.T, withSig bool) *httptest.Server {
 			t.Fatal(err)
 		}
 	}
-	write("manifest.json", testClientUpdateManifest)
 	if withSig {
-		write("manifest.sig", testClientUpdateSig+"\n")
+		write("manifest.signed", testClientUpdateSigned(testClientUpdateManifest))
+	} else {
+		// What the build leaves without a key: a manifest to inspect, no signature.
+		write("manifest.json", testClientUpdateManifest)
 	}
 	write(filepath.Join("assets", testClientUpdateAsset), "bytecode")
 	// Sits next to the bundle: an asset request must never reach it.
@@ -79,6 +87,12 @@ func TestClientUpdateManifest_ServesSignedBytesUntouched(t *testing.T) {
 	if got := resp.Header.Get("expo-sfv-version"); got != "0" {
 		t.Errorf("expo-sfv-version = %q, want 0", got)
 	}
+	if got := resp.Header.Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", got)
+	}
+	if got := resp.Header.Get("Vary"); got != "expo-platform, expo-runtime-version" {
+		t.Errorf("Vary = %q: a cache must not hand one runtime's manifest to another", got)
+	}
 	mediaType, params, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	if err != nil || mediaType != "multipart/mixed" {
 		t.Fatalf("content-type = %q (%v), want multipart/mixed", resp.Header.Get("Content-Type"), err)
@@ -103,8 +117,11 @@ func TestClientUpdateManifest_ServesSignedBytesUntouched(t *testing.T) {
 	}
 
 	part, err = reader.NextPart()
-	if err != nil || part.FormName() != "extensions" {
-		t.Fatalf("second part = %v (%v), want extensions", part, err)
+	if err != nil || part.FormName() != "certificate_chain" {
+		t.Fatalf("second part = %v (%v), want certificate_chain", part, err)
+	}
+	if chain, _ := io.ReadAll(part); string(chain) != testClientUpdateChain {
+		t.Errorf("certificate chain = %q, want the certificate as written", chain)
 	}
 }
 
@@ -140,6 +157,74 @@ func TestClientUpdateManifest_UnsignedBundleIsNotOffered(t *testing.T) {
 	}
 }
 
+func TestClientUpdateManifest_MalformedSignedFileIsNotOffered(t *testing.T) {
+	for name, content := range map[string]string{
+		"no signature line":      testClientUpdateManifest,
+		"no certificate line":    testClientUpdateSig + "\n" + testClientUpdateManifest,
+		"certificate not base64": testClientUpdateSig + "\n-----BEGIN\n" + testClientUpdateManifest,
+		"empty certificate":      testClientUpdateSig + "\n\n" + testClientUpdateManifest,
+		"empty manifest":         testClientUpdateSigned(""),
+		"control char in header": "sig=\"a\"\r\x00\n" + testClientUpdateSigned(testClientUpdateManifest)[len(testClientUpdateSig)+1:],
+		"larger than the limit":  testClientUpdateSigned(`{"id":"` + strings.Repeat("a", clientUpdateManifestMaxBytes) + `"}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			bundle := filepath.Join(dir, "tv", "android", "tv-1")
+			if err := os.MkdirAll(bundle, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(bundle, "manifest.signed"), []byte(content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			mux := http.NewServeMux()
+			registerClientUpdateRoutes(mux, dir)
+			srv := httptest.NewServer(mux)
+			t.Cleanup(srv.Close)
+			if resp := getClientUpdateManifest(t, srv, "tv", "android", "tv-1"); resp.StatusCode != http.StatusNoContent {
+				t.Fatalf("status = %d, want 204", resp.StatusCode)
+			}
+		})
+	}
+}
+
+// A link planted in the served directory must not reach a file outside it.
+func TestClientUpdate_SymlinkOutOfTheDirectoryIsNotFollowed(t *testing.T) {
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.hbc"), []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "manifest.signed"), []byte(testClientUpdateSigned(testClientUpdateManifest)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	bundle := filepath.Join(dir, "tv", "android", "tv-1")
+	if err := os.MkdirAll(filepath.Join(bundle, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "secret.hbc"), filepath.Join(bundle, "assets", testClientUpdateAsset)); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "manifest.signed"), filepath.Join(bundle, "manifest.signed")); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	registerClientUpdateRoutes(mux, dir)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	if resp := getClientUpdateManifest(t, srv, "tv", "android", "tv-1"); resp.StatusCode != http.StatusNoContent {
+		t.Errorf("manifest through an outside link = %d, want 204", resp.StatusCode)
+	}
+	resp, err := http.Get(srv.URL + "/api/v1/client-updates/tv/assets/android/tv-1/" + testClientUpdateAsset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("asset through an outside link = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestClientUpdateManifest_NoDirectoryConfigured(t *testing.T) {
 	mux := http.NewServeMux()
 	registerClientUpdateRoutes(mux, "")
@@ -172,7 +257,7 @@ func TestClientUpdateAsset(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		"android/tv-1/manifest.json",
+		"android/tv-1/manifest.signed",
 		"android/tv-1/..%2F..%2F..%2F..%2Fsecret",
 		"android/tv-2/" + testClientUpdateAsset,
 		"windows/tv-1/" + testClientUpdateAsset,
