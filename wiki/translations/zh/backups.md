@@ -1,5 +1,5 @@
 ---
-source_sha: 0e9677cafb6440a4984abea7c9a1d5bc5e010660e3be079a81f138d63d036a5d
+source_sha: 4171accfb7b8abe361d2b71d933ac148558ac1faa59774ca37b920c38d464e97
 reviewed: true
 ---
 # 备份和更新 { #backups-and-updates }
@@ -83,6 +83,7 @@ docker compose logs -f evey
 - **您的数据会先被保存。** 如果新版本需要修改数据库，它会先把副本写到 `./evey-data/backups/pre-migration-*.sql.gz`（保留最近的三份），然后在启动时进行修改。
 - 片库很大时，**可能需要几分钟**。容器重新开始应答后，会报告为健康状态。
 - **有更新时 Evey 会告诉您。** 它每小时检查一次是否发布了更新的镜像，并在管理面板里提示。它从不自动更新自己。
+- **Android 应用会跟上。** 正式版本的镜像带有与它配套的 Android 和 Android TV 应用代码，连接到您服务器的应用会自行取用（[让应用保持最新](getting-started/apps.md#keeping-the-apps-up-to-date)）。
 - **正在运行哪个版本：** `docker exec evey-server evey version` 会显示版本号和提交（commit）。
 
 ??? info "锁定您运行的确切版本"
@@ -95,7 +96,9 @@ docker compose logs -f evey
 2. 如果新版本修改过数据库，请先恢复它在更新前保存的副本：`docker exec evey-server evey admin rollback` 会列出具体步骤和文件路径。
 3. 运行 `docker compose up -d`。
 
-片头检测的指纹是唯一不会随您退回的内容。把它们保存在 `./evey-data/fingerprints` 的版本第一次启动时，会把它们从数据库移到那里，并删除已移走的行。旧版本只从数据库读取它们，找不到任何指纹，于是会在片头检测运行时根据媒体文件重新计算：不会丢失任何东西，但服务器会忙一段时间。更新前做的备份仍然包含这些行，恢复该备份即可找回它们。
+片头检测的指纹是唯一不会随您退回的数据。把它们保存在 `./evey-data/fingerprints` 的版本第一次启动时，会把它们从数据库移到那里，并删除已移走的行。旧版本只从数据库读取它们，找不到任何指纹，于是会在片头检测运行时根据媒体文件重新计算：不会丢失任何东西，但服务器会忙一段时间。更新前做的备份仍然包含这些行，恢复该备份即可找回它们。
+
+Android 应用不会随服务器一起回退：它们保留自己运行过的最新应用代码，旧版服务器需要能与之配合。
 
 镜像标签、其他变体和显卡版本的说明见[高级部署](operations/advanced-deployments.md#image-tags-and-variants)。
 
@@ -107,6 +110,7 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
+app code in the image, apps never go back: Dockerfile (COPY client-updates) ; docs/client-updates.md ; frontend/packages/client/src/native/clientUpdates.test.ts
 rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

@@ -1,5 +1,5 @@
 ---
-source_sha: f2e1240c1750c81d4a4d422aadadd53ecf86ab53d63aed2fc0a82c56e43e1d1f
+source_sha: 315726531fb31af3d0d5ebdc542a9ab361fbeb25f8cf24c185d7a44af2c48afb
 reviewed: true
 ---
 # 高级部署 { #advanced-deployments }
@@ -165,6 +165,18 @@ Docker 会自动选择对应的架构。分支标签只有 amd64：在 ARM 主�
 发布标签和预发布标签都有三种变体（分支构建只发布默认镜像）：默认的变体带有全部插件运行时（Python 3、Node.js、PHP、Ruby 和 Lua），`-nodejs` 保留 Python 和 Node.js，`-lean` 只保留 Python
 （例如 `latest-lean`）。只有在镜像体积要紧时才选用更精简的变体：如果插件声明的语言在镜像里没有，安装程序会拒绝它，并在提示里写明该用默认镜像。
 
+只有由正式版本或预发布版本标签发布的镜像，才带有 Android 应用从服务器获取的代码（[由实例提供的应用更新](../client-updates.md)）。分支构建或自己构建的镜像不提供这份代码，应用会保留已有的代码。
+
+发布的镜像用 cosign 签名，不需要分发密钥：签名者是仓库中构建该镜像的 workflow。用 cosign 3 或更新的版本验证某个正式版本：
+
+```bash
+cosign verify eveyproject/evey:X.Y.Z \
+  --certificate-identity https://github.com/eveyproject/evey/.github/workflows/ci.yml@refs/tags/vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+0.1.5 到 0.1.8 这几个版本是在发布之后补签的，签名者是 `sign-published-images.yml@refs/heads/master`，而不是 `ci.yml@refs/tags/vX.Y.Z`。更早的版本没有签名。
+
 发布的镜像带有所有受支持的 Intel 和 AMD 显卡世代的驱动。自己构建镜像时，可以只保留一个系列：
 `docker build --build-arg GPU=intel-legacy .`（Intel 第 9 代到第 11 代）、`GPU=intel`（第 12 代及更新）、`GPU=amd` 或 `GPU=none`。
 NVIDIA 不需要变体：NVIDIA Container Toolkit 会在运行时注入主机的驱动。
@@ -181,5 +193,6 @@ embedded db, import, major upgrade, embedded meili: docker/entrypoint.sh (PG_MAJ
 external db switch and default password refusal: internal/config/config.go (EVEY_DB_HOST, hardFail on "evey")
 reindex: cmd/evey/admin.go - adminReindexSearch
 arm, variants, GPU families: Dockerfile (TARGETARCH, RUNTIMES, GPU) ; .github/workflows/ci.yml (tags, flavor suffix, platforms) ; internal/adapters/driven/ffmpeg/hwdetect.go - detectRKMPP
+app code and image signature: .github/workflows/ci.yml (client-updates-build, client-updates-sign, docker-sign) ; .github/workflows/sign-published-images.yml ; Dockerfile (COPY client-updates)
 sandbox auto: internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; i18n/en/admin.yaml - plugins.security.title
 -->

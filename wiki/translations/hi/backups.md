@@ -1,5 +1,5 @@
 ---
-source_sha: 0e9677cafb6440a4984abea7c9a1d5bc5e010660e3be079a81f138d63d036a5d
+source_sha: 4171accfb7b8abe361d2b71d933ac148558ac1faa59774ca37b920c38d464e97
 reviewed: true
 ---
 # बैकअप और अपडेट { #backups-and-updates }
@@ -116,6 +116,10 @@ docker compose logs -f evey
   लगता है, तो वह healthy दिखाता है।
 - **अपडेट आने पर Evey बताता है।** वह हर घंटे जाँचता है कि कोई नई इमेज आई है
   या नहीं, और एडमिन पैनल में बताता है। वह खुद को कभी अपडेट नहीं करता।
+- **Android ऐप साथ चलते हैं।** रिलीज़ की इमेज में Android और Android TV ऐप
+  का वह कोड होता है जो उसके साथ चलता है, और आपके सर्वर से जुड़े ऐप उसे खुद ले
+  लेते हैं
+  ([ऐप को अपडेट रखना](getting-started/apps.md#keeping-the-apps-up-to-date))।
 - **कौन सा वर्ज़न चल रहा है:** `docker exec evey-server evey version` वर्ज़न
   और commit छापता है।
 
@@ -135,13 +139,16 @@ docker compose logs -f evey
    ठीक-ठीक कदम छापता है।
 3. `docker compose up -d` चलाएँ।
 
-इंट्रो पहचान के फ़िंगरप्रिंट ही अकेली चीज़ हैं जो आपके साथ वापस नहीं आतीं।
+इंट्रो पहचान के फ़िंगरप्रिंट ही अकेला डेटा हैं जो आपके साथ वापस नहीं आतीं।
 जो वर्ज़न उन्हें `./evey-data/fingerprints` में रखता है, उसका पहला स्टार्ट उन्हें
 डेटाबेस से वहाँ ले जाता है और ले जाई गई पंक्तियाँ मिटा देता है। पुराना वर्ज़न
 उन्हें सिर्फ़ डेटाबेस में पढ़ता है, कोई नहीं पाता, और इंट्रो पहचान चलने के साथ
 उन्हें मीडिया फ़ाइलों से दोबारा बनाता है: कुछ खोता नहीं, पर सर्वर कुछ समय तक
 ज़्यादा व्यस्त रहता है। अपडेट से पहले बना बैकअप उन पंक्तियों को अब भी रखता है,
 और उसे वापस लाने से वे लौट आती हैं।
+
+Android ऐप सर्वर के साथ पीछे नहीं जाते: वे सबसे नया ऐप कोड रखते हैं जो उन्होंने
+चलाया है, और पुराने सर्वर को उसी के साथ काम करना होता है।
 
 इमेज टैग, दूसरे रूप और ग्राफ़िक्स कार्ड वाले build
 [एडवांस्ड डिप्लॉयमेंट](operations/advanced-deployments.md#image-tags-and-variants)
@@ -155,6 +162,7 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
+app code in the image, apps never go back: Dockerfile (COPY client-updates) ; docs/client-updates.md ; frontend/packages/client/src/native/clientUpdates.test.ts
 rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

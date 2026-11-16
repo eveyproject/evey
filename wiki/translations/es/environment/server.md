@@ -1,5 +1,5 @@
 ---
-source_sha: a4895e025890778a9d0a64f0760fdd0793e0bf99d8c1cb1c158001fb30f2cd84
+source_sha: 1cc00b0dac14b87babd7bfde92f460e224a48a7f9e3bd7a3ac1b0b86fa0c6f9f
 reviewed: true
 ---
 # Servidor y red { #server-and-network }
@@ -17,6 +17,7 @@ la [Referencia de configuración](../configuration.md).
 | `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | La dirección pública. Una dirección `https://` activa las cookies `Secure`, HSTS y la confianza en `X-Forwarded-Proto`. Los enlaces de los correos, las redirecciones del inicio de sesión único y las URL de envío a Chromecast se construyen a partir de ella. | Acceso remoto → **URL externa** tiene prioridad si está definida, inmediato; una URL externa en `https://` también activa HTTPS |
 | `EVEY_SERVER_PORT` | `9090` | El puerto gRPC interno. La API HTTP y la interfaz web escuchan en este puerto más uno (`9091`). | ninguno |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | La dirección en la que escucha el puerto gRPC. El control de acceso remoto no cubre gRPC, así que abrirlo más (`0.0.0.0`) escribe un aviso en el registro y te deja a ti la tarea de protegerlo con un cortafuegos. | ninguno |
+| `EVEY_CLIENT_UPDATES_DIR` | `/app/client-updates` | La carpeta de la que el servidor lee el código de las apps de Android ([Actualizaciones de las apps servidas por la instancia](../client-updates.md)). Las imágenes publicadas la llenan; no se sirve nada cuando está vacía o no existe. | ninguno |
 | `EVEY_SERVER_NAME` | `Evey` | El nombre que aparece en la página de inicio de sesión, en la lista de servidores de las aplicaciones y en los correos. | Configuración del servidor → General → **Nombre del servidor**, inmediato |
 
 ## Proxy inverso { #reverse-proxy }
@@ -66,7 +67,7 @@ Las lee el punto de entrada, no el servidor.
 | `EVEY_DEMO` | `false` | Ejecuta el servidor como la demo pública: los cambios de administración quedan bloqueados, sin correos, sin notificaciones push ni webhooks salientes. No es para una instalación real. | ninguno |
 
 <!-- sources
-internal/config/config.go - EVEY_SERVER_BASE_URL, EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_SERVER_NAME, EVEY_REAL_IP_HEADER, EVEY_RATELIMIT_LOGIN_MAX, EVEY_RATELIMIT_GLOBAL_MAX, EVEY_REMOTE_ACCESS_*, EVEY_DEMO, forwardedProtoFromEnv, EffectiveBaseURL
+internal/config/config.go - EVEY_CLIENT_UPDATES_DIR, EVEY_SERVER_BASE_URL, EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_SERVER_NAME, EVEY_REAL_IP_HEADER, EVEY_RATELIMIT_LOGIN_MAX, EVEY_RATELIMIT_GLOBAL_MAX, EVEY_REMOTE_ACCESS_*, EVEY_DEMO, forwardedProtoFromEnv, EffectiveBaseURL
 trusted proxies: internal/config/trusted_proxies.go (loopback baseline, malformed entry is an error) ; cmd/evey/admin_ops.go
 remote access inference: internal/config/remote_access_resolve.go ; cmd/evey/main.go (RemoteAccessConfigKey loaded from DB)
 panel: internal/adapters/driving/http/settings_handler.go (server.name, ratelimit.* live via SetLimit) ; i18n admin.remoteAccess.*, admin.serverSettings.*

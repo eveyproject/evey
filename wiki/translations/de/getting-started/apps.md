@@ -1,5 +1,5 @@
 ---
-source_sha: f6f465ffe636c6e842ef744a39a77b3e6fd46b422c1155d344e35510fa29d296
+source_sha: c10d415b34bef2e04a1ab22d33d681fd812b2937f3595c64e946bf1630b2404a
 reviewed: true
 ---
 # Apps verbinden { #connect-the-apps }
@@ -266,6 +266,17 @@ benutzt wird und im WLAN ist, und das lässt sich abschalten). Deshalb gibt es
 diesen Hinweis. Ist die App aktuell, oder ist der Server älter als diese
 Funktion, wird nichts angezeigt. Die Web-App und die Seite `/tv` brauchen nie
 ein Update: Der Server liefert sie.
+
+Die Apps für Android und Android TV erhalten Korrekturen auch von Ihrem
+Server, ohne den Weg über den Play Store. Sobald ein Server gewählt ist, lädt
+die App im Hintergrund den App-Code herunter, der zur Version dieses Servers
+gehört, und startet beim nächsten Öffnen damit. Ist dieser Code eine andere
+Version der App als die laufende, meldet ein Fenster **Update bereit**, mit
+**Neu starten** und **Später**; es erscheint nie über dem Video. Die Apps
+nehmen nur Code an, den das Evey-Projekt veröffentlicht hat, und gehen nie auf
+einen älteren zurück. Eine Änderung an dem Teil der App, den Android
+installiert, kommt weiterhin über den Play Store. So funktioniert es:
+[App-Updates von der Instanz](../client-updates.md).
 
 ## Welches Gerät was abspielt { #which-device-plays-what }
 

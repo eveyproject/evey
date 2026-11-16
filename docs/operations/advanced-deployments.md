@@ -187,6 +187,25 @@ the default image only): the default ships every plugin runtime
 only when image size matters: the installer refuses a plugin whose declared
 language is missing from the image, with a message naming the default image.
 
+Only an image published by a release or pre-release tag carries the code the
+Android apps take from their server
+([App updates served by the instance](../client-updates.md)). A branch build
+or a self-built image serves none, and the apps keep the code they have.
+
+Published images are signed with cosign, without a key to distribute: the
+signer is the workflow of the repository that built the image. To check a
+release, with cosign 3 or newer:
+
+```bash
+cosign verify eveyproject/evey:X.Y.Z \
+  --certificate-identity https://github.com/eveyproject/evey/.github/workflows/ci.yml@refs/tags/vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Releases 0.1.5 to 0.1.8 were signed after their publication, by
+`sign-published-images.yml@refs/heads/master` in place of
+`ci.yml@refs/tags/vX.Y.Z`. Earlier releases are not signed.
+
 Published images carry the drivers for every supported Intel and AMD
 generation. A self-built image can keep one family with `docker build
 --build-arg GPU=intel-legacy .` (Intel Gen9 to Gen11), `GPU=intel` (Gen12 and
@@ -209,5 +228,6 @@ embedded db, import, major upgrade, embedded meili: docker/entrypoint.sh (PG_MAJ
 external db switch and default password refusal: internal/config/config.go (EVEY_DB_HOST, hardFail on "evey")
 reindex: cmd/evey/admin.go - adminReindexSearch
 arm, variants, GPU families: Dockerfile (TARGETARCH, RUNTIMES, GPU) ; .github/workflows/ci.yml (tags, flavor suffix, platforms) ; internal/adapters/driven/ffmpeg/hwdetect.go - detectRKMPP
+app code and image signature: .github/workflows/ci.yml (client-updates-build, client-updates-sign, docker-sign) ; .github/workflows/sign-published-images.yml ; Dockerfile (COPY client-updates)
 sandbox auto: internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; i18n/en/admin.yaml - plugins.security.title
 -->

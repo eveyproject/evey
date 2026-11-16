@@ -243,6 +243,16 @@ be turned off), which is why this notice exists. When the app is up to date,
 or the server is older than this feature, nothing is shown. The web app and the
 `/tv` page never need an update: the server provides them.
 
+The Android and Android TV apps also take fixes from your server, without
+going through the Play Store. Once a server is chosen, the app downloads the
+app code that goes with that server's version, in the background, and starts
+on it the next time it is opened. When that code is another version of the app
+than the one running, a window says **Update ready**, with **Restart** and
+**Later**; it never appears over the video. The apps only accept code
+published by the Evey project, and never go back to an older one. A change to
+the part of an app that Android installs still comes through the Play Store.
+How it works: [App updates served by the instance](../client-updates.md).
+
 ## Which device plays what
 
 Each app tells the server what its device can play. For each title, the
@@ -270,4 +280,5 @@ update notice: internal/adapters/driving/http/health_handler.go (clients) ; scri
 play on: i18n player.playOn.* (used by frontend/apps/web and frontend/apps/mobile, not frontend/apps/tv)
 television browser: frontend/apps/tv-web (served under /tv by internal/adapters/driving/http/spa.go - clientIndex ; Dockerfile /srv/tv) ; no address to type: frontend/apps/tv-web/src/lib/servedServer.ts - servingServer ; client question: frontend/apps/tv-web/src/lib/clientChoice.ts (choiceInAddress ?client=, readChoice) ; frontend/apps/tv-web/src/components/ClientChoice.tsx ; i18n common.clientChoice.* ; full screen: frontend/apps/tv-web/public/manifest.webmanifest (display fullscreen) ; remote: frontend/apps/tv-web/src/tv/keys.ts ; player keys: frontend/apps/tv-web/src/screens/Player.tsx (PlayerView comment) ; interface size: frontend/apps/tv-web/src/screens/Settings.tsx (mobile.settings.uiScale) ; quick connect: frontend/apps/tv-web/src/screens/QuickConnect.tsx ; no cast: no useCastSession in frontend/apps/tv-web
 connect screen title on both apps: i18n mobile.serverConnect.title ; frontend/apps/tv/src/i18n/offlineStrings.ts (seeded before any server answers) ; frontend/packages/client/src/native/i18n.ts - initI18n
+app code from the server: frontend/packages/client/src/native/clientUpdates.ts - followClientUpdateSource ; i18n common.clientUpdate.* ; docs/client-updates.md
 -->
