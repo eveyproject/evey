@@ -472,7 +472,9 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 	// container alone reads as watched on the container's page while every
 	// episode, the next-up feed and the resume rail still say unwatched. The
 	// container rows are written too, as the home and detail pages read them.
-	// One transaction: a half-marked season is the state this replaces.
+	// The rows are written in one transaction: a half-marked season is the
+	// state this replaces. The episodes are read before it, which loses
+	// nothing: under read committed a read inside it would see no more.
 	desc, err := s.progress.DescendantIDs(ctx, mediaItemID)
 	if err != nil {
 		return fmt.Errorf("CommandService.MarkAsWatched: %w", err)
