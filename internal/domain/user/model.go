@@ -416,6 +416,32 @@ func (p *Profile) Validate() error {
 	return nil
 }
 
+// Bounds of a profile's preferences. Clients write them freely, key by key:
+// without a bound a profile row grows as far as a client cares to send.
+const (
+	ProfilePreferencesMaxKeys     = 64
+	ProfilePreferenceKeyMaxBytes  = 64
+	ProfilePreferenceValueMaxSize = 4 << 10
+)
+
+// ValidateProfilePreferences refuses a preference write whose key is empty or
+// longer than ProfilePreferenceKeyMaxBytes, or whose value is larger than
+// ProfilePreferenceValueMaxSize.
+func ValidateProfilePreferences(prefs map[string]string) error {
+	if len(prefs) > ProfilePreferencesMaxKeys {
+		return fmt.Errorf("a profile keeps at most %d preferences", ProfilePreferencesMaxKeys)
+	}
+	for k, v := range prefs {
+		if k == "" || len(k) > ProfilePreferenceKeyMaxBytes {
+			return fmt.Errorf("a preference key is 1 to %d bytes long", ProfilePreferenceKeyMaxBytes)
+		}
+		if len(v) > ProfilePreferenceValueMaxSize {
+			return fmt.Errorf("the preference %q is larger than %d bytes", k, ProfilePreferenceValueMaxSize)
+		}
+	}
+	return nil
+}
+
 type ProfileOption func(*Profile)
 
 func WithProfileAvatar(path string) ProfileOption {

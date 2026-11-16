@@ -53,6 +53,11 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	if gateErr := h.refuseFromRestrictedProfile(ctx, span, claims); gateErr != nil {
 		return nil, gateErr
 	}
+	if err := user.ValidateProfilePreferences(req.Preferences); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
 	opts := []user.ProfileOption{
 		user.WithProfilePreferences(req.Preferences),
 		user.WithProfileIsKids(req.IsKids),
@@ -285,10 +290,25 @@ const (
 // writer last saw of the keys it did not mean to touch. An empty value removes
 // its key. The theme and the plugin that paints it are one choice: a theme
 // sent without a plugin id clears the stored one. The bitrate cap has its own
-// column and never stays in the map.
-func mergeProfilePreferences(p *user.Profile, incoming map[string]string) {
+// column and never stays in the map. A write past the bounds of
+// user.ValidateProfilePreferences is refused whole; a map already past the
+// key count can still shrink.
+func mergeProfilePreferences(p *user.Profile, incoming map[string]string) error {
 	if len(incoming) == 0 {
-		return
+		return nil
+	}
+	if err := user.ValidateProfilePreferences(incoming); err != nil {
+		return err
+	}
+	before := len(p.Preferences)
+	added := 0
+	for k, v := range incoming {
+		if _, had := p.Preferences[k]; !had && v != "" && k != prefKeyMaxBitrate {
+			added++
+		}
+	}
+	if added > 0 && before+added > user.ProfilePreferencesMaxKeys {
+		return fmt.Errorf("a profile keeps at most %d preferences", user.ProfilePreferencesMaxKeys)
 	}
 	if p.Preferences == nil {
 		p.Preferences = make(map[string]string, len(incoming))
@@ -305,13 +325,18 @@ func mergeProfilePreferences(p *user.Profile, incoming map[string]string) {
 		}
 		p.Preferences[k] = v
 	}
+	return nil
 }
 
 // applyProfileUpdateFields patches every non-nil field of req onto p. Fields
 // left unset in the request leave the existing column untouched, so p must
 // be freshly loaded from storage (see loadProfileForUpdate) before this call.
 func (h *userHandler) applyProfileUpdateFields(ctx context.Context, span trace.Span, req *eveyv1.UpdateProfileRequest, p *user.Profile) error {
-	mergeProfilePreferences(p, req.Preferences)
+	if err := mergeProfilePreferences(p, req.Preferences); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return status.Errorf(codes.InvalidArgument, "%v", err)
+	}
 	if req.Name != nil {
 		p.Name = *req.Name
 	}
