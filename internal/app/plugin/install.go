@@ -580,7 +580,13 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 	}
 
 	if s.analyzer != nil && p.InstallDir != "" {
-		report, analyzeErr := s.analyzer.Analyze(p.InstallDir, p.WebRoot)
+		// The verdict the preview (or the automatic update's check) reached on
+		// this very zip stands: same bytes, same rules.
+		report := s.recalledAnalysis(p.SourceHash, p.WebRoot)
+		var analyzeErr error
+		if report == nil {
+			report, analyzeErr = s.analyzer.Analyze(p.InstallDir, p.WebRoot)
+		}
 		if analyzeErr != nil {
 			// Fail-closed: without a clean analysis we cannot grant install -
 			// a third-party plugin could ship obfuscated malware that the

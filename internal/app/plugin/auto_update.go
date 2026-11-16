@@ -303,6 +303,7 @@ func (s *InstallerService) updateFromRelease(ctx context.Context, existing *plug
 	if err != nil {
 		return verdict(plugin.UpdateHeld, "the release could not be analysed: "+err.Error())
 	}
+	s.rememberAnalysis(hash, manifest.WebRoot, report)
 	if !report.Safe {
 		return verdict(plugin.UpdateRefused, "the analysis refuses this code: "+criticalSummary(report))
 	}

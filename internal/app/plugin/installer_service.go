@@ -49,6 +49,9 @@ type InstallerService struct {
 	// releases resolves a repository link to its latest release; nil leaves
 	// repository links unsupported.
 	releases plugin.ReleaseSource
+	// analyses keeps the last static analysis reports by zip hash, see
+	// analysis_memo.go.
+	analyses *analysisMemo
 }
 
 // InstallerWithServerVersion sets the running server's version, which a
@@ -147,6 +150,7 @@ func NewInstallerService(
 		parser:    parser,
 		events:    events,
 		pluginDir: defaultPluginBaseDir,
+		analyses:  newAnalysisMemo(),
 	}
 	for _, opt := range opts {
 		opt(s)

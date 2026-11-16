@@ -84,9 +84,11 @@ func (f *fakeReleases) Latest(_ context.Context, id int64) (*plugindomain.Releas
 type hookAnalyzer struct {
 	inner  *plgfakes.FakePluginAnalyzer
 	during func()
+	runs   atomic.Int32
 }
 
 func (h *hookAnalyzer) Analyze(dir, webRoot string) (*plugindomain.AnalysisReport, error) {
+	h.runs.Add(1)
 	if f := h.during; f != nil {
 		h.during = nil
 		f()
