@@ -196,3 +196,23 @@ func TestAutoUpdate_AnAppliedReleaseIsAnalysedOnce(t *testing.T) {
 	require.Equal(t, plugindomain.UpdateApplied, st.Outcome, st.Reason)
 	assert.EqualValues(t, 1, rig.hook.runs.Load()-before)
 }
+
+// An update applied after its own preview is the same pair as an install
+// after a preview: one pass over the candidate.
+func TestApplyUpdate_ReusesTheAnalysisOfItsPreview(t *testing.T) {
+	svc, parser, analyzer, _ := newCountingInstaller(t)
+	parser.Result = goManifestVersioned("updated", "1.0.0")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1 bytes"))
+	require.NoError(t, err)
+	before := analyzer.runs.Load()
+
+	parser.Result = goManifestVersioned("updated", "1.1.0")
+	candidate := tmpZip(t, "v2 bytes")
+	preview, err := svc.PreviewUpdate(context.Background(), p.ID, candidate)
+	require.NoError(t, err)
+	updated, err := svc.ApplyUpdate(context.Background(), p.ID, candidate, preview.SourceHash, false)
+	require.NoError(t, err)
+
+	assert.Equal(t, "1.1.0", updated.Version)
+	assert.EqualValues(t, 1, analyzer.runs.Load()-before)
+}
