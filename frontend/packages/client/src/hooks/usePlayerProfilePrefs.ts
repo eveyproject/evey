@@ -73,31 +73,48 @@ export function usePlayerProfilePrefs(): {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef({ profile, updateProfile, qc, userId });
   latest.current = { profile, updateProfile, qc, userId };
-  useEffect(() => () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+  // The change still waiting for its timer, and whether the screen is still up.
+  const unsavedStyle = useRef<SubtitleStyle | null>(null);
+  const mounted = useRef(true);
+  const sendStyle = useCallback(async (style: SubtitleStyle) => {
+    const { profile: p, updateProfile: update, qc: client, userId: uid } = latest.current;
+    try {
+      if (!p?.id) return;
+      await update.mutateAsync({ id: p.id, data: { preferences: subtitleStylePreferences(p.preferences, style) } });
+      if (uid) await client.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(uid) });
+    } catch {
+      // The global mutation handler already reported it; the profile's value stands.
+    } finally {
+      // A newer change restarted the timer: it owns the pending value now.
+      if (mounted.current && !saveTimer.current) setPendingStyle(null);
+    }
   }, []);
+  // Leaving the screen inside the delay sends the last change at once rather
+  // than dropping it: the viewer picked it, the next title must open with it.
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (!saveTimer.current) return;
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      const style = unsavedStyle.current;
+      unsavedStyle.current = null;
+      if (style) void sendStyle(style);
+    };
+  }, [sendStyle]);
   const saveSubtitleStyle = useCallback((style: SubtitleStyle) => {
     // Demo: the shared profile's appearance is not this visitor's pick.
     if (isDemoMode()) return;
     setPendingStyle(style);
+    unsavedStyle.current = style;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
-      const { profile: p, updateProfile: update, qc: client, userId: uid } = latest.current;
-      if (!p?.id) {
-        setPendingStyle(null);
-        return;
-      }
-      update
-        .mutateAsync({ id: p.id, data: { preferences: subtitleStylePreferences(p.preferences, style) } })
-        .then(() => (uid ? client.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(uid) }) : undefined))
-        .catch(() => undefined)
-        .finally(() => {
-          // A newer change restarted the timer: it owns the pending value now.
-          if (!saveTimer.current) setPendingStyle(null);
-        });
+      unsavedStyle.current = null;
+      void sendStyle(style);
     }, SUBTITLE_STYLE_SAVE_DELAY_MS);
-  }, []);
+  }, [sendStyle]);
   const subtitleStyle = pendingStyle ?? storedStyle;
 
   return { profile, audioLangs, subtitleLangs, autoplayNext, setAutoplayNext, subtitleStyle, saveSubtitleStyle };

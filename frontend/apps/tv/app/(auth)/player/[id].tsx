@@ -255,6 +255,7 @@ export default function PlayerScreen() {
   // track (see the status listener), through a ref: the listener is installed
   // once, restartWithTracks changes with the selection.
   const audioFallbackTriedRef = useRef(false);
+  useEffect(() => { audioFallbackTriedRef.current = false; }, [mediaId]);
   const restartWithTracksRef = useRef<(() => void) | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Whether the NEXT player instance should start playing. Changing tracks or
@@ -1269,10 +1270,15 @@ export default function PlayerScreen() {
     return () => clearTimeout(t);
   }, [barFocused]);
 
+  // This device's last value stands in only while the profile holds none: the
+  // keystore answers after the profile's style is already applied, and must not
+  // put an older local pick back over it.
+  const profileSubtitleStyleRef = useRef(profileSubtitleStyle);
+  profileSubtitleStyleRef.current = profileSubtitleStyle;
   useEffect(() => {
     let alive = true;
     void getSubtitleStylePref().then((v) => {
-      if (alive && v) setSubtitleStyle(v);
+      if (alive && v && !profileSubtitleStyleRef.current) setSubtitleStyle(v);
     });
     return () => { alive = false; };
   }, []);
