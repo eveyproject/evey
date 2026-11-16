@@ -871,6 +871,8 @@ func TestUpdateProfile_PreferencesBounded(t *testing.T) {
 		{"rewriting a key of a full map", full, map[string]string{"k00": "w"}, false},
 		{"removing a key of a map past the count", over, map[string]string{"k00": ""}, false},
 		{"adding to a map past the count", over, map[string]string{"another": "v"}, true},
+		{"swapping a key of a full map for another", full, map[string]string{"k00": "", "one_more": "v"}, false},
+		{"swapping two keys in for one out", full, map[string]string{"k00": "", "one_more": "v", "two_more": "v"}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

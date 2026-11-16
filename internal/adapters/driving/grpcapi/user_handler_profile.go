@@ -300,14 +300,27 @@ func mergeProfilePreferences(p *user.Profile, incoming map[string]string) error 
 	if err := user.ValidateProfilePreferences(incoming); err != nil {
 		return err
 	}
-	before := len(p.Preferences)
-	added := 0
+	// The count the map would reach: keys the write adds, less those it removes.
+	after, added := len(p.Preferences), 0
 	for k, v := range incoming {
-		if _, had := p.Preferences[k]; !had && v != "" && k != prefKeyMaxBitrate {
+		_, had := p.Preferences[k]
+		removes := v == "" || k == prefKeyMaxBitrate
+		switch {
+		case had && removes:
+			after--
+		case !had && !removes:
+			after++
 			added++
 		}
 	}
-	if added > 0 && before+added > user.ProfilePreferencesMaxKeys {
+	if _, themed := incoming[prefKeyTheme]; themed {
+		if _, withPlugin := incoming[prefKeyThemePluginID]; !withPlugin {
+			if _, had := p.Preferences[prefKeyThemePluginID]; had {
+				after--
+			}
+		}
+	}
+	if added > 0 && after > user.ProfilePreferencesMaxKeys {
 		return fmt.Errorf("a profile keeps at most %d preferences", user.ProfilePreferencesMaxKeys)
 	}
 	if p.Preferences == nil {
