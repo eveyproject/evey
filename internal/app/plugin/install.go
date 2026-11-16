@@ -117,6 +117,10 @@ func (e *PluginBlockedError) Error() string {
 func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (localPath, expectedHash string, cleanup func(), err error) {
 	cleanup = func() {}
 
+	// Read the way CheckRequestedSource reads it: a link it let through must
+	// never be taken for a path on the server here.
+	source = strings.TrimSpace(source)
+
 	// Parse optional "#sha256:<hex>" fragment.
 	rawURL, fragment, _ := strings.Cut(source, "#")
 	if h, ok := strings.CutPrefix(fragment, "sha256:"); ok {
@@ -124,14 +128,17 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 		source = rawURL
 	}
 
-	if strings.HasPrefix(strings.ToLower(source), "http://") {
+	const httpsScheme = "https://"
+	lower := strings.ToLower(source)
+	if strings.HasPrefix(lower, "http://") {
 		err = ErrInsecureSource
 		return
 	}
-	if !strings.HasPrefix(source, "https://") {
+	if !strings.HasPrefix(lower, httpsScheme) {
 		localPath = source
 		return
 	}
+	source = httpsScheme + source[len(httpsScheme):]
 
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
 	if reqErr != nil {
