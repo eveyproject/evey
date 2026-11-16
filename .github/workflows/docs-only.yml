@@ -2,7 +2,8 @@ name: CI (docs only)
 
 # ci.yml ignores docs and Markdown, so a pull request made only of them would
 # never get the required "CI passed" check and could not be merged. This
-# workflow takes exactly those paths and reports the same check at once.
+# workflow reports that check for them, and only for them: a pull request that
+# also touches code gets another check name here, so ci.yml alone decides.
 on:
   pull_request:
     branches: [master, dev]
@@ -13,11 +14,40 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  scope:
+    name: Docs scope
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.files.outputs.docs_only }}
+    steps:
+      - name: list what the pull request touches
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)')
+          code=$(printf '%s\n' "$files" | grep -Ev '^(docs|wiki)/|\.md$' | grep -v '^$' || true)
+          if [[ -z "$files" || -n "$code" ]]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "also touches code, ci.yml reports the required check:"
+            printf '%s\n' "$code" | head -20
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
   ci-pass:
-    name: CI passed
+    name: ${{ needs.scope.outputs.docs_only == 'true' && 'CI passed' || 'Docs scope (mixed, see CI)' }}
+    needs: [scope]
     runs-on: ubuntu-latest
     steps:
       - name: nothing the jobs test or ship changed
-        run: echo "docs-only change, nothing to test"
+        env:
+          DOCS_ONLY: ${{ needs.scope.outputs.docs_only }}
+        run: echo "docs_only=$DOCS_ONLY"
