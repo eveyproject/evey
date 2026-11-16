@@ -1,5 +1,5 @@
 ---
-source_sha: 240cd74711c9616842947f45e87cbeb2ac83c28f83771f8909b58080ca420f80
+source_sha: 0e9677cafb6440a4984abea7c9a1d5bc5e010660e3be079a81f138d63d036a5d
 reviewed: true
 ---
 # 备份和更新 { #backups-and-updates }
@@ -94,6 +94,8 @@ docker compose logs -f evey
 1. 把 compose 文件里 `image:` 这一行改回之前的标签。
 2. 如果新版本修改过数据库，请先恢复它在更新前保存的副本：`docker exec evey-server evey admin rollback` 会列出具体步骤和文件路径。
 3. 运行 `docker compose up -d`。
+
+片头检测的指纹是唯一不会随您退回的内容。把它们保存在 `./evey-data/fingerprints` 的版本第一次启动时，会把它们从数据库移到那里，并删除已移走的行。旧版本只从数据库读取它们，找不到任何指纹，于是会在片头检测运行时根据媒体文件重新计算：不会丢失任何东西，但服务器会忙一段时间。更新前做的备份仍然包含这些行，恢复该备份即可找回它们。
 
 镜像标签、其他变体和显卡版本的说明见[高级部署](operations/advanced-deployments.md#image-tags-and-variants)。
 
