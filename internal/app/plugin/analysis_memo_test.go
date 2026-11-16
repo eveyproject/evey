@@ -102,7 +102,7 @@ func TestInstall_ARefusalAtThePreviewStillBlocksTheInstall(t *testing.T) {
 }
 
 // What an install adds to its own copy of the report never reaches the kept
-// one: a second install of the same zip starts from the preview's findings.
+// one: an upgrade to the same zip starts again from the preview's findings.
 func TestInstall_TheKeptAnalysisIsNotAlteredByTheInstall(t *testing.T) {
 	svc, parser, analyzer, _ := newCountingInstaller(t)
 	m := goManifest("gpu-user")
@@ -111,20 +111,77 @@ func TestInstall_TheKeptAnalysisIsNotAlteredByTheInstall(t *testing.T) {
 	analyzer.inner.Report = &plugindomain.AnalysisReport{Safe: true, Issues: []string{"[INFO] a.js:1 - note"}}
 	zip := tmpZip(t, "gpu bytes")
 
-	preview, err := svc.PreviewPlugin(context.Background(), zip)
+	_, err := svc.PreviewPlugin(context.Background(), zip)
 	require.NoError(t, err)
 	first, err := svc.InstallPlugin(context.Background(), zip)
 	require.NoError(t, err)
-	require.NotNil(t, first.AnalysisReport)
-	added := len(first.AnalysisReport.Issues) - 1
-	require.Positive(t, added, "the GPU warning is appended at install")
+	require.Len(t, first.AnalysisReport.Issues, 2, "the GPU warning is appended at install")
 
+	// The same bytes under a higher version (the fake parser reads no zip).
+	next := goManifestVersioned("gpu-user", "1.0.1")
+	next.Permissions = []string{"hardware.gpu"}
+	parser.Result = next
 	second, err := svc.InstallPlugin(context.Background(), zip)
-	if err == nil {
-		assert.Len(t, second.AnalysisReport.Issues, 1+added, "the warning piled up on the kept report")
-	}
-	assert.Len(t, preview.Analysis.Issues, 1, "the preview's own report was written to")
-	assert.Len(t, analyzer.inner.Report.Issues, 1)
+	require.NoError(t, err)
+	assert.Len(t, second.AnalysisReport.Issues, 2, "the warning piled up on the kept report")
+	assert.EqualValues(t, 1, analyzer.runs.Load())
+}
+
+// A theme's theme.css is rewritten at install: its files are read as served,
+// whatever the preview concluded on the raw ones.
+func TestInstall_AThemeIsAlwaysAnalysedAsInstalled(t *testing.T) {
+	svc, parser, analyzer, _ := newCountingInstaller(t)
+	m := goManifest("a-theme")
+	m.Kind = plugindomain.KindTheme
+	m.Language, m.Entrypoint = "", ""
+	parser.Result = m
+	zip := tmpZip(t, "theme bytes")
+
+	_, err := svc.PreviewPlugin(context.Background(), zip)
+	require.NoError(t, err)
+	_, err = svc.InstallPlugin(context.Background(), zip)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, analyzer.runs.Load())
+}
+
+// An analysis that failed at the preview is no verdict: the install runs its own.
+func TestInstall_AFailedPreviewAnalysisIsNotKept(t *testing.T) {
+	svc, parser, analyzer, _ := newCountingInstaller(t)
+	parser.Result = goManifest("retried")
+	zip := tmpZip(t, "retried bytes")
+
+	analyzer.inner.Err = assert.AnError
+	_, err := svc.PreviewPlugin(context.Background(), zip)
+	require.NoError(t, err, "the preview tolerates a failed analysis")
+	analyzer.inner.Err = nil
+
+	_, err = svc.InstallPlugin(context.Background(), zip)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, analyzer.runs.Load())
+}
+
+// An upgrade does not extract over leftovers it could not clear.
+func TestInstall_AnUpgradeStopsWhenItsStagingDirCannotBeCleared(t *testing.T) {
+	repo := plgfakes.NewFakePluginRepository()
+	parser := plgfakes.NewFakeManifestParser()
+	fs := plgfakes.NewFakePluginFileSystem()
+	svc := appplugin.NewInstallerService(repo, plgfakes.NewFakePluginRunner(), parser, sharedfakes.NewFakeEventBus(),
+		appplugin.InstallerWithInstaller(plgfakes.NewFakePluginInstaller()),
+		appplugin.InstallerWithAnalyzer(plgfakes.NewFakePluginAnalyzer()),
+		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
+		appplugin.InstallerWithFileSystem(fs),
+	)
+	parser.Result = goManifest("stuck")
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("stuck", "1.0.1")
+	fs.RemoveErr = assert.AnError
+	_, err = svc.InstallPlugin(context.Background(), tmpZip(t, "v2"))
+	require.ErrorIs(t, err, assert.AnError)
+	stored, getErr := repo.GetByName(context.Background(), "stuck")
+	require.NoError(t, getErr)
+	assert.Equal(t, "1.0.0", stored.Version)
 }
 
 // The automatic update judges a release, then installs it: one pass.

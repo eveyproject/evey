@@ -512,8 +512,12 @@ func (s *InstallerService) extractPluginToStaging(p *plugin.Plugin, existing *pl
 	}
 	if s.installer != nil {
 		// Clear any leftover staging dir from a previously-interrupted upgrade.
+		// Leftovers that could not be cleared would be installed with the zip,
+		// unread by an analysis kept from its preview: the upgrade stops here.
 		if stagingDir != finalDir && s.fs != nil {
-			s.fs.RemoveAll(stagingDir) //nolint:errcheck
+			if rmErr := s.fs.RemoveAll(stagingDir); rmErr != nil {
+				return finalDir, stagingDir, fmt.Errorf("clear leftover upgrade dir: %w", rmErr)
+			}
 		}
 		if err := s.installer.Extract(zipPath, stagingDir); err != nil {
 			return finalDir, stagingDir, fmt.Errorf("extract plugin: %w", err)
@@ -581,8 +585,12 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 
 	if s.analyzer != nil && p.InstallDir != "" {
 		// The verdict the preview (or the automatic update's check) reached on
-		// this very zip stands: same bytes, same rules.
-		report := s.recalledAnalysis(p.SourceHash, p.WebRoot)
+		// this very zip stands: same bytes, same rules. Not for a theme, whose
+		// theme.css was just rewritten: its files are read as they will be served.
+		var report *plugin.AnalysisReport
+		if !p.IsTheme() {
+			report = s.recalledAnalysis(p.SourceHash, p.WebRoot)
+		}
 		var analyzeErr error
 		if report == nil {
 			report, analyzeErr = s.analyzer.Analyze(p.InstallDir, p.WebRoot)
