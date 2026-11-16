@@ -130,7 +130,7 @@ type autoRig struct {
 	zipGets  *atomic.Int32
 }
 
-func newAutoRig(t *testing.T, policy string) *autoRig {
+func newAutoRig(t *testing.T, policy string, extra ...appplugin.InstallerOption) *autoRig {
 	t.Helper()
 	dir := t.TempDir()
 	var zipGets atomic.Int32
@@ -149,7 +149,7 @@ func newAutoRig(t *testing.T, policy string) *autoRig {
 	bus := sharedfakes.NewFakeEventBus()
 	releases := &fakeReleases{}
 	keyring := appplugin.NewTrustedPublisherService(plgfakes.NewFakeTrustedPublisherRepository(), plugins)
-	svc := appplugin.NewInstallerService(plugins, plgfakes.NewFakePluginRunner(), parser, bus,
+	opts := append([]appplugin.InstallerOption{
 		appplugin.InstallerWithInstaller(plgfakes.NewFakePluginInstaller()),
 		appplugin.InstallerWithAnalyzer(hook),
 		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
@@ -158,7 +158,8 @@ func newAutoRig(t *testing.T, policy string) *autoRig {
 		appplugin.InstallerWithSignatureVerifier(pluginrunner.NewCosignVerifier(policy, keyring.Lookup)),
 		appplugin.InstallerWithTrustedPublishers(keyring),
 		appplugin.InstallerWithReleaseSource(releases),
-	)
+	}, extra...)
+	svc := appplugin.NewInstallerService(plugins, plgfakes.NewFakePluginRunner(), parser, bus, opts...)
 	return &autoRig{svc: svc, upd: appplugin.NewAutoUpdater(svc), plugins: plugins, parser: parser,
 		analyzer: analyzer, bus: bus, releases: releases, srv: srv, dir: dir, key: newSigner(t), keyring: keyring, hook: hook, zipGets: &zipGets}
 }
@@ -689,6 +690,30 @@ func TestAutoUpdate_AJudgedReleaseIsNotDownloadedAgain(t *testing.T) {
 	gets = rig.zipGets.Load()
 	rig.check(t, p.ID)
 	assert.Greater(t, rig.zipGets.Load(), gets, "a change on the plugin's side is judged again")
+}
+
+// A release that needs a newer server waits for it: the admins hear of it
+// once, with the version to reach, and the zip is not fetched again at every
+// check until the server or the release changes.
+func TestAutoUpdate_AReleaseThatNeedsANewerServerWaits(t *testing.T) {
+	rig := newAutoRig(t, "warn", appplugin.InstallerWithServerVersion("0.4.2"))
+	p := rig.installFromRepo(t, &rig.key)
+	m := goManifestVersioned("thing", "1.1.0")
+	m.MinEveyVersion = "0.5.0"
+	rig.publish(t, m, rig.signed(t, "v110"))
+
+	st := rig.check(t, p.ID)
+	assert.Equal(t, plugindomain.UpdateHeld, st.Outcome, st.Reason)
+	assert.Contains(t, st.Reason, "0.5.0")
+	assert.Contains(t, st.Reason, "0.4.2")
+	assert.Equal(t, "1.0.0", rig.stored(t, p.ID).Version)
+	assert.Len(t, rig.attention(), 1)
+
+	gets := rig.zipGets.Load()
+	st = rig.check(t, p.ID)
+	assert.Equal(t, plugindomain.UpdateHeld, st.Outcome)
+	assert.Equal(t, gets, rig.zipGets.Load(), "the same release was downloaded again")
+	assert.Len(t, rig.attention(), 1, "the admins were paged twice for the same release")
 }
 
 func TestAutoUpdate_APreReleaseNeverInstallsOnItsOwn(t *testing.T) {

@@ -288,6 +288,11 @@ func (s *InstallerService) updateFromRelease(ctx context.Context, existing *plug
 		return verdict(plugin.UpdateFailed, fmt.Sprintf("the download does not match the release's sha256 (expected %s, got %s)", expectedHash, hash))
 	}
 	manifest, err := s.parseAndValidateManifest(localPath)
+	if errors.Is(err, ErrServerTooOld) {
+		// Nothing to retry: the release waits for the server's own upgrade,
+		// which the judgment is keyed on.
+		return verdict(plugin.UpdateHeld, err.Error())
+	}
 	if err != nil {
 		return verdict(plugin.UpdateFailed, err.Error())
 	}
