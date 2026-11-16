@@ -1149,22 +1149,54 @@ func TestAnalyzer_ShellBase64Pipe(t *testing.T) {
 	}
 }
 
-func TestAnalyze_SDKStubsSkipped(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "plugin_pb2.py", `eval("should not be scanned")`)
-	writeFile(t, dir, "plugin_pb2_grpc.py", `os.system("hidden")`)
-	writeFile(t, dir, "plugin.proto", `exec("hidden")`)
-	writeFile(t, dir, "main.py", `print("clean")`)
+// A file is read whatever its name: the generated-stub names (_pb2.py,
+// _pb2_grpc.py, .proto) used to be skipped, so code shipped under one of them
+// reached the plugin unread.
+func TestAnalyze_AStubNameDoesNotHideCode(t *testing.T) {
+	for _, name := range []string{"plugin_pb2.py", "plugin_pb2_grpc.py", "helpers_pb2.py", "lib/plugin_api_pb2.py"} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "main.py", `print("clean")`)
+			writeFile(t, dir, name, `os.system("hidden")`)
 
-	report, err := AnalyzePlugin(dir)
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.TotalFilesScanned != 2 {
+				t.Errorf("files scanned = %d, want 2", report.TotalFilesScanned)
+			}
+			if report.Safe {
+				t.Fatalf("a shell call in %s went unread", name)
+			}
+		})
+	}
+}
+
+// The stubs the server copies into every plugin raise nothing, so reading
+// them costs no plugin its install.
+func TestAnalyze_TheServerStubsRaiseNothing(t *testing.T) {
+	root := filepath.Join("..", "..", "..", "..", "sdk")
+	langs, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.TotalFilesScanned != 1 {
-		t.Errorf("expected 1 file scanned (stubs skipped), got %d", report.TotalFilesScanned)
+	checked := 0
+	for _, l := range langs {
+		if !l.IsDir() {
+			continue
+		}
+		report, err := AnalyzePlugin(filepath.Join(root, l.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		checked++
+		if !report.Safe || len(report.Findings) != 0 {
+			t.Errorf("sdk/%s: safe=%v findings=%+v", l.Name(), report.Safe, report.Findings)
+		}
 	}
-	if !report.Safe {
-		t.Fatal("expected safe - SDK stubs should be skipped entirely")
+	if checked == 0 {
+		t.Fatal("no SDK directory was read")
 	}
 }
 
