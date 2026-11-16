@@ -305,10 +305,45 @@ func ValidateUsername(name string) error {
 	return nil
 }
 
+// LoginUsernameMaxBytes bounds the name typed at login. Far above what
+// ValidateUsername lets an account carry, and still a bound on what the
+// failure counters and the audit log are keyed on.
+const LoginUsernameMaxBytes = 1024
+
+// ValidateLoginUsername refuses only what no stored name can be: an empty
+// name, one past LoginUsernameMaxBytes, malformed UTF-8 or a NUL. It is looser
+// than ValidateUsername on purpose: an account created before that rule
+// existed still signs in under the name it has.
+func ValidateLoginUsername(name string) error {
+	switch {
+	case strings.TrimSpace(name) == "":
+		return errors.New("username is required")
+	case len(name) > LoginUsernameMaxBytes:
+		return fmt.Errorf("username is longer than %d bytes", LoginUsernameMaxBytes)
+	case !utf8.ValidString(name) || strings.ContainsRune(name, 0):
+		return errors.New("username is not valid text")
+	}
+	return nil
+}
+
 func (u *User) Validate() error {
 	if err := ValidateUsername(u.Username); err != nil {
 		return usernameError{err}
 	}
+	return u.validateContact()
+}
+
+// ValidateKeepingUsername is Validate for a write that leaves the stored name
+// as it is: a name older than ValidateUsername's rule must not block the
+// account's every other change.
+func (u *User) ValidateKeepingUsername() error {
+	if strings.TrimSpace(u.Username) == "" {
+		return usernameError{errors.New("username is required")}
+	}
+	return u.validateContact()
+}
+
+func (u *User) validateContact() error {
 	// Surrounding whitespace is tolerated: rows written before this check
 	// tightened may carry it, and refusing them would block the account's
 	// next update until the operator notices a space.
