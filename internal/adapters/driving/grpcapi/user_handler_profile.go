@@ -53,10 +53,10 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	if gateErr := h.refuseFromRestrictedProfile(ctx, span, claims); gateErr != nil {
 		return nil, gateErr
 	}
-	if err := user.ValidateProfilePreferences(req.Preferences); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	if prefErr := user.ValidateProfilePreferences(req.Preferences); prefErr != nil {
+		span.RecordError(prefErr)
+		span.SetStatus(otelcodes.Error, prefErr.Error())
+		return nil, status.Errorf(codes.InvalidArgument, "%v", prefErr)
 	}
 	opts := []user.ProfileOption{
 		user.WithProfilePreferences(req.Preferences),
