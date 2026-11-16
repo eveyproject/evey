@@ -574,15 +574,22 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 	// A layout the prober never measured cannot be held to the client's
 	// channel ceiling: a 7.1 track would reach it untouched. The re-encode
-	// sets the layout.
+	// sets the layout, under the lower of the client's and the profile's
+	// ceilings: the variant URIs carry that folded ceiling as the client's, so
+	// a master that held the client's alone sealed a fingerprint its own
+	// variants never resolved to.
 	if s.Channels == nil && (client.MaxAudioChannels > 0 || prefs.MaxAudioChannels > 0) {
 		addReasonOnce(d, "audio_layout_unknown")
 		d.AudioDecision = "transcode"
 		if d.AudioCodec == "" {
 			d.AudioCodec = transcoding.DefaultAudioCodec
 		}
-		if d.MaxAudioChannels == 0 && client.MaxAudioChannels > 0 {
-			d.MaxAudioChannels = client.MaxAudioChannels
+		ceiling := client.MaxAudioChannels
+		if prefs.MaxAudioChannels > 0 && (ceiling == 0 || prefs.MaxAudioChannels < ceiling) {
+			ceiling = prefs.MaxAudioChannels
+		}
+		if d.MaxAudioChannels == 0 || ceiling < d.MaxAudioChannels {
+			d.MaxAudioChannels = ceiling
 		}
 	}
 	// Per-profile cap on audio channels (user pref).

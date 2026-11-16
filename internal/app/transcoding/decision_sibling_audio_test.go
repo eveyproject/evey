@@ -168,6 +168,35 @@ func TestAudio_UnknownChannelsAgainstACeiling(t *testing.T) {
 	assert.NotContains(t, d.TranscodeReasons, "audio_layout_unknown")
 }
 
+// An unmeasured layout is held to the lower of the client's and the
+// profile's ceilings, whichever of the two the request carries.
+func TestUnknownLayout_HoldsTheLowerCeiling(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", SampleRate: new(48000), IsDefault: true},
+	}
+	for _, tc := range []struct {
+		name           string
+		client, prefs  int
+		wantMaxChannel int
+	}{
+		{"profile below the client", 6, 2, 2},
+		{"client below the profile", 2, 6, 2},
+		{"profile alone", 0, 2, 2},
+		{"client alone", 6, 0, 6},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := phoneProfile
+			client.MaxAudioChannels = tc.client
+			prefs := apptranscode.DefaultTranscodingPreferences()
+			prefs.MaxAudioChannels = tc.prefs
+			d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "matroska", client, 0, prefs)
+			assert.Contains(t, d.TranscodeReasons, "audio_layout_unknown")
+			assert.Equal(t, tc.wantMaxChannel, d.MaxAudioChannels)
+		})
+	}
+}
+
 // A file stored in one-track blocks is served segmented: an MP3 track the
 // client takes raw from a file but not inside fMP4 segments is re-encoded,
 // as for any other segmented session.
