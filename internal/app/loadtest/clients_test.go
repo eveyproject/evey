@@ -129,7 +129,7 @@ func TestRunner_DirectPlayClientReadsTheRawFile(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: "clients:tv=1,web-chrome=1",
 		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 300 * time.Millisecond, MaxDuration: 20 * time.Second,
@@ -163,7 +163,7 @@ func TestRunner_DirectPlayClientReadsTheRawFile(t *testing.T) {
 // A mix naming a profile the harness cannot play is refused before anything
 // starts, rather than reported as an audience that never played.
 func TestRunner_StartRefusesAnInvalidClientMix(t *testing.T) {
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	err := r.Start(context.Background(), Config{BaseURL: "http://127.0.0.1:1", Token: "t", Scenario: "clients:toaster=10"})
 	if !errors.Is(err, ErrUnknownScenario) {
 		t.Fatalf("Start = %v, want ErrUnknownScenario", err)
@@ -178,7 +178,7 @@ func TestRunner_HistoryMixPlaysAndReportsEachClientsPath(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	r.WithClientHistory(func(context.Context) (map[PlaybackDevice]int, error) {
 		return map[PlaybackDevice]int{{Type: "Evey TV", Name: "Shield"}: 20, {Type: "Evey Web", Name: "Chrome"}: 20}, nil
 	})
@@ -213,7 +213,7 @@ func TestRunner_HistoryMixPlaysAndReportsEachClientsPath(t *testing.T) {
 
 // Too thin a history falls back to the default mix rather than a mix of one.
 func TestRunner_ThinHistoryFallsBackToTheDefaultMix(t *testing.T) {
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	r.WithClientHistory(func(context.Context) (map[PlaybackDevice]int, error) {
 		return map[PlaybackDevice]int{{Type: "Evey TV"}: 3}, nil
 	})
