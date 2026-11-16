@@ -1023,6 +1023,13 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 		return fmt.Errorf("CommandService.MarkAsUnwatched: %w", err)
 	}
 	targets := append([]string{mediaItemID}, desc.All()...)
+	if s.progressBuffer != nil {
+		ids := make([]shared.MediaItemID, len(targets))
+		for i, id := range targets {
+			ids[i] = shared.MediaItemID(id)
+		}
+		s.progressBuffer.Forget(shared.ProfileID(profileID), ids...)
+	}
 	if err := s.transact(ctx, func(ctx context.Context) error {
 		return s.progress.DeleteMany(ctx, profileID, targets)
 	}); err != nil {
@@ -1047,6 +1054,9 @@ func (s *CommandService) ClearWatchHistory(ctx context.Context, profileID shared
 	defer span.End()
 	if err := s.validateProfile(ctx, profileID); err != nil {
 		return 0, err
+	}
+	if s.progressBuffer != nil {
+		s.progressBuffer.ForgetProfile(profileID)
 	}
 	n, err := s.progress.DeleteByProfile(ctx, string(profileID))
 	if err != nil {
