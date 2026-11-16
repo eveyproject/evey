@@ -1,5 +1,5 @@
 ---
-source_sha: e5498cbe162421216bad6ea8b820fff1d05e8752e13b5a31df1cec45ea69d1a6
+source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
 reviewed: true
 ---
 # Ein Plugin schreiben { #writing-a-plugin }
@@ -55,9 +55,13 @@ Nur
 das Python-SDK liefert erzeugte Stubs; die anderen Sprachen unter
 `sdk/<language>/` enthalten die `.proto`. Der Server kopiert die Dateien Ihrer
 Sprache beim Start des Plugins neben Ihren Einstiegspunkt. Das Image stellt
-Python-Plugins `grpcio` bereit, sie müssen also nichts mitliefern. Ein
-Node.js-Plugin muss sein `node_modules` (`@grpc/grpc-js` und
-`@grpc/proto-loader`) im Paket mitliefern. Für eine andere Sprache erzeugen Sie die Stubs mit `protoc` und legen sie ins
+Python-Plugins `grpcio` bereit, sie müssen also nichts mitliefern. Die Images
+`nodejs` und `full` stellen Node.js-Plugins auf dieselbe Weise `@grpc/grpc-js`
+und `@grpc/proto-loader` bereit. Die Images bis 0.1.8 tun das nicht: Ein
+Node.js-Plugin, das auch darauf laufen soll, behält beide im `node_modules`
+seines Pakets, und eines, das sich auf das Image verlässt, erklärt das mit
+`min_evey_version`. Ein im Paket mitgeliefertes `node_modules` hat immer Vorrang
+vor dem des Images. Für eine andere Sprache erzeugen Sie die Stubs mit `protoc` und legen sie ins
 ZIP:
 
 ```bash

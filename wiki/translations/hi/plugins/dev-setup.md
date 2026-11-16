@@ -1,5 +1,5 @@
 ---
-source_sha: e5498cbe162421216bad6ea8b820fff1d05e8752e13b5a31df1cec45ea69d1a6
+source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
 reviewed: true
 ---
 # प्लगइन लिखना { #writing-a-plugin }
@@ -51,9 +51,11 @@ Python और Node.js रहते हैं और `-lean` इमेज मे�
 gRPC अनुबंध एक ही फ़ाइल है: `proto/plugin/v1/plugin_api.proto`। सिर्फ़ Python SDK
 जनरेट किए हुए stub के साथ आता है; `sdk/<language>/` में बाकी भाषाओं के पास `.proto` है। प्लगइन
 शुरू होने पर सर्वर आपकी भाषा की फ़ाइलें आपके entrypoint के बगल में कॉपी कर देता है।
-इमेज Python प्लगइन को `grpcio` देती है, इसलिए उन्हें कुछ पैक नहीं करना पड़ता। Node.js
-प्लगइन को अपना `node_modules` (`@grpc/grpc-js` और `@grpc/proto-loader`) पैकेज में
-साथ रखना होगा। किसी और भाषा के लिए `protoc` से stub बनाएँ और उन्हें ZIP में रखें:
+इमेज Python प्लगइन को `grpcio` देती है, इसलिए उन्हें कुछ पैक नहीं करना पड़ता। `nodejs`
+और `full` इमेज इसी तरह Node.js प्लगइन को `@grpc/grpc-js` और `@grpc/proto-loader` देती हैं।
+0.1.8 तक की इमेज ऐसा नहीं करतीं: जिस Node.js प्लगइन को उन पर भी चलना है, वह दोनों को अपने
+पैकेज के `node_modules` में रखे, और जो इमेज पर निर्भर है वह इसे `min_evey_version` से बताए।
+पैकेज में दिया गया `node_modules` हमेशा इमेज वाले से पहले लिया जाता है। किसी और भाषा के लिए `protoc` से stub बनाएँ और उन्हें ZIP में रखें:
 
 ```bash
 protoc --proto_path=proto \

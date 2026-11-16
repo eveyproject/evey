@@ -1,5 +1,5 @@
 ---
-source_sha: e5498cbe162421216bad6ea8b820fff1d05e8752e13b5a31df1cec45ea69d1a6
+source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -41,7 +41,9 @@ flowchart LR
 
 gRPC 约定只有一个文件：`proto/plugin/v1/plugin_api.proto`。只有 Python SDK 附带生成好的存根；`sdk/<language>/` 下其他语言的目录里是 `.proto`。
 插件启动时，服务器会把对应语言的文件复制到您的入口文件旁边。镜像为 Python 插件提供了 `grpcio`，所以 Python 插件不需要自带任何依赖。
-Node.js 插件必须把自己的 `node_modules`（`@grpc/grpc-js` 和 `@grpc/proto-loader`）放进包里。
+`nodejs` 和 `full` 镜像以同样的方式为 Node.js 插件提供 `@grpc/grpc-js` 和 `@grpc/proto-loader`。
+0.1.8 及更早的镜像不提供：需要在这些镜像上运行的 Node.js 插件要把这两个依赖保留在包内的 `node_modules` 里，依赖镜像的插件则用 `min_evey_version` 声明。
+包内自带的 `node_modules` 始终优先于镜像提供的。
 其他语言请用 `protoc` 生成存根，并放进 ZIP 包里：
 
 ```bash
