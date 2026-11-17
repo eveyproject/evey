@@ -4,21 +4,21 @@ package httpapi
 // same decoded-image blob as PGS (subtitle_pgs.go) so every player draws them
 // with the code it already has.
 //
-// mkvgo walks a PGS track itself (ForEachSubtitlePGS); for VobSub and DVB it
-// offers the block decoders only, so the walk and the cue timing live here.
-// There is no stored-index fast path for them: they are rare in a real library
-// (a few dozen tracks against several hundred PGS), and the slow walk is
-// answered 202 + Retry-After like any long extraction.
+// mkvgo reads the blocks of an embedded track, from the subtitle index when
+// there is one, and passes over a damaged region
+// (matroska.ForEachSubtitleBlock[From]). The cues are assembled here, from
+// mkvgo's block decoders, so that a block whose bytes do not decode costs its
+// own picture and not the track: mkvgo's ready-made bitmap read
+// (ForEachSubtitleBitmap) stops on the first such block. A picture sidecar
+// (.sup, or an .idx/.sub pair) goes through the same assembly.
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"image"
 	"image/draw"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -229,12 +229,10 @@ func flattenBitmapDisplaySet(ds *subtitle.BitmapDisplaySet, startMs int64) (matr
 	return cue, nil
 }
 
-// forEachMatroskaBitmapCue reads one VobSub or DVB track of a Matroska file
-// and calls fn with each cue, in presentation order. With an index that covers
-// the track it seeks from block to block, as mkvgo's PGS read does; without one
-// it walks the file. An index that turns out not to describe the file returns
-// an error wrapping matroska.ErrIndexStale.
-func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint64, ix *matroska.SubtitleIndex, fn func(matroska.PGSCue) error) error {
+// forEachMatroskaBitmapCue calls fn with each cue of one VobSub or DVB track
+// of a Matroska file, in presentation order: the blocks from mkvgo, from ix
+// when it is not nil, the cues assembled here.
+func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint64, ix *matroska.SubtitleIndex, fn func(matroska.PGSCue) error, opts ...matroska.Options) error {
 	c, err := reader.OpenMeta(ctx, filePath)
 	if err != nil {
 		return fmt.Errorf("open container: %w", err)
@@ -253,109 +251,22 @@ func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint
 	if err != nil {
 		return err
 	}
-	var entries []reader.IndexedBlock
-	if ix != nil {
-		st, statErr := os.Stat(filePath)
-		if statErr != nil {
-			return statErr
+	asm := &bitmapCueAssembler{dec: dec, emit: fn}
+	feed := func(blk matroska.SubtitleBlock) error {
+		if blk.Lost {
+			return asm.skipDamage(blk.TimeMs)
 		}
-		if !ix.Matches(st.Size(), c.Info.SegmentUID, c.Info.TimecodeScale) {
-			return fmt.Errorf("%w: built for another state of the file", matroska.ErrIndexStale)
-		}
-		entries = ix.TrackBlocks(trackID)
+		return asm.block(blk.TimeMs, blk.DurationMs, blk.Data)
 	}
-
-	f, err := openPacedSubtitleSource(ctx, filePath)
+	if ix != nil {
+		err = matroska.ForEachSubtitleBlockFrom(ctx, filePath, trackID, ix, feed, opts...)
+	} else {
+		err = matroska.ForEachSubtitleBlock(ctx, filePath, trackID, feed, opts...)
+	}
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	asm := &bitmapCueAssembler{dec: dec, emit: fn}
-	feed := func(blk extmkv.Block) error {
-		data, decErr := track.DecodePayload(blk.Data)
-		if decErr != nil {
-			return fmt.Errorf("subtitle block at %d ms: %w", blk.Timecode, decErr)
-		}
-		return asm.block(blk.Timecode, blk.Duration, data)
-	}
-
-	if entries == nil {
-		br, brErr := matroska.NewBlockReader(f, c.Info.TimecodeScale)
-		if brErr != nil {
-			return brErr
-		}
-		br.KeepTracks(trackID)
-		// A damaged region (a download that missed bytes, a broadcast glitch
-		// in a recording) costs the pictures inside it, as mkvgo's own PGS
-		// read does, not the whole track.
-		br.SetSkipDamage(true)
-		br.SetDamageScan(extmkv.DefaultDamageBytes)
-		seen := 0
-		for {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return ctxErr
-			}
-			blk, nextErr := br.Next()
-			if errors.Is(nextErr, io.EOF) {
-				break
-			}
-			if nextErr != nil {
-				return nextErr
-			}
-			for r := br.SkippedRanges(); seen < len(r); seen++ {
-				if skipErr := asm.skipDamage(r[seen].FromMs); skipErr != nil {
-					return skipErr
-				}
-			}
-			if feedErr := feed(blk); feedErr != nil {
-				return feedErr
-			}
-		}
-		return asm.finish()
-	}
-
-	// The entries are read from the first, in order: a DVB page and a VobSub
-	// unit spread over two blocks both carry state from block to block.
-	var br *reader.BlockReader
-	for i := range entries {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return ctxErr
-		}
-		e := &entries[i]
-		if br == nil {
-			if br, err = reader.NewBlockReaderFrom(f, c.Info.TimecodeScale, e.Pos); err != nil {
-				return err
-			}
-			br.KeepTracks(trackID)
-			// A reader seated mid-file never passes over Tracks.
-			br.SetTrackDefaultDurations(reader.TrackDefaultDurations(c.Tracks))
-		} else if seekErr := br.SeekTo(e.Pos); seekErr != nil {
-			return seekErr
-		}
-		for k := range e.Frames {
-			blk, nextErr := br.Next()
-			if nextErr != nil {
-				return fmt.Errorf("%w: reading the block at offset %d: %w", matroska.ErrIndexStale, e.Pos.Off, nextErr)
-			}
-			if blk.TrackNumber != trackID || (k == 0 && blk.Timecode != e.TimeMs) {
-				return fmt.Errorf("%w: offset %d holds track %d at %d ms, the index recorded track %d at %d ms",
-					matroska.ErrIndexStale, e.Pos.Off, blk.TrackNumber, blk.Timecode, trackID, e.TimeMs)
-			}
-			if feedErr := feed(blk); feedErr != nil {
-				return feedErr
-			}
-		}
-	}
 	return asm.finish()
-}
-
-// openPacedSubtitleSource opens the source through the read pacer when one
-// applies, so a walk never competes with a stream being served.
-func openPacedSubtitleSource(ctx context.Context, filePath string) (extmkv.ReadSeekCloser, error) {
-	if opts := subtitleReadOptions(ctx, filePath); len(opts) > 0 && opts[0].FS != nil && opts[0].FS.Open != nil {
-		return opts[0].FS.Open(filePath)
-	}
-	return os.Open(filePath) //nolint:gosec // the path is the library file being served
 }
 
 // bitmapServable reports whether a bitmap track can be served as decoded
@@ -373,8 +284,8 @@ func bitmapServable(codec string) bool {
 	return false
 }
 
-// isPGSCodec reports whether mkvgo's codec name (mkv.Track.Codec) is PGS, the
-// one bitmap format mkvgo walks itself and can serve from a stored index.
+// isPGSCodec reports whether mkvgo's codec name (mkv.Track.Codec) is PGS, read
+// by mkvgo's PGS walk (extractPGSBlob).
 func isPGSCodec(codec string) bool {
 	return codec == "pgs"
 }

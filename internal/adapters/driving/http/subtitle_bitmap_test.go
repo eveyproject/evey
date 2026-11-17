@@ -456,29 +456,6 @@ func (erroringDecoder) Decode([]byte) ([]subtitle.BitmapDisplaySet, error) {
 	return nil, errors.New("not a subpicture")
 }
 
-// A damaged region closes the cue on screen where the damage starts.
-func TestBitmapCueAssembler_DamageClosesTheOpenCue(t *testing.T) {
-	var cues []matroska.PGSCue
-	dec := &fakeBitmapDecoder{sets: [][]subtitle.BitmapDisplaySet{{shown(0, 0)}, {shown(0, 0)}}}
-	a := &bitmapCueAssembler{dec: dec, emit: func(c matroska.PGSCue) error {
-		cues = append(cues, c)
-		return nil
-	}}
-	if err := a.block(1000, 0, nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.skipDamage(4000); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.block(60000, 0, nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.finish(); err != nil {
-		t.Fatal(err)
-	}
-	wantSpans(t, cues, [2]int64{1000, 4000}, [2]int64{60000, 60000 + bitmapDefaultCueMs})
-}
-
 // A file with a zeroed region in the middle still gives the cues outside it,
 // as mkvgo's PGS read does, instead of failing the whole track.
 func TestExtractBitmapBlob_PassesOverADamagedRegion(t *testing.T) {
@@ -584,4 +561,27 @@ func TestServeExternalSubtitle_FailureIsRemembered(t *testing.T) {
 	if _, ok := cache.getFailure(externalBitmapKey(cache, side, "")); !ok {
 		t.Fatal("the failure was not remembered")
 	}
+}
+
+// A damaged region closes the cue on screen where the damage starts.
+func TestBitmapCueAssembler_DamageClosesTheOpenCue(t *testing.T) {
+	var cues []matroska.PGSCue
+	dec := &fakeBitmapDecoder{sets: [][]subtitle.BitmapDisplaySet{{shown(0, 0)}, {shown(0, 0)}}}
+	a := &bitmapCueAssembler{dec: dec, emit: func(c matroska.PGSCue) error {
+		cues = append(cues, c)
+		return nil
+	}}
+	if err := a.block(1000, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.skipDamage(4000); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.block(60000, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.finish(); err != nil {
+		t.Fatal(err)
+	}
+	wantSpans(t, cues, [2]int64{1000, 4000}, [2]int64{60000, 60000 + bitmapDefaultCueMs})
 }

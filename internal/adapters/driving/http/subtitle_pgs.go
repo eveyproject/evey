@@ -164,18 +164,21 @@ func extractPGSBlob(ctx context.Context, filePath string, trackID uint64, ix *ma
 }
 
 // extractBitmapBlob decodes one bitmap track of any servable format into the
-// blob: PGS through mkvgo's own walk (and the index when there is one), VobSub
-// and DVB through forEachMatroskaBitmapCue, from the index too.
+// blob: PGS through mkvgo's PGS walk, VobSub and DVB through
+// forEachMatroskaBitmapCue; both from the index when there is one.
 func extractBitmapBlob(ctx context.Context, filePath string, t bitmapTrack, ix *matroska.SubtitleIndex) ([]byte, error) {
 	if isPGSCodec(t.Codec) {
 		return extractPGSBlob(ctx, filePath, t.ID, ix)
 	}
+	// Paced while a stream is being served - see subtitle_read_pacer.go.
+	opts := subtitleReadOptions(ctx, filePath)
 	var b bitmapBlobBuilder
-	err := forEachMatroskaBitmapCue(ctx, filePath, t.ID, ix, b.add)
-	if ix != nil && errors.Is(err, matroska.ErrIndexStale) {
-		// The index no longer describes the file: the walk is still right.
+	err := forEachMatroskaBitmapCue(ctx, filePath, t.ID, ix, b.add, opts...)
+	if ix != nil && (errors.Is(err, matroska.ErrIndexStale) || errors.Is(err, matroska.ErrTrackNotIndexed)) {
+		// The index no longer describes the file, or not this track: the walk
+		// is still right.
 		b = bitmapBlobBuilder{}
-		err = forEachMatroskaBitmapCue(ctx, filePath, t.ID, nil, b.add)
+		err = forEachMatroskaBitmapCue(ctx, filePath, t.ID, nil, b.add, opts...)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("bitmap extract: %w", err)
