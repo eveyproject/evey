@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"image"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,144 +12,11 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gravity-zero/mkvgo/matroska"
+	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
-	"github.com/gravity-zero/mkvgo/mkv/subtitle"
 )
-
-// fakeBitmapDecoder hands back the display sets queued for each block.
-type fakeBitmapDecoder struct{ sets [][]subtitle.BitmapDisplaySet }
-
-func (f *fakeBitmapDecoder) Decode([]byte) ([]subtitle.BitmapDisplaySet, error) {
-	if len(f.sets) == 0 {
-		return nil, nil
-	}
-	s := f.sets[0]
-	f.sets = f.sets[1:]
-	return s, nil
-}
-
-func shown(x, y int) subtitle.BitmapDisplaySet {
-	return subtitle.BitmapDisplaySet{ScreenW: 720, ScreenH: 576, Objects: []subtitle.PGSObject{{
-		X: x, Y: y, Image: image.NewNRGBA(image.Rect(0, 0, 10, 4)),
-	}}}
-}
-
-func assemble(t *testing.T, blocks [][3]int64, sets ...[]subtitle.BitmapDisplaySet) []matroska.PGSCue {
-	t.Helper()
-	var cues []matroska.PGSCue
-	a := &bitmapCueAssembler{dec: &fakeBitmapDecoder{sets: sets}, emit: func(c matroska.PGSCue) error {
-		cues = append(cues, c)
-		return nil
-	}}
-	for _, b := range blocks {
-		if err := a.block(b[0], b[1], nil); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := a.finish(); err != nil {
-		t.Fatal(err)
-	}
-	return cues
-}
-
-func spans(cues []matroska.PGSCue) [][2]int64 {
-	out := make([][2]int64, len(cues))
-	for i, c := range cues {
-		out[i] = [2]int64{c.StartMs, c.EndMs}
-	}
-	return out
-}
-
-func wantSpans(t *testing.T, got []matroska.PGSCue, want ...[2]int64) {
-	t.Helper()
-	g := spans(got)
-	if len(g) != len(want) {
-		t.Fatalf("cues = %v, want %v", g, want)
-	}
-	for i := range want {
-		if g[i] != want[i] {
-			t.Fatalf("cues = %v, want %v", g, want)
-		}
-	}
-}
-
-// A VobSub unit times itself: the start command delays the picture past the
-// block, the stop command ends it. Neither the block duration nor the next
-// block moves those.
-func TestBitmapCueAssembler_VobSubStartAndStopCommands(t *testing.T) {
-	s := shown(5, 6)
-	s.Delay, s.Duration = 200*time.Millisecond, 1500*time.Millisecond
-	cues := assemble(t, [][3]int64{{1000, 4000}, {9000, 0}}, []subtitle.BitmapDisplaySet{s})
-	wantSpans(t, cues, [2]int64{1200, 2700})
-	if cues[0].X != 5 || cues[0].Y != 6 || cues[0].ScreenW != 720 || cues[0].ScreenH != 576 {
-		t.Fatalf("cue placed at %d,%d on %dx%d", cues[0].X, cues[0].Y, cues[0].ScreenW, cues[0].ScreenH)
-	}
-}
-
-// Without a stop command the block duration ends the cue.
-func TestBitmapCueAssembler_BlockDurationWhenNoStopCommand(t *testing.T) {
-	cues := assemble(t, [][3]int64{{1000, 2500}}, []subtitle.BitmapDisplaySet{shown(0, 0)})
-	wantSpans(t, cues, [2]int64{1000, 3500})
-}
-
-// A DVB page stays until the next page replaces or clears it, bounded by its
-// time-out.
-func TestBitmapCueAssembler_DVBPageEndsAtNextSetOrTimeout(t *testing.T) {
-	page := shown(0, 0)
-	page.Timeout = 5 * time.Second
-	clear := subtitle.BitmapDisplaySet{}
-	cues := assemble(t, [][3]int64{{1000, 0}, {3000, 0}, {10000, 0}, {30000, 0}},
-		[]subtitle.BitmapDisplaySet{page},  // shown at 1 s
-		[]subtitle.BitmapDisplaySet{clear}, // cleared at 3 s
-		[]subtitle.BitmapDisplaySet{page},  // shown at 10 s, nothing clears it before 30 s
-		[]subtitle.BitmapDisplaySet{clear},
-	)
-	wantSpans(t, cues, [2]int64{1000, 3000}, [2]int64{10000, 15000})
-}
-
-// A DVB page's time-out bounds its cue even when the block carries a longer
-// duration.
-func TestBitmapCueAssembler_DVBTimeoutBoundsTheBlockDuration(t *testing.T) {
-	page := shown(0, 0)
-	page.Timeout = 2 * time.Second
-	cues := assemble(t, [][3]int64{{1000, 8000}}, []subtitle.BitmapDisplaySet{page})
-	wantSpans(t, cues, [2]int64{1000, 3000})
-}
-
-// A last cue nothing closes gets the default duration rather than vanishing.
-func TestBitmapCueAssembler_UnclosedLastCue(t *testing.T) {
-	cues := assemble(t, [][3]int64{{1000, 0}}, []subtitle.BitmapDisplaySet{shown(0, 0)})
-	wantSpans(t, cues, [2]int64{1000, 1000 + bitmapDefaultCueMs})
-}
-
-// Two objects in one set become one picture covering both, placed where the
-// top-left one sits.
-func TestFlattenBitmapDisplaySet_CompositesObjects(t *testing.T) {
-	ds := subtitle.BitmapDisplaySet{Objects: []subtitle.PGSObject{
-		{X: 100, Y: 50, Image: image.NewNRGBA(image.Rect(0, 0, 20, 10))},
-		{X: 110, Y: 400, Image: image.NewNRGBA(image.Rect(0, 0, 30, 10)), Forced: true},
-	}}
-	cue, err := flattenBitmapDisplaySet(&ds, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cue.X != 100 || cue.Y != 50 || cue.Image.Bounds().Dx() != 40 || cue.Image.Bounds().Dy() != 360 || !cue.Forced {
-		t.Fatalf("cue at %d,%d size %v forced %v", cue.X, cue.Y, cue.Image.Bounds().Size(), cue.Forced)
-	}
-}
-
-func TestFlattenBitmapDisplaySet_RefusesAForgedSpread(t *testing.T) {
-	ds := subtitle.BitmapDisplaySet{Objects: []subtitle.PGSObject{
-		{X: 0, Y: 0, Image: image.NewNRGBA(image.Rect(0, 0, 1, 1))},
-		{X: 60000, Y: 0, Image: image.NewNRGBA(image.Rect(0, 0, 1, 1))},
-	}}
-	if _, err := flattenBitmapDisplaySet(&ds, 0); err == nil {
-		t.Fatal("a 60000-pixel spread was composited")
-	}
-}
 
 // mkvgoFixture returns a file of mkvgo's own test data, read from the module
 // cache: its VobSub and DVB samples are the FFmpeg FATE streams the decoders
@@ -288,42 +154,6 @@ func TestServeExternalSubtitle_IdxWithoutSub(t *testing.T) {
 	}
 }
 
-// splitUnitDecoder holds a unit over two blocks: the first gives nothing, the
-// second completes it.
-type splitUnitDecoder struct{ pending bool }
-
-func (d *splitUnitDecoder) Continues([]byte) bool { return d.pending }
-
-func (d *splitUnitDecoder) Decode([]byte) ([]subtitle.BitmapDisplaySet, error) {
-	if !d.pending {
-		d.pending = true
-		return nil, nil
-	}
-	d.pending = false
-	s := shown(0, 0)
-	s.Duration = time.Second
-	return []subtitle.BitmapDisplaySet{s}, nil
-}
-
-// A VobSub unit a muxer spread over two blocks is timed by the first one, not
-// by the block that completes it.
-func TestBitmapCueAssembler_UnitSpreadOverBlocksTakesFirstBlockTime(t *testing.T) {
-	var cues []matroska.PGSCue
-	a := &bitmapCueAssembler{dec: &splitUnitDecoder{}, emit: func(c matroska.PGSCue) error {
-		cues = append(cues, c)
-		return nil
-	}}
-	for _, ms := range []int64{1000, 1040} {
-		if err := a.block(ms, 0, nil); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := a.finish(); err != nil {
-		t.Fatal(err)
-	}
-	wantSpans(t, cues, [2]int64{1000, 2000})
-}
-
 // Read from the subtitle index, a VobSub or DVB track gives the same blob as
 // the walk, byte for byte.
 func TestExtractBitmapBlob_IndexMatchesWalk(t *testing.T) {
@@ -395,75 +225,6 @@ func TestExtractBitmapBlob_StaleIndexFallsBackToWalk(t *testing.T) {
 	if !bytes.Equal(walked, got) {
 		t.Fatal("a stale index changed the blob")
 	}
-}
-
-// faultyDecoder fails the blocks it is told to, after handing back what it
-// completed ahead of the fault, and counts its restarts.
-type faultyDecoder struct {
-	n      int
-	fail   map[int]bool
-	resets int
-}
-
-func (d *faultyDecoder) Reset() { d.resets++ }
-
-func (d *faultyDecoder) Decode([]byte) ([]subtitle.BitmapDisplaySet, error) {
-	d.n++
-	s := shown(0, 0)
-	s.Duration = time.Second
-	if d.fail[d.n] {
-		return []subtitle.BitmapDisplaySet{s}, errors.New("a segment that cannot be read")
-	}
-	return []subtitle.BitmapDisplaySet{s}, nil
-}
-
-func runFaulty(t *testing.T, dec *faultyDecoder, blocks ...int64) ([]matroska.PGSCue, error) {
-	t.Helper()
-	var cues []matroska.PGSCue
-	a := &bitmapCueAssembler{dec: dec, emit: func(c matroska.PGSCue) error {
-		cues = append(cues, c)
-		return nil
-	}}
-	for _, ms := range blocks {
-		if err := a.block(ms, 0, nil); err != nil {
-			return cues, err
-		}
-	}
-	return cues, a.finish()
-}
-
-// A block that does not decode loses nothing but itself: the set completed
-// ahead of the fault and every later block still give their cues, and the
-// decoder starts over after the fault.
-func TestBitmapCueAssembler_ABadBlockDoesNotKillTheTrack(t *testing.T) {
-	dec := &faultyDecoder{fail: map[int]bool{2: true}}
-	cues, err := runFaulty(t, dec, 1000, 5000, 9000)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantSpans(t, cues, [2]int64{1000, 2000}, [2]int64{5000, 6000}, [2]int64{9000, 10000})
-	if dec.resets != 1 {
-		t.Fatalf("decoder restarted %d times, want 1", dec.resets)
-	}
-}
-
-// A track where every block fails is reported, not served as an empty track.
-func TestBitmapCueAssembler_EveryBlockFailingIsAnError(t *testing.T) {
-	a := &bitmapCueAssembler{dec: &erroringDecoder{}, emit: func(matroska.PGSCue) error { return nil }}
-	for _, ms := range []int64{1000, 2000} {
-		if err := a.block(ms, 0, nil); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := a.finish(); err == nil {
-		t.Fatal("a track of undecodable blocks finished clean")
-	}
-}
-
-type erroringDecoder struct{}
-
-func (erroringDecoder) Decode([]byte) ([]subtitle.BitmapDisplaySet, error) {
-	return nil, errors.New("not a subpicture")
 }
 
 // A file with a zeroed region in the middle still gives the cues outside it,
@@ -573,29 +334,6 @@ func TestServeExternalSubtitle_FailureIsRemembered(t *testing.T) {
 	}
 }
 
-// A damaged region closes the cue on screen where the damage starts.
-func TestBitmapCueAssembler_DamageClosesTheOpenCue(t *testing.T) {
-	var cues []matroska.PGSCue
-	dec := &fakeBitmapDecoder{sets: [][]subtitle.BitmapDisplaySet{{shown(0, 0)}, {shown(0, 0)}}}
-	a := &bitmapCueAssembler{dec: dec, emit: func(c matroska.PGSCue) error {
-		cues = append(cues, c)
-		return nil
-	}}
-	if err := a.block(1000, 0, nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.skipDamage(4000); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.block(60000, 0, nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.finish(); err != nil {
-		t.Fatal(err)
-	}
-	wantSpans(t, cues, [2]int64{1000, 4000}, [2]int64{60000, 60000 + bitmapDefaultCueMs})
-}
-
 // A .sub reached through a symbolic link pairs like a file: the scanner lists
 // the .idx on it.
 func TestVobSubPairSub_FollowsASymlink(t *testing.T) {
@@ -655,5 +393,60 @@ func TestBitmapServable_AgreesWithTheClientDrawableList(t *testing.T) {
 		if !inDrawable[c] && bitmapServable(c) {
 			t.Errorf("the server decodes %q, the client burns it in", c)
 		}
+	}
+}
+
+// A track where every picture failed to decode is an error, so the failure is
+// remembered; one bad picture among good ones is not.
+func TestBitmapSkipTally_EveryPictureFailingIsAnError(t *testing.T) {
+	bad := extmkv.DamagedRange{StartOffset: -1, EndOffset: -1, Err: errors.New("not a subpicture")}
+	var none bitmapSkipTally
+	none.wrap(nil)[0].OnSkip(bad)
+	if none.err() == nil {
+		t.Fatal("no picture and a failure gave no error")
+	}
+	var some bitmapSkipTally
+	some.wrap(nil)[0].OnSkip(bad)
+	if err := some.count(func(matroska.BitmapCue) error { return nil })(matroska.BitmapCue{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := some.err(); err != nil {
+		t.Fatalf("one bad picture among good ones failed the track: %v", err)
+	}
+	var damaged bitmapSkipTally
+	damaged.wrap(nil)[0].OnSkip(extmkv.DamagedRange{StartOffset: 10, EndOffset: 20})
+	if err := damaged.err(); err != nil {
+		t.Fatalf("a damaged region with no decode error failed the track: %v", err)
+	}
+}
+
+// A pair whose .sub is named in another case than its .idx decodes like any
+// pair: mkvgo is handed the .sub vobSubPairSub found.
+func TestExtractExternalBitmapBlob_SubInAnotherCase(t *testing.T) {
+	dir := t.TempDir()
+	for src, dst := range map[string]string{"vobsub.idx": "film.idx", "vobsub.sub": "film.SUB"} {
+		b, err := os.ReadFile(mkvgoFixture(t, src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, dst), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	idx := filepath.Join(dir, "film.idx")
+	sub, ok := vobSubPairSub(idx)
+	if !ok {
+		t.Fatal("the .SUB was not paired")
+	}
+	blob, err := extractExternalBitmapBlob(context.Background(), idx, sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := decodePGSBlobHeader(blob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h.Cues) != 43 {
+		t.Fatalf("%d cues, want 43", len(h.Cues))
 	}
 }
