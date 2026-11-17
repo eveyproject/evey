@@ -43,27 +43,32 @@ export function isImageSubtitle(codec: string | null | undefined): boolean {
 
 /**
  * Which bitmap codecs a player can DRAW ITSELF, given the decoded-image blob the
- * server produces for them.
+ * server produces for them: PGS, VobSub (DVD) and DVB.
  *
- * Only PGS. VobSub and DVB are bitmaps too, but nothing decodes them into that
- * blob, and offering one as client-drawable would put a track in the viewer's
- * menu that renders nothing at all - the exact failure the codec list above was
- * written to stop.
+ * Not XSUB: nothing decodes it into that blob, and offering it as
+ * client-drawable would put a track in the viewer's menu that renders nothing
+ * at all - the exact failure the codec list above was written to stop.
  *
- * ⚠️ Must agree with pgsServable in
- * internal/adapters/driving/http/subtitle_pgs.go: the client asks, the server
- * answers, and a disagreement is a subtitle that is selected and invisible.
+ * ⚠️ Must agree with bitmapServable in
+ * internal/adapters/driving/http/subtitle_bitmap.go: the client asks, the
+ * server answers, and a disagreement is a subtitle that is selected and
+ * invisible.
  */
+const CLIENT_DRAWABLE_SUBTITLE_CODECS: ReadonlySet<string> = new Set([
+  "hdmv_pgs_subtitle", "pgssub", "pgs",
+  "dvd_subtitle", "dvdsub",
+  "dvb_subtitle", "dvbsub",
+]);
+
 export function isClientDrawableSubtitle(codec: string | null | undefined): boolean {
-  const c = (codec ?? "").trim().toLowerCase();
-  return c === "hdmv_pgs_subtitle" || c === "pgssub" || c === "pgs";
+  return CLIENT_DRAWABLE_SUBTITLE_CODECS.has((codec ?? "").trim().toLowerCase());
 }
 
 /**
  * isBurnInSubtitle reports whether a codec still has to be burnt into the video
  * by the server - a bitmap the player cannot draw. This, and not
  * isImageSubtitle, is what a caller deciding "do I make the server transcode?"
- * should ask now that PGS is drawn client-side.
+ * should ask now that PGS, VobSub and DVB are drawn client-side.
  */
 export function isBurnInSubtitle(codec: string | null | undefined): boolean {
   return isImageSubtitle(codec) && !isClientDrawableSubtitle(codec);

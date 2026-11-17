@@ -1055,7 +1055,7 @@ export function HLSPlayer({
   seekRef.current = handleSeekRequest;
 
   // Canonical subtitle selection - shared by the settings panel picker and the
-  // keyboard "c" shortcut. Crucially, when toggling a burn-in track (PGS/VobSub)
+  // keyboard "c" shortcut. Crucially, when toggling a burn-in track (XSUB)
   // in transcode mode it restarts the transcode from the current position so the
   // server re-encodes with the subtitle burned in. The raw setCurrentSubtitle
   // setter alone flips the state without re-encoding, so a burn-in subtitle

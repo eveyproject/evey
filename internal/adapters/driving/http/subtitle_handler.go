@@ -136,11 +136,11 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 		// burn-in is what denies the copy rung and turns a direct-playing remux
 		// into a full transcode.
 		//
-		// PGS only: VobSub is a bitmap too, but nothing here decodes it, and
-		// answering 200 with an empty cue list would put a subtitle in the menu
-		// that draws nothing. It keeps the old refusal.
+		// PGS, VobSub and DVB: XSUB is a bitmap too, but nothing here decodes
+		// it, and answering 200 with an empty cue list would put a subtitle in
+		// the menu that draws nothing. It keeps the old refusal.
 		if imageSub {
-			if !pgsServable(matchedCodec) {
+			if !bitmapServable(matchedCodec) {
 				span.SetStatus(otelcodes.Error, "bitmap subtitle not decodable here")
 				http.Error(w, `{"message":"subtitle not available as text"}`, http.StatusUnprocessableEntity)
 				return

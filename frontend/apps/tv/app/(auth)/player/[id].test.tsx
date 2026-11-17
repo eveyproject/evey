@@ -1535,10 +1535,10 @@ describe("le sous-titre ne fuit plus dans le flux (TV)", () => {
       { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 2, language: "fre", codec: "hdmv_pgs_subtitle" },
     ];
   };
-  const vobsub = () => {
+  const bitmap = (codec: string) => {
     sessionState.mediaStreams = [
       { type: "MEDIA_STREAM_TYPE_AUDIO", index: 0, language: "eng", isDefault: true },
-      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 2, language: "fre", codec: "dvd_subtitle" },
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 2, language: "fre", codec },
     ];
   };
 
@@ -1559,16 +1559,24 @@ describe("le sous-titre ne fuit plus dans le flux (TV)", () => {
     expect(restartWithTracksMock).toHaveBeenCalledWith(1, undefined, undefined);
   });
 
-  it("un VobSub, qu'on ne sait pas décoder, reste une incrustation serveur", () => {
-    vobsub();
+  it.each(["dvd_subtitle", "dvb_subtitle"])("un bitmap %s part à l'overlay comme le PGS et ne redémarre rien", (codec) => {
+    bitmap(codec);
+    render(<PlayerScreen />);
+    act(() => { lastSubtitlePickerProps?.onSelect(2); });
+    expect(lastOverlayProps?.subtitleIndex).toBe(0);
+    expect(restartWithTracksMock).not.toHaveBeenCalled();
+  });
+
+  it("un XSUB, qu'on ne sait pas décoder, reste une incrustation serveur", () => {
+    bitmap("xsub");
     render(<PlayerScreen />);
     act(() => { lastSubtitlePickerProps?.onSelect(2); });
     expect(lastOverlayProps?.subtitleIndex).toBeNull();
     expect(restartWithTracksMock).toHaveBeenCalledWith(0, 2, undefined);
   });
 
-  it("quitter un VobSub redémarre sans incrustation", () => {
-    vobsub();
+  it("quitter un XSUB redémarre sans incrustation", () => {
+    bitmap("xsub");
     render(<PlayerScreen />);
     act(() => { lastSubtitlePickerProps?.onSelect(2); });
     restartWithTracksMock.mockClear();
