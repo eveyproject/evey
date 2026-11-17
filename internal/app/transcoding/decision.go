@@ -46,6 +46,10 @@ type StreamSpec struct {
 	FrameRate *float64
 	// Interlaced is the prober's scan verdict (library.ScanInterlaced).
 	Interlaced bool
+	// External marks a subtitle sidecar file: ffmpeg burns from the video's own
+	// streams, so a sidecar is never burnt; a picture sidecar is drawn by the
+	// player.
+	External bool
 }
 
 // toStreamSpecs adapts the persistence-flavored library.MediaStream slice
@@ -98,6 +102,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			Level:       s.Level,
 			FrameRate:   s.Framerate,
 			Interlaced:  s.ScanType() == library.ScanInterlaced,
+			External:    s.IsExternal,
 		})
 	}
 	return out
@@ -778,7 +783,10 @@ func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *Stream
 // the player picks.
 func evaluateSubtitle(d *transcoding.PlaybackDecision, s StreamSpec, prefs TranscodingPreferences, subIdx int) {
 	selected := subIdx == prefs.SubtitleBurnInTrack
-	isImage := IsImageSubtitle(s.Codec)
+	// A picture sidecar (.sup, .idx/.sub) is served as decoded images like a
+	// text sidecar is served as WebVTT: an older player that still asks to burn
+	// it would otherwise have ffmpeg map an embedded stream that is not there.
+	isImage := IsImageSubtitle(s.Codec) && !s.External
 
 	switch prefs.SubtitleBurnIn {
 	case "never":
