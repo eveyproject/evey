@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"image"
 	"net/http"
@@ -306,4 +307,77 @@ func TestBitmapCueAssembler_UnitSpreadOverBlocksTakesFirstBlockTime(t *testing.T
 		t.Fatal(err)
 	}
 	wantSpans(t, cues, [2]int64{1000, 2000})
+}
+
+// Read from the subtitle index, a VobSub or DVB track gives the same blob as
+// the walk, byte for byte.
+func TestExtractBitmapBlob_IndexMatchesWalk(t *testing.T) {
+	for _, tc := range []struct{ file, codecID string }{
+		{"vobsub.mkv", codecVobSub},
+		{"dvbsub.mkv", codecDVBSub},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			mkv := mkvgoFixture(t, tc.file)
+			ctx := context.Background()
+			c, err := reader.OpenMeta(ctx, mkv)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var track bitmapTrack
+			for _, tr := range c.Tracks {
+				if tr.Codec == tc.codecID {
+					track = bitmapTrack{ID: tr.ID, Codec: tr.Codec}
+				}
+			}
+			ix, err := matroska.BuildSubtitleIndex(ctx, mkv, []uint64{track.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ix.Blocks(track.ID) == 0 {
+				t.Fatal("the index holds no block of the track")
+			}
+			walked, err := extractBitmapBlob(ctx, mkv, track, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			indexed, err := extractBitmapBlob(ctx, mkv, track, ix)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(walked, indexed) {
+				t.Fatalf("indexed blob (%d bytes) differs from the walked one (%d bytes)", len(indexed), len(walked))
+			}
+		})
+	}
+}
+
+// An index built for another file is refused and the track is walked instead.
+func TestExtractBitmapBlob_StaleIndexFallsBackToWalk(t *testing.T) {
+	vob, dvb := mkvgoFixture(t, "vobsub.mkv"), mkvgoFixture(t, "dvbsub.mkv")
+	ctx := context.Background()
+	c, err := reader.OpenMeta(ctx, vob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var track bitmapTrack
+	for _, tr := range c.Tracks {
+		if tr.Codec == codecVobSub {
+			track = bitmapTrack{ID: tr.ID, Codec: tr.Codec}
+		}
+	}
+	other, err := matroska.BuildSubtitleIndex(ctx, dvb, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	walked, err := extractBitmapBlob(ctx, vob, track, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := extractBitmapBlob(ctx, vob, track, other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(walked, got) {
+		t.Fatal("a stale index changed the blob")
+	}
 }

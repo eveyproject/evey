@@ -33,6 +33,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -164,13 +165,19 @@ func extractPGSBlob(ctx context.Context, filePath string, trackID uint64, ix *ma
 
 // extractBitmapBlob decodes one bitmap track of any servable format into the
 // blob: PGS through mkvgo's own walk (and the index when there is one), VobSub
-// and DVB through forEachMatroskaBitmapCue.
+// and DVB through forEachMatroskaBitmapCue, from the index too.
 func extractBitmapBlob(ctx context.Context, filePath string, t bitmapTrack, ix *matroska.SubtitleIndex) ([]byte, error) {
 	if isPGSCodec(t.Codec) {
 		return extractPGSBlob(ctx, filePath, t.ID, ix)
 	}
 	var b bitmapBlobBuilder
-	if err := forEachMatroskaBitmapCue(ctx, filePath, t.ID, b.add); err != nil {
+	err := forEachMatroskaBitmapCue(ctx, filePath, t.ID, ix, b.add)
+	if ix != nil && errors.Is(err, matroska.ErrIndexStale) {
+		// The index no longer describes the file: the walk is still right.
+		b = bitmapBlobBuilder{}
+		err = forEachMatroskaBitmapCue(ctx, filePath, t.ID, nil, b.add)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("bitmap extract: %w", err)
 	}
 	return b.blob()
@@ -327,10 +334,7 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 	// vouch for means the walk.
 	ix, indexed := subtitleIndexes.get(filePath)
 	cued := false
-	if !isPGSCodec(track.Codec) {
-		// Only mkvgo's PGS walk reads from an index; VobSub and DVB walk.
-		ix, indexed = nil, false
-	} else if !indexed {
+	if !indexed {
 		cix, verified, cErr := subtitleIndexes.fromCues(ctx, filePath)
 		switch {
 		case cErr != nil:

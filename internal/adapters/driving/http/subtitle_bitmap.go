@@ -187,9 +187,12 @@ func flattenBitmapDisplaySet(ds *subtitle.BitmapDisplaySet, startMs int64) (matr
 	return cue, nil
 }
 
-// forEachMatroskaBitmapCue walks one VobSub or DVB track of a Matroska file and
-// calls fn with each cue, in presentation order.
-func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint64, fn func(matroska.PGSCue) error) error {
+// forEachMatroskaBitmapCue reads one VobSub or DVB track of a Matroska file
+// and calls fn with each cue, in presentation order. With an index that covers
+// the track it seeks from block to block, as mkvgo's PGS read does; without one
+// it walks the file. An index that turns out not to describe the file returns
+// an error wrapping matroska.ErrIndexStale.
+func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint64, ix *matroska.SubtitleIndex, fn func(matroska.PGSCue) error) error {
 	c, err := reader.OpenMeta(ctx, filePath)
 	if err != nil {
 		return fmt.Errorf("open container: %w", err)
@@ -208,36 +211,86 @@ func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint
 	if err != nil {
 		return err
 	}
+	var entries []reader.IndexedBlock
+	if ix != nil {
+		st, err := os.Stat(filePath)
+		if err != nil {
+			return err
+		}
+		if !ix.Matches(st.Size(), c.Info.SegmentUID, c.Info.TimecodeScale) {
+			return fmt.Errorf("%w: built for another state of the file", matroska.ErrIndexStale)
+		}
+		entries = ix.TrackBlocks(trackID)
+	}
 
 	f, err := openPacedSubtitleSource(ctx, filePath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	br, err := matroska.NewBlockReader(f, c.Info.TimecodeScale)
-	if err != nil {
-		return err
-	}
-	br.KeepTracks(trackID)
-
 	asm := &bitmapCueAssembler{dec: dec, emit: fn}
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		blk, err := br.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return err
-		}
+	feed := func(blk extmkv.Block) error {
 		data, err := track.DecodePayload(blk.Data)
 		if err != nil {
 			return fmt.Errorf("subtitle block at %d ms: %w", blk.Timecode, err)
 		}
-		if err := asm.block(blk.Timecode, blk.Duration, data); err != nil {
+		return asm.block(blk.Timecode, blk.Duration, data)
+	}
+
+	if entries == nil {
+		br, err := matroska.NewBlockReader(f, c.Info.TimecodeScale)
+		if err != nil {
 			return err
+		}
+		br.KeepTracks(trackID)
+		for {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			blk, err := br.Next()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			if err := feed(blk); err != nil {
+				return err
+			}
+		}
+		return asm.finish()
+	}
+
+	// The entries are read from the first, in order: a DVB page and a VobSub
+	// unit spread over two blocks both carry state from block to block.
+	var br *reader.BlockReader
+	for i := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		e := &entries[i]
+		if br == nil {
+			if br, err = reader.NewBlockReaderFrom(f, c.Info.TimecodeScale, e.Pos); err != nil {
+				return err
+			}
+			br.KeepTracks(trackID)
+			// A reader seated mid-file never passes over Tracks.
+			br.SetTrackDefaultDurations(reader.TrackDefaultDurations(c.Tracks))
+		} else if err := br.SeekTo(e.Pos); err != nil {
+			return err
+		}
+		for k := int64(0); k < e.Frames; k++ {
+			blk, err := br.Next()
+			if err != nil {
+				return fmt.Errorf("%w: reading the block at offset %d: %w", matroska.ErrIndexStale, e.Pos.Off, err)
+			}
+			if blk.TrackNumber != trackID || (k == 0 && blk.Timecode != e.TimeMs) {
+				return fmt.Errorf("%w: offset %d holds track %d at %d ms, the index recorded track %d at %d ms",
+					matroska.ErrIndexStale, e.Pos.Off, blk.TrackNumber, blk.Timecode, trackID, e.TimeMs)
+			}
+			if err := feed(blk); err != nil {
+				return err
+			}
 		}
 	}
 	return asm.finish()

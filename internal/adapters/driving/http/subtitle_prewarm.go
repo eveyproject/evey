@@ -349,8 +349,7 @@ func (p *subtitlePrewarmer) ensureIndex(ctx context.Context, job prewarmJob, wal
 			trackIDs = append(trackIDs, id)
 			continue
 		}
-		// Only PGS reads from the index: VobSub and DVB walk the file anyway.
-		if bt, ok := imgIDs[t.index]; ok && isPGSCodec(bt.Codec) {
+		if bt, ok := imgIDs[t.index]; ok {
 			trackIDs = append(trackIDs, bt.ID)
 		}
 	}
