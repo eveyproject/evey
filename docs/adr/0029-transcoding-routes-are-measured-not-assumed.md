@@ -98,7 +98,12 @@ serves, and falls back one level at a time.
    the same moment are planned beside each other: a new stream counts the
    streams already planned but not yet started (`plannedBeside`,
    `admission_shaper.go`), and a stream that has started no longer counts as
-   planned. A stream shed because the host is at capacity drops its plan when
+   planned. Only a plan touched by a manifest or segment request within
+   `pinFreshFor` counts: an older one belongs to an attempt that went away.
+   The sharing is a preference, not a reservation: when nothing fits beside
+   the planned streams, the new stream is planned on what running sessions
+   really hold, so a plan that never starts cannot turn a viewer away. A
+   stream shed because the host is at capacity drops its plan when
    no running session holds it (`ForgetRefused`), so its retry is planned on
    the budget of its moment and simultaneous starts share the budget instead
    of refusing each other; a source refused as too heavy for even an idle
