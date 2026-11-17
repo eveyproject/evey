@@ -511,7 +511,7 @@ func TestExtractBitmapBlob_PassesOverADamagedRegion(t *testing.T) {
 		b[i] = 0
 	}
 	damaged := filepath.Join(t.TempDir(), "damaged.mkv")
-	if err := os.WriteFile(damaged, b, 0o600); err != nil {
+	if err = os.WriteFile(damaged, b, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	blob, err := extractBitmapBlob(ctx, damaged, track, nil)

@@ -255,9 +255,9 @@ func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint
 	}
 	var entries []reader.IndexedBlock
 	if ix != nil {
-		st, err := os.Stat(filePath)
-		if err != nil {
-			return err
+		st, statErr := os.Stat(filePath)
+		if statErr != nil {
+			return statErr
 		}
 		if !ix.Matches(st.Size(), c.Info.SegmentUID, c.Info.TimecodeScale) {
 			return fmt.Errorf("%w: built for another state of the file", matroska.ErrIndexStale)
@@ -272,17 +272,17 @@ func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint
 	defer f.Close()
 	asm := &bitmapCueAssembler{dec: dec, emit: fn}
 	feed := func(blk extmkv.Block) error {
-		data, err := track.DecodePayload(blk.Data)
-		if err != nil {
-			return fmt.Errorf("subtitle block at %d ms: %w", blk.Timecode, err)
+		data, decErr := track.DecodePayload(blk.Data)
+		if decErr != nil {
+			return fmt.Errorf("subtitle block at %d ms: %w", blk.Timecode, decErr)
 		}
 		return asm.block(blk.Timecode, blk.Duration, data)
 	}
 
 	if entries == nil {
-		br, err := matroska.NewBlockReader(f, c.Info.TimecodeScale)
-		if err != nil {
-			return err
+		br, brErr := matroska.NewBlockReader(f, c.Info.TimecodeScale)
+		if brErr != nil {
+			return brErr
 		}
 		br.KeepTracks(trackID)
 		// A damaged region (a download that missed bytes, a broadcast glitch
@@ -292,23 +292,23 @@ func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint
 		br.SetDamageScan(extmkv.DefaultDamageBytes)
 		seen := 0
 		for {
-			if err := ctx.Err(); err != nil {
-				return err
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
 			}
-			blk, err := br.Next()
-			if errors.Is(err, io.EOF) {
+			blk, nextErr := br.Next()
+			if errors.Is(nextErr, io.EOF) {
 				break
 			}
-			if err != nil {
-				return err
+			if nextErr != nil {
+				return nextErr
 			}
 			for r := br.SkippedRanges(); seen < len(r); seen++ {
-				if err := asm.skipDamage(r[seen].FromMs); err != nil {
-					return err
+				if skipErr := asm.skipDamage(r[seen].FromMs); skipErr != nil {
+					return skipErr
 				}
 			}
-			if err := feed(blk); err != nil {
-				return err
+			if feedErr := feed(blk); feedErr != nil {
+				return feedErr
 			}
 		}
 		return asm.finish()
@@ -318,8 +318,8 @@ func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint
 	// unit spread over two blocks both carry state from block to block.
 	var br *reader.BlockReader
 	for i := range entries {
-		if err := ctx.Err(); err != nil {
-			return err
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
 		}
 		e := &entries[i]
 		if br == nil {
@@ -329,20 +329,20 @@ func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint
 			br.KeepTracks(trackID)
 			// A reader seated mid-file never passes over Tracks.
 			br.SetTrackDefaultDurations(reader.TrackDefaultDurations(c.Tracks))
-		} else if err := br.SeekTo(e.Pos); err != nil {
-			return err
+		} else if seekErr := br.SeekTo(e.Pos); seekErr != nil {
+			return seekErr
 		}
-		for k := int64(0); k < e.Frames; k++ {
-			blk, err := br.Next()
-			if err != nil {
-				return fmt.Errorf("%w: reading the block at offset %d: %w", matroska.ErrIndexStale, e.Pos.Off, err)
+		for k := range e.Frames {
+			blk, nextErr := br.Next()
+			if nextErr != nil {
+				return fmt.Errorf("%w: reading the block at offset %d: %w", matroska.ErrIndexStale, e.Pos.Off, nextErr)
 			}
 			if blk.TrackNumber != trackID || (k == 0 && blk.Timecode != e.TimeMs) {
 				return fmt.Errorf("%w: offset %d holds track %d at %d ms, the index recorded track %d at %d ms",
 					matroska.ErrIndexStale, e.Pos.Off, blk.TrackNumber, blk.Timecode, trackID, e.TimeMs)
 			}
-			if err := feed(blk); err != nil {
-				return err
+			if feedErr := feed(blk); feedErr != nil {
+				return feedErr
 			}
 		}
 	}
