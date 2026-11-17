@@ -111,6 +111,15 @@ func TestBitmapCueAssembler_DVBPageEndsAtNextSetOrTimeout(t *testing.T) {
 	wantSpans(t, cues, [2]int64{1000, 3000}, [2]int64{10000, 15000})
 }
 
+// A DVB page's time-out bounds its cue even when the block carries a longer
+// duration.
+func TestBitmapCueAssembler_DVBTimeoutBoundsTheBlockDuration(t *testing.T) {
+	page := shown(0, 0)
+	page.Timeout = 2 * time.Second
+	cues := assemble(t, [][3]int64{{1000, 8000}}, []subtitle.BitmapDisplaySet{page})
+	wantSpans(t, cues, [2]int64{1000, 3000})
+}
+
 // A last cue nothing closes gets the default duration rather than vanishing.
 func TestBitmapCueAssembler_UnclosedLastCue(t *testing.T) {
 	cues := assemble(t, [][3]int64{{1000, 0}}, []subtitle.BitmapDisplaySet{shown(0, 0)})

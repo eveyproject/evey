@@ -150,7 +150,11 @@ func (a *bitmapCueAssembler) block(timeMs, durMs int64, data []byte) error {
 		case ds.Duration > 0:
 			cue.EndMs = start + ds.Duration.Milliseconds()
 		case durMs > 0 && timeMs+durMs > start:
+			// A DVB page's time-out bounds it whatever the block says.
 			cue.EndMs = timeMs + durMs
+			if lim := ds.Timeout.Milliseconds(); lim > 0 && start+lim < cue.EndMs {
+				cue.EndMs = start + lim
+			}
 		default:
 			a.open, a.openLimit = &cue, ds.Timeout.Milliseconds()
 			continue
