@@ -234,7 +234,7 @@ func (b *bitmapBlobBuilder) blob() ([]byte, error) {
 // bitmapTrack is a bitmap subtitle track as mkvgo numbers and names it; the
 // codec decides how it is decoded.
 type bitmapTrack struct {
-	ID      uint64
+	ID    uint64
 	Codec string
 }
 
