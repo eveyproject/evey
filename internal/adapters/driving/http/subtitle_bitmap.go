@@ -83,6 +83,32 @@ type bitmapCueAssembler struct {
 	// decoded: a VobSub unit a muxer spread over several blocks is timed by
 	// its first one.
 	unitMs, unitDurMs int64
+	// Blocks that did not decode, and the last one's error: a track where
+	// every block fails is reported as the failure it is.
+	failed, emitted int
+	lastErr         error
+}
+
+// decoderResetter is the decoder that carries state from block to block (a
+// DVB epoch, a VobSub unit started in an earlier block).
+type decoderResetter interface{ Reset() }
+
+// restart drops what the decoder carried over, after a block that did not
+// decode or a damaged region the read passed over.
+func (a *bitmapCueAssembler) restart() {
+	if r, ok := a.dec.(decoderResetter); ok {
+		r.Reset()
+	}
+}
+
+// skipDamage closes the cue on screen where a damaged region starts and
+// restarts the decoder past it, so no picture spans the gap.
+func (a *bitmapCueAssembler) skipDamage(fromMs int64) error {
+	a.restart()
+	if fromMs < 0 || a.open == nil {
+		return nil
+	}
+	return a.closeAt(max(fromMs, a.open.StartMs))
 }
 
 // unitContinuer is the decoder that can tell a block finishing a unit started
@@ -98,7 +124,12 @@ func (a *bitmapCueAssembler) block(timeMs, durMs int64, data []byte) error {
 	timeMs, durMs = a.unitMs, a.unitDurMs
 	sets, err := a.dec.Decode(data)
 	if err != nil {
-		return fmt.Errorf("subtitle block at %d ms: %w", timeMs, err)
+		// A block that does not decode loses its own picture, not the track:
+		// the sets completed ahead of the fault are kept, and the decoder
+		// starts over on the next block.
+		a.failed++
+		a.lastErr = fmt.Errorf("subtitle block at %d ms: %w", timeMs, err)
+		a.restart()
 	}
 	for i := range sets {
 		ds := &sets[i]
@@ -122,11 +153,16 @@ func (a *bitmapCueAssembler) block(timeMs, durMs int64, data []byte) error {
 			a.open, a.openLimit = &cue, ds.Timeout.Milliseconds()
 			continue
 		}
-		if err := a.emit(cue); err != nil {
+		if err := a.out(cue); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (a *bitmapCueAssembler) out(c matroska.PGSCue) error {
+	a.emitted++
+	return a.emit(c)
 }
 
 // closeAt ends the open cue at t, or earlier when its time-out says so.
@@ -143,12 +179,16 @@ func (a *bitmapCueAssembler) closeAt(t int64) error {
 	if cue.EndMs <= cue.StartMs {
 		cue.EndMs = cue.StartMs + bitmapDefaultCueMs
 	}
-	return a.emit(cue)
+	return a.out(cue)
 }
 
-// finish flushes a cue the track never closed.
+// finish flushes a cue the track never closed. A track that gave no cue
+// while some of its blocks failed to decode is an error, not an empty track.
 func (a *bitmapCueAssembler) finish() error {
 	if a.open == nil {
+		if a.emitted == 0 && a.failed > 0 {
+			return a.lastErr
+		}
 		return nil
 	}
 	cue := *a.open
@@ -157,7 +197,7 @@ func (a *bitmapCueAssembler) finish() error {
 	if a.openLimit > 0 {
 		cue.EndMs = cue.StartMs + a.openLimit
 	}
-	return a.emit(cue)
+	return a.out(cue)
 }
 
 // flattenBitmapDisplaySet reduces a display set to the one picture a cue
@@ -243,6 +283,12 @@ func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint
 			return err
 		}
 		br.KeepTracks(trackID)
+		// A damaged region (a download that missed bytes, a broadcast glitch
+		// in a recording) costs the pictures inside it, as mkvgo's own PGS
+		// read does, not the whole track.
+		br.SetSkipDamage(true)
+		br.SetDamageScan(extmkv.DefaultDamageBytes)
+		seen := 0
 		for {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -253,6 +299,11 @@ func forEachMatroskaBitmapCue(ctx context.Context, filePath string, trackID uint
 			}
 			if err != nil {
 				return err
+			}
+			for r := br.SkippedRanges(); seen < len(r); seen++ {
+				if err := asm.skipDamage(r[seen].FromMs); err != nil {
+					return err
+				}
 			}
 			if err := feed(blk); err != nil {
 				return err

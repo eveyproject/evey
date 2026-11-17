@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"net/http"
 	"net/http/httptest"
@@ -380,4 +381,145 @@ func TestExtractBitmapBlob_StaleIndexFallsBackToWalk(t *testing.T) {
 	if !bytes.Equal(walked, got) {
 		t.Fatal("a stale index changed the blob")
 	}
+}
+
+// faultyDecoder fails the blocks it is told to, after handing back what it
+// completed ahead of the fault, and counts its restarts.
+type faultyDecoder struct {
+	n      int
+	fail   map[int]bool
+	resets int
+}
+
+func (d *faultyDecoder) Reset() { d.resets++ }
+
+func (d *faultyDecoder) Decode([]byte) ([]subtitle.BitmapDisplaySet, error) {
+	d.n++
+	s := shown(0, 0)
+	s.Duration = time.Second
+	if d.fail[d.n] {
+		return []subtitle.BitmapDisplaySet{s}, errors.New("a segment that cannot be read")
+	}
+	return []subtitle.BitmapDisplaySet{s}, nil
+}
+
+func runFaulty(t *testing.T, dec *faultyDecoder, blocks ...int64) ([]matroska.PGSCue, error) {
+	t.Helper()
+	var cues []matroska.PGSCue
+	a := &bitmapCueAssembler{dec: dec, emit: func(c matroska.PGSCue) error {
+		cues = append(cues, c)
+		return nil
+	}}
+	for _, ms := range blocks {
+		if err := a.block(ms, 0, nil); err != nil {
+			return cues, err
+		}
+	}
+	return cues, a.finish()
+}
+
+// A block that does not decode loses nothing but itself: the set completed
+// ahead of the fault and every later block still give their cues, and the
+// decoder starts over after the fault.
+func TestBitmapCueAssembler_ABadBlockDoesNotKillTheTrack(t *testing.T) {
+	dec := &faultyDecoder{fail: map[int]bool{2: true}}
+	cues, err := runFaulty(t, dec, 1000, 5000, 9000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantSpans(t, cues, [2]int64{1000, 2000}, [2]int64{5000, 6000}, [2]int64{9000, 10000})
+	if dec.resets != 1 {
+		t.Fatalf("decoder restarted %d times, want 1", dec.resets)
+	}
+}
+
+// A track where every block fails is reported, not served as an empty track.
+func TestBitmapCueAssembler_EveryBlockFailingIsAnError(t *testing.T) {
+	a := &bitmapCueAssembler{dec: &erroringDecoder{}, emit: func(matroska.PGSCue) error { return nil }}
+	for _, ms := range []int64{1000, 2000} {
+		if err := a.block(ms, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.finish(); err == nil {
+		t.Fatal("a track of undecodable blocks finished clean")
+	}
+}
+
+type erroringDecoder struct{}
+
+func (erroringDecoder) Decode([]byte) ([]subtitle.BitmapDisplaySet, error) {
+	return nil, errors.New("not a subpicture")
+}
+
+// A damaged region closes the cue on screen where the damage starts.
+func TestBitmapCueAssembler_DamageClosesTheOpenCue(t *testing.T) {
+	var cues []matroska.PGSCue
+	dec := &fakeBitmapDecoder{sets: [][]subtitle.BitmapDisplaySet{{shown(0, 0)}, {shown(0, 0)}}}
+	a := &bitmapCueAssembler{dec: dec, emit: func(c matroska.PGSCue) error {
+		cues = append(cues, c)
+		return nil
+	}}
+	if err := a.block(1000, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.skipDamage(4000); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.block(60000, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.finish(); err != nil {
+		t.Fatal(err)
+	}
+	wantSpans(t, cues, [2]int64{1000, 4000}, [2]int64{60000, 60000 + bitmapDefaultCueMs})
+}
+
+// A file with a zeroed region in the middle still gives the cues outside it,
+// as mkvgo's PGS read does, instead of failing the whole track.
+func TestExtractBitmapBlob_PassesOverADamagedRegion(t *testing.T) {
+	src := mkvgoFixture(t, "vobsub.mkv")
+	ctx := context.Background()
+	c, err := reader.OpenMeta(ctx, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var track bitmapTrack
+	for _, tr := range c.Tracks {
+		if tr.Codec == codecVobSub {
+			track = bitmapTrack{ID: tr.ID, Codec: tr.Codec}
+		}
+	}
+	whole, err := extractBitmapBlob(ctx, src, track, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wh, err := decodePGSBlobHeader(whole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mid := len(b) / 2
+	for i := mid; i < mid+4096 && i < len(b); i++ {
+		b[i] = 0
+	}
+	damaged := filepath.Join(t.TempDir(), "damaged.mkv")
+	if err := os.WriteFile(damaged, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	blob, err := extractBitmapBlob(ctx, damaged, track, nil)
+	if err != nil {
+		t.Fatalf("one damaged region failed the track: %v", err)
+	}
+	h, err := decodePGSBlobHeader(blob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h.Cues) == 0 || len(h.Cues) > len(wh.Cues) {
+		t.Fatalf("%d cues from the damaged file, %d from the whole one", len(h.Cues), len(wh.Cues))
+	}
+	t.Logf("%d of %d cues kept past the damage", len(h.Cues), len(wh.Cues))
 }
