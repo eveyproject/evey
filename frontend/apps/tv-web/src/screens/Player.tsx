@@ -166,7 +166,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
 
   // --- tracks ---------------------------------------------------------------
   const audioStreams = useMemo(() => playerAudioStreams(streamInfo?.mediaStreams), [streamInfo]);
-  const subtitleStreams = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams), [streamInfo]);
+  const subtitleStreams = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams, "auto", streamInfo?.container), [streamInfo]);
   const [selectedAudio, setSelectedAudio] = useState<number | null>(audio ?? null);
   const [selectedSubtitle, setSelectedSubtitle] = useState<number | null>(subtitle === "off" ? null : subtitle ?? null);
   const userPickedAudio = useRef(audio !== undefined);

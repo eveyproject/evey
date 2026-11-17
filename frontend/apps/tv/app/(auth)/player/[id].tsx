@@ -269,7 +269,7 @@ export default function PlayerScreen() {
   // The profile's burn-in choice decides which tracks go to the server.
   const burnMode = subtitleBurnMode(activeProfile?.preferences);
   const subtitleStreams: SubtitleStream[] = useMemo(
-    () => playerSubtitleStreams(streamInfo?.mediaStreams, burnMode),
+    () => playerSubtitleStreams(streamInfo?.mediaStreams, burnMode, streamInfo?.container),
     [streamInfo, burnMode],
   );
 

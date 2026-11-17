@@ -60,8 +60,20 @@ const CLIENT_DRAWABLE_SUBTITLE_CODECS: ReadonlySet<string> = new Set([
   "dvb_subtitle", "dvbsub",
 ]);
 
-export function isClientDrawableSubtitle(codec: string | null | undefined): boolean {
-  return CLIENT_DRAWABLE_SUBTITLE_CODECS.has((codec ?? "").trim().toLowerCase());
+/**
+ * The server decodes bitmap subtitles out of Matroska only (see
+ * serveBitmapSubtitle in internal/adapters/driving/http/subtitle_pgs.go). A
+ * bitmap track of an MPEG-TS recording, an AVI or an MP4 has no blob to fetch,
+ * so it stays a burn-in. An unknown container (a title probed before the
+ * server reported one) keeps the codec's answer.
+ */
+function bitmapBlobContainer(container: string | null | undefined): boolean {
+  const c = (container ?? "").trim().toLowerCase();
+  return c === "" || c.includes("matroska") || c.includes("webm");
+}
+
+export function isClientDrawableSubtitle(codec: string | null | undefined, container?: string | null): boolean {
+  return CLIENT_DRAWABLE_SUBTITLE_CODECS.has((codec ?? "").trim().toLowerCase()) && bitmapBlobContainer(container);
 }
 
 /**
@@ -70,6 +82,6 @@ export function isClientDrawableSubtitle(codec: string | null | undefined): bool
  * isImageSubtitle, is what a caller deciding "do I make the server transcode?"
  * should ask now that PGS, VobSub and DVB are drawn client-side.
  */
-export function isBurnInSubtitle(codec: string | null | undefined): boolean {
-  return isImageSubtitle(codec) && !isClientDrawableSubtitle(codec);
+export function isBurnInSubtitle(codec: string | null | undefined, container?: string | null): boolean {
+  return isImageSubtitle(codec) && !isClientDrawableSubtitle(codec, container);
 }

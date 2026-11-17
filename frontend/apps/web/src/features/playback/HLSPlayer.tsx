@@ -381,11 +381,14 @@ export function HLSPlayer({
 
   const selectedBurnInTrack = getSelectedBurnInTrack(currentSubtitle, subtitleStreams);
   // The bitmap track the PLAYER draws, as opposed to the one the server burns
-  // in. Both are bitmaps; only PGS has a decoder on our side, and offering any
-  // other as client-drawn would put a track in the menu that renders nothing.
+  // in. Both are bitmaps; the stream's burnIn flag already says which, from
+  // the codec and the container the server decodes it out of.
+  const currentSubtitleStream = subtitleStreams.find((s) => s.trackIndex === currentSubtitle);
   const pgsSubtitleTrack =
     currentSubtitle !== null &&
-    isClientDrawableSubtitle(subtitleStreams.find((s) => s.trackIndex === currentSubtitle)?.codec)
+    currentSubtitleStream !== undefined &&
+    !currentSubtitleStream.burnIn &&
+    isClientDrawableSubtitle(currentSubtitleStream.codec)
       ? currentSubtitle
       : null;
   // A cast failure leaves no server-side trace at all (the fling never reaches

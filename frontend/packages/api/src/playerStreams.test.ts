@@ -43,6 +43,17 @@ describe("playerStreams", () => {
     expect(playerSubtitleStreams(sidecar, "always").map((s) => s.burnIn)).toEqual([false]);
   });
 
+  it("burns a bitmap the server cannot decode out of the file's container, but never its sidecar", () => {
+    const ts = [
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 2, codec: "dvb_subtitle" },
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 3, codec: "subrip" },
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 9, codec: "hdmv_pgs_subtitle", isExternal: true },
+    ] as V1MediaStream[];
+    expect(playerSubtitleStreams(ts, "auto", "mpegts").map((s) => s.burnIn)).toEqual([true, false, false]);
+    expect(playerSubtitleStreams(ts, "auto", "matroska").map((s) => s.burnIn)).toEqual([false, false, false]);
+    expect(playerSubtitleStreams(ts, "never", "mpegts").map((s) => s.burnIn)).toEqual([false, false, false]);
+  });
+
   it("reads the mode off the profile, auto for anything it does not know", () => {
     expect(subtitleBurnMode({ subtitle_burn_in: "Always" })).toBe("always");
     expect(subtitleBurnMode({ subtitle_burn_in: "never" })).toBe("never");
