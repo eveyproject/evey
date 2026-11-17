@@ -81,6 +81,18 @@ serves, and falls back one level at a time.
    the prediction is out of its margin (`title_probe.go`, `probe_trigger.go`).
    The resolver freezes the result on the session's admission pin and never
    derives it twice (ADR-0024).
+5. **The stream cap follows from the same samples.** With route evidence the
+   cap is the hardware streams of the most common route plus the software
+   streams that fit in the CPU those leave (`AutoCountCap`,
+   `video_session_limiter.go`): a GPU session also spends CPU, so the pools are
+   neither summed blindly nor reduced to the tighter one. Without evidence the
+   table-priced pools are independent and the cap is their sum. The admin
+   panel shows this number, computed on the limiter that enforces it. Viewers
+   who start at the same moment are planned beside each other: a new stream
+   counts the streams already planned but not yet started (`plannedBeside`,
+   `admission_shaper.go`), a stream that has started no longer counts as
+   planned, and a refused one drops its plan (`ForgetRefused`), so
+   simultaneous starts share the budget instead of refusing each other.
 
 Rejected: keeping one host-wide HW cost and widening its safety margin (it
 was wrong by a factor, not by a margin); electing the backend once at boot
