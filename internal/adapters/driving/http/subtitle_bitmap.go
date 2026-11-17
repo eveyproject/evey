@@ -363,7 +363,12 @@ func vobSubPairSub(idxPath string) (string, bool) {
 	// The scanner pairs the two in any letter case (hasSibling); so does this.
 	for _, e := range entries {
 		n := e.Name()
-		if strings.EqualFold(filepath.Ext(n), ".sub") && strings.TrimSuffix(n, filepath.Ext(n)) == stem && e.Type().IsRegular() {
+		if !strings.EqualFold(filepath.Ext(n), ".sub") || strings.TrimSuffix(n, filepath.Ext(n)) != stem {
+			continue
+		}
+		// Followed through a symbolic link, as the scanner lists it and as
+		// the video itself is served.
+		if st, err := os.Stat(filepath.Join(dir, n)); err == nil && st.Mode().IsRegular() {
 			return filepath.Join(dir, n), true
 		}
 	}

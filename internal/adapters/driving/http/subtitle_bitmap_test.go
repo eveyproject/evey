@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -584,4 +585,66 @@ func TestBitmapCueAssembler_DamageClosesTheOpenCue(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantSpans(t, cues, [2]int64{1000, 4000}, [2]int64{60000, 60000 + bitmapDefaultCueMs})
+}
+
+// A .sub reached through a symbolic link pairs like a file: the scanner lists
+// the .idx on it.
+func TestVobSubPairSub_FollowsASymlink(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(t.TempDir(), "pictures.sub")
+	if err := os.WriteFile(real, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "film.idx"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, filepath.Join(dir, "film.sub")); err != nil {
+		t.Skipf("no symlinks here: %v", err)
+	}
+	if got, ok := vobSubPairSub(filepath.Join(dir, "film.idx")); !ok || got != filepath.Join(dir, "film.sub") {
+		t.Fatalf("paired %q, %v", got, ok)
+	}
+}
+
+// bitmapServable is what the server decodes into the image blob; the client
+// draws exactly the codecs of CLIENT_DRAWABLE_SUBTITLE_CODECS and asks for a
+// burn-in of every other bitmap. A codec on one list and not the other is a
+// track selected and invisible, or burnt for nothing.
+func TestBitmapServable_AgreesWithTheClientDrawableList(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "..", "frontend", "packages", "api", "src", "imageSubtitles.ts")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	set := func(marker string) []string {
+		_, after, ok := strings.Cut(string(raw), marker)
+		if !ok {
+			t.Fatalf("%s not found in %s: renamed or reshaped? update this guard with it", marker, path)
+		}
+		body, _, ok := strings.Cut(after, "])")
+		if !ok {
+			t.Fatalf("unterminated %s", marker)
+		}
+		var out []string
+		for _, m := range regexp.MustCompile(`"([^"]+)"`).FindAllStringSubmatch(body, -1) {
+			out = append(out, m[1])
+		}
+		if len(out) == 0 {
+			t.Fatalf("%s holds no codec", marker)
+		}
+		return out
+	}
+	drawable := set("CLIENT_DRAWABLE_SUBTITLE_CODECS: ReadonlySet<string> = new Set([")
+	inDrawable := map[string]bool{}
+	for _, c := range drawable {
+		inDrawable[c] = true
+		if !bitmapServable(c) {
+			t.Errorf("the client draws %q, the server does not decode it", c)
+		}
+	}
+	for _, c := range set("IMAGE_SUBTITLE_CODECS: ReadonlySet<string> = new Set([") {
+		if !inDrawable[c] && bitmapServable(c) {
+			t.Errorf("the server decodes %q, the client burns it in", c)
+		}
+	}
 }
