@@ -271,3 +271,39 @@ func TestServeExternalSubtitle_IdxWithoutSub(t *testing.T) {
 		t.Fatalf("status %d", rec.Code)
 	}
 }
+
+// splitUnitDecoder holds a unit over two blocks: the first gives nothing, the
+// second completes it.
+type splitUnitDecoder struct{ pending bool }
+
+func (d *splitUnitDecoder) Continues([]byte) bool { return d.pending }
+
+func (d *splitUnitDecoder) Decode([]byte) ([]subtitle.BitmapDisplaySet, error) {
+	if !d.pending {
+		d.pending = true
+		return nil, nil
+	}
+	d.pending = false
+	s := shown(0, 0)
+	s.Duration = time.Second
+	return []subtitle.BitmapDisplaySet{s}, nil
+}
+
+// A VobSub unit a muxer spread over two blocks is timed by the first one, not
+// by the block that completes it.
+func TestBitmapCueAssembler_UnitSpreadOverBlocksTakesFirstBlockTime(t *testing.T) {
+	var cues []matroska.PGSCue
+	a := &bitmapCueAssembler{dec: &splitUnitDecoder{}, emit: func(c matroska.PGSCue) error {
+		cues = append(cues, c)
+		return nil
+	}}
+	for _, ms := range []int64{1000, 1040} {
+		if err := a.block(ms, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.finish(); err != nil {
+		t.Fatal(err)
+	}
+	wantSpans(t, cues, [2]int64{1000, 2000})
+}

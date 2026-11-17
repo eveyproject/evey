@@ -79,9 +79,23 @@ type bitmapCueAssembler struct {
 	emit      func(matroska.PGSCue) error
 	open      *matroska.PGSCue
 	openLimit int64 // the open cue's Timeout in ms, 0 for none
+	// The time and duration of the block that started the unit being
+	// decoded: a VobSub unit a muxer spread over several blocks is timed by
+	// its first one.
+	unitMs, unitDurMs int64
+}
+
+// unitContinuer is the decoder that can tell a block finishing a unit started
+// in earlier blocks from one starting a unit.
+type unitContinuer interface {
+	Continues(block []byte) bool
 }
 
 func (a *bitmapCueAssembler) block(timeMs, durMs int64, data []byte) error {
+	if c, ok := a.dec.(unitContinuer); !ok || !c.Continues(data) {
+		a.unitMs, a.unitDurMs = timeMs, durMs
+	}
+	timeMs, durMs = a.unitMs, a.unitDurMs
 	sets, err := a.dec.Decode(data)
 	if err != nil {
 		return fmt.Errorf("subtitle block at %d ms: %w", timeMs, err)
