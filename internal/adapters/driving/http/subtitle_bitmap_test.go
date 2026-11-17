@@ -248,7 +248,11 @@ func TestServeExternalSubtitle_PictureSidecars(t *testing.T) {
 			if len(h.Cues) == 0 || h.ScreenW == 0 {
 				t.Fatalf("%d cues on %dx%d", len(h.Cues), h.ScreenW, h.ScreenH)
 			}
-			if _, ok := cache.get(cache.keyForKind(side, 0, subtitleKindPGS)); !ok {
+			pair := ""
+			if filepath.Ext(side) == ".idx" {
+				pair = strings.TrimSuffix(side, ".idx") + ".sub"
+			}
+			if _, ok := cache.get(externalBitmapKey(cache, side, pair)); !ok {
 				t.Error("the blob was not cached")
 			}
 			t.Logf("%d cues on %dx%d", len(h.Cues), h.ScreenW, h.ScreenH)
@@ -522,4 +526,62 @@ func TestExtractBitmapBlob_PassesOverADamagedRegion(t *testing.T) {
 		t.Fatalf("%d cues from the damaged file, %d from the whole one", len(h.Cues), len(wh.Cues))
 	}
 	t.Logf("%d of %d cues kept past the damage", len(h.Cues), len(wh.Cues))
+}
+
+// The .sub is found in any letter case, as the scanner pairs it.
+func TestVobSubPairSub_AnyLetterCase(t *testing.T) {
+	dir := t.TempDir()
+	idx := filepath.Join(dir, "film.idx")
+	for _, f := range []string{"film.idx", "film.sUb", "other.sub"} {
+		if err := os.WriteFile(filepath.Join(dir, f), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, ok := vobSubPairSub(idx)
+	if !ok || got != filepath.Join(dir, "film.sUb") {
+		t.Fatalf("paired %q, %v", got, ok)
+	}
+}
+
+// Replacing the .sub alone changes the key: its pictures are what is served.
+func TestExternalBitmapKey_FollowsTheSub(t *testing.T) {
+	dir := t.TempDir()
+	idx, sub := filepath.Join(dir, "film.idx"), filepath.Join(dir, "film.sub")
+	if err := os.WriteFile(idx, []byte("idx"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sub, []byte("one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cache := subtitleCache{dir: t.TempDir()}
+	before := externalBitmapKey(cache, idx, sub)
+	if err := os.WriteFile(sub, []byte("other pictures"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	after := externalBitmapKey(cache, idx, sub)
+	if before == "" || before == after {
+		t.Fatalf("key %q then %q", before, after)
+	}
+	if !strings.HasPrefix(after, string(subtitleKindPGS)+"-") {
+		t.Fatalf("key %q does not name a blob", after)
+	}
+}
+
+// A sidecar that does not decode is remembered: the next request answers from
+// the memo instead of decoding it again.
+func TestServeExternalSubtitle_FailureIsRemembered(t *testing.T) {
+	dir := t.TempDir()
+	side := filepath.Join(dir, "film.sup")
+	if err := os.WriteFile(side, []byte("not a PGS stream at all, just text"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cache := subtitleCache{dir: t.TempDir()}
+	rec := httptest.NewRecorder()
+	serveExternalSubtitle(rec, httptest.NewRequest(http.MethodGet, "/x", nil), cache, side, dir, "")
+	if rec.Code == http.StatusOK {
+		t.Fatalf("garbage served: %d", rec.Code)
+	}
+	if _, ok := cache.getFailure(externalBitmapKey(cache, side, "")); !ok {
+		t.Fatal("the failure was not remembered")
+	}
 }

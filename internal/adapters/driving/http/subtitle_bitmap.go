@@ -12,6 +12,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"image"
@@ -438,24 +440,44 @@ func extractExternalBitmapBlob(ctx context.Context, path, subPath string) ([]byt
 // vobSubPairSub finds the .sub beside an .idx, whatever the case of its
 // extension.
 func vobSubPairSub(idxPath string) (string, bool) {
-	base := strings.TrimSuffix(idxPath, filepath.Ext(idxPath))
-	for _, ext := range []string{".sub", ".SUB", ".Sub"} {
-		if st, err := os.Stat(base + ext); err == nil && st.Mode().IsRegular() {
-			return base + ext, true
+	dir, name := filepath.Split(idxPath)
+	stem := strings.TrimSuffix(name, filepath.Ext(name))
+	if dir == "" {
+		dir = "."
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", false
+	}
+	// The scanner pairs the two in any letter case (hasSibling); so does this.
+	for _, e := range entries {
+		n := e.Name()
+		if strings.EqualFold(filepath.Ext(n), ".sub") && strings.TrimSuffix(n, filepath.Ext(n)) == stem && e.Type().IsRegular() {
+			return filepath.Join(dir, n), true
 		}
 	}
 	return "", false
+}
+
+// externalBitmapKey keys a sidecar's blob on every file it is decoded from: a
+// VobSub's .sub holds the pictures, so replacing it alone must miss the cache.
+func externalBitmapKey(cache subtitleCache, path, subPath string) string {
+	k := cache.keyForKind(path, 0, subtitleKindPGS)
+	if k == "" || subPath == "" {
+		return k
+	}
+	ks := cache.keyFor(subPath, 0)
+	if ks == "" {
+		return ""
+	}
+	h := sha256.Sum256([]byte(k + "\x00" + ks))
+	return string(subtitleKindPGS) + "-" + hex.EncodeToString(h[:])
 }
 
 // serveExternalBitmapSubtitle answers the subtitle route for a sidecar picture
 // subtitle with the decoded-image blob, cached like an embedded track's: a
 // full film's .sup takes seconds to decode, not worth paying per request.
 func serveExternalBitmapSubtitle(w http.ResponseWriter, r *http.Request, cache subtitleCache, path, baseURL string) {
-	key := cache.keyForKind(path, 0, subtitleKindPGS)
-	if data, ok := cache.get(key); ok {
-		writePGSBlob(w, r, data)
-		return
-	}
 	var subPath string
 	if strings.EqualFold(filepath.Ext(path), ".idx") {
 		p, ok := vobSubPairSub(path)
@@ -465,16 +487,41 @@ func serveExternalBitmapSubtitle(w http.ResponseWriter, r *http.Request, cache s
 		}
 		subPath = p
 	}
-	data, err := extractExternalBitmapBlob(r.Context(), path, subPath)
+	key := externalBitmapKey(cache, path, subPath)
+	if data, ok := cache.get(key); ok {
+		writePGSBlob(w, r, data)
+		return
+	}
+	if reason, failed := cache.getFailure(key); failed {
+		writeSubtitleFailed(w, r, baseURL, reason)
+		return
+	}
+	// One decode however many viewers or retries ask at once, remembered when
+	// it fails, as an embedded track's extraction is.
+	work := func(ctx context.Context) ([]byte, error) {
+		if data, ok := cache.get(key); ok {
+			return data, nil
+		}
+		data, err := extractExternalBitmapBlob(ctx, path, subPath)
+		if err != nil {
+			if fErr := cache.putFailure(key, err); fErr != nil {
+				slog.WarnContext(ctx, "subtitle: external picture subtitle failure memo store failed",
+					slog.String("path", path), slog.Any("err", fErr))
+			}
+			return nil, err
+		}
+		if cErr := cache.put(key, data); cErr != nil {
+			slog.WarnContext(ctx, "subtitle: external picture subtitle cache store failed",
+				slog.String("path", path), slog.Any("err", cErr))
+		}
+		return data, nil
+	}
+	data, err := runSharedSubtitleExtraction(r.Context(), subtitleFlightKey(key, path), path, work)
 	if err != nil {
 		slog.WarnContext(r.Context(), "subtitle: external picture subtitle decode failed",
 			slog.String("path", path), slog.Any("err", err))
 		writeSubtitleFailed(w, r, baseURL, err.Error())
 		return
-	}
-	if cErr := cache.put(key, data); cErr != nil {
-		slog.WarnContext(r.Context(), "subtitle: external picture subtitle cache store failed",
-			slog.String("path", path), slog.Any("err", cErr))
 	}
 	writePGSBlob(w, r, data)
 }
