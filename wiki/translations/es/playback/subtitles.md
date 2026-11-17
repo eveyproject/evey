@@ -1,5 +1,5 @@
 ---
-source_sha: 960cbfbbd3741cf6a15885a1e19f04e9e96e53efbe2f9861376cc3a92778dfef
+source_sha: 540422a69de01f201188138d7f4761d922c6cde8ccec0e1fb520623a6378ab51
 reviewed: true
 ---
 # Subtítulos { #subtitles }
@@ -30,7 +30,7 @@ el servidor.
 | Formato | Ejemplos | Cómo se muestra | Efecto en el vídeo |
 | --- | --- | --- | --- |
 | Texto | SRT, ASS/SSA, WebVTT, subtítulos dentro del archivo | Se envía junto al vídeo y lo dibuja el reproductor, con tu **Estilo de subtítulos** | Ninguno |
-| Formatos de imagen | PGS (Blu-ray), VobSub (DVD), DVB (emisiones de TV), dentro del archivo o como archivo `.sup` o `.idx`/`.sub` a su lado | El servidor lo convierte en imágenes una vez, las guarda en caché, y el reproductor las dibuja tal cual | Ninguno |
+| Formatos de imagen | PGS (Blu-ray), VobSub (DVD), DVB (emisiones de TV), dentro de un archivo MKV o como archivo `.sup` o `.idx`/`.sub` a su lado | El servidor lo convierte en imágenes una vez, las guarda en caché, y el reproductor las dibuja tal cual | Ninguno |
 | XSUB | XSUB (algunos archivos DivX) | El servidor lo incrusta en la imagen | El vídeo se vuelve a codificar |
 
 Todos los reproductores (web, Android, Android TV) dibujan ellos mismos los
@@ -39,6 +39,10 @@ entrega el vídeo. Solo la última fila lo cambia: incrustar subtítulos en la
 imagen obliga a decodificar y volver a codificar el vídeo, así que un título
 que se reproducía de forma directa pasa a transcodificarse. La Información
 del flujo muestra entonces **Subtítulos incrustados en la imagen**.
+
+Un subtítulo de imagen dentro de otro tipo de archivo (una grabación de TV en
+`.ts`, un AVI, un MP4) no lo puede decodificar el servidor, así que se
+incrusta como XSUB.
 
 Un subtítulo XSUB solo se incrusta cuando lo eliges de verdad. Un
 archivo que simplemente lo lleva, o que lo marca como predeterminado, sigue
@@ -52,7 +56,7 @@ decide qué subtítulos de imagen incrusta el servidor en el vídeo:
 | Ajuste | Una pista XSUB elegida | Una pista PGS, VobSub o DVB elegida | Texto |
 | --- | --- | --- | --- |
 | **Auto** | Se incrusta y el vídeo se vuelve a codificar. | La dibuja el reproductor. | Lo dibuja el reproductor. |
-| **Incrustar siempre** | Se incrusta y el vídeo se vuelve a codificar. | Se incrusta y el vídeo se vuelve a codificar. | Lo dibuja el reproductor: el texto nunca se incrusta. |
+| **Incrustar siempre** | Se incrusta y el vídeo se vuelve a codificar. | Se incrusta y el vídeo se vuelve a codificar. Un archivo `.sup` o `.idx`/`.sub` junto al vídeo lo sigue dibujando el reproductor. | Lo dibuja el reproductor: el texto nunca se incrusta. |
 | **Nunca incrustar** | No se puede mostrar: el vídeo nunca se vuelve a codificar por un subtítulo. | La dibuja el reproductor. | Lo dibuja el reproductor. |
 
 ## La primera vez que se muestra un subtítulo { #the-first-time-a-subtitle-is-shown }
@@ -60,7 +64,7 @@ decide qué subtítulos de imagen incrusta el servidor en el vídeo:
 Un subtítulo que va dentro del archivo (texto o imagen) lo extrae el servidor la
 primera vez que alguien lo elige, y luego lo guarda: las veces siguientes,
 sea quien sea, aparece al momento. Cuando el índice del propio archivo cubre
-una pista de texto o PGS, el servidor lee solo los bloques del subtítulo y tarda unos
+una pista de texto o de imagen, el servidor lee solo los bloques del subtítulo y tarda unos
 segundos. Sin ese índice, lee el archivo entero: varios minutos para una
 película grande (unos minutos para un archivo muy grande, más si el mismo servidor está emitiendo vídeo a la vez).
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 960cbfbbd3741cf6a15885a1e19f04e9e96e53efbe2f9861376cc3a92778dfef
+source_sha: 540422a69de01f201188138d7f4761d922c6cde8ccec0e1fb520623a6378ab51
 reviewed: true
 ---
 # Sous-titres { #subtitles }
@@ -32,7 +32,7 @@ change pour le serveur.
 | Format | Exemples | Affichage | Effet sur la vidéo |
 | --- | --- | --- | --- |
 | Texte | SRT, ASS/SSA, WebVTT, sous-titres intégrés au fichier | Envoyé à côté de la vidéo et dessiné par le lecteur, avec votre **Style des sous-titres** | Aucun |
-| Formats image | PGS (Blu-ray), VobSub (DVD), DVB (télévision), dans le fichier ou en fichier `.sup` ou `.idx`/`.sub` à côté | Décodé en images une fois par le serveur, mis en cache, puis dessiné tel quel par le lecteur | Aucun |
+| Formats image | PGS (Blu-ray), VobSub (DVD), DVB (télévision), dans un fichier MKV ou en fichier `.sup` ou `.idx`/`.sub` à côté | Décodé en images une fois par le serveur, mis en cache, puis dessiné tel quel par le lecteur | Aucun |
 | XSUB | XSUB (certains fichiers DivX) | Incrusté dans l'image par le serveur | La vidéo est réencodée |
 
 Tous les lecteurs (web, Android, Android TV) dessinent eux-mêmes les
@@ -41,6 +41,10 @@ vidéo est livrée. Seule la dernière ligne a un effet : incruster des
 sous-titres dans l'image oblige à décoder puis réencoder la vidéo, si bien
 qu'un titre lu en lecture directe passe en transcodage. Les Infos du flux
 affichent alors **Sous-titres incrustés dans l'image**.
+
+Un sous-titre image dans un autre type de fichier (un enregistrement TV en
+`.ts`, un AVI, un MP4) ne peut pas être décodé par le serveur : il est donc
+incrusté comme un XSUB.
 
 Un sous-titre XSUB n'est incrusté que si vous le sélectionnez réellement. Un
 fichier qui se contente d'en contenir un, ou de le marquer par défaut, garde
@@ -54,7 +58,7 @@ Lecture**) décide quels sous-titres image le serveur incruste dans la vidéo :
 | Réglage | Une piste XSUB sélectionnée | Une piste PGS, VobSub ou DVB sélectionnée | Texte |
 | --- | --- | --- | --- |
 | **Auto** | Incrustée, la vidéo est réencodée. | Dessinée par le lecteur. | Dessiné par le lecteur. |
-| **Toujours incruster** | Incrustée, la vidéo est réencodée. | Incrustée, la vidéo est réencodée. | Dessiné par le lecteur : le texte n'est jamais incrusté. |
+| **Toujours incruster** | Incrustée, la vidéo est réencodée. | Incrustée, la vidéo est réencodée. Un fichier `.sup` ou `.idx`/`.sub` à côté de la vidéo reste dessiné par le lecteur. | Dessiné par le lecteur : le texte n'est jamais incrusté. |
 | **Jamais incruster** | Ne peut pas s'afficher : la vidéo n'est jamais réencodée pour un sous-titre. | Dessinée par le lecteur. | Dessiné par le lecteur. |
 
 ## La première fois qu'un sous-titre s'affiche { #the-first-time-a-subtitle-is-shown }
@@ -62,7 +66,7 @@ Lecture**) décide quels sous-titres image le serveur incruste dans la vidéo :
 Un sous-titre contenu dans le fichier (texte ou image) est extrait par le
 serveur la première fois que quelqu'un le choisit, puis conservé : tous les
 visionnages suivants, par n'importe qui, l'obtiennent aussitôt. Quand l'index
-du fichier couvre une piste texte ou PGS, le serveur ne lit que les blocs du sous-titre et
+du fichier couvre une piste texte ou image, le serveur ne lit que les blocs du sous-titre et
 cela prend quelques secondes. Sans cet index, il lit tout le fichier :
 plusieurs minutes pour un gros film (quelques minutes pour un très gros fichier, davantage quand le même serveur diffuse en parallèle).
 

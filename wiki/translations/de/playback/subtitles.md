@@ -1,5 +1,5 @@
 ---
-source_sha: 960cbfbbd3741cf6a15885a1e19f04e9e96e53efbe2f9861376cc3a92778dfef
+source_sha: 540422a69de01f201188138d7f4761d922c6cde8ccec0e1fb520623a6378ab51
 reviewed: true
 ---
 # Untertitel { #subtitles }
@@ -30,7 +30,7 @@ Server ändert.
 | Format | Beispiele | Wie es angezeigt wird | Wirkung auf das Video |
 | --- | --- | --- | --- |
 | Text | SRT, ASS/SSA, WebVTT, Untertitel in der Datei | Neben dem Video geschickt und vom Player dargestellt, mit Ihrem **Untertitel-Stil** | Keine |
-| Bildformate | PGS (Blu-ray), VobSub (DVD), DVB (Fernsehen), in der Datei oder als `.sup`- oder `.idx`/`.sub`-Datei daneben | Einmal vom Server in Bilder umgewandelt, zwischengespeichert und vom Player unverändert dargestellt | Keine |
+| Bildformate | PGS (Blu-ray), VobSub (DVD), DVB (Fernsehen), in einer MKV-Datei oder als `.sup`- oder `.idx`/`.sub`-Datei daneben | Einmal vom Server in Bilder umgewandelt, zwischengespeichert und vom Player unverändert dargestellt | Keine |
 | XSUB | XSUB (manche DivX-Dateien) | Vom Server ins Bild eingebrannt | Das Video wird neu kodiert |
 
 Jeder Player (Web, Android, Android TV) stellt Text- und Bild-Untertitel
@@ -39,6 +39,10 @@ Nur die letzte Zeile tut das: Untertitel ins Bild einzubrennen heißt, das
 Video zu dekodieren und neu zu kodieren. Ein Titel, der direkt abgespielt
 wurde, wird so zu einer Transkodierung. Die Stream-Info zeigt dann
 **Untertitel ins Bild eingebrannt**.
+
+Ein Bild-Untertitel in einer anderen Art von Datei (eine TV-Aufnahme als
+`.ts`, eine AVI, eine MP4) kann der Server nicht dekodieren, deshalb wird er
+wie XSUB eingebrannt.
 
 Ein XSUB-Untertitel wird nur eingebrannt, wenn Sie ihn wirklich auswählen.
 Eine Datei, die nur einen enthält oder ihn als Standard markiert, bleibt bei
@@ -53,7 +57,7 @@ einbrennt:
 | Einstellung | Eine ausgewählte XSUB-Spur | Eine ausgewählte PGS-, VobSub- oder DVB-Spur | Text |
 | --- | --- | --- | --- |
 | **Auto** | Eingebrannt, das Video wird neu kodiert. | Vom Player dargestellt. | Vom Player dargestellt. |
-| **Immer einbrennen** | Eingebrannt, das Video wird neu kodiert. | Eingebrannt, das Video wird neu kodiert. | Vom Player dargestellt: Text wird nie eingebrannt. |
+| **Immer einbrennen** | Eingebrannt, das Video wird neu kodiert. | Eingebrannt, das Video wird neu kodiert. Eine `.sup`- oder `.idx`/`.sub`-Datei neben dem Video stellt weiterhin der Player dar. | Vom Player dargestellt: Text wird nie eingebrannt. |
 | **Nie einbrennen** | Kann nicht angezeigt werden: Das Video wird für einen Untertitel nie neu kodiert. | Vom Player dargestellt. | Vom Player dargestellt. |
 
 ## Wenn ein Untertitel zum ersten Mal gezeigt wird { #the-first-time-a-subtitle-is-shown }
@@ -61,7 +65,7 @@ einbrennt:
 Ein Untertitel in der Datei (Text oder Bild) wird vom Server extrahiert, wenn
 ihn jemand zum ersten Mal wählt, und dann aufbewahrt: Bei jeder späteren
 Wiedergabe, egal durch wen, erscheint er sofort. Deckt der eigene Index der Datei eine
-Text- oder PGS-Spur ab, liest der Server nur die Blöcke des Untertitels, und das dauert
+Text- oder Bildspur ab, liest der Server nur die Blöcke des Untertitels, und das dauert
 Sekunden. Ohne diesen Index liest er die ganze Datei: einige Minuten bei
 einem großen Film (einige Minuten bei einer sehr großen Datei, länger, wenn derselbe Server gleichzeitig streamt).
 

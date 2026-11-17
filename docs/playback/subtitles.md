@@ -25,7 +25,7 @@ the server.
 | Format | Examples | How it is shown | Effect on the video |
 | --- | --- | --- | --- |
 | Text | SRT, ASS/SSA, WebVTT, subtitles inside the file | Sent alongside the video and drawn by the player, with your **Subtitle Style** | None |
-| Picture formats | PGS (Blu-ray), VobSub (DVD), DVB (TV broadcast), inside the file or as a `.sup` or `.idx`/`.sub` file beside it | Decoded into images once by the server, cached, and drawn by the player as they are | None |
+| Picture formats | PGS (Blu-ray), VobSub (DVD), DVB (TV broadcast), inside an MKV file or as a `.sup` or `.idx`/`.sub` file beside it | Decoded into images once by the server, cached, and drawn by the player as they are | None |
 | XSUB | XSUB (some DivX files) | Burned into the picture by the server | The video is re-encoded |
 
 Every player (web, Android, Android TV) draws text and picture subtitles itself,
@@ -33,6 +33,9 @@ so choosing one never changes how the video is delivered. Only the last row
 does: burning subtitles into the picture requires decoding and re-encoding the
 video, so a title that played directly becomes a transcode. Stream info then
 lists **Subtitles burned into the picture**.
+
+A picture subtitle inside another kind of file (a TV recording in `.ts`, an
+AVI, an MP4) cannot be decoded by the server, so it is burned in like XSUB.
 
 An XSUB subtitle is burned in only when you actually select it. A file that
 merely carries one, or marks it as default, keeps its Direct Play.
@@ -45,14 +48,14 @@ which picture subtitles the server burns into the video:
 | Setting | A selected XSUB track | A selected PGS, VobSub or DVB track | Text |
 | --- | --- | --- | --- |
 | **Auto** | Burned in, the video is re-encoded. | Drawn by the player. | Drawn by the player. |
-| **Always burn in** | Burned in, the video is re-encoded. | Burned in, the video is re-encoded. | Drawn by the player: text is never burned in. |
+| **Always burn in** | Burned in, the video is re-encoded. | Burned in, the video is re-encoded. A `.sup` or `.idx`/`.sub` file beside the video is still drawn by the player. | Drawn by the player: text is never burned in. |
 | **Never burn in** | Cannot be shown: the video is never re-encoded for a subtitle. | Drawn by the player. | Drawn by the player. |
 
 ## The first time a subtitle is shown
 
 A subtitle carried inside the file (text or picture) is extracted by the server the
 first time someone selects it, then kept: every later viewing, by anyone, gets
-it at once. When the file's own index covers a text or PGS track, the server
+it at once. When the file's own index covers a text or picture track, the server
 reads only the subtitle's blocks and it takes seconds. Without that index it reads the
 whole file: several minutes for a large film (a few minutes for a very
 large file, longer while the same server is streaming).
