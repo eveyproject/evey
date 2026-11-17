@@ -110,7 +110,7 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 			}
 			if subIdx == trackIndex {
 				if s.IsExternal && s.ExternalPath != nil {
-					serveExternalSubtitle(w, r, *s.ExternalPath, filepath.Dir(filePath), baseURL)
+					serveExternalSubtitle(w, r, cache, *s.ExternalPath, filepath.Dir(filePath), baseURL)
 					return
 				}
 				matched = true
@@ -553,13 +553,19 @@ func tryMKVGoSubtitleBytes(ctx context.Context,
 	return buf.Bytes(), true, false
 }
 
-func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir, baseURL string) {
+func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, cache subtitleCache, path, baseDir, baseURL string) {
 	safePath, err := safeJoin(baseDir, filepath.Base(path))
 	if err != nil {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	ext := strings.ToLower(filepath.Ext(safePath))
+	if isExternalBitmapSubtitle(ext) {
+		// A picture subtitle has no WebVTT form: it is served as decoded images,
+		// as an embedded PGS, VobSub or DVB track is.
+		serveExternalBitmapSubtitle(w, r, cache, safePath, baseURL)
+		return
+	}
 	setCORSHeaders(w, r, baseURL)
 	w.Header().Set("Cache-Control", "no-cache")
 	if ext == ".vtt" {

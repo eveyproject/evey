@@ -19,7 +19,7 @@ func TestServeExternalSubtitle_VTT_ServedDirectly(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/subs/sub.vtt", nil)
 	rec := httptest.NewRecorder()
-	serveExternalSubtitle(rec, req, path, tmp, "")
+	serveExternalSubtitle(rec, req, subtitleCache{}, path, tmp, "")
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -44,7 +44,7 @@ func TestServeExternalSubtitle_PathTraversal_NotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/subs/x", nil)
 	rec := httptest.NewRecorder()
 	// base filename stripping + safeJoin - passing absolute path should be normalized
-	serveExternalSubtitle(rec, req, "../../secret.vtt", tmp, "")
+	serveExternalSubtitle(rec, req, subtitleCache{}, "../../secret.vtt", tmp, "")
 
 	// File doesn't exist in baseDir, so http.ServeFile returns 404 or .vtt branch
 	// sends 200 with "file not found" depending on path handling. Either way the

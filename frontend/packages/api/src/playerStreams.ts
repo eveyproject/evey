@@ -128,6 +128,8 @@ export function playerSubtitleStreams(streams: V1MediaStream[] | undefined, burn
       isExternal: s.isExternal,
       externalPath: s.externalPath,
       codec: s.codec,
-      burnIn: burnsIn(s.codec, burnMode),
+      // A sidecar file is never burnt: the server burns from the video's own
+      // streams, and a picture sidecar is drawn by the player in every mode.
+      burnIn: !s.isExternal && burnsIn(s.codec, burnMode),
     }));
 }

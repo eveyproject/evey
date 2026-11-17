@@ -1,5 +1,5 @@
 ---
-source_sha: a3d23d77185132a6d78ef0649cd2c04b469e1f8f7d3d465d9d50bbe3aaec3b05
+source_sha: 960cbfbbd3741cf6a15885a1e19f04e9e96e53efbe2f9861376cc3a92778dfef
 reviewed: true
 ---
 # Untertitel { #subtitles }
@@ -30,7 +30,7 @@ Server ändert.
 | Format | Beispiele | Wie es angezeigt wird | Wirkung auf das Video |
 | --- | --- | --- | --- |
 | Text | SRT, ASS/SSA, WebVTT, Untertitel in der Datei | Neben dem Video geschickt und vom Player dargestellt, mit Ihrem **Untertitel-Stil** | Keine |
-| Bildformate | PGS (Blu-ray), VobSub (DVD), DVB (Fernsehen) | Einmal vom Server in Bilder umgewandelt, zwischengespeichert und vom Player unverändert dargestellt | Keine |
+| Bildformate | PGS (Blu-ray), VobSub (DVD), DVB (Fernsehen), in der Datei oder als `.sup`- oder `.idx`/`.sub`-Datei daneben | Einmal vom Server in Bilder umgewandelt, zwischengespeichert und vom Player unverändert dargestellt | Keine |
 | XSUB | XSUB (manche DivX-Dateien) | Vom Server ins Bild eingebrannt | Das Video wird neu kodiert |
 
 Jeder Player (Web, Android, Android TV) stellt Text- und Bild-Untertitel

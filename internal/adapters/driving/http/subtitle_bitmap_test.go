@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 	"image"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -205,5 +207,67 @@ func TestExtractBitmapBlob_VobSubAndDVB(t *testing.T) {
 			}
 			t.Logf("%d cues on %dx%d, first %d-%d ms", len(h.Cues), h.ScreenW, h.ScreenH, h.Cues[0].StartMs, h.Cues[0].EndMs)
 		})
+	}
+}
+
+// A sidecar .sup, and a VobSub .idx with its .sub, are served as the same
+// decoded-image blob as an embedded track, and stored in the cache.
+func TestServeExternalSubtitle_PictureSidecars(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		files []string
+	}{
+		{"pgs_sub.sup", []string{"pgs_sub.sup"}},
+		{"vobsub.idx", []string{"vobsub.idx", "vobsub.sub"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, f := range tc.files {
+				b, err := os.ReadFile(mkvgoFixture(t, f))
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Renamed after a film, as the scanner finds them.
+				if err := os.WriteFile(filepath.Join(dir, "film"+filepath.Ext(f)), b, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cache := subtitleCache{dir: t.TempDir()}
+			side := filepath.Join(dir, "film"+filepath.Ext(tc.name))
+			rec := httptest.NewRecorder()
+			serveExternalSubtitle(rec, httptest.NewRequest(http.MethodGet, "/x", nil), cache, side, dir, "")
+			if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/vnd.evey.pgs" {
+				t.Fatalf("status %d, type %q: %s", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+			}
+			h, err := decodePGSBlobHeader(rec.Body.Bytes())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(h.Cues) == 0 || h.ScreenW == 0 {
+				t.Fatalf("%d cues on %dx%d", len(h.Cues), h.ScreenW, h.ScreenH)
+			}
+			if _, ok := cache.get(cache.keyForKind(side, 0, subtitleKindPGS)); !ok {
+				t.Error("the blob was not cached")
+			}
+			t.Logf("%d cues on %dx%d", len(h.Cues), h.ScreenW, h.ScreenH)
+		})
+	}
+}
+
+// An .idx whose .sub is missing answers the failure, it does not hang or 500.
+func TestServeExternalSubtitle_IdxWithoutSub(t *testing.T) {
+	dir := t.TempDir()
+	b, err := os.ReadFile(mkvgoFixture(t, "vobsub.idx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	side := filepath.Join(dir, "film.idx")
+	if err := os.WriteFile(side, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	serveExternalSubtitle(rec, httptest.NewRequest(http.MethodGet, "/x", nil), subtitleCache{}, side, dir, "")
+	if rec.Code == http.StatusOK || rec.Code == http.StatusInternalServerError {
+		t.Fatalf("status %d", rec.Code)
 	}
 }

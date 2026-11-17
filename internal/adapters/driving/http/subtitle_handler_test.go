@@ -710,7 +710,7 @@ func TestServeExternalSubtitle_ASS_InProcessWebVTT(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	w := httptest.NewRecorder()
-	serveExternalSubtitle(w, req, path, dir, "")
+	serveExternalSubtitle(w, req, subtitleCache{}, path, dir, "")
 
 	if ct := w.Result().Header.Get("Content-Type"); ct != "text/vtt; charset=utf-8" {
 		t.Errorf("Content-Type = %q, want text/vtt; charset=utf-8", ct)
@@ -738,7 +738,7 @@ func TestServeExternalSubtitle_SRT_InProcessWebVTT(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	w := httptest.NewRecorder()
-	serveExternalSubtitle(w, req, path, dir, "")
+	serveExternalSubtitle(w, req, subtitleCache{}, path, dir, "")
 
 	if ct := w.Result().Header.Get("Content-Type"); ct != "text/vtt; charset=utf-8" {
 		t.Errorf("Content-Type = %q, want text/vtt; charset=utf-8", ct)

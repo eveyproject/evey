@@ -1,5 +1,5 @@
 ---
-source_sha: a3d23d77185132a6d78ef0649cd2c04b469e1f8f7d3d465d9d50bbe3aaec3b05
+source_sha: 960cbfbbd3741cf6a15885a1e19f04e9e96e53efbe2f9861376cc3a92778dfef
 reviewed: true
 ---
 # Subtítulos { #subtitles }
@@ -30,7 +30,7 @@ el servidor.
 | Formato | Ejemplos | Cómo se muestra | Efecto en el vídeo |
 | --- | --- | --- | --- |
 | Texto | SRT, ASS/SSA, WebVTT, subtítulos dentro del archivo | Se envía junto al vídeo y lo dibuja el reproductor, con tu **Estilo de subtítulos** | Ninguno |
-| Formatos de imagen | PGS (Blu-ray), VobSub (DVD), DVB (emisiones de TV) | El servidor lo convierte en imágenes una vez, las guarda en caché, y el reproductor las dibuja tal cual | Ninguno |
+| Formatos de imagen | PGS (Blu-ray), VobSub (DVD), DVB (emisiones de TV), dentro del archivo o como archivo `.sup` o `.idx`/`.sub` a su lado | El servidor lo convierte en imágenes una vez, las guarda en caché, y el reproductor las dibuja tal cual | Ninguno |
 | XSUB | XSUB (algunos archivos DivX) | El servidor lo incrusta en la imagen | El vídeo se vuelve a codificar |
 
 Todos los reproductores (web, Android, Android TV) dibujan ellos mismos los

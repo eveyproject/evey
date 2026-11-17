@@ -38,6 +38,11 @@ describe("playerStreams", () => {
     expect(burn("never")).toEqual([[2, false], [4, false], [5, false]]);
   });
 
+  it("never burns a picture sidecar, whatever the mode", () => {
+    const sidecar = [{ type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 9, codec: "hdmv_pgs_subtitle", isExternal: true } as V1MediaStream];
+    expect(playerSubtitleStreams(sidecar, "always").map((s) => s.burnIn)).toEqual([false]);
+  });
+
   it("reads the mode off the profile, auto for anything it does not know", () => {
     expect(subtitleBurnMode({ subtitle_burn_in: "Always" })).toBe("always");
     expect(subtitleBurnMode({ subtitle_burn_in: "never" })).toBe("never");

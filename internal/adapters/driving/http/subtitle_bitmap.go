@@ -17,7 +17,10 @@ import (
 	"image"
 	"image/draw"
 	"io"
+	"log/slog"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gravity-zero/mkvgo/matroska"
@@ -254,4 +257,106 @@ func bitmapServable(codec string) bool {
 // one bitmap format mkvgo walks itself and can serve from a stored index.
 func isPGSCodec(codec string) bool {
 	return codec == "pgs"
+}
+
+// isExternalBitmapSubtitle reports whether a sidecar file is a picture
+// subtitle: a PGS .sup, or the .idx of a VobSub .idx/.sub pair.
+func isExternalBitmapSubtitle(ext string) bool {
+	return ext == ".sup" || ext == ".idx"
+}
+
+// extractExternalBitmapBlob decodes a sidecar picture subtitle into the same
+// blob as an embedded track. subPath is the .sub of a VobSub pair, unused for a
+// .sup. Of a .idx holding several languages, the first is read: the scanner
+// names the file by one language, and a pair made for one film rarely holds
+// more.
+func extractExternalBitmapBlob(ctx context.Context, path, subPath string) ([]byte, error) {
+	var b bitmapBlobBuilder
+	f, err := os.Open(path) //nolint:gosec // resolved under the video's directory by safeJoin
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var asm *bitmapCueAssembler
+	feed := func(timeMs int64, block []byte) error {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		return asm.block(timeMs, 0, block)
+	}
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".sup":
+		asm = &bitmapCueAssembler{dec: subtitle.NewPGSDecoder(), emit: b.add}
+		err = subtitle.ForEachSUPDisplaySet(f, feed)
+	case ".idx":
+		ix, pErr := subtitle.ParseVobSubIndex(f)
+		if pErr != nil {
+			return nil, pErr
+		}
+		dec, dErr := subtitle.NewVobSubDecoder(ix.Header)
+		if dErr != nil {
+			return nil, dErr
+		}
+		sub, oErr := os.Open(subPath) //nolint:gosec // resolved under the video's directory by safeJoin
+		if oErr != nil {
+			return nil, fmt.Errorf("the .sub of the pair: %w", oErr)
+		}
+		defer sub.Close()
+		asm = &bitmapCueAssembler{dec: dec, emit: b.add}
+		err = ix.ForEachUnit(sub, 0, feed)
+	default:
+		return nil, fmt.Errorf("%s is not a picture subtitle file", filepath.Base(path))
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := asm.finish(); err != nil {
+		return nil, err
+	}
+	return b.blob()
+}
+
+// vobSubPairSub finds the .sub beside an .idx, whatever the case of its
+// extension.
+func vobSubPairSub(idxPath string) (string, bool) {
+	base := strings.TrimSuffix(idxPath, filepath.Ext(idxPath))
+	for _, ext := range []string{".sub", ".SUB", ".Sub"} {
+		if st, err := os.Stat(base + ext); err == nil && st.Mode().IsRegular() {
+			return base + ext, true
+		}
+	}
+	return "", false
+}
+
+// serveExternalBitmapSubtitle answers the subtitle route for a sidecar picture
+// subtitle with the decoded-image blob, cached like an embedded track's: a
+// full film's .sup takes seconds to decode, not worth paying per request.
+func serveExternalBitmapSubtitle(w http.ResponseWriter, r *http.Request, cache subtitleCache, path, baseURL string) {
+	key := cache.keyForKind(path, 0, subtitleKindPGS)
+	if data, ok := cache.get(key); ok {
+		writePGSBlob(w, r, data)
+		return
+	}
+	var subPath string
+	if strings.EqualFold(filepath.Ext(path), ".idx") {
+		p, ok := vobSubPairSub(path)
+		if !ok {
+			writeSubtitleFailed(w, r, baseURL, "the .idx has no .sub beside it")
+			return
+		}
+		subPath = p
+	}
+	data, err := extractExternalBitmapBlob(r.Context(), path, subPath)
+	if err != nil {
+		slog.WarnContext(r.Context(), "subtitle: external picture subtitle decode failed",
+			slog.String("path", path), slog.Any("err", err))
+		writeSubtitleFailed(w, r, baseURL, err.Error())
+		return
+	}
+	if cErr := cache.put(key, data); cErr != nil {
+		slog.WarnContext(r.Context(), "subtitle: external picture subtitle cache store failed",
+			slog.String("path", path), slog.Any("err", cErr))
+	}
+	writePGSBlob(w, r, data)
 }

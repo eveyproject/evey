@@ -25,7 +25,7 @@ the server.
 | Format | Examples | How it is shown | Effect on the video |
 | --- | --- | --- | --- |
 | Text | SRT, ASS/SSA, WebVTT, subtitles inside the file | Sent alongside the video and drawn by the player, with your **Subtitle Style** | None |
-| Picture formats | PGS (Blu-ray), VobSub (DVD), DVB (TV broadcast) | Decoded into images once by the server, cached, and drawn by the player as they are | None |
+| Picture formats | PGS (Blu-ray), VobSub (DVD), DVB (TV broadcast), inside the file or as a `.sup` or `.idx`/`.sub` file beside it | Decoded into images once by the server, cached, and drawn by the player as they are | None |
 | XSUB | XSUB (some DivX files) | Burned into the picture by the server | The video is re-encoded |
 
 Every player (web, Android, Android TV) draws text and picture subtitles itself,
