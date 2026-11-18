@@ -236,7 +236,10 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   // into PlayerProvider, whose own value memo exists precisely to avoid churning
   // every player consumer, and a fresh array every render defeats it.
   const audioStreams: AudioStream[] = useMemo(() => playerAudioStreams(streamInfo?.mediaStreams), [streamInfo?.mediaStreams]);
-  const subtitleStreams: SubtitleStream[] = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams), [streamInfo?.mediaStreams]);
+  const subtitleStreams: SubtitleStream[] = useMemo(
+    () => playerSubtitleStreams(streamInfo?.mediaStreams, "auto", streamInfo?.container),
+    [streamInfo?.mediaStreams, streamInfo?.container],
+  );
 
   const { data: chapters } = useChapters(mediaId);
   const startPositionMs = resolveStartPositionMs(!!restart, progress);

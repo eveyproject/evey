@@ -400,6 +400,22 @@ func TestSubtitleBurnIn_DVDSub(t *testing.T) {
 	assert.Contains(t, d.TranscodeReasons, "subtitle_burn_in")
 }
 
+// A picture sidecar selected by an older player that still asks for its
+// burn-in is never burnt: ffmpeg burns from the video's own streams, and the
+// sidecar is served as decoded images.
+func TestSubtitleBurnIn_PictureSidecarIsNeverBurnt(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+		{StreamType: "subtitle", Codec: "dvd_subtitle", IsExternal: true},
+	}
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, burnPrefs(0))
+
+	assert.NotEqual(t, "burn", d.SubtitleDecision)
+	assert.Equal(t, "copy", d.VideoDecision, "a sidecar must not deny the copy rung")
+	assert.NotContains(t, d.TranscodeReasons, "subtitle_burn_in")
+}
+
 // The core of the gate-on-selection fix: a title that merely CARRIES a bitmap
 // subtitle, played with none selected (the -1 default), must keep its copy rung
 // - not be needlessly transcoded. This is what recovers ~20% of a Blu-ray-rip

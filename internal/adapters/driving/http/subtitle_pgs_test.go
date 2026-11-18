@@ -117,20 +117,26 @@ func TestPGSBlob_CarriesTheSubtitlePlane(t *testing.T) {
 	}
 }
 
-// Only PGS is decodable here. Answering 200 with an empty cue list for VobSub
-// would put a subtitle in the viewer's menu that draws nothing.
-func TestPGSServable_PGSOnly(t *testing.T) {
+// PGS, VobSub and DVB are decodable here, XSUB is not. Answering 200 with an
+// empty cue list for XSUB would put a subtitle in the viewer's menu that draws
+// nothing.
+func TestBitmapServable(t *testing.T) {
 	for codec, want := range map[string]bool{
 		"hdmv_pgs_subtitle": true,
 		"pgs":               true,
 		"HDMV_PGS_SUBTITLE": true,
-		"dvd_subtitle":      false,
-		"vobsub":            false,
+		"pgssub":            true,
+		"dvd_subtitle":      true,
+		"dvdsub":            true,
+		"dvb_subtitle":      true,
+		" DVBSUB ":          true,
+		"xsub":              false,
 		"subrip":            false,
 		"ass":               false,
+		"":                  false,
 	} {
-		if got := pgsServable(codec); got != want {
-			t.Errorf("pgsServable(%q) = %v, want %v", codec, got, want)
+		if got := bitmapServable(codec); got != want {
+			t.Errorf("bitmapServable(%q) = %v, want %v", codec, got, want)
 		}
 	}
 }

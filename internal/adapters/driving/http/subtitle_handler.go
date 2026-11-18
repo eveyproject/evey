@@ -110,7 +110,7 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 			}
 			if subIdx == trackIndex {
 				if s.IsExternal && s.ExternalPath != nil {
-					serveExternalSubtitle(w, r, *s.ExternalPath, filepath.Dir(filePath), baseURL)
+					serveExternalSubtitle(w, r, cache, *s.ExternalPath, filepath.Dir(filePath), baseURL)
 					return
 				}
 				matched = true
@@ -136,11 +136,11 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 		// burn-in is what denies the copy rung and turns a direct-playing remux
 		// into a full transcode.
 		//
-		// PGS only: VobSub is a bitmap too, but nothing here decodes it, and
-		// answering 200 with an empty cue list would put a subtitle in the menu
-		// that draws nothing. It keeps the old refusal.
+		// PGS, VobSub and DVB: XSUB is a bitmap too, but nothing here decodes
+		// it, and answering 200 with an empty cue list would put a subtitle in
+		// the menu that draws nothing. It keeps the old refusal.
 		if imageSub {
-			if !pgsServable(matchedCodec) {
+			if !bitmapServable(matchedCodec) {
 				span.SetStatus(otelcodes.Error, "bitmap subtitle not decodable here")
 				http.Error(w, `{"message":"subtitle not available as text"}`, http.StatusUnprocessableEntity)
 				return
@@ -553,13 +553,19 @@ func tryMKVGoSubtitleBytes(ctx context.Context,
 	return buf.Bytes(), true, false
 }
 
-func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir, baseURL string) {
+func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, cache subtitleCache, path, baseDir, baseURL string) {
 	safePath, err := safeJoin(baseDir, filepath.Base(path))
 	if err != nil {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	ext := strings.ToLower(filepath.Ext(safePath))
+	if isExternalBitmapSubtitle(ext) {
+		// A picture subtitle has no WebVTT form: it is served as decoded images,
+		// as an embedded PGS, VobSub or DVB track is.
+		serveExternalBitmapSubtitle(w, r, cache, safePath, baseURL)
+		return
+	}
 	setCORSHeaders(w, r, baseURL)
 	w.Header().Set("Cache-Control", "no-cache")
 	if ext == ".vtt" {

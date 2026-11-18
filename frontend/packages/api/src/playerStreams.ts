@@ -108,14 +108,22 @@ export function subtitleBurnMode(prefs: Record<string, string> | undefined): Sub
   return v === "always" || v === "never" ? v : "auto";
 }
 
-function burnsIn(codec: string | null | undefined, mode: SubtitleBurnMode): boolean {
+function burnsIn(codec: string | null | undefined, mode: SubtitleBurnMode, container?: string | null): boolean {
   if (mode === "never") return false;
   if (mode === "always") return isImageSubtitle(codec);
-  return isBurnInSubtitle(codec);
+  return isBurnInSubtitle(codec, container);
 }
 
-/** The subtitle tracks of a title, in file order, flagged for burn-in by the profile's mode. */
-export function playerSubtitleStreams(streams: V1MediaStream[] | undefined, burnMode: SubtitleBurnMode = "auto"): PlayerSubtitleStream[] {
+/**
+ * The subtitle tracks of a title, in file order, flagged for burn-in by the
+ * profile's mode. container is the stream info's: a bitmap track the server
+ * cannot decode out of that container is burnt in auto mode.
+ */
+export function playerSubtitleStreams(
+  streams: V1MediaStream[] | undefined,
+  burnMode: SubtitleBurnMode = "auto",
+  container?: string | null,
+): PlayerSubtitleStream[] {
   return (streams ?? [])
     .filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
     .map((s, i) => ({
@@ -128,6 +136,8 @@ export function playerSubtitleStreams(streams: V1MediaStream[] | undefined, burn
       isExternal: s.isExternal,
       externalPath: s.externalPath,
       codec: s.codec,
-      burnIn: burnsIn(s.codec, burnMode),
+      // A sidecar file is never burnt: the server burns from the video's own
+      // streams, and a picture sidecar is drawn by the player in every mode.
+      burnIn: !s.isExternal && burnsIn(s.codec, burnMode, container),
     }));
 }

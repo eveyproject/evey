@@ -171,8 +171,8 @@ func textSubtitleTracks(streams []*library.MediaStream, preferredLang string) []
 		// into the video, so extracting it ahead of time warmed nothing. It is
 		// now served as decoded images, so it belongs here - and it is the track
 		// that most needs the head start, being the one a retail rip flags
-		// DEFAULT. VobSub stays out: nothing decodes it (see pgsServable).
-		if apptranscoding.IsImageSubtitle(s.Codec) && !pgsServable(s.Codec) {
+		// DEFAULT. XSUB stays out: nothing decodes it (see bitmapServable).
+		if apptranscoding.IsImageSubtitle(s.Codec) && !bitmapServable(s.Codec) {
 			continue
 		}
 		out = append(out, prewarmTrack{index: cur, codec: s.Codec, language: s.Language})
@@ -349,8 +349,8 @@ func (p *subtitlePrewarmer) ensureIndex(ctx context.Context, job prewarmJob, wal
 			trackIDs = append(trackIDs, id)
 			continue
 		}
-		if id, ok := imgIDs[t.index]; ok {
-			trackIDs = append(trackIDs, id)
+		if bt, ok := imgIDs[t.index]; ok {
+			trackIDs = append(trackIDs, bt.ID)
 		}
 	}
 	if len(trackIDs) == 0 {
@@ -401,14 +401,14 @@ func (p *subtitlePrewarmer) extractBitmap(ctx context.Context, job prewarmJob, t
 	if err != nil {
 		return nil, err
 	}
-	trackID, ok := ids[trackIndex]
+	track, ok := ids[trackIndex]
 	if !ok {
 		return nil, fmt.Errorf("no bitmap subtitle at ordinal %d", trackIndex)
 	}
 	// A missing index is not a failure: mkvgo walks the file itself. It is what
 	// a single-track job deliberately does, since the walk would save nothing.
 	ix, _ := p.indexes.get(job.filePath)
-	return extractPGSBlob(ctx, job.filePath, trackID, ix)
+	return extractBitmapBlob(ctx, job.filePath, track, ix)
 }
 
 // coversAll reports whether every id is verified.

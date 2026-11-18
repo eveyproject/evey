@@ -31,6 +31,19 @@ func TestSubtitleScanner_ScanForSubtitles(t *testing.T) {
 			wantFmt:  []string{"srt"},
 		},
 		{
+			name:     "picture sidecars: a .sup, and an .idx listed once with its .sub",
+			files:    []string{"Movie.2024.1080p.fr.sup", "Movie.2024.1080p.en.idx", "Movie.2024.1080p.en.sub"},
+			wantLen:  2,
+			wantLang: []string{"en", "fr"},
+			wantForc: []bool{false, false},
+			wantFmt:  []string{"dvd_subtitle", "hdmv_pgs_subtitle"},
+		},
+		{
+			name:    "an .idx without its .sub, or a .sub alone, is not a subtitle",
+			files:   []string{"Movie.2024.1080p.en.idx", "Movie.2024.1080p.fr.sub"},
+			wantLen: 0,
+		},
+		{
 			name:     "language tag",
 			files:    []string{"Movie.2024.1080p.en.srt", "Movie.2024.1080p.fr.ass"},
 			wantLen:  2,

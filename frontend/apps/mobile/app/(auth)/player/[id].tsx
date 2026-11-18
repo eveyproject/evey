@@ -407,7 +407,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // The profile's burn-in choice decides which tracks go to the server.
   const burnMode = subtitleBurnMode(activeProfile?.preferences);
   const subtitleStreams: SubtitleStream[] = useMemo(
-    () => playerSubtitleStreams(streamInfo?.mediaStreams, burnMode),
+    () => playerSubtitleStreams(streamInfo?.mediaStreams, burnMode, streamInfo?.container),
     [streamInfo, burnMode],
   );
 
@@ -1418,7 +1418,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     declaredAudioCodecs: getDeviceAudioCodecs(),
   });
 
-  // Restarts the transcode when entering/leaving a burn-in (PGS/VobSub)
+  // Restarts the transcode when entering/leaving a burn-in (a bitmap the player cannot draw)
   // subtitle - shared by native/server track selection and by switching to
   // an externally-picked file, which always targets nextIndex=null (the
   // server-side subtitle is deselected either way).
@@ -1446,7 +1446,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       setExternalSubtitle(null);
       // Text (non-burn-in) subtitles render client-side via SubtitleOverlay -
       // no manifest change needed, so switching between them (or off) is
-      // instant with no session restart. Only PGS/VobSub tracks still need a
+      // instant with no session restart. Only XSUB tracks still need a
       // restart: the server has to burn them into the video itself.
       restartForSubtitleChange(index);
       setSelectedSubtitleIndex(index);

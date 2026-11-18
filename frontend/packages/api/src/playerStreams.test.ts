@@ -7,7 +7,7 @@ const streams = [
   { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1, language: "fre", codec: "ac3", channels: 6, isDefault: true },
   { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 2, language: "fre", codec: "hdmv_pgs_subtitle", isForced: true },
   { type: "MEDIA_STREAM_TYPE_AUDIO", index: 3, language: "eng", codec: "aac", channels: 2 },
-  { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 4, language: "eng", codec: "dvd_subtitle" },
+  { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 4, language: "eng", codec: "xsub" },
 ] as V1MediaStream[];
 
 describe("playerStreams", () => {
@@ -18,7 +18,7 @@ describe("playerStreams", () => {
     ]);
   });
 
-  it("flags only the bitmaps no player draws as a server burn-in (PGS is drawn by the player)", () => {
+  it("flags only the bitmaps no player draws as a server burn-in (PGS, VobSub and DVB are drawn by the player)", () => {
     const subs = playerSubtitleStreams(streams);
     expect(subs.map((s) => [s.index, s.trackIndex, s.burnIn, s.isForced])).toEqual([
       [2, 0, false, true],
@@ -28,7 +28,7 @@ describe("playerStreams", () => {
 
   // The profile's burn-in choice is what the players obey: it used to be read
   // by the server alone, which only burns what the player sends, so "always"
-  // changed nothing and "never" still turned a VobSub into a transcode.
+  // changed nothing and "never" still turned a bitmap into a transcode.
   it("follows the profile's burn-in mode", () => {
     const burn = (mode: "auto" | "always" | "never") =>
       playerSubtitleStreams([...streams, { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 5, codec: "subrip" } as V1MediaStream], mode)
@@ -36,6 +36,22 @@ describe("playerStreams", () => {
     expect(burn("auto")).toEqual([[2, false], [4, true], [5, false]]);
     expect(burn("always")).toEqual([[2, true], [4, true], [5, false]]);
     expect(burn("never")).toEqual([[2, false], [4, false], [5, false]]);
+  });
+
+  it("never burns a picture sidecar, whatever the mode", () => {
+    const sidecar = [{ type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 9, codec: "hdmv_pgs_subtitle", isExternal: true } as V1MediaStream];
+    expect(playerSubtitleStreams(sidecar, "always").map((s) => s.burnIn)).toEqual([false]);
+  });
+
+  it("burns a bitmap the server cannot decode out of the file's container, but never its sidecar", () => {
+    const ts = [
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 2, codec: "dvb_subtitle" },
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 3, codec: "subrip" },
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 9, codec: "hdmv_pgs_subtitle", isExternal: true },
+    ] as V1MediaStream[];
+    expect(playerSubtitleStreams(ts, "auto", "mpegts").map((s) => s.burnIn)).toEqual([true, false, false]);
+    expect(playerSubtitleStreams(ts, "auto", "matroska").map((s) => s.burnIn)).toEqual([false, false, false]);
+    expect(playerSubtitleStreams(ts, "never", "mpegts").map((s) => s.burnIn)).toEqual([false, false, false]);
   });
 
   it("reads the mode off the profile, auto for anything it does not know", () => {

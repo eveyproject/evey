@@ -38,7 +38,7 @@ interface UsePlayerKeyboardArgs {
   cancelCountdownRef?: React.MutableRefObject<(() => void) | null>;
   setPlaybackSpeed: (s: number) => void;
   // Burn-in-aware subtitle selector (same handler the settings panel uses), so
-  // the "c" shortcut restarts the transcode for PGS/VobSub tracks instead of
+  // the "c" shortcut restarts the transcode for burn-in tracks instead of
   // silently flipping state with no on-screen subtitle.
   onSubtitleChange: (trackIndex: number | null) => void;
   setShowShortcuts: (fn: (prev: boolean) => boolean) => void;
@@ -177,7 +177,7 @@ export function usePlayerKeyboard({
           const subs = subtitleStreamsRef.current;
           const cur = currentSubtitleRef.current;
           if (subs.length === 0) break;
-          // Route through the burn-in-aware handler so PGS/VobSub tracks
+          // Route through the burn-in-aware handler so burn-in tracks
           // trigger a transcode restart (otherwise nothing renders on screen).
           onSubtitleChangeRef.current(cur === null ? subs[0].trackIndex : null);
           break;

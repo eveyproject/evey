@@ -269,7 +269,7 @@ export default function PlayerScreen() {
   // The profile's burn-in choice decides which tracks go to the server.
   const burnMode = subtitleBurnMode(activeProfile?.preferences);
   const subtitleStreams: SubtitleStream[] = useMemo(
-    () => playerSubtitleStreams(streamInfo?.mediaStreams, burnMode),
+    () => playerSubtitleStreams(streamInfo?.mediaStreams, burnMode, streamInfo?.container),
     [streamInfo, burnMode],
   );
 
@@ -799,10 +799,11 @@ export default function PlayerScreen() {
   const handleSubtitleSelect = useCallback(
     (index: number | null) => {
       userPickedSubtitleRef.current = true;
-      // Text and PGS both render client-side in SubtitleOverlay, so switching
-      // between them (or off) needs no manifest change and is instant. Only a
-      // track we cannot draw - VobSub, DVB - still costs a restart, because the
-      // server has to burn that one into the frames itself.
+      // Text and PGS, VobSub and DVB bitmaps all render client-side in
+      // SubtitleOverlay, so switching between them (or off) needs no manifest
+      // change and is instant. Only a track we cannot draw - XSUB - still costs
+      // a restart, because the server has to burn that one into the frames
+      // itself.
       const prev = subtitleStreams.find((s) => s.index === selectedSubtitleIndex);
       const next = index === null ? null : subtitleStreams.find((s) => s.index === index);
       if (prev?.burnIn || next?.burnIn) {

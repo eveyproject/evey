@@ -1,6 +1,7 @@
 package httpapi
 
-// subtitle_pgs.go - serving a BITMAP subtitle track (PGS/VobSub) to the player
+// subtitle_pgs.go - serving a BITMAP subtitle track (PGS, and VobSub and DVB
+// through subtitle_bitmap.go) to the player
 // instead of burning it into the video.
 //
 // Until now a bitmap track had exactly two fates: burnt into the frames by
@@ -32,6 +33,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -146,74 +148,115 @@ func decodePGSBlobHeader(blob []byte) (pgsHeader, error) {
 // only pays when several tracks will be read from it; a caller extracting a
 // single track hands nil and mkvgo walks it directly.
 func extractPGSBlob(ctx context.Context, filePath string, trackID uint64, ix *matroska.SubtitleIndex) ([]byte, error) {
-	var (
-		h      pgsHeader
-		images [][]byte
-		off    int
-		buf    bytes.Buffer
-	)
-	// Paletted PNG: the whole reason the decoded form is smaller than the .sup.
-	enc := png.Encoder{CompressionLevel: png.DefaultCompression}
-
-	collect := func(c matroska.PGSCue) error {
-		if c.Image == nil {
-			return nil
-		}
-		// The plane is a property of the track, not of the cue; every cue of a
-		// track reports the same one. Taking the last is taking the only.
-		h.ScreenW, h.ScreenH = c.ScreenW, c.ScreenH
-
-		var src image.Image = c.Image
-		// A PGS cue is drawn from a single palette and never exceeds 256
-		// colours, so this re-indexing always applies. It halves the encoded
-		// size on its own - measured -51% against true-colour RGBA, where the
-		// compression level is worth only -4%, which is why the level stays at
-		// the default and the CPU stays with the film.
-		if p := subtitle.Paletted(c.Image); p != nil {
-			src = p
-		}
-		buf.Reset()
-		if err := enc.Encode(&buf, src); err != nil {
-			return fmt.Errorf("encode cue at %d ms: %w", c.StartMs, err)
-		}
-		b := bytes.Clone(buf.Bytes())
-		r := c.Image.Bounds()
-		h.Cues = append(h.Cues, pgsCue{
-			StartMs: c.StartMs, EndMs: c.EndMs,
-			X: c.X, Y: c.Y, W: r.Dx(), H: r.Dy(),
-			Off: off, Len: len(b), Forced: c.Forced,
-		})
-		images = append(images, b)
-		off += len(b)
-		return nil
-	}
-
+	var b bitmapBlobBuilder
 	// Paced while a stream is being served - see subtitle_read_pacer.go.
 	opts := subtitleReadOptions(ctx, filePath)
 	var err error
 	if ix != nil {
-		err = matroska.ForEachSubtitlePGSFrom(ctx, filePath, trackID, ix, collect, opts...)
+		err = matroska.ForEachSubtitlePGSFrom(ctx, filePath, trackID, ix, b.add, opts...)
 	} else {
-		err = matroska.ForEachSubtitlePGS(ctx, filePath, trackID, collect, opts...)
+		err = matroska.ForEachSubtitlePGS(ctx, filePath, trackID, b.add, opts...)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("pgs extract: %w", err)
 	}
-	// A track with no cue at all is a legitimate answer, not a failure: a forced
-	// track carries a handful of cues in a whole film and can be empty over any
-	// stretch of it. The blob is still well-formed and the player shows nothing.
-	return encodePGSBlob(h, images)
+	return b.blob()
+}
+
+// extractBitmapBlob decodes one bitmap track of any servable format into the
+// blob: PGS through mkvgo's PGS walk, VobSub and DVB through
+// forEachMatroskaBitmapCue; both from the index when there is one.
+func extractBitmapBlob(ctx context.Context, filePath string, t bitmapTrack, ix *matroska.SubtitleIndex) ([]byte, error) {
+	if isPGSCodec(t.Codec) {
+		return extractPGSBlob(ctx, filePath, t.ID, ix)
+	}
+	// Paced while a stream is being served - see subtitle_read_pacer.go.
+	opts := subtitleReadOptions(ctx, filePath)
+	var b bitmapBlobBuilder
+	err := forEachMatroskaBitmapCue(ctx, filePath, t.ID, ix, b.add, opts...)
+	if ix != nil && (errors.Is(err, matroska.ErrIndexStale) || errors.Is(err, matroska.ErrTrackNotIndexed)) {
+		// The index no longer describes the file, or not this track: the walk
+		// is still right.
+		b = bitmapBlobBuilder{}
+		err = forEachMatroskaBitmapCue(ctx, filePath, t.ID, nil, b.add, opts...)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("bitmap extract: %w", err)
+	}
+	return b.blob()
+}
+
+// bitmapBlobBuilder accumulates decoded cues as PNG bytes.
+//
+// One cue at a time and not the slice form on purpose: a full track is ~2000
+// cues, and holding every decoded RGBA image at once is tens of megabytes for a
+// job that runs at nice 19 next to a playing film. This way one image is live at
+// a time and the PNG bytes accumulate instead.
+type bitmapBlobBuilder struct {
+	h      pgsHeader
+	images [][]byte
+	off    int
+	buf    bytes.Buffer
+}
+
+func (b *bitmapBlobBuilder) add(c matroska.PGSCue) error {
+	if c.Image == nil {
+		return nil
+	}
+	// The plane is a property of the track, not of the cue; every cue of a
+	// track reports the same one. Taking the last is taking the only.
+	b.h.ScreenW, b.h.ScreenH = c.ScreenW, c.ScreenH
+
+	var src image.Image = c.Image
+	// A PGS cue is drawn from a single palette and never exceeds 256 colours
+	// (a VobSub one from four), so this re-indexing applies. It halves the
+	// encoded size on its own - measured -51% against true-colour RGBA, where
+	// the compression level is worth only -4%, which is why the level stays at
+	// the default and the CPU stays with the film.
+	if p := subtitle.Paletted(c.Image); p != nil {
+		src = p
+	}
+	b.buf.Reset()
+	enc := png.Encoder{CompressionLevel: png.DefaultCompression}
+	if err := enc.Encode(&b.buf, src); err != nil {
+		return fmt.Errorf("encode cue at %d ms: %w", c.StartMs, err)
+	}
+	img := bytes.Clone(b.buf.Bytes())
+	r := c.Image.Bounds()
+	b.h.Cues = append(b.h.Cues, pgsCue{
+		StartMs: c.StartMs, EndMs: c.EndMs,
+		X: c.X, Y: c.Y, W: r.Dx(), H: r.Dy(),
+		Off: b.off, Len: len(img), Forced: c.Forced,
+	})
+	b.images = append(b.images, img)
+	b.off += len(img)
+	return nil
+}
+
+// blob renders what was added. A track with no cue at all is a legitimate
+// answer, not a failure: a forced track carries a handful of cues in a whole
+// film and can be empty over any stretch of it. The blob is still well-formed
+// and the player shows nothing.
+func (b *bitmapBlobBuilder) blob() ([]byte, error) {
+	return encodePGSBlob(b.h, b.images)
+}
+
+// bitmapTrack is a bitmap subtitle track as mkvgo numbers and names it; the
+// codec decides how it is decoded.
+type bitmapTrack struct {
+	ID    uint64
+	Codec string
 }
 
 // mkvgoImageSubtitleTrackIDs is mkvgoTextSubtitleTrackIDs' counterpart: the
 // mkvgo track ID of each BITMAP subtitle track, keyed by the subtitle-relative
 // ordinal the route and the cache key count in.
-func mkvgoImageSubtitleTrackIDs(ctx context.Context, ext, filePath string) (map[int]uint64, error) {
+func mkvgoImageSubtitleTrackIDs(ctx context.Context, ext, filePath string) (map[int]bitmapTrack, error) {
 	c, err := openMkvgoSubtitleContainer(ctx, ext, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("open container: %w", err)
 	}
-	out := make(map[int]uint64)
+	out := make(map[int]bitmapTrack)
 	subIdx := 0
 	for i := range c.Tracks {
 		if c.Tracks[i].Type != extmkv.SubtitleTrack {
@@ -224,17 +267,9 @@ func mkvgoImageSubtitleTrackIDs(ctx context.Context, ext, filePath string) (map[
 		if !apptranscoding.IsImageSubtitle(extmkv.FFprobeCodecName(c.Tracks[i].Codec)) {
 			continue
 		}
-		out[cur] = c.Tracks[i].ID
+		out[cur] = bitmapTrack{ID: c.Tracks[i].ID, Codec: c.Tracks[i].Codec}
 	}
 	return out, nil
-}
-
-// pgsServable reports whether this bitmap track can be served as decoded images
-// rather than burnt in. PGS only: VobSub is a bitmap too but mkvgo decodes only
-// PGS, and claiming to serve a VobSub track would leave the viewer with a
-// subtitle menu entry that draws nothing.
-func pgsServable(codec string) bool {
-	return strings.Contains(strings.ToLower(codec), "pgs")
 }
 
 // serveBitmapSubtitle answers the subtitle route for a PGS track: the cached
@@ -288,11 +323,12 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 		writeSubtitleFailed(w, r, "", idErr.Error())
 		return
 	}
-	trackID, ok := ids[trackIndex]
+	track, ok := ids[trackIndex]
 	if !ok {
 		writeSubtitleFailed(w, r, "", fmt.Sprintf("no bitmap subtitle at ordinal %d", trackIndex))
 		return
 	}
+	trackID := track.ID
 
 	// A stored index turns the walk into a handful of seeks (6 s measured
 	// against 4 min 42 s on an 85 GB remux). Without one, the file's own Cues
@@ -332,7 +368,7 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 				ix = resolved
 			}
 		}
-		data, exErr := extractPGSBlob(ctx, filePath, trackID, ix)
+		data, exErr := extractBitmapBlob(ctx, filePath, track, ix)
 		if exErr != nil {
 			if fErr := cache.putFailure(cacheKey, exErr); fErr != nil {
 				slog.WarnContext(ctx, "subtitle: pgs failure memo store failed",
