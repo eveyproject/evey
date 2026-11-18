@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type busyScanner struct{ err error }
@@ -25,7 +26,7 @@ func TestWatcherService_TriggerScan_BusyIsNotAnError(t *testing.T) {
 		log:     slog.New(slog.NewTextHandler(&buf, nil)),
 	}
 	err := ws.triggerScan(context.Background(), "lib-1")
-	assert.ErrorIs(t, err, ErrScanInProgress, "the caller still needs it to re-arm")
+	require.ErrorIs(t, err, ErrScanInProgress, "the caller still needs it to re-arm")
 	assert.NotContains(t, buf.String(), "level=ERROR")
 
 	buf.Reset()

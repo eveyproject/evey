@@ -28,17 +28,15 @@ func TestMediaItemRepo_ConcurrentUpdatesKeepTheTrailers(t *testing.T) {
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 200)
-	for w := 0; w < 8; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 20; i++ {
+	for range 8 {
+		wg.Go(func() {
+			for range 20 {
 				cp := *item
 				if err := repo.Update(ctx, &cp); err != nil {
 					errs <- err
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)
