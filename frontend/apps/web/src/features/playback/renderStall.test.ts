@@ -151,6 +151,32 @@ describe("createRenderStallWatch", () => {
     watch.stop();
   });
 
+  // Prod: every resume after a pause reported a slowdown whose longest frame
+  // interval was the pause itself (221 s, 937 s...). The window that holds the
+  // resume was paused for part of it, so its frame count and its intervals
+  // measure the pause, not the picture.
+  it("does not report the resume after a pause as a slowdown", async () => {
+    const onSlowdown = vi.fn();
+    const onCadence = vi.fn();
+    const { v, show } = fakeVideo();
+    const watch = createRenderStallWatch(v, { onSlowdown, onCadence, now });
+    let media = 0;
+    const frame = () => { show(clock, media); media += 0.04; };
+
+    for (let i = 0; i < 25; i++) { frame(); clock += 40; await vi.advanceTimersByTimeAsync(40); }
+    (v as { paused: boolean }).paused = true;
+    await advance(10_000);
+    // Resumes mid-window: half a second paused, half a second at 25 fps.
+    await advance(500);
+    (v as { paused: boolean }).paused = false;
+    for (let i = 0; i < 13 + 50; i++) { frame(); clock += 40; await vi.advanceTimersByTimeAsync(40); }
+
+    expect(onSlowdown).not.toHaveBeenCalled();
+    expect(onCadence).not.toHaveBeenCalled();
+    expect(watch.latest()!.maxIntervalMs).toBeLessThan(1000);
+    watch.stop();
+  });
+
   it("says nothing at all on a paused player", async () => {
     const onSlowdown = vi.fn();
     const { v, present } = fakeVideo();

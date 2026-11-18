@@ -387,8 +387,7 @@ func (h *userHandler) updateAccountFields(ctx context.Context, span trace.Span, 
 		if errors.Is(err, user.ErrUsernameTaken) {
 			return h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.user.username_taken")
 		}
-		slog.ErrorContext(ctx, "update user", slog.Any("err", err))
-		return status.Errorf(codes.Internal, "internal error")
+		return internalError(ctx, "update user", err)
 	}
 	return nil
 }

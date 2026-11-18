@@ -129,8 +129,7 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 		if errors.Is(err, shared.ErrNotFound) {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 		}
-		slog.ErrorContext(ctx, "revoke api key", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "revoke api key", err)
 	}
 	return &eveyv1.RevokeAPIKeyResponse{}, nil
 }

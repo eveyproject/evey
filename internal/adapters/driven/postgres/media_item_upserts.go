@@ -225,6 +225,10 @@ func itemWriteQuery(item *library.MediaItem, create bool, scanTitle, sortTitle s
 
 	// media_trailers: the in-memory slice is the source of truth, so an update
 	// deletes then re-inserts (the ids are positional, "tlr-<item>-<i>").
+	// Two writers on one item (the episodes of a new series each enriching the
+	// series) wait on the item row, but the second one's DELETE keeps the
+	// snapshot taken before the wait and misses the rows the first one just
+	// inserted: the insert overwrites them instead of failing on the key.
 	gate := ""
 	if !create {
 		ctes = append(ctes, `td AS (DELETE FROM media_trailers WHERE media_item_id IN (SELECT id FROM u) RETURNING 1)`)
@@ -241,7 +245,10 @@ func itemWriteQuery(item *library.MediaItem, create bool, scanTitle, sortTitle s
 		 SELECT 'tlr-' || u.id || '-' || (t.ord - 1), u.id, (t.ord - 1)::integer, t.site, t.key, t.language, t.official, t.type, t.use_subtitles, t.subtitle_language
 		 FROM u`+gate+`, unnest(`+arg(pq.Array(site), "text[]")+`, `+arg(pq.Array(key), "text[]")+`, `+arg(pq.Array(lang), "text[]")+`,
 		   `+arg(pq.Array(official), "boolean[]")+`, `+arg(pq.Array(typ), "text[]")+`, `+arg(pq.Array(useSubs), "boolean[]")+`,
-		   `+arg(pq.Array(subLang), "text[]")+`) WITH ORDINALITY AS t(site, key, language, official, type, use_subtitles, subtitle_language, ord))`)
+		   `+arg(pq.Array(subLang), "text[]")+`) WITH ORDINALITY AS t(site, key, language, official, type, use_subtitles, subtitle_language, ord)
+		 ON CONFLICT (id) DO UPDATE SET position = EXCLUDED.position, site = EXCLUDED.site, key = EXCLUDED.key,
+		   language = EXCLUDED.language, official = EXCLUDED.official, type = EXCLUDED.type,
+		   use_subtitles = EXCLUDED.use_subtitles, subtitle_language = EXCLUDED.subtitle_language)`)
 	}
 
 	return "WITH " + strings.Join(ctes, ",\n") + "\nSELECT count(*) FROM u", args, nil

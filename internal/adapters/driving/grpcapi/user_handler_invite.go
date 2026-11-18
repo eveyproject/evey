@@ -132,8 +132,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 		if errors.Is(err, shared.ErrNotFound) {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 		}
-		slog.ErrorContext(ctx, "revoke invite link", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "revoke invite link", err)
 	}
 	return &eveyv1.RevokeInviteLinkResponse{}, nil
 }
