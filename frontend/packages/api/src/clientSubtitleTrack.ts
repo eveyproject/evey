@@ -49,8 +49,8 @@ export function clientSubtitleTrack(
  * tonemapped four-rung x264 ladder on a box calibrated for one encode.
  *
  * Only a track the player CANNOT draw is a server concern - a bitmap with no
- * decoder on our side (VobSub, DVB). Text is drawn by SubtitleOverlay, and so is
- * PGS now, so neither must reach the URL. Nor must a burn-in track the viewer
+ * decoder on our side (XSUB). Text is drawn by SubtitleOverlay, and so are PGS,
+ * VobSub and DVB now, so none of them must reach the URL. Nor must a burn-in track the viewer
  * has not actually asked to see:
  * pickDefaultSubtitle auto-selects the track the FILE flags as default, image
  * tracks included, without restarting the session for it. The selection and the

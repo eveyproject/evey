@@ -19,6 +19,7 @@
 package cmcd
 
 import (
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -217,7 +218,12 @@ func assign(p *Payload, k, v string) {
 	}
 }
 
+// atoi reads a CMCD integer; what is not one, or does not fit the 32-bit
+// columns these values are stored in, reads as zero like any malformed value.
 func atoi(s string) int {
-	n, _ := strconv.Atoi(s)
+	n, err := strconv.Atoi(s)
+	if err != nil || n > math.MaxInt32 || n < math.MinInt32 {
+		return 0
+	}
 	return n
 }

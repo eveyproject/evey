@@ -8,11 +8,18 @@ import (
 	"github.com/eveyproject/evey/internal/domain/library"
 )
 
+// subtitleExtensions maps a sidecar's extension to the codec its stream is
+// stored under. The picture formats take the prober's codec names, which is
+// what tells every player to fetch them as decoded images rather than text.
 var subtitleExtensions = map[string]string{
 	".srt": "srt",
 	".ass": "ass",
 	".ssa": "ssa",
 	".vtt": "vtt",
+	".sup": "hdmv_pgs_subtitle",
+	// A VobSub is an .idx/.sub pair, listed once under its .idx. A .sub alone
+	// is not taken: the extension is also MicroDVD's text format.
+	".idx": "dvd_subtitle",
 }
 
 type SubtitleScanner struct{}
@@ -47,6 +54,9 @@ func (s *SubtitleScanner) ScanForSubtitles(videoPath string) ([]library.External
 
 		base := strings.TrimSuffix(name, filepath.Ext(name))
 		if !strings.EqualFold(base, videoBase) && !strings.HasPrefix(strings.ToLower(base), prefix+".") {
+			continue
+		}
+		if ext == ".idx" && !hasSibling(entries, base, ".sub") {
 			continue
 		}
 
@@ -95,6 +105,18 @@ func (s *SubtitleScanner) ScanForSubtitles(videoPath string) ([]library.External
 
 // isAlpha reports whether s is non-empty and all ASCII letters (used to keep a
 // numeric filename segment from being mistaken for a language code).
+// hasSibling reports whether the directory holds base+ext, whatever the case
+// of the extension.
+func hasSibling(entries []os.DirEntry, base, ext string) bool {
+	for _, e := range entries {
+		n := e.Name()
+		if !e.IsDir() && strings.EqualFold(filepath.Ext(n), ext) && strings.TrimSuffix(n, filepath.Ext(n)) == base {
+			return true
+		}
+	}
+	return false
+}
+
 func isAlpha(s string) bool {
 	if s == "" {
 		return false

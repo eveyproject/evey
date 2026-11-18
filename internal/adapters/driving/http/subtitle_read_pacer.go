@@ -100,9 +100,17 @@ func subtitleReadOptions(ctx context.Context, filePath string) []matroska.Option
 	return []matroska.Options{opts}
 }
 
-// logSubtitleDamage names a damaged region a subtitle read passed over: the
-// file wants replacing or `mkvgo reindex --resync`.
+// logSubtitleDamage names a damaged region a subtitle read passed over (the
+// file wants replacing or `mkvgo reindex --resync`), or a picture that did not
+// decode.
 func logSubtitleDamage(ctx context.Context, filePath string, r extmkv.DamagedRange) {
+	if r.Err != nil {
+		slog.WarnContext(ctx, "subtitles: a picture of the source did not decode and is left out",
+			slog.String("path", filePath),
+			slog.Int64("approx_start_ms", r.ApproxStartMs),
+			slog.String("error", r.Err.Error()))
+		return
+	}
 	slog.WarnContext(ctx, "subtitles: read passed over a damaged region of the source, its cues are lost, replace or repair the file",
 		slog.String("path", filePath),
 		slog.Int64("start_offset", r.StartOffset),

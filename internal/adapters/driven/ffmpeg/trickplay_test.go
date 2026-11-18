@@ -225,6 +225,32 @@ func TestSnapshot_TonemapsAnHDRSource(t *testing.T) {
 	assert.Equal(t, "scale=640:-1", recordedVF(t, sdrArgs), "an SDR source keeps the bare scale")
 }
 
+// A probe that failed (the request that wanted the snapshot went away) is no
+// answer about the file: the next snapshot reads the colour again, instead of
+// an HDR title staying painted as SDR until the file changes.
+func TestSnapshot_AFailedColourProbeIsNotRemembered(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	failFile := filepath.Join(dir, "fail")
+	require.NoError(t, os.WriteFile(failFile, []byte("x"), 0o644))
+	bin := writeFakeBinary(t, filepath.Join(dir, "ffmpeg"), "#!/bin/sh\ncat > /dev/null\nprintf '%s\\n' \"$@\" > "+argsFile+"\nprintf 'jpeg'\n")
+	probe := writeFakeBinary(t, filepath.Join(dir, "ffprobe"),
+		"#!/bin/sh\n[ -e "+failFile+" ] && exit 1\nprintf '{\"streams\":[{\"color_transfer\":\"smpte2084\"}],\"format\":{\"start_time\":\"0.000\"}}'\n")
+	src := filepath.Join(dir, "hdr.mkv")
+	require.NoError(t, os.WriteFile(src, []byte("x"), 0o644))
+	g := NewTrickplayGenerator(bin, probe)
+	ctx := context.Background()
+
+	_, err := g.ExtractFrame(ctx, src, 1, 640)
+	require.NoError(t, err)
+	assert.NotContains(t, recordedVF(t, argsFile), "tonemap", "an unread colour paints as SDR, this once")
+
+	require.NoError(t, os.Remove(failFile))
+	_, err = g.ExtractFrame(ctx, src, 2, 640)
+	require.NoError(t, err)
+	assert.Contains(t, recordedVF(t, argsFile), "tonemap", "the failed probe was remembered as SDR")
+}
+
 // The colour of a source is read once per file, not once per snapshot: the
 // scrubbing preview asks for many frames of the same file in a row, and a
 // probe per frame would cost more than the frame on the cheap path.

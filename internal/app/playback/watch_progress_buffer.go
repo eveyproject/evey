@@ -30,6 +30,9 @@ type WatchProgressBuffer struct {
 	repo          playback.ProgressCommandRepo
 	flushInterval time.Duration
 
+	// flushMu is held for the whole of a Flush, so Forget can wait for the
+	// write in progress instead of racing it.
+	flushMu sync.Mutex
 	mu      sync.Mutex
 	pending map[watchProgressKey]*playback.WatchProgress
 	// inflight holds the entries a running Flush took out of pending and has
@@ -131,6 +134,34 @@ func (b *WatchProgressBuffer) Peek(profileID shared.ProfileID, mediaItemID share
 	return &c, true
 }
 
+// Forget drops the positions waiting to be written for these items of a
+// profile, once the flush in progress, if any, has written its own. The
+// caller deletes the rows next: without this a position reported seconds
+// before "mark as unwatched" was flushed after the delete and put the row,
+// and the Resume button, back.
+func (b *WatchProgressBuffer) Forget(profileID shared.ProfileID, mediaItemIDs ...shared.MediaItemID) {
+	b.flushMu.Lock()
+	defer b.flushMu.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, id := range mediaItemIDs {
+		delete(b.pending, watchProgressKey{profileID: profileID, mediaItemID: id})
+	}
+}
+
+// ForgetProfile is Forget for everything a profile has waiting.
+func (b *WatchProgressBuffer) ForgetProfile(profileID shared.ProfileID) {
+	b.flushMu.Lock()
+	defer b.flushMu.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for k := range b.pending {
+		if k.profileID == profileID {
+			delete(b.pending, k)
+		}
+	}
+}
+
 // Flush drains and upserts every pending entry in ONE batch statement (the
 // per-entry loop cost one round trip per viewer per tick). If the batch
 // fails as a whole, it falls back to per-entry writes so one poisoned row
@@ -139,6 +170,8 @@ func (b *WatchProgressBuffer) Peek(profileID shared.ProfileID, mediaItemID share
 func (b *WatchProgressBuffer) Flush(ctx context.Context) int {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.WatchProgressBuffer.Flush")
 	defer span.End()
+	b.flushMu.Lock()
+	defer b.flushMu.Unlock()
 	entries := b.snapshot()
 	if len(entries) == 0 {
 		return 0

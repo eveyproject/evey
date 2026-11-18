@@ -327,6 +327,50 @@ func TestCommandService_ReportProgressBySession_BuffersWrite(t *testing.T) {
 	assert.Equal(t, int64(15000), wp.Position.Milliseconds(), "latest position wins after fold")
 }
 
+// A position the player reported seconds before "mark as unwatched" or
+// "clear history" must not come back with the next flush: the row, and the
+// Resume button with it, stays gone. Another profile's wait is untouched.
+func TestCommandService_UnwatchedAndClearedPositionsDoNotComeBackWithTheFlush(t *testing.T) {
+	t.Parallel()
+	for name, forget := range map[string]func(*appplayback.CommandService) error{
+		"mark as unwatched": func(c *appplayback.CommandService) error { return c.MarkAsUnwatched(context.Background(), "p1", "m1") },
+		"clear history": func(c *appplayback.CommandService) error {
+			_, err := c.ClearWatchHistory(context.Background(), "p1")
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			pr := newCountingProgressRepo()
+			sr := pbfakes.NewFakePlaySessionRepository()
+			ur := userfakes.NewFakeUserRepository()
+			pfr := userfakes.NewFakeProfileRepository()
+			buf := appplayback.NewWatchProgressBuffer(pr, time.Hour)
+			cmd := appplayback.NewCommandService(pr, sr, sr, ur, pfr, sharedfakes.NewFakeEventBus(), appplayback.WithWatchProgressBuffer(buf))
+			query := appplayback.NewQueryService(pr, sr).WithPendingProgress(buf)
+
+			ctx := context.Background()
+			ur.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true})
+			pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+			pfr.Create(ctx, &user.Profile{ID: "p2", UserID: "u1"})
+			require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+			require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s2", ProfileID: "p2", MediaItemID: "m1"}, "u1"))
+			require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 5000, false, ""))
+			require.NoError(t, cmd.ReportProgressBySession(ctx, "s2", 7000, false, ""))
+
+			require.NoError(t, forget(cmd))
+
+			_, err := query.GetWatchProgress(ctx, "p1", "m1")
+			require.ErrorIs(t, err, shared.ErrNotFound, "the buffered position is still served")
+			buf.Flush(ctx)
+			_, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
+			require.ErrorIs(t, err, shared.ErrNotFound, "the flush put the row back")
+			other, err := pr.GetByProfileAndMedia(ctx, "p2", "m1")
+			require.NoError(t, err)
+			assert.Equal(t, int64(7000), other.Position.Milliseconds())
+		})
+	}
+}
+
 func TestCommandService_ReportProgressBySession_NoBufferStaysSynchronous(t *testing.T) {
 	t.Parallel()
 	pr := newCountingProgressRepo()

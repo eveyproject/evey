@@ -56,22 +56,21 @@ func TestTextSubtitleTracks_CountsSubtitlesOnly(t *testing.T) {
 	}
 }
 
-// A bitmap track is never served as text (the route answers 422), so extracting
-// one reads the whole film to produce something nobody can use.
-// PGS is prewarmed now that it is served as decoded images instead of being
-// burnt into the video - and it is the track that most needs the head start,
-// being the one a retail rip flags DEFAULT. VobSub stays out: nothing decodes
-// it, so warming it would fill the cache for a menu entry that draws nothing.
-func TestTextSubtitleTracks_KeepsPGSButNotVobSub(t *testing.T) {
+// Every bitmap track mkvgo decodes is prewarmed - PGS, VobSub and DVB are
+// served as decoded images instead of being burnt into the video. XSUB stays
+// out: nothing decodes it, so warming it would fill the cache for a menu entry
+// that draws nothing.
+func TestTextSubtitleTracks_KeepsDecodableBitmapsButNotXSUB(t *testing.T) {
 	streams := []*domainlibrary.MediaStream{
 		sub("subrip", "fre", false),
 		sub("hdmv_pgs_subtitle", "fre", false),
+		sub("xsub", "eng", false),
 		sub("dvd_subtitle", "eng", false),
-		sub("ass", "eng", false),
+		sub("dvb_subtitle", "eng", false),
 	}
 	got := indices(textSubtitleTracks(streams, ""))
-	if len(got) != 3 || got[0] != 0 || got[1] != 1 || got[2] != 3 {
-		t.Fatalf("indices = %v, want [0 1 3]: text and PGS at their real ordinals, VobSub dropped", got)
+	if len(got) != 4 || got[0] != 0 || got[1] != 1 || got[2] != 3 || got[3] != 4 {
+		t.Fatalf("indices = %v, want [0 1 3 4]: text, PGS, VobSub and DVB at their real ordinals, XSUB dropped", got)
 	}
 }
 
@@ -121,10 +120,10 @@ func TestTextSubtitleTracks_NothingToDo(t *testing.T) {
 	if got := textSubtitleTracks(nil, "fre"); len(got) != 0 {
 		t.Fatalf("got %v, want none", got)
 	}
-	// VobSub alone still gives nothing to do: it is a bitmap track no decoder
+	// XSUB alone still gives nothing to do: it is a bitmap track no decoder
 	// here can read.
-	onlyVobSub := []*domainlibrary.MediaStream{sub("dvd_subtitle", "fre", false)}
-	if got := textSubtitleTracks(onlyVobSub, "fre"); len(got) != 0 {
+	onlyXSUB := []*domainlibrary.MediaStream{sub("xsub", "fre", false)}
+	if got := textSubtitleTracks(onlyXSUB, "fre"); len(got) != 0 {
 		t.Fatalf("got %v, want none", got)
 	}
 }

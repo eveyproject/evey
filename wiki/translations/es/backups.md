@@ -1,5 +1,5 @@
 ---
-source_sha: 183d5d31f8aa84f9a8c2422bb3ca3ca04b531e43e8bfb4f1a2c6047199ff4871
+source_sha: 0e9677cafb6440a4984abea7c9a1d5bc5e010660e3be079a81f138d63d036a5d
 reviewed: true
 ---
 # Copias de seguridad y actualizaciones { #backups-and-updates }
@@ -67,6 +67,8 @@ auditoría.
 - tus archivos de vídeo, música y fotos;
 - la caché de vídeo (se vuelve a llenar sola);
 - el índice de búsqueda (se reconstruye a partir de la base de datos);
+- las huellas de detección de intros, guardadas en `./evey-data/fingerprints`
+  (se vuelven a calcular a partir de los archivos cuando faltan);
 - las claves guardadas en `./evey-data`: `jwt.key`, que protege todos los
   inicios de sesión, la carpeta `keys` (contraseña de la base de datos,
   clave de búsqueda) y `hls_aes.key`, la clave que cifra los segmentos de
@@ -147,6 +149,15 @@ Eso es toda la actualización.
    copia de antes de la actualización: `docker exec evey-server evey admin
    rollback` muestra los pasos exactos, con la ruta del archivo.
 3. Ejecuta `docker compose up -d`.
+
+Las huellas de la detección de intros son lo único que no te sigue. El primer
+arranque de una versión que las guarda en `./evey-data/fingerprints` las mueve
+allí desde la base de datos y borra las filas que movió. Una versión anterior
+solo las lee de la base de datos, no encuentra ninguna y las vuelve a calcular
+a partir de los archivos a medida que avanza la detección de intros: no se
+pierde nada, pero el servidor está más ocupado durante un tiempo. Una copia de
+seguridad hecha antes de la actualización todavía contiene esas filas, y
+restaurarla las recupera.
 
 Las etiquetas de imagen, las otras variantes y las versiones para tarjetas
 gráficas se describen en

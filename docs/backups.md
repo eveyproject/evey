@@ -57,6 +57,8 @@ It does **not** contain:
 - your media files;
 - the video cache (it fills up again by itself);
 - the search index (rebuilt from the database);
+- the intro detection fingerprints, kept in `./evey-data/fingerprints`
+  (computed again from the media files when they are missing);
 - the keys kept in `./evey-data`: `jwt.key`, which protects every sign-in,
   the `keys` folder (database password, search key), and `hls_aes.key`, the
   key that encrypts streaming segments (created at first boot, mode 0600);
@@ -133,6 +135,14 @@ That is the whole update.
    steps, with the file's path.
 3. Run `docker compose up -d`.
 
+The intro detection fingerprints are the one thing that does not follow you
+back. The first start of a version that keeps them in
+`./evey-data/fingerprints` moves them there from the database and deletes the
+rows it moved. An older version reads them from the database only, finds none,
+and computes them again from the media files as intro detection runs: nothing
+is lost, but the server is busier for a while. A backup made before the update
+still holds the rows, and restoring it brings them back.
+
 Image tags, other variants and graphics card builds are described in
 [Advanced deployments](operations/advanced-deployments.md#image-tags-and-variants).
 
@@ -144,6 +154,7 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
+fingerprints moved out of the database at boot, rows deleted once copied: cmd/evey/fingerprint_store.go - moveAudioFingerprints, movePhashFingerprints ; internal/adapters/driven/postgres/intro_fingerprint_legacy.go ; backups hold every table but telemetry: internal/adapters/driven/postgres/backup.go - telemetryTables
 rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

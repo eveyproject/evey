@@ -213,6 +213,12 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 	return nil
 }
 
+// keepsStoredUsername reports whether u carries the name its row already has.
+func (s *UserService) keepsStoredUsername(ctx context.Context, u *user.User) bool {
+	stored, err := s.users.GetByID(ctx, u.ID)
+	return err == nil && stored.Username == u.Username
+}
+
 func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.UpdateUser")
 	defer span.End()
@@ -221,8 +227,15 @@ func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 	// handler assigns req.Email straight onto the aggregate, so without this an
 	// admin could park a syntactically invalid address on an existing account
 	// through a path the create path forbids.
+	// A name stored before the username rule existed stays as it is; any
+	// other name, a rename included, meets the rule.
 	if err := u.Validate(); err != nil {
-		return fmt.Errorf("UserService.UpdateUser: %w", err)
+		if !errors.Is(err, user.ErrUsernameInvalid) || !s.keepsStoredUsername(ctx, u) {
+			return fmt.Errorf("UserService.UpdateUser: %w", err)
+		}
+		if err := u.ValidateKeepingUsername(); err != nil {
+			return fmt.Errorf("UserService.UpdateUser: %w", err)
+		}
 	}
 	// An admin account must never OWN a kids profile: its tokens carry is_admin,
 	// which exempts the caller from the parental gate (checkParental / the gRPC

@@ -1,0 +1,10 @@
+{
+  "name": "evey-plugin-runtime-node",
+  "version": "1.0.0",
+  "private": true,
+  "description": "What the Evey image provides to Node.js plugins under /usr/local/lib/node_modules (NODE_PATH).",
+  "dependencies": {
+    "@grpc/grpc-js": "1.14.7",
+    "@grpc/proto-loader": "0.8.1"
+  }
+}

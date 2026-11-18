@@ -106,6 +106,89 @@ func TestBufferedSink_BatchStorage_TakesWaitingEventsTogether(t *testing.T) {
 	assert.Equal(t, 9, sizes[1], "the events queued behind it travel in one write")
 }
 
+// poisonStorage refuses any write holding an event whose segment is in bad,
+// the way one out-of-range value fails a whole multi-row statement.
+type poisonStorage struct {
+	batchStorage
+	bad     map[int]bool
+	singles atomic.Int64
+}
+
+func (p *poisonStorage) refuses(evts []Event) bool {
+	for _, e := range evts {
+		if p.bad[e.SegmentIdx] {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *poisonStorage) InsertEvent(ctx context.Context, evt Event) error {
+	p.singles.Add(1)
+	if p.refuses([]Event{evt}) {
+		return errors.New("integer out of range")
+	}
+	return p.batchStorage.InsertEvents(ctx, []Event{evt})
+}
+
+func (p *poisonStorage) InsertEvents(ctx context.Context, evts []Event) error {
+	if p.refuses(evts) {
+		p.once.Do(func() {
+			close(p.entered)
+			<-p.release
+		})
+		return errors.New("integer out of range")
+	}
+	return p.batchStorage.InsertEvents(ctx, evts)
+}
+
+func recordBehindFirstWrite(t *testing.T, sink *BufferedSink, st *poisonStorage, n int) {
+	t.Helper()
+	sink.Record(Event{MediaItemID: "m", SegmentIdx: 0})
+	select {
+	case <-st.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the worker never reached the storage")
+	}
+	for i := 1; i < n; i++ {
+		sink.Record(Event{MediaItemID: "m", SegmentIdx: i})
+	}
+	close(st.release)
+	require.NoError(t, sink.Close(context.Background()))
+}
+
+// One event the backend refuses costs that event, not the batch it travelled
+// in: the others are written one by one.
+func TestBufferedSink_PoisonedBatchFallsBackPerEvent(t *testing.T) {
+	st := &poisonStorage{entered: make(chan struct{}), release: make(chan struct{}), bad: map[int]bool{4: true}}
+	sink := NewBufferedSink(st, SinkOptions{BufferSize: 64}, nil)
+	recordBehindFirstWrite(t, sink, st, 10)
+
+	_, got := st.snapshot()
+	var segs []int
+	for _, e := range got {
+		segs = append(segs, e.SegmentIdx)
+	}
+	assert.Equal(t, []int{0, 1, 2, 3, 5, 6, 7, 8, 9}, segs)
+}
+
+// A backend that refuses everything is not asked for each event of the
+// batch: the retry stops after a few refusals in a row.
+func TestBufferedSink_PoisonedBatchFallbackGivesUpOnADeadBackend(t *testing.T) {
+	bad := map[int]bool{}
+	for i := 1; i < 40; i++ {
+		bad[i] = true
+	}
+	st := &poisonStorage{entered: make(chan struct{}), release: make(chan struct{}), bad: bad}
+	st.bad[0] = true
+	sink := NewBufferedSink(st, SinkOptions{BufferSize: 64}, nil)
+	recordBehindFirstWrite(t, sink, st, 40)
+
+	_, got := st.snapshot()
+	assert.Empty(t, got)
+	assert.EqualValues(t, batchFallbackGiveUp, st.singles.Load(), "one-by-one attempts on a backend that refuses everything")
+}
+
 type countingDrops struct{ n atomic.Int64 }
 
 func (c *countingDrops) Inc()      { c.n.Add(1) }

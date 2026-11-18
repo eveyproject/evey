@@ -1,5 +1,5 @@
 ---
-source_sha: e5498cbe162421216bad6ea8b820fff1d05e8752e13b5a31df1cec45ea69d1a6
+source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
 reviewed: true
 ---
 # Écrire un plugin { #writing-a-plugin }
@@ -53,10 +53,14 @@ Le contrat gRPC tient dans un fichier, `proto/plugin/v1/plugin_api.proto`. Seul
 le SDK Python livre des stubs générés ; les autres langages sous
 `sdk/<langage>/` contiennent le `.proto`. Le serveur copie les fichiers de
 votre langage à côté de votre point d'entrée au démarrage du plugin. L'image
-fournit `grpcio` aux plugins Python, qui n'ont donc rien à embarquer. Un plugin
-Node.js doit embarquer son `node_modules` (`@grpc/grpc-js` et
-`@grpc/proto-loader`) dans le paquet. Pour un autre langage, générez les stubs
-avec `protoc` et livrez-les dans le ZIP :
+fournit `grpcio` aux plugins Python, qui n'ont donc rien à embarquer. Les
+images `nodejs` et `full` fournissent de la même façon `@grpc/grpc-js` et
+`@grpc/proto-loader` aux plugins Node.js. Les images jusqu'à la 0.1.8 ne le
+font pas : un plugin Node.js qui doit aussi tourner dessus garde les deux dans
+le `node_modules` de son paquet, et celui qui compte sur l'image le déclare avec
+`min_evey_version`. Un `node_modules` livré dans le paquet passe toujours avant
+celui de l'image. Pour un autre langage, générez les stubs avec `protoc` et
+livrez-les dans le ZIP :
 
 ```bash
 protoc --proto_path=proto \

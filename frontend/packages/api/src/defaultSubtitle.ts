@@ -28,7 +28,7 @@ export interface SubtitleCandidate {
   language?: string;
   isForced?: boolean;
   isDefault?: boolean;
-  /** True for PGS/VobSub: the server has to burn it into the video. */
+  /** True for a bitmap the player cannot draw (XSUB): the server has to burn it into the video. */
   burnIn?: boolean;
 }
 

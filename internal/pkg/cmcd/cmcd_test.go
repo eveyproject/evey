@@ -99,6 +99,19 @@ func TestFromRequest_MalformedValue_DoesNotPanic(t *testing.T) {
 	assert.Equal(t, 2400, p.EncodedKbps, "valid sibling field still parsed")
 }
 
+// A number past what the 32-bit columns hold reads as zero, like any other
+// malformed value: stored as it came, it made the whole write fail.
+func TestFromRequest_OutOfRangeNumber_ReadsAsZero(t *testing.T) {
+	raw := url.QueryEscape(`br=99999999999,bl=2147483648,mtp=2147483647,d=-99999999999,tb=1200`)
+	p, ok := FromRequest(httpReq("/hls/x/y?CMCD=" + raw))
+	require.True(t, ok)
+	assert.Equal(t, 0, p.EncodedKbps)
+	assert.Equal(t, 0, p.BufferLengthMs)
+	assert.Equal(t, 2147483647, p.MeasuredKbps, "the largest value that fits is kept")
+	assert.Equal(t, 0, p.ObjectDuration)
+	assert.Equal(t, 1200, p.TopBitrateKbps)
+}
+
 func TestFromRequest_UnknownKeys_LandInRaw(t *testing.T) {
 	// CTA-5004 allows custom keys - we keep them in Raw without breaking.
 	raw := url.QueryEscape(`br=2400,custom-key="foo",x-evey-flag=1`)

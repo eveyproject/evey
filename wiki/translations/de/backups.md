@@ -1,5 +1,5 @@
 ---
-source_sha: 183d5d31f8aa84f9a8c2422bb3ca3ca04b531e43e8bfb4f1a2c6047199ff4871
+source_sha: 0e9677cafb6440a4984abea7c9a1d5bc5e010660e3be079a81f138d63d036a5d
 reviewed: true
 ---
 # Sicherungen und Updates { #backups-and-updates }
@@ -67,6 +67,8 @@ Sie enthält **nicht**:
 - Ihre Mediendateien;
 - den Video-Cache (er füllt sich von selbst wieder);
 - den Suchindex (er wird aus der Datenbank neu aufgebaut);
+- die Fingerabdrücke der Intro-Erkennung in `./evey-data/fingerprints`
+  (sie werden aus den Mediendateien neu berechnet, wenn sie fehlen);
 - die Schlüssel in `./evey-data`: `jwt.key`, der jede Anmeldung schützt, und
   den Ordner `keys` (Datenbankpasswort, Suchschlüssel) und `hls_aes.key`, den
   Schlüssel, der die Streaming-Segmente verschlüsselt (beim ersten Start
@@ -147,6 +149,15 @@ Das ist das ganze Update.
    `docker exec evey-server evey admin rollback` gibt die genauen Schritte
    aus, mit dem Pfad der Datei.
 3. Führen Sie `docker compose up -d` aus.
+
+Die Fingerabdrücke der Intro-Erkennung sind das Einzige, das Ihnen nicht
+folgt. Der erste Start einer Version, die sie in `./evey-data/fingerprints`
+ablegt, verschiebt sie dorthin aus der Datenbank und löscht die verschobenen
+Zeilen. Eine ältere Version liest sie nur aus der Datenbank, findet keine und
+berechnet sie während der Intro-Erkennung aus den Mediendateien neu: Es geht
+nichts verloren, aber der Server ist eine Weile stärker ausgelastet. Eine vor
+dem Update angelegte Sicherung enthält die Zeilen noch, und ihre
+Wiederherstellung bringt sie zurück.
 
 Image-Tags, weitere Varianten und Builds für Grafikkarten sind unter
 [Fortgeschrittene Bereitstellungen](operations/advanced-deployments.md#image-tags-and-variants)

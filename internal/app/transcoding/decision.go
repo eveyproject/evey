@@ -46,6 +46,10 @@ type StreamSpec struct {
 	FrameRate *float64
 	// Interlaced is the prober's scan verdict (library.ScanInterlaced).
 	Interlaced bool
+	// External marks a subtitle sidecar file: ffmpeg burns from the video's own
+	// streams, so a sidecar is never burnt; a picture sidecar is drawn by the
+	// player.
+	External bool
 }
 
 // toStreamSpecs adapts the persistence-flavored library.MediaStream slice
@@ -98,6 +102,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			Level:       s.Level,
 			FrameRate:   s.Framerate,
 			Interlaced:  s.ScanType() == library.ScanInterlaced,
+			External:    s.IsExternal,
 		})
 	}
 	return out
@@ -569,15 +574,22 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 	// A layout the prober never measured cannot be held to the client's
 	// channel ceiling: a 7.1 track would reach it untouched. The re-encode
-	// sets the layout.
+	// sets the layout, under the lower of the client's and the profile's
+	// ceilings: the variant URIs carry that folded ceiling as the client's, so
+	// a master that held the client's alone sealed a fingerprint its own
+	// variants never resolved to.
 	if s.Channels == nil && (client.MaxAudioChannels > 0 || prefs.MaxAudioChannels > 0) {
 		addReasonOnce(d, "audio_layout_unknown")
 		d.AudioDecision = "transcode"
 		if d.AudioCodec == "" {
 			d.AudioCodec = transcoding.DefaultAudioCodec
 		}
-		if d.MaxAudioChannels == 0 && client.MaxAudioChannels > 0 {
-			d.MaxAudioChannels = client.MaxAudioChannels
+		ceiling := client.MaxAudioChannels
+		if prefs.MaxAudioChannels > 0 && (ceiling == 0 || prefs.MaxAudioChannels < ceiling) {
+			ceiling = prefs.MaxAudioChannels
+		}
+		if d.MaxAudioChannels == 0 || ceiling < d.MaxAudioChannels {
+			d.MaxAudioChannels = ceiling
 		}
 	}
 	// Per-profile cap on audio channels (user pref).
@@ -778,7 +790,10 @@ func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *Stream
 // the player picks.
 func evaluateSubtitle(d *transcoding.PlaybackDecision, s StreamSpec, prefs TranscodingPreferences, subIdx int) {
 	selected := subIdx == prefs.SubtitleBurnInTrack
-	isImage := IsImageSubtitle(s.Codec)
+	// A picture sidecar (.sup, .idx/.sub) is served as decoded images like a
+	// text sidecar is served as WebVTT: an older player that still asks to burn
+	// it would otherwise have ffmpeg map an embedded stream that is not there.
+	isImage := IsImageSubtitle(s.Codec) && !s.External
 
 	switch prefs.SubtitleBurnIn {
 	case "never":

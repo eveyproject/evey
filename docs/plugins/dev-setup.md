@@ -47,10 +47,13 @@ The gRPC contract is one file, `proto/plugin/v1/plugin_api.proto`. Only
 the Python SDK ships generated stubs; the other languages under
 `sdk/<language>/` hold the `.proto`. The server copies the files of your
 language next to your entrypoint when the plugin starts. The image provides
-`grpcio` to Python plugins, so a Python plugin has nothing to vendor. A
-Node.js plugin must vendor its `node_modules` (`@grpc/grpc-js` and
-`@grpc/proto-loader`) in the package. For another language, generate stubs
-with `protoc` and ship them in the ZIP:
+`grpcio` to Python plugins, so a Python plugin has nothing to vendor. The
+`nodejs` and `full` images provide `@grpc/grpc-js` and `@grpc/proto-loader`
+to Node.js plugins the same way. The images up to 0.1.8 do not: a Node.js
+plugin that must also run on them keeps both in the `node_modules` of its
+package, and one that relies on the image says so with `min_evey_version`.
+A `node_modules` shipped in the package always wins over the image's. For
+another language, generate stubs with `protoc` and ship them in the ZIP:
 
 ```bash
 protoc --proto_path=proto \
@@ -412,7 +415,7 @@ tag is pushed.
 
 <!-- sources
 runtimes, image variants: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries, compiledLanguages ; internal/app/plugin/install.go - parseAndValidateManifest ; Dockerfile (RUNTIMES lean/nodejs/full)
-stubs copied at start, NODE_PATH: internal/adapters/driven/filesystem/plugin_fs.go - CopySDKStubs ; internal/adapters/driven/pluginrunner/runner_start.go ; sdk/python/README.md ; examples/plugins/nodejs-example/package.json
+stubs copied at start, NODE_PATH: internal/adapters/driven/filesystem/plugin_fs.go - CopySDKStubs ; internal/adapters/driven/pluginrunner/runner_start.go ; sdk/python/README.md ; examples/plugins/nodejs-example/package.json ; docker/plugin-runtime-node/package.json ; Dockerfile (plugin-runtime-node stage)
 dev stack: DEV.md (Quick Start) ; Makefile - setup, dev ; docker-compose.yml (evey-data/plugins:/data/plugins)
 example: examples/plugins/nodejs-example/main.js, plugin.yaml
 env vars: internal/adapters/driven/pluginrunner/runner_start.go (EVEY_PLUGIN_ID, EVEY_PLUGIN_SOCK, EVEY_HOST_SOCK)

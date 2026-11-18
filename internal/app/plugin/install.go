@@ -117,6 +117,10 @@ func (e *PluginBlockedError) Error() string {
 func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (localPath, expectedHash string, cleanup func(), err error) {
 	cleanup = func() {}
 
+	// Read the way CheckRequestedSource reads it: a link it let through must
+	// never be taken for a path on the server here.
+	source = strings.TrimSpace(source)
+
 	// Parse optional "#sha256:<hex>" fragment.
 	rawURL, fragment, _ := strings.Cut(source, "#")
 	if h, ok := strings.CutPrefix(fragment, "sha256:"); ok {
@@ -124,14 +128,17 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 		source = rawURL
 	}
 
-	if strings.HasPrefix(strings.ToLower(source), "http://") {
+	const httpsScheme = "https://"
+	lower := strings.ToLower(source)
+	if strings.HasPrefix(lower, "http://") {
 		err = ErrInsecureSource
 		return
 	}
-	if !strings.HasPrefix(source, "https://") {
+	if !strings.HasPrefix(lower, httpsScheme) {
 		localPath = source
 		return
 	}
+	source = httpsScheme + source[len(httpsScheme):]
 
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
 	if reqErr != nil {
@@ -512,8 +519,12 @@ func (s *InstallerService) extractPluginToStaging(p *plugin.Plugin, existing *pl
 	}
 	if s.installer != nil {
 		// Clear any leftover staging dir from a previously-interrupted upgrade.
+		// Leftovers that could not be cleared would be installed with the zip,
+		// unread by an analysis kept from its preview: the upgrade stops here.
 		if stagingDir != finalDir && s.fs != nil {
-			s.fs.RemoveAll(stagingDir) //nolint:errcheck
+			if rmErr := s.fs.RemoveAll(stagingDir); rmErr != nil {
+				return finalDir, stagingDir, fmt.Errorf("clear leftover upgrade dir: %w", rmErr)
+			}
 		}
 		if err := s.installer.Extract(zipPath, stagingDir); err != nil {
 			return finalDir, stagingDir, fmt.Errorf("extract plugin: %w", err)
@@ -580,7 +591,17 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 	}
 
 	if s.analyzer != nil && p.InstallDir != "" {
-		report, analyzeErr := s.analyzer.Analyze(p.InstallDir, p.WebRoot)
+		// The verdict the preview (or the automatic update's check) reached on
+		// this very zip stands: same bytes, same rules. Not for a theme, whose
+		// theme.css was just rewritten: its files are read as they will be served.
+		var report *plugin.AnalysisReport
+		if !p.IsTheme() {
+			report = s.recalledAnalysis(p.SourceHash, p.WebRoot)
+		}
+		var analyzeErr error
+		if report == nil {
+			report, analyzeErr = s.analyzer.Analyze(p.InstallDir, p.WebRoot)
+		}
 		if analyzeErr != nil {
 			// Fail-closed: without a clean analysis we cannot grant install -
 			// a third-party plugin could ship obfuscated malware that the

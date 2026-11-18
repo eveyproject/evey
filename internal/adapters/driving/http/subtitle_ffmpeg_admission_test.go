@@ -40,7 +40,7 @@ func TestExternalSubtitleFFmpeg_FailedStartReleasesItsAdmission(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	req := httptest.NewRequest(http.MethodGet, "/sub.vtt", nil).WithContext(ctx)
-	serveExternalSubtitle(httptest.NewRecorder(), req, path, dir, "")
+	serveExternalSubtitle(httptest.NewRecorder(), req, subtitleCache{}, path, dir, "")
 	if got := procfork.Reserved(); got != before {
 		t.Fatalf("admission still booked after a failed start: %d bytes, was %d", got, before)
 	}

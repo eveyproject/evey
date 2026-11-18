@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
 let profile: { id: string; preferences?: Record<string, string> } | undefined;
@@ -15,9 +15,11 @@ vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQue
 vi.mock("@evey/store", () => ({
   autoplayNextEpisode: (p: Record<string, string> | undefined) => p?.["autoplay_next_episode"] !== "false",
   autoplayNextPreferences: (p: Record<string, string> | undefined, on: boolean) => ({ ...p, autoplay_next_episode: String(on) }),
+  isDemoMode: () => false,
 }));
 
 import { profileLangList, usePlayerProfilePrefs } from "./usePlayerProfilePrefs";
+import { DEFAULT_SUBTITLE_STYLE, SUBTITLE_STYLE_PREF_KEY } from "../lib/subtitleStyle";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -55,5 +57,45 @@ describe("usePlayerProfilePrefs", () => {
     const { result } = renderHook(() => usePlayerProfilePrefs());
     await act(() => result.current.setAutoplayNext(false));
     expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  describe("subtitle style", () => {
+    const bigger = { ...DEFAULT_SUBTITLE_STYLE, fontSize: DEFAULT_SUBTITLE_STYLE.fontSize + 50 };
+    const savedStyle = () => JSON.parse(mutateAsync.mock.calls[0][0].data.preferences[SUBTITLE_STYLE_PREF_KEY]);
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      mutateAsync.mockResolvedValue({});
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("saves a change once the viewer stops", async () => {
+      const { result } = renderHook(() => usePlayerProfilePrefs());
+      act(() => result.current.saveSubtitleStyle(bigger));
+      expect(mutateAsync).not.toHaveBeenCalled();
+      await act(() => vi.advanceTimersByTimeAsync(600));
+      expect(mutateAsync).toHaveBeenCalledTimes(1);
+      expect(savedStyle()).toEqual(bigger);
+    });
+
+    it("sends a change still inside the delay when the screen goes away", async () => {
+      const { result, unmount } = renderHook(() => usePlayerProfilePrefs());
+      act(() => result.current.saveSubtitleStyle(bigger));
+      unmount();
+      await vi.runAllTimersAsync();
+      expect(mutateAsync).toHaveBeenCalledTimes(1);
+      expect(savedStyle()).toEqual(bigger);
+    });
+
+    it("does not send it twice once the timer already did", async () => {
+      const { result, unmount } = renderHook(() => usePlayerProfilePrefs());
+      act(() => result.current.saveSubtitleStyle(bigger));
+      await act(() => vi.advanceTimersByTimeAsync(600));
+      unmount();
+      await vi.runAllTimersAsync();
+      expect(mutateAsync).toHaveBeenCalledTimes(1);
+    });
   });
 });

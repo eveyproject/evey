@@ -479,7 +479,13 @@ func (g *TrickplayGenerator) snapshotColour(ctx context.Context, filePath string
 	if v, ok := g.colours.Load(key); ok {
 		return v.(trickplayColour)
 	}
-	col := g.probeColour(ctx, filePath)
+	col, read := probeSourceColourRead(ctx, g.probeBinary, "trickplay.colour", filePath)
+	if !read {
+		// A probe that did not run to its end (the request that asked for the
+		// snapshot went away) says nothing about the file: kept, it painted an
+		// HDR title as SDR for as long as the file lived.
+		return col
+	}
 	if g.colourslen.Add(1) > snapshotColourCacheCap {
 		g.colours.Clear()
 		g.colourslen.Store(1)
@@ -586,6 +592,13 @@ func (g *TrickplayGenerator) probeColour(ctx context.Context, filePath string) t
 // probeSourceColour is the probe behind probeColour, shared with the sync
 // preview: both render a small SDR picture of a source that may be HDR.
 func probeSourceColour(ctx context.Context, probeBinary, site, filePath string) trickplayColour {
+	col, _ := probeSourceColourRead(ctx, probeBinary, site, filePath)
+	return col
+}
+
+// probeSourceColourRead also reports whether the probe ran to its end and
+// its answer was read: false leaves the colour unknown, not SDR.
+func probeSourceColourRead(ctx context.Context, probeBinary, site, filePath string) (trickplayColour, bool) {
 	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: site}, probeBinary,
 		"-v", "quiet",
 		"-select_streams", "v:0",
@@ -594,7 +607,7 @@ func probeSourceColour(ctx context.Context, probeBinary, site, filePath string) 
 		filePath,
 	)
 	if err != nil {
-		return trickplayColour{}
+		return trickplayColour{}, false
 	}
 	var parsed struct {
 		Streams []struct {
@@ -607,8 +620,11 @@ func probeSourceColour(ctx context.Context, probeBinary, site, filePath string) 
 			StartTime string `json:"start_time"`
 		} `json:"format"`
 	}
-	if err := json.Unmarshal(out, &parsed); err != nil || len(parsed.Streams) == 0 {
-		return trickplayColour{}
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		return trickplayColour{}, false
+	}
+	if len(parsed.Streams) == 0 {
+		return trickplayColour{}, true
 	}
 	s := parsed.Streams[0]
 	col := trickplayColour{Transfer: s.ColorTransfer}
@@ -621,5 +637,5 @@ func probeSourceColour(ctx context.Context, probeBinary, site, filePath string) 
 			col.DoVi = true
 		}
 	}
-	return col
+	return col, true
 }
