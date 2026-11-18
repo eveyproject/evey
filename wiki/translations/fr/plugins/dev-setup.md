@@ -1,5 +1,5 @@
 ---
-source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
+source_sha: 3369e1ee02f4a1bf1c2f0ead7f53e5774d9411f2bda9655d52d7668ded65435d
 reviewed: true
 ---
 # Écrire un plugin { #writing-a-plugin }
@@ -48,6 +48,25 @@ demande la permission `native-binary`. L'image par défaut embarque
 Python, Node.js, PHP, Ruby et Lua ; l'image `-nodejs` garde Python et Node.js
 et l'image `-lean` ne garde que Python. Un manifeste qui nomme un environnement absent de l'image est refusé
 à l'installation, avec la liste des environnements disponibles.
+
+Ce que chaque image fournit à un plugin, selon `language` :
+
+| `language` | Images | Interpréteur | gRPC fourni par l'image | Ce que le paquet apporte |
+|---|---|---|---|---|
+| `python` | par défaut, `-nodejs`, `-lean` | Python 3.13 | `grpcio`, `protobuf` | Son code. Le serveur copie les stubs générés à côté du point d'entrée. |
+| `nodejs` | par défaut, `-nodejs` | Node.js 20 | `@grpc/grpc-js` 1.14.7, `@grpc/proto-loader` 0.8.1, à partir de la 0.1.9 | Son code. Jusqu'à la 0.1.8, les deux modules gRPC dans son `node_modules`. |
+| `php` | par défaut | PHP 8.4 | aucun | Une implémentation gRPC et les stubs qu'elle a générés. |
+| `ruby` | par défaut | Ruby 3.3 | aucun | Une implémentation gRPC et les stubs qu'elle a générés. |
+| `lua` | par défaut | Lua 5.4 | aucun | Une implémentation gRPC et les stubs qu'elle a générés. |
+| `bash`, `sh` | les trois | bash 5.2, dash | aucun | Ce qui sert la socket gRPC. |
+| `go` | les trois | aucun, compilé | inutile | Un binaire statique, avec la permission `native-binary`. |
+
+Les interpréteurs et les modules Python sont les paquets de la version de
+Debian sur laquelle l'image est construite : leurs versions majeures ne
+bougent qu'avec elle. Les deux modules Node.js sont épinglés dans
+`docker/plugin-runtime-node/package.json`. La construction de l'image échoue
+si l'un d'eux ne se charge pas : une image ne sort jamais sans ce que ce
+tableau promet.
 
 Le contrat gRPC tient dans un fichier, `proto/plugin/v1/plugin_api.proto`. Seul
 le SDK Python livre des stubs générés ; les autres langages sous
