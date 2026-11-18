@@ -3,12 +3,14 @@ package grpcapi
 import (
 	"context"
 	"errors"
-	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	"fmt"
+	"maps"
 	"strings"
 	"testing"
 	"time"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	appactivity "github.com/eveyproject/evey/internal/app/activity"
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/config"
@@ -838,6 +840,74 @@ func TestUpdateProfile_PreferencesMergeKeyByKey(t *testing.T) {
 	}
 	if resp.Preferences["theme"] != "amoled" || resp.Preferences["theme_plugin_id"] != "plg-2" {
 		t.Errorf("a plugin id sent alone changed the theme pair wrongly: %v", resp.Preferences)
+	}
+}
+
+// A preference write is bounded: the profile row cannot be grown at will, key
+// by key or value by value. What is refused changes nothing, and a map
+// already past the count can still be trimmed.
+func TestUpdateProfile_PreferencesBounded(t *testing.T) {
+	big := strings.Repeat("v", user.ProfilePreferenceValueMaxSize+1)
+	longKey := strings.Repeat("k", user.ProfilePreferenceKeyMaxBytes+1)
+	full := make(map[string]string, user.ProfilePreferencesMaxKeys)
+	for i := range user.ProfilePreferencesMaxKeys {
+		full[fmt.Sprintf("k%02d", i)] = "v"
+	}
+	over := maps.Clone(full)
+	over["one_more"] = "v"
+
+	cases := []struct {
+		name    string
+		stored  map[string]string
+		write   map[string]string
+		refused bool
+	}{
+		{"value at the bound", nil, map[string]string{"a": big[:user.ProfilePreferenceValueMaxSize]}, false},
+		{"value past the bound", nil, map[string]string{"a": big}, true},
+		{"key at the bound", nil, map[string]string{longKey[:user.ProfilePreferenceKeyMaxBytes]: "v"}, false},
+		{"key past the bound", nil, map[string]string{longKey: "v"}, true},
+		{"empty key", nil, map[string]string{"": "v"}, true},
+		{"one key more than the count", full, map[string]string{"one_more": "v"}, true},
+		{"rewriting a key of a full map", full, map[string]string{"k00": "w"}, false},
+		{"removing a key of a map past the count", over, map[string]string{"k00": ""}, false},
+		{"adding to a map past the count", over, map[string]string{"another": "v"}, true},
+		{"swapping a key of a full map for another", full, map[string]string{"k00": "", "one_more": "v"}, false},
+		{"swapping two keys in for one out", full, map[string]string{"k00": "", "one_more": "v", "two_more": "v"}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := setupUserHandler()
+			env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-1", UserID: "usr-1", Name: "Default", Preferences: maps.Clone(c.stored)})
+			_, err := env.handler.UpdateProfile(userCtx("usr-1", "prf-1"), &eveyv1.UpdateProfileRequest{Id: "prf-1", Preferences: c.write})
+			if !c.refused {
+				if err != nil {
+					t.Fatalf("UpdateProfile: %v", err)
+				}
+				return
+			}
+			if status.Code(err) != codes.InvalidArgument {
+				t.Fatalf("err = %v, want InvalidArgument", err)
+			}
+			got, getErr := env.profileRepo.GetByID(context.Background(), "prf-1")
+			if getErr != nil {
+				t.Fatal(getErr)
+			}
+			if !maps.Equal(got.Preferences, c.stored) {
+				t.Errorf("a refused write changed the stored preferences")
+			}
+		})
+	}
+}
+
+func TestCreateProfile_PreferencesBounded(t *testing.T) {
+	env := setupUserHandler()
+	seedAdultProfile(t, env, "prf-1", "usr-1")
+	_, err := env.handler.CreateProfile(userCtx("usr-1", "prf-1"), &eveyv1.CreateProfileRequest{
+		UserId: "usr-1", Name: "Second",
+		Preferences: map[string]string{"a": strings.Repeat("v", user.ProfilePreferenceValueMaxSize+1)},
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("err = %v, want InvalidArgument", err)
 	}
 }
 

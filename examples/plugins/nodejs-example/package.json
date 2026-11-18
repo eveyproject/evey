@@ -3,5 +3,5 @@
   "version": "1.0.0",
   "private": true,
   "main": "main.js",
-  "_comment": "Runtime provides @grpc/grpc-js + @grpc/proto-loader via NODE_PATH; nothing needs to be vendored. Plugins with their own third-party deps must bundle node_modules in the ZIP."
+  "_comment": "The nodejs and full images provide @grpc/grpc-js + @grpc/proto-loader via NODE_PATH (images up to 0.1.8 do not: vendor both to run on them). Plugins with their own third-party deps must bundle node_modules in the ZIP."
 }

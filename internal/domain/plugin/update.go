@@ -24,7 +24,8 @@ const (
 	// UpdateHeld: a newer release exists and waits for an admin, because it
 	// asks for something the installed version does not have (a permission, a
 	// capability, a slot, a host, a new kind of analysis warning, another
-	// signing key), or because automatic updates are off for this plugin.
+	// signing key), because it needs a newer server, or because automatic
+	// updates are off for this plugin.
 	UpdateHeld UpdateOutcome = "held"
 	// UpdateRefused: the release carries code the analysis refuses. It is not
 	// installed, automatically or otherwise.

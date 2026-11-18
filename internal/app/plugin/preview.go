@@ -117,6 +117,7 @@ func (s *InstallerService) PreviewPlugin(ctx context.Context, zipPath string) (*
 				report, analyzeErr := s.analyzer.Analyze(tmpDir, manifest.WebRoot)
 				if analyzeErr == nil {
 					preview.Analysis = report
+					s.rememberAnalysis(sourceHash, manifest.WebRoot, report)
 				}
 			}
 		}
@@ -195,6 +196,7 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 				report, analyzeErr := s.analyzer.Analyze(tmpDir, manifest.WebRoot)
 				if analyzeErr == nil {
 					preview.NewFindings = report.RawFindings
+					s.rememberAnalysis(sourceHash, manifest.WebRoot, report)
 				}
 			}
 		}

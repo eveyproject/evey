@@ -17,6 +17,7 @@ updates:
 
   - package-ecosystem: npm
     directories:
+      - /docker/plugin-runtime-node
       - /examples/plugins/*
       - /tests/plugins/*
       - /tests/plugins/sandbox-escape/*

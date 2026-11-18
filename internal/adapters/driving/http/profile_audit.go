@@ -101,7 +101,15 @@ func (l *limitedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// jsonFieldNames returns the sorted top-level keys of a JSON object, or nil.
+// What one audit row keeps of a body's field names: the caller chooses them,
+// and a refused request is recorded too.
+const (
+	auditMaxFieldNames    = 32
+	auditMaxFieldNameSize = 64
+)
+
+// jsonFieldNames returns the sorted top-level keys of a JSON object, or nil:
+// at most auditMaxFieldNames of them, each cut to auditMaxFieldNameSize bytes.
 func jsonFieldNames(body []byte) []string {
 	var obj map[string]json.RawMessage
 	if len(body) == 0 || json.Unmarshal(body, &obj) != nil {
@@ -112,5 +120,13 @@ func jsonFieldNames(body []byte) []string {
 		names = append(names, k)
 	}
 	sort.Strings(names)
+	if len(names) > auditMaxFieldNames {
+		names = names[:auditMaxFieldNames]
+	}
+	for i, n := range names {
+		if len(n) > auditMaxFieldNameSize {
+			names[i] = strings.ToValidUTF8(n[:auditMaxFieldNameSize], "")
+		}
+	}
 	return names
 }

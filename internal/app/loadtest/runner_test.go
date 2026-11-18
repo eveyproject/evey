@@ -518,6 +518,16 @@ func waitForReport(t *testing.T, r *Runner, timeout time.Duration) *Report {
 	return nil
 }
 
+// newRunner is New reading a modelled machine at rest instead of the host's
+// own cgroup. A run that reads the host ends on cpu_saturated whenever the
+// machine running the tests is busy, whatever the test set out to prove; the
+// tests about resources wire their own machine over this one.
+func newRunner(httpClient *http.Client, media MediaLister, activeStreams func() int, logger *slog.Logger) *Runner {
+	r := New(httpClient, media, activeStreams, logger)
+	r.counters = &modelledMachine{cores: 8, memLimit: 16 << 30, viewers: func() int { return 0 }}
+	return r
+}
+
 // --- tests --------------------------------------------------------------
 
 // A server that refuses the 4th stream holds 3. The climb must find that exact
@@ -530,7 +540,7 @@ func TestRunner_AdmissionFullStopsRampAtSustainedTier(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
@@ -563,7 +573,7 @@ func TestRunner_SLOBreachStopsAtPriorTier(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
@@ -606,7 +616,7 @@ func TestRunner_SLOBreachStopsAtPriorTier(t *testing.T) {
 // organic newcomer's slow start remains exactly what the verdict exists to
 // catch.
 func TestRunner_AHerdOfRestartingViewersIsNotAStartupVerdict(t *testing.T) {
-	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
 	pool := newCandidatePool(manyCandidates(3), time.Minute)
 	slo := newSLOTracker(0)
 	samples := newSampleState()
@@ -683,7 +693,7 @@ func TestRunner_ColdCacheKeepsEvictingTheLibrary(t *testing.T) {
 
 	var mu sync.Mutex
 	evicted := map[string]int{}
-	r := New(&http.Client{}, fakeMediaLister{candidates: candidates}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: candidates}, zeroActive, testLogger())
 	r.evictFile = func(path string) error {
 		mu.Lock()
 		evicted[path]++
@@ -725,7 +735,7 @@ func TestRunner_WarmCacheRunNeverEvicts(t *testing.T) {
 		candidates[i].Path = fmt.Sprintf("/library/m%d.mkv", i)
 	}
 	evictions := 0
-	r := New(&http.Client{}, fakeMediaLister{candidates: candidates}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: candidates}, zeroActive, testLogger())
 	r.evictFile = func(string) error { evictions++; return nil }
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
@@ -751,7 +761,7 @@ func TestRunner_ShortLibraryDoesNotStopTheRamp(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
 		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 5 * time.Second,
@@ -819,7 +829,7 @@ func TestRunner_TranscodeScenarioForksBeyondLibrary(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioTranscode,
 		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 3 * time.Second,
@@ -864,7 +874,7 @@ func TestRunner_CancelStopsAndReportsPartial(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(20)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(20)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
 		MaxViewers: 20, RampEvery: 60 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 10 * time.Second,
@@ -902,7 +912,7 @@ func TestRunner_TokenExpiredStopsImmediately(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "expired", Scenario: ScenarioNatural,
 		MaxViewers: 3, RampEvery: 50 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 2 * time.Second,
@@ -921,7 +931,7 @@ func TestRunner_TokenExpiredStopsImmediately(t *testing.T) {
 }
 
 func TestRunner_StartRefusesWhenStreamsActive(t *testing.T) {
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, func() int { return 2 }, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, func() int { return 2 }, testLogger())
 	err := r.Start(context.Background(), Config{BaseURL: "http://127.0.0.1:1", Token: "t"})
 	if !errors.Is(err, ErrStreamsActive) {
 		t.Fatalf("Start error = %v, want ErrStreamsActive", err)
@@ -936,7 +946,7 @@ func TestRunner_StartRefusesWhenAlreadyRunning(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
 		MaxViewers: 5, RampEvery: 500 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 5 * time.Second,
@@ -958,7 +968,7 @@ func TestRunner_PacesSegmentFetchesInRealTime(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
 		MaxViewers: 1, RampEvery: 5 * time.Second, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 2 * time.Second,
@@ -1023,7 +1033,7 @@ func TestRunner_SLOBudgetIsPerViewerType(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
 		MaxViewers: 6, RampEvery: 400 * time.Millisecond, FastHold: time.Second, MeasureHold: 2 * time.Second, StepWindows: 2, MaxDuration: 30 * time.Second,
@@ -1068,7 +1078,7 @@ func TestRunner_MkvgoSkipsIneligibleCandidateAndKeepsClimbing(t *testing.T) {
 
 	// Only 2 of the 3 titles are mkvgo-eligible, yet 5 viewers are asked for:
 	// the pool must reach 5 by replaying those 2 titles at distinct positions.
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
 		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 5 * time.Second,
@@ -1099,7 +1109,7 @@ func TestRunner_ReusedTitleStartsAtADistinctPosition(t *testing.T) {
 	defer srv.Close()
 
 	// One single title, three viewers: they can only differ by start position.
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
 		MaxViewers: 3, RampEvery: 60 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 5 * time.Second,
@@ -1141,7 +1151,7 @@ func TestRunner_MkvgoFirstSegmentWithoutHeaderCountsAsFailure(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
 		MaxViewers: 1, RampEvery: 5 * time.Second, FastHold: 600 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 5 * time.Second,
@@ -1172,7 +1182,7 @@ func TestRunner_LogsFinalReport(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, logger)
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, logger)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
 		MaxViewers: 2, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 3 * time.Second,
@@ -1230,7 +1240,7 @@ func TestRunner_BalancedMixAlternatesTypes(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
 		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 4 * time.Second,
@@ -1264,7 +1274,7 @@ func TestRunner_LightMixIsMostlyMkvgo(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioLight,
 		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 4 * time.Second,
@@ -1296,7 +1306,7 @@ func TestRunner_HeavyMixAdmissionFullOnTranscodePool(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioHeavy,
@@ -1338,7 +1348,7 @@ func TestRunner_ShrinkWithoutRebuildReapsIdleMediaOnly(t *testing.T) {
 	candidates := manyCandidates(8)
 	var mu sync.Mutex
 	var partialReaps, fullReaps int
-	r := New(&http.Client{}, fakeMediaLister{candidates: candidates}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: candidates}, zeroActive, testLogger())
 	r.WithSessionReaper(func(mediaIDs []string) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -1385,7 +1395,7 @@ func TestRunner_BisectionReapsLeftoverSessionsBetweenTiers(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(20)}, zeroActive, testLogger()).
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(20)}, zeroActive, testLogger()).
 		WithSessionReaper(reap)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
@@ -1458,7 +1468,7 @@ func TestRunner_PinnedScenario_OneTranscodeThenMkvgo(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: "mkvgo+1",
 		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 3 * time.Second,
@@ -1511,7 +1521,7 @@ func TestConfig_WithDefaults_EnduranceDefaultsToLongerMaxDuration(t *testing.T) 
 }
 
 func TestRunner_StartRefusesUnknownMode(t *testing.T) {
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
 	err := r.Start(context.Background(), Config{BaseURL: "http://127.0.0.1:1", Token: "t", Mode: "bogus"})
 	if !errors.Is(err, ErrUnknownMode) {
 		t.Fatalf("Start error = %v, want ErrUnknownMode", err)
@@ -1534,7 +1544,7 @@ func TestRunner_FlashDoesNotStopOnAdmissionRefusalsAndCountsSurvivors(t *testing
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
 		MaxViewers: 5, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 5 * time.Second,
@@ -1572,7 +1582,7 @@ func TestRunner_FlashLaunchesAllViewersInSameWindow(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
 		MaxViewers: 5, RampEvery: 300 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 5 * time.Second,
@@ -1632,7 +1642,7 @@ func TestRunner_FlashPlusMkvgoStillRequiresTheHeader(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo, Mode: ModeFlash,
 		MaxViewers: 1, RampEvery: 30 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 20 * time.Second,
@@ -1661,7 +1671,7 @@ func TestRunner_SeekModeJumpsNonSequentiallyAndRecordsTTFF(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
 	cfg := Config{BaseURL: srv.URL, Token: "tkn", Mode: ModeSeek}
 	events := make(chan viewerEvent, 1024)
 	var wg sync.WaitGroup
@@ -1714,7 +1724,7 @@ func TestRunner_SeekModeIsDeterministicAcrossRuns(t *testing.T) {
 		srv := httptest.NewServer(st.handler())
 		defer srv.Close()
 
-		r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
+		r := newRunner(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
 		cfg := Config{BaseURL: srv.URL, Token: "tkn", Mode: ModeSeek}
 		events := make(chan viewerEvent, 1024)
 		var wg sync.WaitGroup
@@ -1764,7 +1774,7 @@ func TestRunner_SeekModeVerdictsUnchanged(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeSeek,
@@ -1793,7 +1803,7 @@ func TestRunner_EnduranceHoldsPlateauThenCompletes(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeEndurance,
 		MaxViewers: 2, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 1500 * time.Millisecond,
@@ -1830,7 +1840,7 @@ func TestRunner_EnduranceSLOBreachDuringHoldStillStops(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeEndurance,
 		MaxViewers: 2, RampEvery: 80 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, StepWindows: 2, MaxDuration: 5 * time.Second,
@@ -1883,7 +1893,7 @@ func TestRunner_SlowStartupIsACapacityVerdict(t *testing.T) {
 
 	// Enough titles that every newcomer of the grid's churn starts a fresh one
 	// at its first segment - the one this server makes crawl.
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(120)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(120)}, zeroActive, testLogger())
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
@@ -1922,7 +1932,7 @@ func TestRunner_AnyServiceUnavailableIsACapacityAnswer(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
@@ -1957,7 +1967,7 @@ func TestRunner_ServerThatStopsAnsweringIsSaturatedNotBroken(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{Timeout: 300 * time.Millisecond}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{Timeout: 300 * time.Millisecond}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
@@ -2006,7 +2016,7 @@ func TestRunner_ViewerPullsItsAudioRenditionToo(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
 		MaxViewers: 1, FastHold: time.Second, MeasureHold: time.Second, MaxDuration: 6 * time.Second,
@@ -2062,7 +2072,7 @@ func TestRunner_FlashReapsRefusedViewersMidWindow(t *testing.T) {
 
 	var mu sync.Mutex
 	var reaps [][]string
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger()).
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger()).
 		WithSessionReaper(func(ids []string) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -2119,7 +2129,7 @@ func TestRunner_HoldsThePlaybackSignalForTheWholeRun(t *testing.T) {
 	var held, released atomic.Int32
 	var viewersWhenRaised atomic.Int32
 	viewersWhenRaised.Store(-1)
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
 	r.WithPlaybackSignal(func() func() {
 		held.Add(1)
 		viewersWhenRaised.Store(int32(r.Status().Viewers))
@@ -2149,7 +2159,7 @@ func TestFetchOnce_MarksTheRequestAsTheLoadTest(t *testing.T) {
 		got = req.Header.Get(headerLoadTest)
 	}))
 	defer srv.Close()
-	r := New(srv.Client(), fakeMediaLister{}, zeroActive, testLogger())
+	r := newRunner(srv.Client(), fakeMediaLister{}, zeroActive, testLogger())
 	if _, _, _, _, err := r.fetchOnce(context.Background(), srv.URL, "tok", false); err != nil {
 		t.Fatal(err)
 	}
@@ -2162,7 +2172,7 @@ func TestFetchOnce_MarksTheRequestAsTheLoadTest(t *testing.T) {
 // of window reads that read a window again.
 func TestRunner_LogsTheRunsShareOfTheWindowCounters(t *testing.T) {
 	var logs bytes.Buffer
-	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, slog.New(slog.NewTextHandler(&logs, nil)))
+	r := newRunner(&http.Client{}, fakeMediaLister{}, zeroActive, slog.New(slog.NewTextHandler(&logs, nil)))
 	r.logWindowStats(
 		map[string]int64{"plans": 3, "window_builds": 100, "window_rebuilds": 10},
 		map[string]int64{"plans": 5, "window_builds": 300, "window_rebuilds": 60},
@@ -2209,7 +2219,7 @@ func TestSLOTracker_JudgesEachFetchAgainstItsOwnSegment(t *testing.T) {
 // A measured size is judged window by window on startup too: slow joins in
 // one window do not condemn the next window, whose newcomers start in time.
 func TestRunner_StartupIsJudgedOnTheWindowInProgress(t *testing.T) {
-	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
+	r := newRunner(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
 	pool := newCandidatePool(manyCandidates(3), time.Minute)
 	slo := newSLOTracker(0)
 	samples := newSampleState()
@@ -2249,7 +2259,7 @@ func TestRunner_StartupIsJudgedOnTheWindowInProgress(t *testing.T) {
 // newcomer was refused (the bisection test failed about 1 run in 7).
 func TestRunner_IdleReapIgnoresMkvgoViewersOnASharedTitle(t *testing.T) {
 	var reaped []string
-	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger()).
+	r := newRunner(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger()).
 		WithSessionReaper(func(ids []string) { reaped = append(reaped, ids...) })
 	pool := newCandidatePool(manyCandidates(3), time.Minute)
 	ramp := rampState{

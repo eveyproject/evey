@@ -240,6 +240,30 @@ func TestUpdateUser_PromoteToAdminRejectedWhenUserHasKidsProfile(t *testing.T) {
 	}
 }
 
+// A name stored before the username rule existed does not block the
+// account's other changes; taking such a name, or keeping it with a bad
+// address, is still refused.
+func TestUpdateUser_ANameOlderThanTheRuleIsKeptNotTaken(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	old := "ali\u200dce"
+	seedUserSvcUser(t, d, "u1", old, "pw", false, true)
+	seedUserSvcUser(t, d, "u2", "bob", "pw", false, true)
+
+	if err := d.svc.UpdateUser(ctx, &user.User{ID: "u1", Username: old, Email: "alice@example.com"}); err != nil {
+		t.Fatalf("an email change on an account with an old name: %v", err)
+	}
+	if err := d.svc.UpdateUser(ctx, &user.User{ID: "u1", Username: old, Email: "not-an-email"}); !errors.Is(err, user.ErrEmailInvalid) {
+		t.Fatalf("a bad address under an old name: %v", err)
+	}
+	if err := d.svc.UpdateUser(ctx, &user.User{ID: "u2", Username: old}); !errors.Is(err, user.ErrUsernameInvalid) {
+		t.Fatalf("renaming to a name the rule refuses: %v", err)
+	}
+	if err := d.svc.UpdateUser(ctx, &user.User{ID: "u1", Username: "ali\u202ece"}); !errors.Is(err, user.ErrUsernameInvalid) {
+		t.Fatalf("renaming from one refused name to another: %v", err)
+	}
+}
+
 func TestUpdateUser_RepoError(t *testing.T) {
 	d := newUserTestDeps()
 	d.users.Err = errors.New("fail")

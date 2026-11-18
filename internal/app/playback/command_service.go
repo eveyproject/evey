@@ -472,7 +472,9 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 	// container alone reads as watched on the container's page while every
 	// episode, the next-up feed and the resume rail still say unwatched. The
 	// container rows are written too, as the home and detail pages read them.
-	// One transaction: a half-marked season is the state this replaces.
+	// The rows are written in one transaction: a half-marked season is the
+	// state this replaces. The episodes are read before it, which loses
+	// nothing: under read committed a read inside it would see no more.
 	desc, err := s.progress.DescendantIDs(ctx, mediaItemID)
 	if err != nil {
 		return fmt.Errorf("CommandService.MarkAsWatched: %w", err)
@@ -1023,6 +1025,13 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 		return fmt.Errorf("CommandService.MarkAsUnwatched: %w", err)
 	}
 	targets := append([]string{mediaItemID}, desc.All()...)
+	if s.progressBuffer != nil {
+		ids := make([]shared.MediaItemID, len(targets))
+		for i, id := range targets {
+			ids[i] = shared.MediaItemID(id)
+		}
+		s.progressBuffer.Forget(shared.ProfileID(profileID), ids...)
+	}
 	if err := s.transact(ctx, func(ctx context.Context) error {
 		return s.progress.DeleteMany(ctx, profileID, targets)
 	}); err != nil {
@@ -1047,6 +1056,9 @@ func (s *CommandService) ClearWatchHistory(ctx context.Context, profileID shared
 	defer span.End()
 	if err := s.validateProfile(ctx, profileID); err != nil {
 		return 0, err
+	}
+	if s.progressBuffer != nil {
+		s.progressBuffer.ForgetProfile(profileID)
 	}
 	n, err := s.progress.DeleteByProfile(ctx, string(profileID))
 	if err != nil {

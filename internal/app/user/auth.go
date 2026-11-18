@@ -120,10 +120,12 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	defer span.End()
 	username = strings.TrimSpace(username)
 	password = normalizePassword(password)
-	// A name no account can carry is refused before anything is read or
+	// A name no stored account can have is refused before anything is read or
 	// written: the failure counters and the audit log are keyed on the name
 	// as typed, and an unbounded one was a free write of any size into them.
-	if user.ValidateUsername(username) != nil {
+	// Only that: the rule for new names would lock out the accounts older
+	// than it.
+	if user.ValidateLoginUsername(username) != nil {
 		s.publishLoginFailed(ctx, "", "invalid_username")
 		return "", "", ErrInvalidCredentials
 	}

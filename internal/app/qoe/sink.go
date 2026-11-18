@@ -220,12 +220,38 @@ func (s *BufferedSink) processBatch(storage BatchStorage, batch []Event) {
 				slog.String("stack", string(debug.Stack())))
 		}
 	}()
-	if err := storage.InsertEvents(context.Background(), batch); err != nil {
-		s.logger.Warn("qoe sink: batch insert failed",
-			slog.Int("events", len(batch)),
-			slog.Any("err", err))
+	err := storage.InsertEvents(context.Background(), batch)
+	if err == nil {
+		return
+	}
+	s.logger.Warn("qoe sink: batch insert failed",
+		slog.Int("events", len(batch)),
+		slog.Any("err", err))
+	if len(batch) == 1 {
+		return
+	}
+	// One row the backend refuses fails the whole statement: the others are
+	// written one by one rather than lost with it. A backend that refuses
+	// everything is left alone after a few rows in a row.
+	failed := 0
+	for i, evt := range batch {
+		if insErr := s.storage.InsertEvent(context.Background(), evt); insErr != nil {
+			failed++
+			if failed >= batchFallbackGiveUp {
+				s.logger.Warn("qoe sink: backend refuses every event, rest of the batch dropped",
+					slog.Int("dropped", len(batch)-i-1), slog.Any("err", insErr))
+				return
+			}
+			continue
+		}
+		failed = 0
 	}
 }
+
+// batchFallbackGiveUp is how many events in a row a failed batch's one-by-one
+// retry may lose before it stops: a single bad row costs one, a backend that
+// is down costs this many attempts instead of a whole batch of timeouts.
+const batchFallbackGiveUp = 3
 
 // processEvent persists one event with a PER-ITERATION recover: a panic on a
 // single event (e.g. a future storage impl) is logged and the loop keeps

@@ -40,6 +40,15 @@ RUN mkdir -p /tmp/out \
     && CGO_ENABLED=0 GOOS=js GOARCH=wasm go build -o /tmp/out/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
     && cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" /tmp/out/wasm_exec.js
 
+# ── Stage 2c: what the image provides to Node.js plugins ──
+# The gRPC client a Node.js plugin is told it finds under NODE_PATH, pinned by
+# docker/plugin-runtime-node/package-lock.json. Pure JavaScript, no install
+# script run: the same files on every target arch.
+FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS plugin-runtime-node
+WORKDIR /runtime
+COPY docker/plugin-runtime-node/package.json docker/plugin-runtime-node/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
 # ── Stage 3: Build frontend ──
 # Output is static JS/CSS/HTML - identical on every target arch, so build it
 # natively (see the gomod stage note on $BUILDPLATFORM).
@@ -307,12 +316,16 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
 # the cache key of every RUN that follows its declaration, so declared at the
 # top of the stage it forced the whole apt layer to rebuild per variant.
 ARG RUNTIMES=full
-RUN case "$RUNTIMES" in \
+RUN --mount=type=bind,from=plugin-runtime-node,source=/runtime/node_modules,target=/mnt/plugin-runtime-node \
+    case "$RUNTIMES" in \
       lean) ;; \
       nodejs|full) \
         apt-get update \
         && apt-get install -y --no-install-recommends nodejs \
         && ([ -e /usr/bin/node ] || ln -sf /usr/bin/nodejs /usr/bin/node) \
+        && mkdir -p /usr/local/lib/node_modules \
+        && cp -R /mnt/plugin-runtime-node/. /usr/local/lib/node_modules/ \
+        && NODE_PATH=/usr/local/lib/node_modules node -e "require('@grpc/grpc-js'); require('@grpc/proto-loader')" \
         && if [ "$RUNTIMES" = "full" ]; then \
              apt-get install -y --no-install-recommends php-cli ruby lua5.4 \
              && ([ -e /usr/bin/lua ] || ln -sf /usr/bin/lua5.4 /usr/bin/lua); \

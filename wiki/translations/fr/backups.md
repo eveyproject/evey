@@ -1,5 +1,5 @@
 ---
-source_sha: 240cd74711c9616842947f45e87cbeb2ac83c28f83771f8909b58080ca420f80
+source_sha: 0e9677cafb6440a4984abea7c9a1d5bc5e010660e3be079a81f138d63d036a5d
 reviewed: true
 ---
 # Sauvegardes et mises à jour { #backups-and-updates }
@@ -152,6 +152,15 @@ C'est toute la mise à jour.
    `docker exec evey-server evey admin rollback` affiche les étapes exactes,
    avec le chemin du fichier.
 3. Lancez `docker compose up -d`.
+
+Les empreintes de détection des génériques sont la seule chose qui ne vous
+suit pas. Le premier démarrage d'une version qui les garde dans
+`./evey-data/fingerprints` les y déplace depuis la base de données et efface
+les lignes déplacées. Une version plus ancienne ne les lit que dans la base,
+n'en trouve aucune et les recalcule à partir des fichiers au fil de la
+détection des génériques : rien n'est perdu, mais le serveur est plus occupé
+pendant un moment. Une sauvegarde faite avant la mise à jour contient encore
+ces lignes, et la restaurer les ramène.
 
 Les tags d'image, les autres variantes et les versions pour carte graphique
 sont décrits dans
