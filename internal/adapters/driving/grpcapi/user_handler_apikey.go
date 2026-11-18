@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -62,10 +61,9 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.access.CreateAPIKey(ctx, key); err != nil {
-		slog.ErrorContext(ctx, "create api key", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "create api key", err)
 	}
 
 	resp := apiKeyToProto(key)
@@ -83,10 +81,9 @@ func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequ
 	}
 	keys, err := h.query.ListAPIKeys(ctx, claims.UserID)
 	if err != nil {
-		slog.ErrorContext(ctx, "list api keys", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "list api keys", err)
 	}
 	resp := &eveyv1.ListAPIKeysResponse{}
 	for _, k := range keys {

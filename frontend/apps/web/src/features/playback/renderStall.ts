@@ -178,7 +178,7 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
   let lastShownAt: number | null = null;
   let lastMediaTime: number | null = null;
   let paintedAtStart = painted();
-  // A pause seen by the watchdog: the window that holds it measures the pause,
+  // A pause (or a hidden tab) seen by the watchdog: the window that holds it measures the pause,
   // not the picture, and the first frame after it must not count the pause as
   // one long interval (prod: every resume reported a "slowdown" whose longest
   // frame was the pause itself).
@@ -219,7 +219,9 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
     // did synchronously in the meantime shows up here.
     const lag = Math.max(0, t - expected);
     if (lag > lagMax) lagMax = lag;
-    if (video.paused || video.ended) {
+    // A hidden tab presents no frames either: same treatment as a pause.
+    const hidden = typeof document !== "undefined" && document.visibilityState !== "visible";
+    if (video.paused || video.ended || hidden) {
       pausedInWindow = true;
       pausedSinceLastFrame = true;
     }

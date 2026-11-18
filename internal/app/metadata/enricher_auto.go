@@ -744,6 +744,16 @@ func episodeCountMatches(disk, tmdb int) bool {
 	return float64(diff) <= tolerance
 }
 
+// enrichSeriesOnce enriches a series on behalf of one of its seasons or
+// episodes; concurrent callers for the same series share the one run, then
+// each reloads the series from the store.
+func (e *Enricher) enrichSeriesOnce(ctx context.Context, series *domainlib.MediaItem, log *slog.Logger) {
+	_, _, _ = e.seriesOnce.Do(string(series.ID), func() (any, error) {
+		e.AutoEnrichItem(ctx, series, log)
+		return nil, nil
+	})
+}
+
 func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) error {
 	if item.ParentID == "" || item.IndexNumber == nil {
 		return errNotPlacedInSeries
@@ -755,7 +765,7 @@ func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaIt
 
 	// Ensure series is enriched first
 	if series.Overview == "" {
-		e.AutoEnrichItem(ctx, series, log)
+		e.enrichSeriesOnce(ctx, series, log)
 		series, err = e.mediaItems.GetByID(ctx, shared.MediaItemID(item.ParentID))
 		if err != nil {
 			return fmt.Errorf("reload series: %w", err)
@@ -825,7 +835,7 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 		if seriesID == "" {
 			// For primary, try enriching the series first
 			if cap.Provider.Name() == primaryName && series.Overview == "" {
-				e.AutoEnrichItem(ctx, series, log)
+				e.enrichSeriesOnce(ctx, series, log)
 				series, err = e.mediaItems.GetByID(ctx, shared.MediaItemID(season.ParentID))
 				if err != nil {
 					continue

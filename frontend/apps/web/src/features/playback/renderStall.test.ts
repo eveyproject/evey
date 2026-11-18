@@ -177,6 +177,31 @@ describe("createRenderStallWatch", () => {
     watch.stop();
   });
 
+  // Same for a tab put in the background: no frames are presented while it is
+  // hidden, so the window it comes back in and the first interval after it
+  // measure the absence, not the picture.
+  it("does not report coming back to a hidden tab as a slowdown", async () => {
+    const onSlowdown = vi.fn();
+    const { v, show } = fakeVideo();
+    let state: DocumentVisibilityState = "visible";
+    const vis = vi.spyOn(document, "visibilityState", "get").mockImplementation(() => state);
+    const watch = createRenderStallWatch(v, { onSlowdown, now });
+    let media = 0;
+    const frame = () => { show(clock, media); media += 0.04; };
+
+    for (let i = 0; i < 125; i++) { frame(); clock += 40; await vi.advanceTimersByTimeAsync(40); }
+    state = "hidden";
+    await advance(60_000);
+    await advance(600);
+    state = "visible";
+    for (let i = 0; i < 10 + 75; i++) { frame(); clock += 40; await vi.advanceTimersByTimeAsync(40); }
+
+    expect(onSlowdown).not.toHaveBeenCalled();
+    expect(watch.latest()!.maxIntervalMs).toBeLessThan(1000);
+    watch.stop();
+    vis.mockRestore();
+  });
+
   it("says nothing at all on a paused player", async () => {
     const onSlowdown = vi.fn();
     const { v, present } = fakeVideo();

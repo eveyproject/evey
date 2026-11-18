@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/time/rate"
 )
 
@@ -71,6 +72,11 @@ type MediaItemUpdater interface {
 type ArtworkPostSaveHook func(ctx context.Context, rec *domainmetadata.ArtworkRecord)
 
 type Enricher struct {
+	// seriesOnce lets the seasons and episodes of a series that just arrived,
+	// enriched in parallel by the workers, share one enrichment of the series
+	// instead of each running its own (duplicate provider calls, and
+	// concurrent writes of the same row).
+	seriesOnce singleflight.Group
 	// artwork is split into its ADR-0009 command/query halves; both fields are
 	// populated from the same concrete repository (see NewEnricher), the split
 	// only narrows what each call site in this file can reach.

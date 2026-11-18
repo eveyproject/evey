@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -16,7 +15,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type ratingHandler struct {
@@ -81,8 +79,7 @@ func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumb
 	if upsertErr := h.thumbs.Upsert(ctx, r); upsertErr != nil {
 		span.RecordError(upsertErr)
 		span.SetStatus(otelcodes.Error, upsertErr.Error())
-		slog.ErrorContext(ctx, "upsert thumb rating", slog.Any("err", upsertErr))
-		return nil, status.Error(codes.Internal, "internal error")
+		return nil, internalError(ctx, "upsert thumb rating", upsertErr)
 	}
 	return &eveyv1.PutThumbRatingResponse{Value: req.Value}, nil
 }

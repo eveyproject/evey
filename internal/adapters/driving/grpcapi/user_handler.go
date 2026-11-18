@@ -19,7 +19,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type userHandler struct {
@@ -141,10 +140,9 @@ func (h *userHandler) Logout(ctx context.Context, req *eveyv1.LogoutRequest) (*e
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	if err := h.auth.Logout(ctx, claims.UserID, req.GetRefreshToken()); err != nil {
-		slog.ErrorContext(ctx, "logout", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "logout", err)
 	}
 	h.audit(ctx, claims.UserID, "logout", "user", &claims.UserID, nil)
 	return &eveyv1.LogoutResponse{}, nil
@@ -191,9 +189,8 @@ func (h *userHandler) ResetPassword(ctx context.Context, req *eveyv1.ResetPasswo
 			span.SetStatus(otelcodes.Error, "password too short")
 			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
 		default:
-			slog.ErrorContext(ctx, "reset password", slog.Any("err", err))
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.Internal, "internal error")
+			return nil, internalError(ctx, "reset password", err)
 		}
 	}
 	return &eveyv1.ResetPasswordResponse{}, nil

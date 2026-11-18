@@ -422,7 +422,7 @@ export function HLSPlayer({
 
   // Which cast path to TRY FIRST - and the user-agent test is not a guess about
   // the hardware, it mirrors the switch Chrome itself gates the Cast SDK on.
-  // Measured on ONE phone, 28 seconds apart (prod telemetry, 2026-07-22):
+  // Measured on ONE phone, 28 seconds apart (prod telemetry):
   //   UA "Android 10; K ... Mobile"  -> sdk=true, then session error:unknown
   //   UA "X11; Linux x86_64" (same    -> sdk=true, then CONNECTED
   //      phone, "Desktop site" on)
@@ -504,7 +504,7 @@ export function HLSPlayer({
   // Chrome Android: neither browser cast path is reliable here - the Cast SDK
   // claims ready but cannot complete a session, and the Remote Playback fling
   // is refused outright for anything the phone can't fully parse (both
-  // measured in prod, 2026-07-22 and 2026-07-24). So the tap goes SERVER-side
+  // measured in prod, twice). So the tap goes SERVER-side
   // first, like every self-hosted peer does for non-desktop browsers: the
   // backend discovers the Chromecast (unicast-probing the phone's own subnet,
   // which works from a Docker bridge) and drives it directly - no browser
@@ -559,7 +559,7 @@ export function HLSPlayer({
     // Every path failed. ONE message, and an ACTIONABLE one: for a remote
     // mobile-web user with a bare Chromecast there is no working browser path
     // (Chrome refuses both cast APIs there), so say what DOES work instead of
-    // a dead-end "no devices" - the 2026-07-24 lesson twice over.
+    // a dead-end "no devices" - the same lesson twice over.
     toast.error(t(server === "no-devices" ? "player.cast.mobileWebHint" : "player.cast.connectFailed"));
   }, [remotePlayback, startCast, resolveCastUrl, title, t, mediaId]);
 
@@ -779,10 +779,10 @@ export function HLSPlayer({
   // up mid-film and the server's AAC transcode took over. Null until the engine
   // speaks. Distinct from wasmAudioActive below, which is only the topology we
   // ASKED the server for - a latch never touched it, so the stream panel went on
-  // announcing "décodé client" over a transcode (prod, 2026-09-20).
+  // announcing "décodé client" over a transcode (seen in prod).
   const [wasmAudioLeg, setWasmAudioLeg] = useState<string | null>(null);
   // wasm-to-wasm audio switch: only the audio engine follows this; the video
-  // keeps playing (a full restart cost seconds of silence, prod 2026-09-10).
+  // keeps playing (a full restart cost seconds of silence in prod).
   const [wasmTrackIndex, setWasmTrackIndex] = useState<number | null>(null);
   useEffect(() => {
     setSubtitleOffsetMs(0);
@@ -1074,7 +1074,7 @@ export function HLSPlayer({
     // Picking a server track (or Off) must dethrone an uploaded external
     // subtitle: useSubtitleManager gives the external file unconditional
     // priority, so without this the menu changed state while the external
-    // file kept rendering (mobile got this right first, 2026-07-29). The
+    // file kept rendering (mobile got this right first). The
     // manager's own effect revokes the blob URL when the value changes.
     setExternalSubUrl(null);
     const prevBurnIn = selectedBurnInTrack;
@@ -1281,7 +1281,9 @@ export function HLSPlayer({
     // the buffer end, nothing flushed. Flushing on every step stalled the
     // picture and opened two encoders per rung, one at the old buffer end and
     // one at the playhead. The viewer's own pick, and a page that cannot paint
-    // its rung, still switch at once.
+    // its rung, still switch at once. A new ladder (hlsLevels) in Auto takes
+    // the deferred path too: a fresh manifest is already pinned by the hook in
+    // MANIFEST_PARSED, so the guard above returns before it matters.
     if (isBandwidthStep(last, { auto: autoQuality, quality: currentQuality, renderCap: renderCapHeight })) hls.loadLevel = pinned;
     else hls.currentLevel = pinned;
     // hlsLevels MUST be a dep: this effect's mount run happens BEFORE hls.js
