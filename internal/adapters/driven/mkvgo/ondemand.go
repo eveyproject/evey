@@ -718,6 +718,7 @@ func (p *ondemandPlan) Open(ctx context.Context, name string) (apptranscoding.On
 
 // Stat is apptranscoding.OnDemandStater (mkvgo 0.56).
 func (p *ondemandPlan) Stat(ctx context.Context, name string) (size int64, etag, contentType string, ok bool, err error) {
+	p.watch.statCalls.Add(1)
 	size, etag, contentType, ok, err = p.plan.Stat(ctx, name)
 	return size, etag, contentType, ok, sourceChangedErr(err)
 }

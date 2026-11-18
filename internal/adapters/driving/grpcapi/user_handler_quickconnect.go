@@ -13,7 +13,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // user_handler_quickconnect.go holds the QuickConnect flow: initiate on the new
@@ -37,10 +36,9 @@ func (h *userHandler) InitiateQuickConnect(ctx context.Context, req *eveyv1.Init
 		SecretRequired: req.GetSecretAware(),
 	}
 	if err := h.access.InitiateQuickConnect(ctx, qc); err != nil {
-		slog.ErrorContext(ctx, "initiate quick connect", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "initiate quick connect", err)
 	}
 	return quickConnectToProto(qc), nil
 }
@@ -93,10 +91,9 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 	if qc != nil {
 		access, refresh, err := h.auth.GenerateTokensForUser(ctx, string(*qc.UserID), h.quickConnectTTL(ctx, qc)...)
 		if err != nil {
-			slog.ErrorContext(ctx, "generate tokens for quick connect", slog.Any("err", err))
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.Internal, "internal error")
+			return nil, internalError(ctx, "generate tokens for quick connect", err)
 		}
 		resp.Auth = &eveyv1.AuthResponse{
 			AccessToken:  access,

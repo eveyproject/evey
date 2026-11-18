@@ -16,6 +16,7 @@ const H = vi.hoisted(() => {
     audioTrack = -1;
     currentLevel = -1;
     startLevel = -1;
+    loadLevel = -1;
     loadSource = vi.fn();
     attachMedia = vi.fn();
     destroy = vi.fn();
@@ -168,6 +169,16 @@ describe("useTranscodePlayback - start", () => {
     expect(first.destroy).toHaveBeenCalledTimes(1);
     expect(refs.hlsRef.current).toBeNull();
     expect(refs.wasPausedRef.current).toBe(false);
+  });
+});
+
+describe("useTranscodePlayback - manual rung", () => {
+  // A 4xx fragment error must not clear the pinned rung: hls.js would hand
+  // playback to its free ABR, which is how a token lapsed during a pause sent
+  // a 2160p viewing down to 462p.
+  it("keeps the manual rung on fragment errors", () => {
+    const { hls } = setup();
+    expect(hls().config.preserveManualLevelOnError).toBe(true);
   });
 });
 

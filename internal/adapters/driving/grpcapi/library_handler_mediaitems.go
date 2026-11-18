@@ -31,7 +31,9 @@ func (h *libraryHandler) loadGatedMediaItem(ctx context.Context, span trace.Span
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "media item not found")
-		slog.WarnContext(ctx, "grpc: media item query failed", slog.Any("err", err))
+		// The id is what tells a stale client reference (an item since removed)
+		// from a broken one: without it the caller could not be traced.
+		slog.WarnContext(ctx, "grpc: media item query failed", slog.String("media_item_id", id), slog.Any("err", err))
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {

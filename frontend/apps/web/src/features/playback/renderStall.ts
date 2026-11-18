@@ -178,6 +178,12 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
   let lastShownAt: number | null = null;
   let lastMediaTime: number | null = null;
   let paintedAtStart = painted();
+  // A pause (or a hidden tab) seen by the watchdog: the window that holds it measures the pause,
+  // not the picture, and the first frame after it must not count the pause as
+  // one long interval (prod: every resume reported a "slowdown" whose longest
+  // frame was the pause itself).
+  let pausedInWindow = false;
+  let pausedSinceLastFrame = false;
   const totals: CadenceTotals = { frames: 0, longIntervals: 0, skippedFrames: 0 };
   let latest: RenderWindow | null = null;
   let rvfcHandle: number | null = null;
@@ -189,6 +195,11 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
       frames++;
       // When the frame reaches the screen, not when the callback ran.
       const shownAt = meta?.expectedDisplayTime && meta.expectedDisplayTime > 0 ? meta.expectedDisplayTime : now();
+      if (pausedSinceLastFrame) {
+        pausedSinceLastFrame = false;
+        lastShownAt = null;
+        lastMediaTime = null;
+      }
       if (lastShownAt != null) intervals.push(shownAt - lastShownAt);
       lastShownAt = shownAt;
       if (typeof meta?.mediaTime === "number") {
@@ -208,6 +219,12 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
     // did synchronously in the meantime shows up here.
     const lag = Math.max(0, t - expected);
     if (lag > lagMax) lagMax = lag;
+    // A hidden tab presents no frames either: same treatment as a pause.
+    const hidden = typeof document !== "undefined" && document.visibilityState !== "visible";
+    if (video.paused || video.ended || hidden) {
+      pausedInWindow = true;
+      pausedSinceLastFrame = true;
+    }
 
     const elapsed = t - windowStart;
     if (elapsed >= WINDOW_MS) {
@@ -219,7 +236,7 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
         fps: (frames * 1000) / elapsed,
         baselineFps,
         lagMaxMs: lagMax,
-        playing: !video.paused && !video.ended,
+        playing: !pausedInWindow && !video.paused && !video.ended,
         visible: typeof document === "undefined" || document.visibilityState === "visible",
         longIntervals: medInterval > 0 ? intervals.filter((i) => i > medInterval * LONG_INTERVAL_RATIO).length : 0,
         maxIntervalMs: sortedIntervals.length ? sortedIntervals[sortedIntervals.length - 1] : 0,
@@ -258,6 +275,7 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
       frames = 0;
       windowStart = t;
       lagMax = 0;
+      pausedInWindow = false;
     }
     expected = t + WATCHDOG_MS;
     timer = setTimeout(tick, WATCHDOG_MS);

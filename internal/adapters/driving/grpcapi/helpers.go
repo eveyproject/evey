@@ -125,14 +125,14 @@ func clampPagination(pageSize, page int32, defaultLimit int) (int, int) {
 }
 
 // internalError logs the real error server-side and returns a generic message to
-// the client.
+// the client. attrs are extra slog key/values logged with it.
 //
 // ctx is required, not optional: this helper is the tail of ~200 gRPC failure
 // paths, and logging without it stripped the request_id and trace_id that
 // contextHandler injects. An operator holding a user's request id could match
 // the interceptor's one-line summary and nothing else - every ERROR raised
 // during that request was unreachable from the id that identified it.
-func internalError(ctx context.Context, op string, err error) error {
+func internalError(ctx context.Context, op string, err error, attrs ...any) error {
 	if isClientCanceled(err) {
 		// The client disconnected mid-request, which cancels the context; the DB
 		// driver then surfaces context.Canceled or pg's 57014 "canceling statement
@@ -141,13 +141,13 @@ func internalError(ctx context.Context, op string, err error) error {
 		// what happened too: Internal made the sanitizer log every navigation
 		// away from the home page as "sanitized internal error" (176 lines in
 		// 25 days of prod, none a fault) and count it as a 5xx in the metrics.
-		slog.DebugContext(ctx, op+": client canceled", slog.Any("err", err))
+		slog.DebugContext(ctx, op+": client canceled", append(attrs, slog.Any("err", err))...)
 		if errors.Is(err, context.DeadlineExceeded) {
 			return status.Error(codes.DeadlineExceeded, "deadline exceeded")
 		}
 		return status.Error(codes.Canceled, "request canceled")
 	}
-	slog.ErrorContext(ctx, op, slog.Any("err", err))
+	slog.ErrorContext(ctx, op, append(attrs, slog.Any("err", err))...)
 	return status.Error(codes.Internal, "internal error")
 }
 

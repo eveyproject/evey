@@ -66,10 +66,9 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.access.CreateInviteLink(ctx, link); err != nil {
-		slog.ErrorContext(ctx, "create invite link", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "create invite link", err)
 	}
 	return inviteLinkToProto(link), nil
 }
@@ -84,10 +83,9 @@ func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteL
 	}
 	links, err := h.query.ListInviteLinks(ctx, creatorID)
 	if err != nil {
-		slog.ErrorContext(ctx, "list invite links", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "list invite links", err)
 	}
 	resp := &eveyv1.ListInviteLinksResponse{}
 	for _, l := range links {
@@ -132,8 +130,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 		if errors.Is(err, shared.ErrNotFound) {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 		}
-		slog.ErrorContext(ctx, "revoke invite link", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "revoke invite link", err)
 	}
 	return &eveyv1.RevokeInviteLinkResponse{}, nil
 }

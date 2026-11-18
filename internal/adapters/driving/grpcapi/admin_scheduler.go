@@ -10,7 +10,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -30,10 +29,9 @@ func (d *adminTaskHandler) ListScheduledTasks(ctx context.Context, _ *eveyv1.Lis
 	}
 	schedules, err := d.scheduler.ListSchedules(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "list scheduled tasks", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "list scheduled tasks", err)
 	}
 	resp := &eveyv1.ListScheduledTasksResponse{}
 	for _, s := range schedules {
@@ -88,10 +86,9 @@ func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.
 	}
 	updated, err := d.scheduler.SetSchedule(ctx, req.Id, cron, enabled)
 	if err != nil {
-		slog.ErrorContext(ctx, "update scheduled task", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "update scheduled task", err)
 	}
 	task := &eveyv1.ScheduledTask{
 		Id:             string(updated.LibraryID),
