@@ -371,6 +371,11 @@ export function useTranscodePlayback({
       // genuinely stuck request from hanging indefinitely.
       fragLoadingTimeOut: 60_000,
       fragLoadingMaxRetry: 4,
+      // A fragment error hls.js does not retry (every 4xx, so the 401 of a
+      // stream token that lapsed during a pause) otherwise clears the pinned
+      // rung and hands playback to the free ABR this player keeps off. The
+      // handler below refreshes the token and reloads on the same rung.
+      preserveManualLevelOnError: true,
       // Emit CMCD (CTA-5004) on every segment / playlist request. The
       // server reads br, bl, mtp, bs, su, sid, ... and stores them in
       // playback_qoe_events for the /admin/qoe dashboard, plus uses

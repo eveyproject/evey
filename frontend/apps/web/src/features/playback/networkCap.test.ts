@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decideNetworkStep, estimateKbps, newNetworkCapState, observedRungKbps, recordStall, recordThroughput, shouldHandoffToTranscode } from "./networkCap";
+import { decideNetworkStep, estimateKbps, isBandwidthStep, newNetworkCapState, observedRungKbps, recordStall, recordThroughput, shouldHandoffToTranscode } from "./networkCap";
 
 const levels = [
   { height: 480, kbps: 1700 },
@@ -110,5 +110,18 @@ describe("shouldHandoffToTranscode", () => {
     recordStall(s, 3_000);
     // 90s later the old stalls have aged out of the 60s window.
     expect(shouldHandoffToTranscode(s, 1, 93_000)).toBe(false);
+  });
+});
+
+describe("isBandwidthStep", () => {
+  const auto = { auto: true, quality: 0, renderCap: 0 };
+  // Only the bandwidth follower's own steps wait for the buffer; anything the
+  // viewer did, or a page that cannot paint its rung, switches at once.
+  it("is true only for a change in Auto with the same render cap", () => {
+    expect(isBandwidthStep(auto, auto)).toBe(true);
+    expect(isBandwidthStep(null, auto)).toBe(false);
+    expect(isBandwidthStep({ ...auto, auto: false, quality: 720 }, auto)).toBe(false);
+    expect(isBandwidthStep(auto, { ...auto, auto: false, quality: 720 })).toBe(false);
+    expect(isBandwidthStep(auto, { ...auto, renderCap: 720 })).toBe(false);
   });
 });

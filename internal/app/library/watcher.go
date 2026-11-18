@@ -486,6 +486,11 @@ func (ws *WatcherService) triggerScan(ctx context.Context, libraryID string) (er
 	}()
 	ws.log.Info("watcher: triggering scan", slog.String("library_id", libraryID))
 	added, updated, err := ws.scanner.ScanLibrary(ctx, libraryID)
+	if errors.Is(err, ErrScanInProgress) {
+		// Another scan holds the library: the debounce re-arms and retries.
+		ws.log.Info("watcher: scan busy, retrying", slog.String("library_id", libraryID))
+		return err
+	}
 	if err != nil {
 		ws.log.Error("watcher: scan failed", slog.String("library_id", libraryID), slog.Any("err", err))
 		return err

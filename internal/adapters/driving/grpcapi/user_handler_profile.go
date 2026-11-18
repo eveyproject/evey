@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strconv"
 	"strings"
 
@@ -127,9 +126,8 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.admin_cannot_be_kids")
 		}
-		slog.ErrorContext(ctx, "create profile", slog.Any("err", err))
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "create profile", err)
 	}
 	return profileToProto(p), nil
 }
@@ -416,9 +414,8 @@ func (h *userHandler) persistProfileUpdate(ctx context.Context, span trace.Span,
 			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.auth.pin_required_for_non_kids")
 		}
-		slog.ErrorContext(ctx, "update profile", slog.Any("err", err))
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "update profile", err)
 	}
 	return profileToProto(p), nil
 }
@@ -478,9 +475,8 @@ func (h *userHandler) SetDefaultProfile(ctx context.Context, req *eveyv1.SetDefa
 			span.SetStatus(otelcodes.Error, "profile not found")
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 		}
-		slog.ErrorContext(ctx, "set default profile", slog.Any("err", err))
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "set default profile", err)
 	}
 	return profileToProto(updated), nil
 }
@@ -516,9 +512,8 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.cannot_delete_default_profile")
 		}
-		slog.ErrorContext(ctx, "delete profile", slog.Any("err", err))
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "delete profile", err)
 	}
 	return &eveyv1.DeleteProfileResponse{}, nil
 }
@@ -538,10 +533,9 @@ func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfiles
 	}
 	profiles, err := h.query.ListProfiles(ctx, userID)
 	if err != nil {
-		slog.ErrorContext(ctx, "list profiles", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "list profiles", err)
 	}
 	resp := &eveyv1.ListProfilesResponse{}
 	for _, p := range profiles {
@@ -567,10 +561,9 @@ func (h *userHandler) ListAllProfiles(ctx context.Context, _ *eveyv1.ListAllProf
 	}
 	profiles, err := h.query.ListAllProfiles(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "list all profiles", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "list all profiles", err)
 	}
 	resp := &eveyv1.ListAllProfilesResponse{}
 	for _, p := range profiles {

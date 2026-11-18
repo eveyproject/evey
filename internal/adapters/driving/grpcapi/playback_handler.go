@@ -837,11 +837,9 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		// has. Logged bare, it said only that "start stream" failed somewhere,
 		// for someone, on something - unattributable, and unreachable from the
 		// request id the caller was handed back.
-		slog.ErrorContext(ctx, "start stream",
+		return nil, internalError(ctx, "start stream", err,
 			slog.String("media_id", req.MediaItemId),
-			slog.String("play_method", req.PlayMethod.String()),
-			slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+			slog.String("play_method", req.PlayMethod.String()))
 	}
 	details := map[string]any{"media_id": req.MediaItemId, "method": req.PlayMethod.String()}
 	if itemTitle != "" {
@@ -885,8 +883,7 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.ErrorContext(ctx, "stop stream", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "stop stream", err)
 	}
 	if sessErr == nil && sess != nil && h.hlsManager != nil {
 		// Tear down the transcode session ONLY when this was the last active
@@ -980,8 +977,7 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.ErrorContext(ctx, "report progress", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "report progress", err)
 	}
 	return resp, nil
 }
@@ -1011,8 +1007,7 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.ErrorContext(ctx, "get watch progress", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "get watch progress", err)
 	}
 	pb := watchProgressToProto(wp)
 	if mi, miErr := h.librarySvc.GetMediaItem(ctx, req.MediaItemId); miErr == nil {
@@ -1217,8 +1212,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.ErrorContext(ctx, "get resume items", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "get resume items", err)
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	// Parental gate alongside the library-access gate: a kids profile must not
@@ -1333,8 +1327,7 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.ErrorContext(ctx, "mark as watched", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "mark as watched", err)
 	}
 	return &eveyv1.MarkAsWatchedResponse{}, nil
 }
@@ -1367,8 +1360,7 @@ func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkA
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.ErrorContext(ctx, "mark as unwatched", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "mark as unwatched", err)
 	}
 	return &eveyv1.MarkAsUnwatchedResponse{}, nil
 }
@@ -1399,8 +1391,7 @@ func (h *playbackHandler) ClearWatchHistory(ctx context.Context, req *eveyv1.Cle
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.ErrorContext(ctx, "clear watch history", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "clear watch history", err)
 	}
 	return &eveyv1.ClearWatchHistoryResponse{Deleted: int32(deleted)}, nil
 }

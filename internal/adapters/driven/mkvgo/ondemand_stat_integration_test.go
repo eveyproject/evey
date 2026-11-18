@@ -71,4 +71,9 @@ func TestOnDemandPackagerIntegration_StatMatchesOpen(t *testing.T) {
 			t.Errorf("Stat(%s): err = %v, want ErrNoResource", name, err)
 		}
 	}
+	// The read-ratio line counts every Stat, the refused ones included: each
+	// may build a window table.
+	if n := plan.(*ondemandPlan).watch.statCalls.Load(); n != 3 {
+		t.Errorf("statCalls = %d, want 3", n)
+	}
 }

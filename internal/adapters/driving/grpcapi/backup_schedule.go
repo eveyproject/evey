@@ -29,10 +29,9 @@ func (h *backupScheduleHandler) GetBackupSchedule(ctx context.Context, _ *eveyv1
 	defer span.End()
 	sched, err := h.scheduler.GetSchedule(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "get backup schedule", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "get backup schedule", err)
 	}
 	return backupScheduleToProto(sched), nil
 }
@@ -44,10 +43,9 @@ func (h *backupScheduleHandler) UpdateBackupSchedule(ctx context.Context, req *e
 	// Load current values as defaults for partial updates.
 	current, err := h.scheduler.GetSchedule(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "get backup schedule for update", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "get backup schedule for update", err)
 	}
 	cronExpr := current.CronExpression
 	if req.CronExpression != nil {

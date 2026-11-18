@@ -16,7 +16,6 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // user_handler_user.go holds the user-account RPCs: create / update / delete /
@@ -179,10 +178,9 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 				span.SetStatus(otelcodes.Error, err.Error())
 				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, passwordRuleKey(err))
 			}
-			slog.ErrorContext(ctx, "update user password", slog.Any("err", err))
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.Internal, "internal error")
+			return nil, internalError(ctx, "update user password", err)
 		}
 	}
 	return userToProto(u), nil
@@ -329,10 +327,9 @@ func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest)
 	defer span.End()
 	users, err := h.query.ListUsers(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "list users", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "list users", err)
 	}
 	resp := &eveyv1.ListUsersResponse{}
 	for _, u := range users {
@@ -387,8 +384,7 @@ func (h *userHandler) updateAccountFields(ctx context.Context, span trace.Span, 
 		if errors.Is(err, user.ErrUsernameTaken) {
 			return h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.user.username_taken")
 		}
-		slog.ErrorContext(ctx, "update user", slog.Any("err", err))
-		return status.Errorf(codes.Internal, "internal error")
+		return internalError(ctx, "update user", err)
 	}
 	return nil
 }

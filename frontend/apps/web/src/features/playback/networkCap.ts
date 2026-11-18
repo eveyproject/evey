@@ -152,3 +152,19 @@ export function shouldHandoffToTranscode(s: NetworkCapState, levelCount: number,
   const recent = s.stallsAt.filter((t) => now - t <= SAMPLE_WINDOW_MS);
   return recent.length >= HANDOFF_STALLS;
 }
+
+/** What the rung pin is computed from, besides the bandwidth follower's cap. */
+export interface PinInputs {
+  auto: boolean;
+  quality: number;
+  renderCap: number;
+}
+
+/**
+ * True when a pin change comes from the bandwidth follower alone: Auto before
+ * and after, same render cap. That change can wait for the buffer to run out;
+ * the viewer's own pick and a render cap cannot.
+ */
+export function isBandwidthStep(last: PinInputs | null, next: PinInputs): boolean {
+  return next.auto && last?.auto === true && last.renderCap === next.renderCap;
+}
