@@ -748,10 +748,12 @@ func episodeCountMatches(disk, tmdb int) bool {
 // episodes; concurrent callers for the same series share the one run, then
 // each reloads the series from the store.
 func (e *Enricher) enrichSeriesOnce(ctx context.Context, series *domainlib.MediaItem, log *slog.Logger) {
-	_, _, _ = e.seriesOnce.Do(string(series.ID), func() (any, error) {
+	if _, err, _ := e.seriesOnce.Do(string(series.ID), func() (any, error) {
 		e.AutoEnrichItem(ctx, series, log)
 		return nil, nil
-	})
+	}); err != nil {
+		log.Warn("auto-enrich series failed", slog.String("series_id", string(series.ID)), slog.Any("err", err))
+	}
 }
 
 func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) error {
