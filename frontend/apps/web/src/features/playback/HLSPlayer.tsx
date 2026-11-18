@@ -16,7 +16,7 @@ import { ProgressReporter } from "./ProgressReporter";
 import { AutoMarkWatched } from "./AutoMarkWatched";
 import { ICON } from "@/constants/iconSizes";
 import { createRenderStallWatch, formatRenderWindow, formatCadence, bufferedAheadSec, decideRenderCap, type RenderCapState } from "./renderStall";
-import { decideNetworkStep, formatNetworkStep, newNetworkCapState, recordStall, recordThroughput, shouldHandoffToTranscode, type NetworkCapState } from "./networkCap";
+import { decideNetworkStep, formatNetworkStep, isBandwidthStep, type PinInputs, newNetworkCapState, recordStall, recordThroughput, shouldHandoffToTranscode, type NetworkCapState } from "./networkCap";
 import { registerRenderStats, playbackSnapshot } from "./playbackSnapshot";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
@@ -335,6 +335,9 @@ export function HLSPlayer({
   const onBufferStallRef = useRef<(() => void) | null>(null);
   const pinnedQualityRef = useRef(0);
   pinnedQualityRef.current = autoQuality ? autoCapHeight : currentQuality;
+  // What the rung pin last applied, to tell the bandwidth follower's steps
+  // from the viewer's own choices.
+  const lastPinRef = useRef<PinInputs | null>(null);
 
   // When the profile finishes loading, apply its audio/subtitle preferences if
   // the user hasn't picked a track manually and the initial resolution used no
@@ -894,9 +897,12 @@ export function HLSPlayer({
     const levels = hls.levels.map((l) => ({ height: l.height, kbps: l.bitrate / 1000 }));
     const heights = levels.map((l) => l.height);
     const ceiling = pickPinnedLevel({ levelHeights: heights, desiredHeight: renderCapHeightRef.current });
-    const step = decideNetworkStep(networkCapStateRef.current, now, levels, hls.currentLevel, ceiling, bufferedAheadSec(video));
+    // The rung being LOADED: a step lands after the buffer, so the one on
+    // screen can lag behind it for the whole forward buffer.
+    const loading = hls.loadLevel;
+    const step = decideNetworkStep(networkCapStateRef.current, now, levels, loading, ceiling, bufferedAheadSec(video));
     if (!step) return;
-    const from = heights[hls.currentLevel] ?? 0;
+    const from = heights[loading] ?? 0;
     setNetworkCapHeight(step.index === heights.length - 1 ? 0 : step.height);
     reportRenderEvent({
       type: step.direction === "down" ? "quality_capped" : "quality_restored",
@@ -1268,7 +1274,16 @@ export function HLSPlayer({
       levelHeights: hls.levels.map((l: { height: number }) => l.height),
       desiredHeight: autoQuality ? autoCapHeight : currentQuality,
     });
-    hls.currentLevel = pinned;
+    const last = lastPinRef.current;
+    lastPinRef.current = { auto: autoQuality, quality: currentQuality, renderCap: renderCapHeight };
+    if (pinned < 0 || hls.manualLevel === pinned) return;
+    // A bandwidth step in Auto takes effect after the buffer: one encoder at
+    // the buffer end, nothing flushed. Flushing on every step stalled the
+    // picture and opened two encoders per rung, one at the old buffer end and
+    // one at the playhead. The viewer's own pick, and a page that cannot paint
+    // its rung, still switch at once.
+    if (isBandwidthStep(last, { auto: autoQuality, quality: currentQuality, renderCap: renderCapHeight })) hls.loadLevel = pinned;
+    else hls.currentLevel = pinned;
     // hlsLevels MUST be a dep: this effect's mount run happens BEFORE hls.js
     // has parsed the manifest (hls.levels is empty → currentLevel=-1, which
     // ENABLES free ABR instead of pinning). Nothing else re-runs the effect
@@ -1279,7 +1294,7 @@ export function HLSPlayer({
     // rendition software path masked it (one level = nowhere to fall).
     // hlsLevels is set in MANIFEST_PARSED, so depending on it re-runs the pin
     // exactly when the levels exist.
-  }, [autoQuality, currentQuality, autoCapHeight, transcodeMode, hlsLevels]);
+  }, [autoQuality, currentQuality, autoCapHeight, renderCapHeight, transcodeMode, hlsLevels]);
 
   // In Auto, surface the rung ABR actually picked (e.g. "1080p") so the menu
   // shows "Auto (1080p)" rather than a redundant "Auto". Empty until the first
