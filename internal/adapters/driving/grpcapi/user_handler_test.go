@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	"strings"
 	"testing"
 	"time"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	appactivity "github.com/eveyproject/evey/internal/app/activity"
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/config"
