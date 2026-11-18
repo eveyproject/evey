@@ -360,9 +360,15 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // resync offset is per-title like audioOffsetMs (reset on mediaId change).
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
   const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(0);
+  // This device's last value stands in only while the profile holds none: the
+  // keystore answers after the profile's style is already applied, and must not
+  // put an older local pick back over it.
+  const profileSubtitleStyleRef = useRef<SubtitleStyle | null>(null);
   useEffect(() => {
     let cancelled = false;
-    void getSubtitleStylePref().then((saved) => { if (!cancelled && saved) setSubtitleStyle(saved); });
+    void getSubtitleStylePref().then((saved) => {
+      if (!cancelled && saved && !profileSubtitleStyleRef.current) setSubtitleStyle(saved);
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -389,6 +395,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     subtitleStyle: profileSubtitleStyle,
     saveSubtitleStyle: saveProfileSubtitleStyle,
   } = usePlayerProfilePrefs();
+  profileSubtitleStyleRef.current = profileSubtitleStyle;
   const subtitleStyleRef = useRef(subtitleStyle);
   subtitleStyleRef.current = subtitleStyle;
   // The profile's appearance wins over this device's last value, and a change
@@ -521,6 +528,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     setSubtitleOffsetMs(0);
     // An externally-picked subtitle file means nothing on the next title.
     setExternalSubtitle(null);
+    // The audio renegotiation is one per media, not one per screen.
+    audioFallbackTriedRef.current = false;
     // (A hand-picked track is forgotten by usePlayerTrackSelection.)
   }, [mediaId]);
   // Whether the NEXT player instance should start playing. Changing tracks or

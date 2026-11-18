@@ -616,6 +616,25 @@ describe("audio decoder failure (TV)", () => {
     expect(screen.getByText("Failed to load stream")).toBeTruthy();
   });
 
+  // The screen survives next-episode navigation: the renegotiation is one per
+  // media, so the next episode gets its own.
+  it("renegotiates again on the next media", () => {
+    refuseAudioCodecMock.mockClear().mockReturnValue(true);
+    restartWithTracksMock.mockClear();
+    const { rerender } = render(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: DTS_FAILURE } });
+    });
+    localSearchParamsMock.mockReturnValue({ id: "ep-2" });
+    getMediaItemMock.mockReturnValue({ data: { id: "ep-2", type: "MEDIA_ITEM_TYPE_EPISODE", title: "Episode 2" } });
+    rerender(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: DTS_FAILURE } });
+    });
+    expect(restartWithTracksMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Failed to load stream")).toBeNull();
+  });
+
   it("leaves a video decoder failure to the error screen", () => {
     refuseAudioCodecMock.mockClear().mockReturnValue(true);
     restartWithTracksMock.mockClear();
@@ -1630,5 +1649,18 @@ describe("apparence des sous-titres", () => {
     await waitFor(() => {
       expect(lastOverlayProps?.style).toMatchObject({ color: "#fde047", fontSize: 150, position: "top" });
     });
+  });
+
+  // The keystore answers after the profile's style is applied: this device's
+  // older pick must not come back over the one the profile holds.
+  it("keeps the profile's style over this device's last value", async () => {
+    await SecureStore.setItemAsync("evey-subtitle-style", JSON.stringify({ color: "#fde047", fontSize: 150 }));
+    getCurrentUserMock.mockReturnValue({ data: { id: "user-1" } });
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [{ id: "prof-1", isDefault: true, preferences: { subtitle_style: JSON.stringify({ fontSize: 80 }) } }] },
+    });
+    render(<PlayerScreen />);
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(lastOverlayProps?.style).toMatchObject({ fontSize: 80 });
   });
 });
