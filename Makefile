@@ -296,8 +296,9 @@ mutation-test:
 	@# ./internal/adapters/driving/http gremlins reports "Killed 1647, Lived 0,
 	@# efficacy 100%" in 7 SECONDS with a passing baseline - and a mutant it
 	@# calls KILLED (webhook_handler.go:69, `encErr != nil` -> `== nil`)
-	@# provably survives a real test run. Root cause unidentified in gremlins
-	@# 0.5.0; what matters is that the lie is loud instead of silent.
+	@# provably survives a real test run. That one came from the package
+	@# clause (`package httpapi` in a directory named http, patched in
+	@# docker/Dockerfile.mutation); the gate stays so the next cause is loud too.
 	@#
 	@# Zero survivors in a package with real mutants has never once been true in
 	@# this repo (app/transcoding, far better tested, has 335). Treat it as a
