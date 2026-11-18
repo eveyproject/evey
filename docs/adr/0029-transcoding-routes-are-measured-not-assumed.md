@@ -81,6 +81,33 @@ serves, and falls back one level at a time.
    the prediction is out of its margin (`title_probe.go`, `probe_trigger.go`).
    The resolver freezes the result on the session's admission pin and never
    derives it twice (ADR-0024).
+5. **The stream cap follows from the same samples.** With route evidence the
+   cap is the larger of two counts (`AutoCountCap`,
+   `video_session_limiter.go`): the hardware streams of the representative
+   route plus the software streams that fit in the CPU those leave, and the
+   software streams alone. A GPU session also spends CPU, so the pools are
+   neither summed blindly nor reduced to the tighter one. The representative
+   route is a choice, not a measurement of what viewers play: the plain-SDR
+   H.264 route of the class (`representativeRoute`); when the evidence holds
+   none for the hardware class, the cap is the software count alone. Without
+   evidence the table-priced pools are independent and the cap is their sum.
+   The admin panel shows this number as the automatic cap, computed on the
+   limiter that enforces it; the limit enforced is that cap lowered by the
+   admin's own ceiling, never below one stream (`ResolveVideoSessionLimit`,
+   `video_capacity.go`), and the panel shows it beside. Viewers who start at
+   the same moment are planned beside each other: a new stream counts the
+   streams already planned but not yet started (`plannedBeside`,
+   `admission_shaper.go`), and a stream that has started no longer counts as
+   planned. Only a plan touched by a manifest or segment request within
+   `pinFreshFor` counts: an older one belongs to an attempt that went away.
+   The sharing is a preference, not a reservation: when nothing fits beside
+   the planned streams, the new stream is planned on what running sessions
+   really hold, so a plan that never starts cannot turn a viewer away. A
+   stream shed because the host is at capacity drops its plan when
+   no running session holds it (`ForgetRefused`), so its retry is planned on
+   the budget of its moment and simultaneous starts share the budget instead
+   of refusing each other; a source refused as too heavy for even an idle
+   host keeps its plan, since no budget would change that answer.
 
 Rejected: keeping one host-wide HW cost and widening its safety margin (it
 was wrong by a factor, not by a margin); electing the backend once at boot

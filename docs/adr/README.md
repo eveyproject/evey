@@ -49,7 +49,7 @@ to.
 | [0025](0025-server-driven-cast.md) | Server-driven cast with a custom Web Receiver (app ID D36A449B) | Accepted, amended |
 | [0026](0026-remote-access-inferred-from-a-published-url.md) | Remote access inferred from a published URL, unless the operator chose | Accepted |
 | [0028](0028-install-is-one-compose-file.md) | The install is one compose file | Accepted |
-| [0029](0029-transcoding-routes-are-measured-not-assumed.md) | Transcoding routes are measured, not assumed (route-priced admission, per-route backend, proof-gated fallback) | Accepted |
+| [0029](0029-transcoding-routes-are-measured-not-assumed.md) | Transcoding routes are measured, not assumed (route-priced admission, per-route backend, proof-gated fallback, stream cap) | Accepted |
 | [0030](0030-one-plan-one-decision.md) | One plan, one decision (route resolved once and carried by the plan; fingerprint, class, cost key, producer and builder are projections) | Accepted, implemented |
 | [0031](0031-demo-mode-is-a-boot-flag-on-the-production-binary.md) | The demo is the production binary behind one boot flag (EVEY_DEMO, deny-by-default policy, guarded list) | Accepted |
 
