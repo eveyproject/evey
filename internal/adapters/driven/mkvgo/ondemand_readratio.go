@@ -48,6 +48,10 @@ const (
 type servedWatch struct {
 	bytes     atomic.Int64
 	resources atomic.Int64
+	// statCalls counts the plan's Stat calls: each may build a window table
+	// of its own, so next to TableBuilds and the segments opened it tells a
+	// table built for a Stat with no Open from one rebuilt.
+	statCalls atomic.Int64
 	// flagged is set once the plan has been named while still in use; its
 	// final figures are logged again when it leaves the cache.
 	flagged atomic.Bool
@@ -122,9 +126,10 @@ func overRead(st mp4.HLSPlanStats) bool {
 
 // logOverRead names the file and what mkvgo needs to take the case up: the
 // bytes read and served, the lookups in the uncued regions, the segments
-// served from a kept window and the tables that fell back to the source, and
-// the windows built. final says the plan has left the cache.
-func logOverRead(logger *slog.Logger, path string, st mp4.HLSPlanStats, resources int64, final bool) {
+// served from a kept window and the tables that fell back to the source, the
+// windows and tables built, and the Stat calls. final says the plan has left
+// the cache.
+func logOverRead(logger *slog.Logger, path string, st mp4.HLSPlanStats, resources, statCalls int64, final bool) {
 	served := planServed(st)
 	logger.Warn("mkvgo: plan read its source far more than it served",
 		slog.String("path", path),
@@ -141,6 +146,11 @@ func logOverRead(logger *slog.Logger, path string, st mp4.HLSPlanStats, resource
 		slog.Int64("kept_segments", st.KeptSegments),
 		slog.Int64("kept_fallbacks", st.KeptFallbacks),
 		slog.Int64("streamed_segments", st.StreamedSegments),
+		slog.Int64("stream_fallbacks", st.StreamFallbacks),
+		slog.Int64("table_builds", st.TableBuilds),
+		slog.Int64("table_evictions", st.TableEvictions),
+		slog.Int64("slot_waits", st.SlotWaits),
+		slog.Int64("stat_calls", statCalls),
 		slog.Bool("final", final))
 }
 
@@ -158,14 +168,14 @@ func logDamaged(logger *slog.Logger, path string, st mp4.HLSPlanStats) {
 // served counts n bytes handed out (see servedWatch.count).
 func (p *ondemandPlan) served(n int64) {
 	p.watch.count(n, p.Stats, func(st mp4.HLSPlanStats, resources int64) {
-		logOverRead(p.logger(), p.srcPath, st, resources, false)
+		logOverRead(p.logger(), p.srcPath, st, resources, p.watch.statCalls.Load(), false)
 	}, p.logDamaged)
 }
 
 // retireReadRatio logs a plan leaving the cache (see servedWatch.final).
 func (p *ondemandPlan) retireReadRatio() {
 	p.watch.final(p.Stats, func(st mp4.HLSPlanStats, resources int64) {
-		logOverRead(p.logger(), p.srcPath, st, resources, true)
+		logOverRead(p.logger(), p.srcPath, st, resources, p.watch.statCalls.Load(), true)
 	}, p.logDamaged)
 }
 

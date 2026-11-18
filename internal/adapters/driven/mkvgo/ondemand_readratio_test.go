@@ -145,15 +145,19 @@ func TestServedWatch_NamesADamagedPlanOnce(t *testing.T) {
 func TestLogOverRead_CarriesTheCase(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
-	st := mp4.HLSPlanStats{SourceReadBytes: 900, WalkReadBytes: 400, CopyReadBytes: 500, ServedBytes: 60, StreamedBytes: 40, ServedSegments: 35, WindowBuilds: 7, FarLookups: 5, FarHits: 4, KeptSegments: 30, KeptFallbacks: 1, StreamedSegments: 2, StreamFallbacks: 3}
-	logOverRead(logger, "/media/a.mkv", st, 12, true)
+	st := mp4.HLSPlanStats{SourceReadBytes: 900, WalkReadBytes: 400, CopyReadBytes: 500, ServedBytes: 60, StreamedBytes: 40, ServedSegments: 35, WindowBuilds: 7, FarLookups: 5, FarHits: 4, KeptSegments: 30, KeptFallbacks: 1, StreamedSegments: 2, StreamFallbacks: 3,
+		TableBuilds: 70, TableEvictions: 6, SlotWaits: 9}
+	logOverRead(logger, "/media/a.mkv", st, 12, 41, true)
 	var line map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]any{"path": "/media/a.mkv", "walk_read_bytes": 400.0, "copy_read_bytes": 500.0, "served_bytes": 100.0, "read_ratio_pct": 400.0,
 		"resources_served": 12.0, "segments_opened": 35.0, "window_builds": 7.0, "far_lookups": 5.0, "far_hits": 4.0,
-		"kept_segments": 30.0, "kept_fallbacks": 1.0, "final": true}
+		"kept_segments": 30.0, "kept_fallbacks": 1.0, "final": true,
+		// Builds against segments opened tell a table rebuilt (or built by a
+		// Stat with no Open) from a walk that reads more each time.
+		"table_builds": 70.0, "table_evictions": 6.0, "slot_waits": 9.0, "stream_fallbacks": 3.0, "stat_calls": 41.0}
 	for k, v := range want {
 		if line[k] != v {
 			t.Errorf("%s = %v, want %v (%s)", k, line[k], v, buf.String())
