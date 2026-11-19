@@ -43,6 +43,25 @@ interpreter in the image, `go` ships a compiled binary and needs the
 manifest that names a runtime the image lacks is refused at install, with the
 list of the runtimes available.
 
+What each image gives a plugin, by `language`:
+
+| `language` | Images | Interpreter | gRPC provided by the image | What the package brings |
+|---|---|---|---|---|
+| `python` | default, `-nodejs`, `-lean` | Python 3.13 | `grpcio`, `protobuf` | Its code. The server copies the generated stubs next to the entrypoint. |
+| `nodejs` | default, `-nodejs` | Node.js 20 | `@grpc/grpc-js` 1.14.7, `@grpc/proto-loader` 0.8.1, from 0.1.9 | Its code. Up to 0.1.8, both gRPC modules in its `node_modules`. |
+| `php` | default | PHP 8.4 | none | A gRPC implementation and the stubs it generated. |
+| `ruby` | default | Ruby 3.3 | none | A gRPC implementation and the stubs it generated. |
+| `lua` | default | Lua 5.4 | none | A gRPC implementation and the stubs it generated. |
+| `bash`, `sh` | all three | bash 5.2, dash | none | Whatever serves the gRPC socket. |
+| `go` | all three | none, compiled | not needed | A static binary, with the `native-binary` permission. |
+
+The interpreters and the Python modules are the packages of the Debian
+release the image is built on, so their major versions only move with that
+release; the two Node.js modules are pinned in
+`docker/plugin-runtime-node/package.json`. The image build fails when one of
+them cannot be loaded, so an image never ships without what this table
+promises.
+
 The gRPC contract is one file, `proto/plugin/v1/plugin_api.proto`. Only
 the Python SDK ships generated stubs; the other languages under
 `sdk/<language>/` hold the `.proto`. The server copies the files of your

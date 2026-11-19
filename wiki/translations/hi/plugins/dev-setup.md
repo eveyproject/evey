@@ -1,5 +1,5 @@
 ---
-source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
+source_sha: 3369e1ee02f4a1bf1c2f0ead7f53e5774d9411f2bda9655d52d7668ded65435d
 reviewed: true
 ---
 # प्लगइन लिखना { #writing-a-plugin }
@@ -47,6 +47,23 @@ interpreter चाहिए; `go` एक compiled binary लाता है औ
 Python और Node.js रहते हैं और `-lean` इमेज में सिर्फ़ Python रहता है। जो manifest ऐसा runtime बताता है
 जो इमेज में नहीं है, वह इंस्टॉल के समय मना कर दिया जाता है, और उपलब्ध runtime की
 सूची दिखाई जाती है।
+
+हर इमेज प्लगइन को क्या देती है, `language` के हिसाब से:
+
+| `language` | इमेज | interpreter | इमेज से मिलने वाला gRPC | पैकेज क्या लाता है |
+|---|---|---|---|---|
+| `python` | डिफ़ॉल्ट, `-nodejs`, `-lean` | Python 3.13 | `grpcio`, `protobuf` | अपना कोड। सर्वर जनरेट किए हुए stub entrypoint के बगल में कॉपी करता है। |
+| `nodejs` | डिफ़ॉल्ट, `-nodejs` | Node.js 20 | `@grpc/grpc-js` 1.14.7, `@grpc/proto-loader` 0.8.1, 0.1.9 से | अपना कोड। 0.1.8 तक, दोनों gRPC मॉड्यूल अपने `node_modules` में। |
+| `php` | डिफ़ॉल्ट | PHP 8.4 | कोई नहीं | एक gRPC implementation और उससे बने stub। |
+| `ruby` | डिफ़ॉल्ट | Ruby 3.3 | कोई नहीं | एक gRPC implementation और उससे बने stub। |
+| `lua` | डिफ़ॉल्ट | Lua 5.4 | कोई नहीं | एक gRPC implementation और उससे बने stub। |
+| `bash`, `sh` | तीनों | bash 5.2, dash | कोई नहीं | जो भी gRPC socket को सर्व करे। |
+| `go` | तीनों | कोई नहीं, compiled | ज़रूरी नहीं | एक static binary, `native-binary` अनुमति के साथ। |
+
+interpreter और Python मॉड्यूल उस Debian रिलीज़ के पैकेज हैं जिस पर इमेज बनती है, इसलिए उनके
+major वर्ज़न सिर्फ़ उसी रिलीज़ के साथ बदलते हैं। Node.js के दोनों मॉड्यूल
+`docker/plugin-runtime-node/package.json` में पिन किए गए हैं। इनमें से कोई भी लोड न हो तो
+इमेज का build फ़ेल हो जाता है, इसलिए कोई इमेज इस तालिका के वादे के बिना बाहर नहीं आती।
 
 gRPC अनुबंध एक ही फ़ाइल है: `proto/plugin/v1/plugin_api.proto`। सिर्फ़ Python SDK
 जनरेट किए हुए stub के साथ आता है; `sdk/<language>/` में बाकी भाषाओं के पास `.proto` है। प्लगइन

@@ -1,5 +1,5 @@
 ---
-source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
+source_sha: 3369e1ee02f4a1bf1c2f0ead7f53e5774d9411f2bda9655d52d7668ded65435d
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -48,6 +48,25 @@ permiso `native-binary`. La imagen por defecto lleva Python, Node.js, PHP, Ruby 
 `-nodejs` conserva Python y Node.js y la imagen `-lean` solo Python. Un
 manifiesto que nombra un runtime que la imagen no tiene se rechaza al
 instalar, con la lista de los runtimes disponibles.
+
+Lo que cada imagen da a un plugin, según `language`:
+
+| `language` | Imágenes | Intérprete | gRPC aportado por la imagen | Lo que trae el paquete |
+|---|---|---|---|---|
+| `python` | por defecto, `-nodejs`, `-lean` | Python 3.13 | `grpcio`, `protobuf` | Su código. El servidor copia los stubs generados junto al entrypoint. |
+| `nodejs` | por defecto, `-nodejs` | Node.js 20 | `@grpc/grpc-js` 1.14.7, `@grpc/proto-loader` 0.8.1, desde la 0.1.9 | Su código. Hasta la 0.1.8, los dos módulos gRPC en su `node_modules`. |
+| `php` | por defecto | PHP 8.4 | ninguno | Una implementación gRPC y los stubs que generó. |
+| `ruby` | por defecto | Ruby 3.3 | ninguno | Una implementación gRPC y los stubs que generó. |
+| `lua` | por defecto | Lua 5.4 | ninguno | Una implementación gRPC y los stubs que generó. |
+| `bash`, `sh` | las tres | bash 5.2, dash | ninguno | Lo que atiende el socket gRPC. |
+| `go` | las tres | ninguno, compilado | no hace falta | Un binario estático, con el permiso `native-binary`. |
+
+Los intérpretes y los módulos de Python son los paquetes de la versión de
+Debian sobre la que se construye la imagen, así que sus versiones mayores solo
+cambian con ella. Los dos módulos de Node.js están fijados en
+`docker/plugin-runtime-node/package.json`. La construcción de la imagen falla
+si alguno no se puede cargar: una imagen nunca sale sin lo que esta tabla
+promete.
 
 El contrato gRPC es un solo archivo, `proto/plugin/v1/plugin_api.proto`. Solo
 el SDK de Python incluye stubs generados; los demás lenguajes en

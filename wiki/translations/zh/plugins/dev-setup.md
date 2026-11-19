@@ -1,5 +1,5 @@
 ---
-source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
+source_sha: 3369e1ee02f4a1bf1c2f0ead7f53e5774d9411f2bda9655d52d7668ded65435d
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -38,6 +38,22 @@ flowchart LR
 从服务器能启动的运行时里选择插件的语言：`python`、`nodejs`、`php`、`ruby`、`lua`、`bash` 和 `sh` 需要镜像里有对应的解释器；
 `go` 提供编译好的二进制文件，需要 `native-binary` 权限。默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua；`-nodejs` 镜像保留 Python 和 Node.js，`-lean` 镜像只保留 Python。
 如果清单写了镜像里没有的运行时，安装时就会被拒绝，并列出可用的运行时。
+
+各镜像按 `language` 为插件提供的内容：
+
+| `language` | 镜像 | 解释器 | 镜像提供的 gRPC | 插件包自带的内容 |
+|---|---|---|---|---|
+| `python` | 默认、`-nodejs`、`-lean` | Python 3.13 | `grpcio`、`protobuf` | 自己的代码。服务器会把生成的存根复制到入口文件旁边。 |
+| `nodejs` | 默认、`-nodejs` | Node.js 20 | `@grpc/grpc-js` 1.14.7、`@grpc/proto-loader` 0.8.1，从 0.1.9 起 | 自己的代码。0.1.8 及更早：两个 gRPC 模块放在自己的 `node_modules` 里。 |
+| `php` | 默认 | PHP 8.4 | 无 | 一个 gRPC 实现以及用它生成的存根。 |
+| `ruby` | 默认 | Ruby 3.3 | 无 | 一个 gRPC 实现以及用它生成的存根。 |
+| `lua` | 默认 | Lua 5.4 | 无 | 一个 gRPC 实现以及用它生成的存根。 |
+| `bash`、`sh` | 全部三个 | bash 5.2、dash | 无 | 负责 gRPC 套接字的程序。 |
+| `go` | 全部三个 | 无，已编译 | 不需要 | 一个静态二进制文件，需要 `native-binary` 权限。 |
+
+解释器和 Python 模块来自镜像所基于的 Debian 版本的软件包，因此它们的主版本只会随该版本变化。
+两个 Node.js 模块固定在 `docker/plugin-runtime-node/package.json` 中。
+其中任何一个无法加载，镜像构建就会失败：镜像发布时一定带有本表承诺的内容。
 
 gRPC 约定只有一个文件：`proto/plugin/v1/plugin_api.proto`。只有 Python SDK 附带生成好的存根；`sdk/<language>/` 下其他语言的目录里是 `.proto`。
 插件启动时，服务器会把对应语言的文件复制到您的入口文件旁边。镜像为 Python 插件提供了 `grpcio`，所以 Python 插件不需要自带任何依赖。

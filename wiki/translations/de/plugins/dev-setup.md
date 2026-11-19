@@ -1,5 +1,5 @@
 ---
-source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
+source_sha: 3369e1ee02f4a1bf1c2f0ead7f53e5774d9411f2bda9655d52d7668ded65435d
 reviewed: true
 ---
 # Ein Plugin schreiben { #writing-a-plugin }
@@ -49,6 +49,24 @@ Standard-Image enthält Python, Node.js, PHP, Ruby und Lua. Das Image `-nodejs`
 behält Python und Node.js, das Image `-lean` nur Python. Ein Manifest, das eine Laufzeit
 nennt, die dem Image fehlt, wird bei der Installation abgelehnt, mit der
 Liste der verfügbaren Laufzeiten.
+
+Was jedes Image einem Plugin bereitstellt, nach `language`:
+
+| `language` | Images | Interpreter | gRPC aus dem Image | Was das Paket mitbringt |
+|---|---|---|---|---|
+| `python` | Standard, `-nodejs`, `-lean` | Python 3.13 | `grpcio`, `protobuf` | Seinen Code. Der Server kopiert die erzeugten Stubs neben den Einstiegspunkt. |
+| `nodejs` | Standard, `-nodejs` | Node.js 20 | `@grpc/grpc-js` 1.14.7, `@grpc/proto-loader` 0.8.1, ab 0.1.9 | Seinen Code. Bis 0.1.8 beide gRPC-Module in seinem `node_modules`. |
+| `php` | Standard | PHP 8.4 | keines | Eine gRPC-Implementierung und die damit erzeugten Stubs. |
+| `ruby` | Standard | Ruby 3.3 | keines | Eine gRPC-Implementierung und die damit erzeugten Stubs. |
+| `lua` | Standard | Lua 5.4 | keines | Eine gRPC-Implementierung und die damit erzeugten Stubs. |
+| `bash`, `sh` | alle drei | bash 5.2, dash | keines | Das, was den gRPC-Socket bedient. |
+| `go` | alle drei | keiner, kompiliert | nicht nötig | Eine statische Binärdatei, mit der Berechtigung `native-binary`. |
+
+Die Interpreter und die Python-Module sind die Pakete der Debian-Version, auf
+der das Image gebaut wird; ihre Hauptversionen ändern sich nur mit ihr. Die
+beiden Node.js-Module sind in `docker/plugin-runtime-node/package.json`
+festgelegt. Der Image-Build schlägt fehl, wenn eines davon nicht geladen
+werden kann: Ein Image erscheint nie ohne das, was diese Tabelle verspricht.
 
 Die gRPC-Schnittstelle ist in einer einzigen Datei definiert, `proto/plugin/v1/plugin_api.proto`.
 Nur
