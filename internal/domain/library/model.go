@@ -318,6 +318,32 @@ type MediaFile struct {
 	// (0 = before versioning). A row below the current version may have been
 	// filed under the wrong series or type and is owed a re-read of its path.
 	ParserVersion int
+	// ContainerDamagedBytes counts the bytes of the container that do not
+	// parse (junk a resynchronizing reader steps over). A device's own
+	// demuxer stops dead on them, so the file is never handed over whole:
+	// the server remuxes its tracks instead. Measured at probe time and by
+	// the media-health scan, at ContainerCheckVersion.
+	ContainerDamagedBytes int64
+	// ContainerCheckVersion is the ContainerCheckVersion the container was
+	// last checked at (0 = never): a row below it is owed a check.
+	ContainerCheckVersion int
+	// DirectPlayRefused: a player's demuxer refused this exact file. A
+	// defect the check did not see (in the body, or that a stricter demuxer
+	// than mkvgo's trips on) is learnt from the first device that hits it
+	// and spares every later one. Cleared when the file changes.
+	DirectPlayRefused bool
+}
+
+// ContainerCheckVersion is the current revision of the container check.
+// Bump to send every file through it again.
+//
+//	1: mkvgo diagnose, damaged findings (head junk counted as well).
+const ContainerCheckVersion = 1
+
+// RefusesDirectPlay reports a file no device gets whole: its container is
+// damaged, or a device's demuxer already refused it. The tracks still copy.
+func (f *MediaFile) RefusesDirectPlay() bool {
+	return f != nil && (f.ContainerDamagedBytes > 0 || f.DirectPlayRefused)
 }
 
 // ParserVersion is the current revision of the path parser. Bump when the
@@ -406,6 +432,9 @@ type MediaItemScanRow struct {
 	// StreamProbeVersion mirrors media_files.stream_probe_version; a row below
 	// the current StreamProbeVersion is owed a head-only re-probe.
 	StreamProbeVersion int
+	// ContainerCheckVersion mirrors media_files.container_check_version; a row
+	// below the current ContainerCheckVersion is owed a container check.
+	ContainerCheckVersion int
 }
 
 // MediaItemContainerRow is a lightweight projection for pruning empty containers.

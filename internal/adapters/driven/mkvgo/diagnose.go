@@ -31,7 +31,35 @@ func (a *Adapter) Diagnose(ctx context.Context, path string) (*mkv.Diagnosis, er
 	if err != nil {
 		return nil, fmt.Errorf("diagnose: %w", err)
 	}
-	return mapDiagnosis(d), nil
+	out := mapDiagnosis(d)
+	// Junk in the head (between the metadata and the first Cluster) is a
+	// "damaged" finding without a tolerant walk behind it, so no byte count:
+	// the head reader's own resync count is that figure. A count of 0 there
+	// hid the file from the resync repair and from the playback gate.
+	if out.Damaged() && out.DamagedBytes == 0 {
+		if c, err := extmatroska.Open(ctx, path); err == nil && c.ResyncedBytes > 0 {
+			out.DamagedBytes = c.ResyncedBytes
+		}
+	}
+	return out, nil
+}
+
+// ProbeContainerDamage counts the bytes of the container a demuxer that does
+// not resynchronize stops on (see library.MediaFile.ContainerDamagedBytes):
+// 0 for a clean file and for any non-Matroska one. A damaged finding whose
+// size is unknown counts as 1, never as clean.
+func (a *Adapter) ProbeContainerDamage(ctx context.Context, path string) (int64, error) {
+	if !IsEBMLContainer(path) {
+		return 0, nil
+	}
+	d, err := a.Diagnose(ctx, path)
+	if err != nil {
+		return 0, err
+	}
+	if d.Damaged() {
+		return max(d.DamagedBytes, 1), nil
+	}
+	return 0, nil
 }
 
 // mapDiagnosis distils mkvgo's triage into the domain Diagnosis. Pure - unit

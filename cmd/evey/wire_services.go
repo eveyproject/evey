@@ -317,6 +317,9 @@ func startTranscodingWorkers(
 	// Every probed file is measured for tracks stored in blocks, so playback
 	// refuses it (file_needs_remux) instead of stalling on it.
 	libCmdSvc.WithInterleaveProber(mkvgo.New())
+	// And its container checked: a file a device's demuxer would stop on is
+	// remuxed from its first play instead of handed over whole.
+	libCmdSvc.WithContainerChecker(mkvgo.New())
 
 	// kfProber is returned because the PACED keyframe backfill worker (built at
 	// the call site, after the load-test runner) shares this same dispatcher.

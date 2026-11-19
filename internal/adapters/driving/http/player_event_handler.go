@@ -25,6 +25,7 @@ import (
 	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/eveyproject/evey/internal/app/presence"
@@ -57,7 +58,21 @@ const (
 	// decoders (H.264 level, largest frames, size-rate answers per codec):
 	// what a later decoder error is read against. It gets the long budget.
 	playerEventVideoCaps = "video_caps"
+	// playerEventDirectPlayRefused: a native player's demuxer refused the
+	// file it was handed whole and the app asks again for a remux. Recorded
+	// on the file (MediaFile.DirectPlayRefused) so no later device is handed
+	// it whole either.
+	playerEventDirectPlayRefused = "native_direct_play_refused"
 )
+
+// containerParseFailure mirrors the apps' playerErrorDiag rule: ExoPlayer's
+// ParserException on media data ("... {contentIsMalformed=true, dataType=1}")
+// or a container parsing error code. A manifest parse error (dataType=4) is
+// not one: the file was never read.
+var containerParseFailure = regexp.MustCompile(`contentIsMalformed=\w+, dataType=1\b|\bERROR_CODE_PARSING_CONTAINER_\w+`)
+
+// DirectPlayRefusalRecorder stores a device's refusal on the media file.
+type DirectPlayRefusalRecorder func(ctx context.Context, mediaItemID string) error
 
 type playerEventBody struct {
 	// Type names the event family (hls_fatal, hls_media_error,
@@ -161,6 +176,8 @@ type playerEventDeps struct {
 	// qoe receives the native apps' qoe_sample beacons. Nil: the samples are
 	// accepted and dropped, like a browser's CMCD when QoE is not wired.
 	qoe appqoe.EventSink
+
+	directPlayRefused DirectPlayRefusalRecorder
 }
 
 // CastAudioModeTouch mirrors the receiver's audio_mode beacon ("aac", "wasm",
@@ -263,6 +280,12 @@ func WithPlayerEventQoESink(sink appqoe.EventSink) PlayerEventOption {
 // exactly like the other handlers gated via checkLibraryAccess/checkParental.
 // It does not apply to a stream-token caller (e.g. the cast receiver) -
 // that token is already scoped to its own media_id, checked below.
+// WithPlayerEventDirectPlayRefusal records a native player's refusal of the
+// raw file on the catalog (see playerEventDirectPlayRefused).
+func WithPlayerEventDirectPlayRefusal(rec DirectPlayRefusalRecorder) PlayerEventOption {
+	return func(d *playerEventDeps) { d.directPlayRefused = rec }
+}
+
 func WithPlayerEventLibraryGuard(media mediaLibraryGetter, libChecker LibraryAccessChecker, parental ParentalChecker) PlayerEventOption {
 	return func(d *playerEventDeps) {
 		d.media = media
@@ -336,6 +359,7 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		recordDirectPlayRefusal(r, &deps, mediaID, body)
 		notifyCastLiveness(r, &deps, mediaID, body.Type, body.PosSec, body.Paused)
 		notifyCastAudioMode(r, &deps, mediaID, body.Type, body.Details)
 
@@ -545,4 +569,24 @@ func clampString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen]
+}
+
+// recordDirectPlayRefusal keeps what a device learnt the hard way: the server
+// judges the refusal itself (a direct play, a container the demuxer could
+// not parse) rather than taking the event's word for it, so a beacon can only
+// move a file from handed over whole to remuxed, never anything else.
+func recordDirectPlayRefusal(r *http.Request, deps *playerEventDeps, mediaID string, body playerEventBody) {
+	if deps.directPlayRefused == nil || body.Type != playerEventDirectPlayRefused || body.Diag == nil {
+		return
+	}
+	if body.Diag.PlayMethod != "direct_play" || !containerParseFailure.MatchString(body.Details) {
+		return
+	}
+	if err := deps.directPlayRefused(r.Context(), mediaID); err != nil {
+		slog.WarnContext(r.Context(), "player-client: direct play refusal not recorded",
+			slog.String("media_id", mediaID), slog.Any("err", err))
+		return
+	}
+	slog.InfoContext(r.Context(), "player-client: direct play refused by the device, the file is remuxed from now on",
+		slog.String("media_id", mediaID), slog.String("device", clampString(r.UserAgent(), playerEventMaxDetail)))
 }

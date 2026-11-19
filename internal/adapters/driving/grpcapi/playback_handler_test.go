@@ -1928,3 +1928,40 @@ func TestMediaStreamToProto_CarriesTheFileTrackNumber(t *testing.T) {
 	assert.Equal(t, int32(5), *pb.SourceTrackId)
 	assert.Nil(t, mediaStreamToProto(&library.MediaStream{StreamIndex: 1, StreamType: "audio"}, false).SourceTrackId)
 }
+
+// A container a device's demuxer stops on is never handed out as a raw
+// direct-play URL, even to a television that demuxes Matroska: the tracks
+// copy through the HLS master instead. Whether the scan measured the damage
+// or a device reported its refusal, the answer is the same.
+func TestGetStreamInfo_DamagedContainer_RemuxesForANativePlayer(t *testing.T) {
+	for name, file := range map[string]*library.MediaFile{
+		"measured damage":     {ContainerFormat: "matroska", ContainerDamagedBytes: 6},
+		"a device refused it": {ContainerFormat: "matroska", DirectPlayRefused: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+			h.decider = copyRungDecider()
+			ctx := pbAdminCtx()
+			mediaQuery.Seed(&library.MediaItem{ID: "mi-damaged", Title: "Damaged", Type: "movie", File: file})
+			streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+				{MediaItemID: "mi-damaged", StreamType: "video", Codec: "h264", Profile: "High", Level: new(40), Keyframes: copyRungKeyframes, Width: new(1920), Height: new(824), Bitrate: int64Ptr(3000000), IsDefault: true},
+				{MediaItemID: "mi-damaged", StreamType: "audio", Codec: "ac3", Channels: new(2), IsDefault: true},
+			})
+
+			resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+				MediaItemId:          "mi-damaged",
+				SupportedCodecs:      []string{"h264", "hevc", "vp9"},
+				SupportedAudioCodecs: []string{"aac", "ac3"},
+				SupportedContainers:  []string{"mp4", "mkv", "webm", "hls"},
+			})
+
+			require.NoError(t, err)
+			assert.NotEqual(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, resp.PlayMethod)
+			assert.Empty(t, resp.DirectPlayUrl)
+			assert.Contains(t, resp.TranscodeUrl, "hls/master.m3u8")
+			assert.Contains(t, resp.TranscodeReasons, "container_damaged")
+			assert.Equal(t, "copy", resp.VideoDecision)
+			assert.Equal(t, "copy", resp.AudioDecision)
+		})
+	}
+}

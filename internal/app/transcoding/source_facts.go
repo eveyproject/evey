@@ -163,7 +163,7 @@ func TranscodeCause(decision transcoding.PlaybackDecision, streams []*library.Me
 		pinned := false
 		for _, r := range decision.TranscodeReasons {
 			switch {
-			case r == "container_incompatible":
+			case r == "container_incompatible", r == "container_damaged":
 			case strings.HasPrefix(r, "audio_"):
 				// An audio reason says nothing about why the picture is encoded.
 			case r == "decision_pinned":

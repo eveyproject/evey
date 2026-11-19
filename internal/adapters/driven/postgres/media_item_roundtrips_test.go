@@ -146,6 +146,7 @@ func fullItem(id string, libID shared.LibraryID, fp string) *library.MediaItem {
 		ModTime: time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC), Duration: dur(90 * time.Minute),
 		Bitrate: 5000, ContainerFormat: "matroska", StreamProbeAttempts: 2,
 		InterleaveBackstepMs: 40, StreamProbeVersion: 9, ParserVersion: 7,
+		ContainerDamagedBytes: 6, ContainerCheckVersion: 1,
 	}
 	it.Catalog = &library.MediaCatalog{
 		PremiereDate: &premiere, Year: &year,

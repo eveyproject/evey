@@ -65,6 +65,9 @@ type PlaybackRequest struct {
 	// SourceNeedsRemux: the file is stored in one-track blocks (MediaFile.NeedsRemux);
 	// the decision routes it to the segmented session where the typed shed is met.
 	SourceNeedsRemux bool
+	// SourceRefusesDirectPlay: MediaFile.RefusesDirectPlay, see
+	// TranscodingPreferences.SourceRefusesDirectPlay.
+	SourceRefusesDirectPlay bool
 	// Source is the snapshot of the facts above, taken once by Resolve
 	// (SnapshotOf). Callers leave it zero; a sub-derivation called on its own
 	// (the adapter's wrappers, tests) takes it on demand.

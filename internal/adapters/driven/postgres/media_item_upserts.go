@@ -11,6 +11,7 @@ import (
 
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/ratings"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // RefreshFileState re-stamps ONLY the change-detection columns (file_size,
@@ -51,6 +52,34 @@ func (r *MediaItemRepository) SetInterleaveBackstep(ctx context.Context, path st
 		`UPDATE media_files SET interleave_backstep_ms = $1 WHERE file_path = $2`,
 		backstepMs, path); err != nil {
 		return fmt.Errorf("set media_files interleave backstep: %w", err)
+	}
+	return nil
+}
+
+// SetContainerDamage records the container check of the media-health scan on
+// the file's row, so the playback gate (MediaFile.RefusesDirectPlay) sees a
+// defect the library scan did not measure itself, and its clearing after a
+// repair.
+func (r *MediaItemRepository) SetContainerDamage(ctx context.Context, path string, damagedBytes int64) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE media_files SET container_damaged_bytes = $1, container_check_version = $2 WHERE file_path = $3`,
+		damagedBytes, library.ContainerCheckVersion, path); err != nil {
+		return fmt.Errorf("set media_files container damage: %w", err)
+	}
+	return nil
+}
+
+// MarkDirectPlayRefused records that a device's demuxer refused the item's
+// file: every later play of it is remuxed (MediaFile.RefusesDirectPlay).
+func (r *MediaItemRepository) MarkDirectPlayRefused(ctx context.Context, id shared.MediaItemID) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE media_files SET direct_play_refused = true WHERE media_item_id = $1 AND NOT direct_play_refused`,
+		string(id)); err != nil {
+		return fmt.Errorf("mark media_files direct play refused: %w", err)
 	}
 	return nil
 }
@@ -136,10 +165,11 @@ func itemWriteQuery(item *library.MediaItem, create bool, scanTitle, sortTitle s
 			 WHERE file_fingerprint = `+fp+` AND media_item_id <> (SELECT id FROM u) RETURNING 1)`)
 			gate = ", (SELECT count(*) FROM fc) AS gate"
 		}
-		ctes = append(ctes, `fi AS (INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts, interleave_backstep_ms, stream_probe_version, parser_version)
+		ctes = append(ctes, `fi AS (INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts, interleave_backstep_ms, stream_probe_version, parser_version, container_damaged_bytes, container_check_version)
 		 SELECT u.id, `+arg(f.Path, "text")+`, `+arg(f.Size, "bigint")+`, `+arg(fingerprint, "text")+`, `+arg(f.ModTime, "timestamptz")+`,
 		   `+arg(f.Duration.Milliseconds(), "bigint")+`, `+arg(f.Bitrate, "bigint")+`, `+arg(f.ContainerFormat, "text")+`,
-		   `+arg(f.StreamProbeAttempts, "integer")+`, `+arg(f.InterleaveBackstepMs, "bigint")+`, `+arg(f.StreamProbeVersion, "integer")+`, `+arg(f.ParserVersion, "integer")+`
+		   `+arg(f.StreamProbeAttempts, "integer")+`, `+arg(f.InterleaveBackstepMs, "bigint")+`, `+arg(f.StreamProbeVersion, "integer")+`, `+arg(f.ParserVersion, "integer")+`,
+		   `+arg(f.ContainerDamagedBytes, "bigint")+`, `+arg(f.ContainerCheckVersion, "integer")+`
 		 FROM u`+gate+` WHERE true
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   file_path = EXCLUDED.file_path,
@@ -152,7 +182,18 @@ func itemWriteQuery(item *library.MediaItem, create bool, scanTitle, sortTitle s
 		   stream_probe_attempts = EXCLUDED.stream_probe_attempts,
 		   interleave_backstep_ms = EXCLUDED.interleave_backstep_ms,
 		   stream_probe_version = EXCLUDED.stream_probe_version,
-		   parser_version = EXCLUDED.parser_version)`)
+		   parser_version = EXCLUDED.parser_version,
+		   container_damaged_bytes = EXCLUDED.container_damaged_bytes,
+		   container_check_version = EXCLUDED.container_check_version,
+		   -- A refusal belongs to the bytes a device was handed: other bytes
+		   -- (a replaced or repaired file) are owed a fresh chance. Never
+		   -- written from the struct, so a scan holding an older read of the
+		   -- row cannot erase a refusal reported meanwhile.
+		   direct_play_refused = CASE
+		     WHEN media_files.file_size IS DISTINCT FROM EXCLUDED.file_size
+		       OR (media_files.file_fingerprint IS NOT NULL AND EXCLUDED.file_fingerprint IS NOT NULL
+		           AND media_files.file_fingerprint <> EXCLUDED.file_fingerprint)
+		     THEN false ELSE media_files.direct_play_refused END)`)
 	} else if !create {
 		ctes = append(ctes, `fd AS (DELETE FROM media_files WHERE media_item_id IN (SELECT id FROM u))`)
 	}
