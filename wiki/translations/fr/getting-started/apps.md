@@ -1,5 +1,5 @@
 ---
-source_sha: f6f465ffe636c6e842ef744a39a77b3e6fd46b422c1155d344e35510fa29d296
+source_sha: c10d415b34bef2e04a1ab22d33d681fd812b2937f3595c64e946bf1630b2404a
 reviewed: true
 ---
 # Connecter les applications { #connect-the-apps }
@@ -265,6 +265,18 @@ Play Store ne met pas toujours les applications à jour automatiquement
 serveur est plus ancien que cette fonction, rien ne s'affiche. L'application
 web et la page `/tv` n'ont jamais besoin de mise à jour : c'est le
 serveur qui les fournit.
+
+Les applications Android et Android TV reçoivent aussi des correctifs de
+votre serveur, sans passer par le Play Store. Une fois le serveur choisi,
+l'application télécharge en arrière-plan le code d'application qui va avec la
+version de ce serveur, et démarre dessus à sa prochaine ouverture. Quand ce
+code est une autre version de l'application que celle qui tourne, une fenêtre
+indique **Mise à jour prête**, avec **Redémarrer** et **Plus tard** ; elle ne
+s'affiche jamais par-dessus la vidéo. Les applications n'acceptent que du code
+publié par le projet Evey, et ne reviennent jamais à un code plus ancien. Un
+changement dans la partie de l'application qu'Android installe passe encore
+par le Play Store. Le fonctionnement :
+[Mises à jour des applications servies par l'instance](../client-updates.md).
 
 ## Quel appareil lit quoi { #which-device-plays-what }
 

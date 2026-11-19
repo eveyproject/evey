@@ -1,10 +1,10 @@
 ---
-source_sha: b190ab7985ddfa37e89a42378df8e93b54570bb6e51751fb52daa0e8570c4370
+source_sha: 9eec19e1270470e8eb8f676cf2f22f222554f5c5e20608454f081b7766ab01bd
 reviewed: true
 ---
 # Política de privacidad { #privacy-policy }
 
-Última actualización: 2026-10-26.
+Última actualización: 2026-11-19.
 
 Esta política se aplica a las apps de Evey para Android y Android TV.
 
@@ -30,6 +30,12 @@ envían lo que un reproductor multimedia necesita para funcionar:
 - informes técnicos de reproducción: qué formatos de audio y de vídeo puede
   decodificar el dispositivo, y los errores que surgen al reproducir, para
   que el servidor elija un flujo que el dispositivo pueda reproducir;
+- la comprobación de actualización de la app: la plataforma, la compilación
+  de la app y la versión del código de la app que ejecuta, para que el
+  servidor pueda entregarle el código de la app que corresponde a su propia
+  versión. No se
+  envía ningún identificador de la instalación. Ese código lo publica y lo
+  firma el proyecto Evey; el servidor solo lo almacena;
 - una imagen, solo cuando eliges una como avatar de perfil, y los archivos
   que tú mismo eliges (un subtítulo externo, un plugin, una copia de
   seguridad) como administrador.
@@ -65,7 +71,7 @@ proyecto Evey no tiene acceso a ellos.
 
 ## Lo que se queda en el dispositivo { #what-stays-on-the-device }
 
-La dirección del servidor, tu token de sesión y, si marcas recordarme, tu nombre de usuario y tu contraseña (en el almacenamiento cifrado de Android, el keystore de Android), tus preferencias, y las películas y la música que descargas para
+La dirección del servidor, tu token de sesión y, si marcas recordarme, tu nombre de usuario y tu contraseña (en el almacenamiento cifrado de Android, el keystore de Android), tus preferencias, el código de la app recibido de tu servidor, y las películas y la música que descargas para
 verlas o escucharlas sin conexión. Si desinstalas la app, se borran. El
 desbloqueo biométrico (huella o cara), cuando lo activas, lo gestiona
 Android: la app solo sabe si ha funcionado o no.

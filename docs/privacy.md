@@ -1,6 +1,6 @@
 # Privacy policy
 
-Last updated: 2026-10-26.
+Last updated: 2026-11-19.
 
 This policy covers the Evey apps for Android and Android TV.
 
@@ -23,6 +23,10 @@ media player needs to work:
 - technical playback reports: which audio and video formats the device can
   decode, and errors met while playing, so the server can pick a stream the
   device can play;
+- the app's update check: the platform, the build of the app and the version
+  of the app code it runs, so the server can hand over the app code that goes
+  with its own version. No identifier of the installation is sent. That code is published
+  and signed by the Evey project; the server only stores it;
 - a picture, only when you choose one as a profile avatar, and files you pick
   yourself (an external subtitle, a plugin, a backup) as an administrator.
 
@@ -54,7 +58,7 @@ has no access to it.
 
 ## What stays on the device
 
-The server address, your session token and, if you tick remember me, your username and password (in Android's encrypted storage, the Android keystore), your preferences, and the films and music you download for offline viewing. Removing
+The server address, your session token and, if you tick remember me, your username and password (in Android's encrypted storage, the Android keystore), your preferences, the app code received from your server, and the films and music you download for offline viewing. Removing
 the app removes them. Biometric unlock (fingerprint or face), when you turn it
 on, is handled by Android: the app only learns whether it succeeded.
 

@@ -181,6 +181,7 @@ plugins:
             Architecture: Architecture
             Playback pipeline: Chaîne de lecture
             Security model and plugin sandbox: Modèle de sécurité et sandbox des plugins
+            App updates: Mises à jour des applications
             Languages and accessibility: Langues et accessibilité
             Contributing: Contribuer
         - locale: de
@@ -253,6 +254,7 @@ plugins:
             Architecture: Architektur
             Playback pipeline: Wiedergabekette
             Security model and plugin sandbox: Sicherheitsmodell und Plugin-Sandbox
+            App updates: App-Updates
             Languages and accessibility: Sprachen und Barrierefreiheit
             Contributing: Mitwirken
         - locale: es
@@ -325,6 +327,7 @@ plugins:
             Architecture: Arquitectura
             Playback pipeline: Cadena de reproducción
             Security model and plugin sandbox: Modelo de seguridad y sandbox de plugins
+            App updates: Actualizaciones de las apps
             Languages and accessibility: Idiomas y accesibilidad
             Contributing: Contribuir
         - locale: hi
@@ -397,6 +400,7 @@ plugins:
             Architecture: आर्किटेक्चर
             Playback pipeline: प्लेबैक पाइपलाइन
             Security model and plugin sandbox: सुरक्षा मॉडल और प्लगइन सैंडबॉक्स
+            App updates: ऐप अपडेट
             Languages and accessibility: भाषाएँ और सुलभता
             Contributing: योगदान करें
         - locale: zh
@@ -469,6 +473,7 @@ plugins:
             Architecture: 架构
             Playback pipeline: 播放链路
             Security model and plugin sandbox: 安全模型与插件沙箱
+            App updates: 应用更新
             Languages and accessibility: 语言与无障碍
             Contributing: 参与贡献
 
@@ -593,5 +598,6 @@ nav:
       - Architecture: ARCHITECTURE.md
       - Playback pipeline: playback-serving.md
       - Security model and plugin sandbox: SECURITY.md
+      - App updates: client-updates.md
       - Languages and accessibility: i18n-accessibility.md
       - Contributing: contributing.md

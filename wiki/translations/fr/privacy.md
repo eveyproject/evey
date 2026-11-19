@@ -1,10 +1,10 @@
 ---
-source_sha: b190ab7985ddfa37e89a42378df8e93b54570bb6e51751fb52daa0e8570c4370
+source_sha: 9eec19e1270470e8eb8f676cf2f22f222554f5c5e20608454f081b7766ab01bd
 reviewed: true
 ---
 # Règles de confidentialité { #privacy-policy }
 
-Dernière mise à jour : 2026-10-26.
+Dernière mise à jour : 2026-11-19.
 
 Ces règles concernent les applications Evey pour Android et Android TV.
 
@@ -31,6 +31,12 @@ envoient ce dont un lecteur de médias a besoin pour fonctionner :
 - des rapports techniques de lecture : les formats audio et vidéo que
   l'appareil sait lire, et les erreurs rencontrées pendant la lecture, pour
   que le serveur choisisse un flux que l'appareil peut lire ;
+- la vérification de mise à jour de l'application : la plateforme, la build
+  de l'application et la version du code d'application qu'elle exécute, pour
+  que le serveur puisse lui remettre le code d'application qui va avec sa
+  propre version.
+  Aucun identifiant de l'installation n'est envoyé. Ce code est publié et
+  signé par le projet Evey ; le serveur ne fait que le stocker ;
 - une image, seulement quand vous en choisissez une comme photo de profil, et
   les fichiers que vous choisissez vous-même (un sous-titre externe, un
   plugin, une sauvegarde) en tant qu'administrateur.
@@ -66,7 +72,7 @@ projet Evey n'y a pas accès.
 
 ## Ce qui reste sur l'appareil { #what-stays-on-the-device }
 
-L'adresse du serveur, votre jeton de session et, si vous cochez se souvenir de moi, votre nom d'utilisateur et votre mot de passe (dans le stockage chiffré d'Android, le keystore Android), vos préférences, et les films et la musique que vous téléchargez
+L'adresse du serveur, votre jeton de session et, si vous cochez se souvenir de moi, votre nom d'utilisateur et votre mot de passe (dans le stockage chiffré d'Android, le keystore Android), vos préférences, le code d'application reçu de votre serveur, et les films et la musique que vous téléchargez
 pour les regarder ou les écouter sans connexion. Désinstaller l'application
 les supprime. Le déverrouillage par empreinte ou par visage, quand vous
 l'activez, est géré par Android : l'application sait seulement s'il a réussi.

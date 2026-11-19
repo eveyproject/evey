@@ -13,6 +13,7 @@ stores afterwards wins over them, as explained in the
 | `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | The public address. An `https://` address turns on `Secure` cookies, HSTS and trust in `X-Forwarded-Proto`. E-mail links, single sign-on redirects and cast URLs are built from it. | Remote Access → **External URL** wins when set, live; an `https://` External URL also turns HTTPS on |
 | `EVEY_SERVER_PORT` | `9090` | The internal gRPC port. The HTTP API and the web interface listen on this port plus one (`9091`). | none |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | The address the gRPC port listens on. The remote-access gate does not cover gRPC, so widening it (`0.0.0.0`) logs a warning and makes firewalling it your job. | none |
+| `EVEY_CLIENT_UPDATES_DIR` | `/app/client-updates` | The folder the server reads the Android apps' code from ([App updates served by the instance](../client-updates.md)). The published images fill it; nothing is served when it is empty or missing. | none |
 | `EVEY_SERVER_NAME` | `Evey` | The name shown on the sign-in page, in the apps' server list and in e-mails. | Server Config → General → **Server Name**, live |
 
 ## Reverse proxy
@@ -60,7 +61,7 @@ Read by the entrypoint, not by the server.
 | `EVEY_DEMO` | `false` | Runs the server as the public demo: administration writes are locked, no e-mail, push or outgoing webhooks. Not for a real installation. | none |
 
 <!-- sources
-internal/config/config.go - EVEY_SERVER_BASE_URL, EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_SERVER_NAME, EVEY_REAL_IP_HEADER, EVEY_RATELIMIT_LOGIN_MAX, EVEY_RATELIMIT_GLOBAL_MAX, EVEY_REMOTE_ACCESS_*, EVEY_DEMO, forwardedProtoFromEnv, EffectiveBaseURL
+internal/config/config.go - EVEY_CLIENT_UPDATES_DIR, EVEY_SERVER_BASE_URL, EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_SERVER_NAME, EVEY_REAL_IP_HEADER, EVEY_RATELIMIT_LOGIN_MAX, EVEY_RATELIMIT_GLOBAL_MAX, EVEY_REMOTE_ACCESS_*, EVEY_DEMO, forwardedProtoFromEnv, EffectiveBaseURL
 trusted proxies: internal/config/trusted_proxies.go (loopback baseline, malformed entry is an error) ; cmd/evey/admin_ops.go
 remote access inference: internal/config/remote_access_resolve.go ; cmd/evey/main.go (RemoteAccessConfigKey loaded from DB)
 panel: internal/adapters/driving/http/settings_handler.go (server.name, ratelimit.* live via SetLimit) ; i18n admin.remoteAccess.*, admin.serverSettings.*

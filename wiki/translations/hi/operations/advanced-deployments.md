@@ -1,5 +1,5 @@
 ---
-source_sha: f2e1240c1750c81d4a4d422aadadd53ecf86ab53d63aed2fc0a82c56e43e1d1f
+source_sha: 315726531fb31af3d0d5ebdc542a9ab361fbeb25f8cf24c185d7a44af2c48afb
 reviewed: true
 ---
 # एडवांस्ड डिप्लॉयमेंट { #advanced-deployments }
@@ -189,6 +189,25 @@ release और pre-release tag तीन रूपों में आते ह
 जब इमेज का आकार मायने रखता हो: installer उस प्लगइन को मना कर देता है जिसकी
 बताई गई भाषा इमेज में नहीं है, और संदेश में डिफ़ॉल्ट इमेज का नाम बताता है।
 
+सिर्फ़ release या pre-release tag से प्रकाशित इमेज में वह कोड होता है जो Android
+ऐप अपने सर्वर से लेते हैं
+([इंस्टेंस से मिलने वाले ऐप अपडेट](../client-updates.md))। branch का build या
+खुद बनाई गई इमेज कोई कोड नहीं देती, और ऐप वही कोड रखते हैं जो उनके पास है।
+
+प्रकाशित इमेज cosign से साइन की जाती हैं, बाँटने के लिए कोई कुंजी नहीं होती:
+साइन करने वाला रिपॉज़िटरी का वह workflow है जिसने इमेज बनाई। किसी रिलीज़ को
+जाँचने के लिए, cosign 3 या उससे नए के साथ:
+
+```bash
+cosign verify eveyproject/evey:X.Y.Z \
+  --certificate-identity https://github.com/eveyproject/evey/.github/workflows/ci.yml@refs/tags/vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+रिलीज़ 0.1.5 से 0.1.8 प्रकाशन के बाद साइन की गईं, `ci.yml@refs/tags/vX.Y.Z` की
+जगह `sign-published-images.yml@refs/heads/master` से। इनसे पहले की रिलीज़ साइन
+नहीं हैं।
+
 प्रकाशित इमेज में हर समर्थित Intel और AMD पीढ़ी के ड्राइवर होते हैं। खुद बनाई
 गई इमेज में एक ही परिवार रखा जा सकता है: `docker build
 --build-arg GPU=intel-legacy .` (Intel Gen9 से Gen11), `GPU=intel` (Gen12 और नए),
@@ -211,5 +230,6 @@ embedded db, import, major upgrade, embedded meili: docker/entrypoint.sh (PG_MAJ
 external db switch and default password refusal: internal/config/config.go (EVEY_DB_HOST, hardFail on "evey")
 reindex: cmd/evey/admin.go - adminReindexSearch
 arm, variants, GPU families: Dockerfile (TARGETARCH, RUNTIMES, GPU) ; .github/workflows/ci.yml (tags, flavor suffix, platforms) ; internal/adapters/driven/ffmpeg/hwdetect.go - detectRKMPP
+app code and image signature: .github/workflows/ci.yml (client-updates-build, client-updates-sign, docker-sign) ; .github/workflows/sign-published-images.yml ; Dockerfile (COPY client-updates)
 sandbox auto: internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; i18n/en/admin.yaml - plugins.security.title
 -->

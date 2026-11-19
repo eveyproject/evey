@@ -1,5 +1,5 @@
 ---
-source_sha: 0e9677cafb6440a4984abea7c9a1d5bc5e010660e3be079a81f138d63d036a5d
+source_sha: 4171accfb7b8abe361d2b71d933ac148558ac1faa59774ca37b920c38d464e97
 reviewed: true
 ---
 # Sicherungen und Updates { #backups-and-updates }
@@ -129,6 +129,10 @@ Das ist das ganze Update.
 - **Evey sagt Ihnen, wenn es ein Update gibt.** Es prüft jede Stunde, ob ein
   neueres Image veröffentlicht ist, und zeigt das im Verwaltungsbereich an. Es
   aktualisiert sich nie selbst.
+- **Die Android-Apps ziehen nach.** Ein Release-Image bringt den Code der
+  Apps für Android und Android TV mit, der zu ihm gehört, und die mit Ihrem
+  Server verbundenen Apps holen ihn sich selbst
+  ([Die Apps aktuell halten](getting-started/apps.md#keeping-the-apps-up-to-date)).
 - **Welche Version läuft:** `docker exec evey-server evey version` gibt die
   Version und den Commit aus.
 
@@ -150,14 +154,18 @@ Das ist das ganze Update.
    aus, mit dem Pfad der Datei.
 3. Führen Sie `docker compose up -d` aus.
 
-Die Fingerabdrücke der Intro-Erkennung sind das Einzige, das Ihnen nicht
-folgt. Der erste Start einer Version, die sie in `./evey-data/fingerprints`
+Die Fingerabdrücke der Intro-Erkennung sind die einzigen Daten, die Ihnen nicht
+folgen. Der erste Start einer Version, die sie in `./evey-data/fingerprints`
 ablegt, verschiebt sie dorthin aus der Datenbank und löscht die verschobenen
 Zeilen. Eine ältere Version liest sie nur aus der Datenbank, findet keine und
 berechnet sie während der Intro-Erkennung aus den Mediendateien neu: Es geht
 nichts verloren, aber der Server ist eine Weile stärker ausgelastet. Eine vor
 dem Update angelegte Sicherung enthält die Zeilen noch, und ihre
 Wiederherstellung bringt sie zurück.
+
+Die Android-Apps gehen nicht mit dem Server zurück: Sie behalten den neuesten
+App-Code, den sie ausgeführt haben, und der ältere Server muss damit
+zurechtkommen.
 
 Image-Tags, weitere Varianten und Builds für Grafikkarten sind unter
 [Fortgeschrittene Bereitstellungen](operations/advanced-deployments.md#image-tags-and-variants)
@@ -171,6 +179,7 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
+app code in the image, apps never go back: Dockerfile (COPY client-updates) ; docs/client-updates.md ; frontend/packages/client/src/native/clientUpdates.test.ts
 rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

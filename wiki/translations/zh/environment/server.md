@@ -1,5 +1,5 @@
 ---
-source_sha: a4895e025890778a9d0a64f0760fdd0793e0bf99d8c1cb1c158001fb30f2cd84
+source_sha: 1cc00b0dac14b87babd7bfde92f460e224a48a7f9e3bd7a3ac1b0b86fa0c6f9f
 reviewed: true
 ---
 # 服务器与网络 { #server-and-network }
@@ -15,6 +15,7 @@ reviewed: true
 | `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | 公网地址。以 `https://` 开头的地址会开启 `Secure` Cookie、HSTS，并信任 `X-Forwarded-Proto`。邮件里的链接、单点登录的跳转地址和投屏地址都由它生成。 | 设置了远程访问 → **外部 URL** 时以它为准，实时生效；以 `https://` 开头的外部 URL 也会开启 HTTPS |
 | `EVEY_SERVER_PORT` | `9090` | 内部 gRPC 端口。HTTP API 和网页界面监听这个端口加一（`9091`）。 | 无 |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | gRPC 端口监听的地址。远程访问控制不覆盖 gRPC，所以放宽它（`0.0.0.0`）会记录一条警告，此时需要您自己用防火墙限制该端口。 | 无 |
+| `EVEY_CLIENT_UPDATES_DIR` | `/app/client-updates` | 服务器读取 Android 应用代码的文件夹（[由实例提供的应用更新](../client-updates.md)）。发布的镜像会填好它；文件夹为空或不存在时不提供任何内容。 | 无 |
 | `EVEY_SERVER_NAME` | `Evey` | 显示在登录页面、应用的服务器列表和邮件里的名称。 | 服务器配置 → 常规 → **服务器名称**，实时生效 |
 
 ## 反向代理 { #reverse-proxy }
@@ -61,7 +62,7 @@ reviewed: true
 | `EVEY_DEMO` | `false` | 把服务器作为公开演示运行：管理方面的修改被锁定，不发邮件、不推送，也不发出 webhook。不要用于实际的安装。 | 无 |
 
 <!-- sources
-internal/config/config.go - EVEY_SERVER_BASE_URL, EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_SERVER_NAME, EVEY_REAL_IP_HEADER, EVEY_RATELIMIT_LOGIN_MAX, EVEY_RATELIMIT_GLOBAL_MAX, EVEY_REMOTE_ACCESS_*, EVEY_DEMO, forwardedProtoFromEnv, EffectiveBaseURL
+internal/config/config.go - EVEY_CLIENT_UPDATES_DIR, EVEY_SERVER_BASE_URL, EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_SERVER_NAME, EVEY_REAL_IP_HEADER, EVEY_RATELIMIT_LOGIN_MAX, EVEY_RATELIMIT_GLOBAL_MAX, EVEY_REMOTE_ACCESS_*, EVEY_DEMO, forwardedProtoFromEnv, EffectiveBaseURL
 trusted proxies: internal/config/trusted_proxies.go (loopback baseline, malformed entry is an error) ; cmd/evey/admin_ops.go
 remote access inference: internal/config/remote_access_resolve.go ; cmd/evey/main.go (RemoteAccessConfigKey loaded from DB)
 panel: internal/adapters/driving/http/settings_handler.go (server.name, ratelimit.* live via SetLimit) ; i18n admin.remoteAccess.*, admin.serverSettings.*
