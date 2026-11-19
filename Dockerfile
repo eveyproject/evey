@@ -317,7 +317,8 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
 # top of the stage it forced the whole apt layer to rebuild per variant.
 ARG RUNTIMES=full
 RUN --mount=type=bind,from=plugin-runtime-node,source=/runtime/node_modules,target=/mnt/plugin-runtime-node \
-    case "$RUNTIMES" in \
+    python3 -c "import grpc, google.protobuf" \
+    && case "$RUNTIMES" in \
       lean) ;; \
       nodejs|full) \
         apt-get update \
@@ -328,7 +329,8 @@ RUN --mount=type=bind,from=plugin-runtime-node,source=/runtime/node_modules,targ
         && NODE_PATH=/usr/local/lib/node_modules node -e "require('@grpc/grpc-js'); require('@grpc/proto-loader')" \
         && if [ "$RUNTIMES" = "full" ]; then \
              apt-get install -y --no-install-recommends php-cli ruby lua5.4 \
-             && ([ -e /usr/bin/lua ] || ln -sf /usr/bin/lua5.4 /usr/bin/lua); \
+             && ([ -e /usr/bin/lua ] || ln -sf /usr/bin/lua5.4 /usr/bin/lua) \
+             && php --version >/dev/null && ruby --version >/dev/null && lua -v >/dev/null; \
            fi \
         && rm -rf /var/lib/apt/lists/* ;; \
       *) echo "ERROR: RUNTIMES must be lean, nodejs or full, got '$RUNTIMES'" >&2; exit 1 ;; \
