@@ -70,6 +70,12 @@ export async function restoreQueryCache(client: QueryClient, storage: PersistSto
       return false;
     }
     hydrate(client, stored.state);
+    // hydrate keeps each query's original fetch time, so a copy younger than
+    // the stale time counts as fresh and no screen asks again. Marked stale,
+    // it shows at once and the first screen to use it fetches it behind.
+    for (const q of stored.state.queries) {
+      void client.invalidateQueries({ queryKey: q.queryKey, exact: true, refetchType: "none" });
+    }
     return true;
   } catch {
     await storage.remove().catch(() => {});
