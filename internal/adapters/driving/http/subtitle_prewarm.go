@@ -50,6 +50,9 @@ type prewarmJob struct {
 	mediaID  string
 	filePath string
 	tracks   []prewarmTrack
+	// indexOnly builds the subtitle index and extracts nothing: the job of a
+	// browser whose subtitles the packager serves (see EnqueueIndex).
+	indexOnly bool
 }
 
 type prewarmTrack struct {
@@ -127,25 +130,39 @@ func (p *subtitlePrewarmer) Start(ctx context.Context) {
 // be asked for. Everything else follows in file order, which is the order the
 // menu lists them in.
 func (p *subtitlePrewarmer) Enqueue(mediaID, filePath string, streams []*library.MediaStream, preferredLang string) {
-	if p == nil || p.cache.dir == "" || mediaID == "" || filePath == "" {
+	p.enqueue(mediaID, prewarmJob{mediaID: mediaID, filePath: filePath, tracks: textSubtitleTracks(streams, preferredLang)})
+}
+
+// EnqueueIndex schedules the subtitle index of a media and nothing else. A
+// browser on a file the packager subtitles reads the renditions segment by
+// segment, so the WebVTT cache would go unread, but the packager does read the
+// index: without it each subtitle track followed walks the whole film again
+// next to the playback, once per viewing. The walk here is paid once, paced,
+// and kept. Its own seen entry, so a native app opening the same film later
+// still gets its tracks extracted.
+func (p *subtitlePrewarmer) EnqueueIndex(mediaID, filePath string, streams []*library.MediaStream) {
+	p.enqueue(mediaID+"|index", prewarmJob{mediaID: mediaID, filePath: filePath, tracks: textSubtitleTracks(streams, ""), indexOnly: true})
+}
+
+func (p *subtitlePrewarmer) enqueue(seenKey string, job prewarmJob) {
+	if p == nil || p.cache.dir == "" || job.mediaID == "" || job.filePath == "" {
 		return
 	}
 	p.mu.Lock()
-	if _, dup := p.seen[mediaID]; dup {
+	if _, dup := p.seen[seenKey]; dup {
 		p.mu.Unlock()
 		return
 	}
-	p.seen[mediaID] = struct{}{}
+	p.seen[seenKey] = struct{}{}
 	p.mu.Unlock()
 
-	tracks := textSubtitleTracks(streams, preferredLang)
-	if len(tracks) == 0 {
+	if len(job.tracks) == 0 {
 		return
 	}
 	select {
-	case p.jobs <- prewarmJob{mediaID: mediaID, filePath: filePath, tracks: tracks}:
+	case p.jobs <- job:
 	default:
-		slog.Debug("subtitle prewarm: queue full, skipping", slog.String("media_id", mediaID))
+		slog.Debug("subtitle prewarm: queue full, skipping", slog.String("media_id", job.mediaID))
 	}
 }
 
@@ -217,7 +234,10 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 	// 227 carry exactly one and were paying an extra pass for nothing.
 	// Unless the file's own Cues already hold it: that index is a metadata
 	// read plus a small read per cued cluster, worth it from the first track.
-	p.ensureIndex(ctx, job, indexWorthBuilding(job))
+	p.ensureIndex(ctx, job, job.indexOnly || indexWorthBuilding(job))
+	if job.indexOnly {
+		return
+	}
 
 	for _, t := range job.tracks {
 		if ctx.Err() != nil {

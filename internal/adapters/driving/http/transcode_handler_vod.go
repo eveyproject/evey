@@ -630,17 +630,20 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// every client makes exactly once per session. The prewarmer waits for the
 	// picture to have its head start before touching the disk, and drops the
 	// job rather than delay this response.
-	// Not for a browser on a file the packager subtitles: it reads the
-	// renditions segment by segment and would never open the cache this full
-	// read fills - a full read next to its own playback. The native apps and
-	// the cast receiver still fetch /subtitle, so they keep the head start.
+	// A browser on a file the packager subtitles reads the renditions segment
+	// by segment and never opens the WebVTT cache, so it gets the index alone:
+	// the packager reads that one, and without it each subtitle track followed
+	// walks the whole film again. The native apps and the cast receiver still
+	// fetch /subtitle, so they keep the full head start.
 	// Nor for a simulated viewer of the load test (X-Evey-Load-Test, set by
 	// internal/app/loadtest): a run queued 32 full reads that went on at full
 	// speed long after it ended (2026-10-05). The header only ever skips a
 	// convenience, so a client faking it costs itself, nobody else.
 	if h.subtitlePrewarm != nil && item != nil && item.File != nil && r.Header.Get("X-Evey-Load-Test") == "" {
 		packagerServes := browserUserAgent(r.UserAgent()) && len(h.planSubtitleRenditions(r, mediaID, item, streams, rp)) > 0
-		if !packagerServes {
+		if packagerServes {
+			h.subtitlePrewarm.EnqueueIndex(mediaID, item.File.Path, streams)
+		} else {
 			h.subtitlePrewarm.Enqueue(mediaID, item.File.Path, streams, h.subtitlePrewarmLang(r.Context()))
 		}
 	}
