@@ -97,12 +97,11 @@ func TestPlanSubtitleRenditions_AnEscapedTitleDropsNothingAfterIt(t *testing.T) 
 	assert.NotContains(t, served, `\n`)
 }
 
-// The prewarm's full read is skipped for a browser on a packager-subtitled
-// file; the apps and the receiver keep it, they still fetch /subtitle.
-func TestBrowserUserAgent(t *testing.T) {
-	assert.True(t, browserUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0"))
-	assert.False(t, browserUserAgent("EveyMobile/0.0.1-beta.61 (Android 16; BVL-N49)"))
-	assert.False(t, browserUserAgent("EveyTV (Android TV 14; SHIELD)"))
-	assert.False(t, browserUserAgent("Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.225 Safari/537.36 CrKey/1.56.500000 DeviceType/Chromecast"))
-	assert.False(t, browserUserAgent("okhttp/4.12"))
+// The prewarm's full read is skipped for every client that follows the
+// packager's subtitle renditions; only the cast receiver keeps it.
+func TestReadsSubtitleRenditions(t *testing.T) {
+	assert.True(t, readsSubtitleRenditions("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0"))
+	assert.True(t, readsSubtitleRenditions("EveyMobile/0.0.1-beta.61 (Android 16; BVL-N49)"))
+	assert.True(t, readsSubtitleRenditions("EveyTV (Android TV 14; SHIELD)"))
+	assert.False(t, readsSubtitleRenditions("Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.225 Safari/537.36 CrKey/1.56.500000 DeviceType/Chromecast"))
 }

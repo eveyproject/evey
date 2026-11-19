@@ -32,18 +32,20 @@ func TestSubtitleIndexCache_KeySurvivesAnMkvgoUpgrade(t *testing.T) {
 	assert.NotEqual(t, subtitleCache(c).keyFor(film, -1), c.key(film), "premise: the WebVTT key does follow it")
 }
 
-// A browser on a file the packager subtitles gets an index-only job: it never
-// reads the WebVTT cache, but the packager reads the index, and without it
-// each subtitle track followed walks the whole film. A native app keeps the
-// full job.
-func TestSubtitlePrewarm_BrowserOnPackagerSubtitlesQueuesTheIndex(t *testing.T) {
+// A browser or a native app on a file the packager subtitles gets an
+// index-only job: neither reads the WebVTT cache, but the packager reads the
+// index, and without it each subtitle track followed walks the whole film.
+// The cast receiver keeps the full job.
+func TestSubtitlePrewarm_RenditionClientOnPackagerSubtitlesQueuesTheIndex(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		ua        string
 		indexOnly bool
 	}{
 		{"browser", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36", true},
-		{"native app", "EveyTV (Android TV 14; SHIELD)", false},
+		{"television app", "EveyTV (Android TV 14; SHIELD)", true},
+		{"phone app", "EveyMobile/0.1.3 (Android 16; BVL-N49)", true},
+		{"cast receiver", "Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.225 Safari/537.36 CrKey/1.56.500000 DeviceType/Chromecast", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			item := onDemandItem()
@@ -72,8 +74,8 @@ func TestSubtitlePrewarm_BrowserOnPackagerSubtitlesQueuesTheIndex(t *testing.T) 
 	}
 }
 
-// The index-only job has its own seen entry: a browser opening the film first
-// must not cost a native app opening it later its extracted tracks.
+// The index-only job has its own seen entry: a phone opening the film first
+// must not cost a cast receiver opening it later its extracted tracks.
 func TestPrewarmer_IndexJobDoesNotShadowTheFullJob(t *testing.T) {
 	p := newSubtitlePrewarmer(newSubtitleCache(t.TempDir()), subtitleIndexCache{})
 	streams := []*domainlibrary.MediaStream{sub("subrip", "fre", false)}

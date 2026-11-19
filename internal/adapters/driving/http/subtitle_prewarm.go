@@ -134,11 +134,11 @@ func (p *subtitlePrewarmer) Enqueue(mediaID, filePath string, streams []*library
 }
 
 // EnqueueIndex schedules the subtitle index of a media and nothing else. A
-// browser on a file the packager subtitles reads the renditions segment by
+// client that follows the packager's subtitle renditions reads them segment by
 // segment, so the WebVTT cache would go unread, but the packager does read the
 // index: without it each subtitle track followed walks the whole film again
 // next to the playback, once per viewing. The walk here is paid once, paced,
-// and kept. Its own seen entry, so a native app opening the same film later
+// and kept. Its own seen entry, so a cast receiver opening the same film later
 // still gets its tracks extracted.
 func (p *subtitlePrewarmer) EnqueueIndex(mediaID, filePath string, streams []*library.MediaStream) {
 	p.enqueue(mediaID+"|index", prewarmJob{mediaID: mediaID, filePath: filePath, tracks: textSubtitleTracks(streams, ""), indexOnly: true})

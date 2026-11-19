@@ -630,17 +630,18 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// every client makes exactly once per session. The prewarmer waits for the
 	// picture to have its head start before touching the disk, and drops the
 	// job rather than delay this response.
-	// A browser on a file the packager subtitles reads the renditions segment
-	// by segment and never opens the WebVTT cache, so it gets the index alone:
-	// the packager reads that one, and without it each subtitle track followed
-	// walks the whole film again. The native apps and the cast receiver still
-	// fetch /subtitle, so they keep the full head start.
+	// A browser or a native app on a file the packager subtitles reads the
+	// renditions segment by segment and opens /subtitle only for a track the
+	// packager does not serve, so it gets the index alone: the packager reads
+	// that one, and without it each subtitle track followed walks the whole
+	// film again. The full extraction into the WebVTT cache would be a read of
+	// the film nobody uses. The cast receiver keeps the full head start.
 	// Nor for a simulated viewer of the load test (X-Evey-Load-Test, set by
 	// internal/app/loadtest): a run queued 32 full reads that went on at full
 	// speed long after it ended (2026-10-05). The header only ever skips a
 	// convenience, so a client faking it costs itself, nobody else.
 	if h.subtitlePrewarm != nil && item != nil && item.File != nil && r.Header.Get("X-Evey-Load-Test") == "" {
-		packagerServes := browserUserAgent(r.UserAgent()) && len(h.planSubtitleRenditions(r, mediaID, item, streams, rp)) > 0
+		packagerServes := readsSubtitleRenditions(r.UserAgent()) && len(h.planSubtitleRenditions(r, mediaID, item, streams, rp)) > 0
 		if packagerServes {
 			h.subtitlePrewarm.EnqueueIndex(mediaID, item.File.Path, streams)
 		} else {
@@ -764,11 +765,12 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	)
 }
 
-// browserUserAgent: a web browser, as opposed to the native apps (EveyMobile/,
-// EveyTV/) and the cast receiver (CrKey), which all present a Mozilla/ UA too.
-func browserUserAgent(ua string) bool {
-	return strings.Contains(ua, "Mozilla/") && !strings.Contains(ua, "CrKey") &&
-		!strings.Contains(ua, "EveyMobile") && !strings.Contains(ua, "EveyTV")
+// readsSubtitleRenditions: a client that follows the packager's subtitle
+// renditions around the playhead - the web player, the phone and television
+// apps (EveyMobile, EveyTV) and the television web app all do. The cast
+// receiver (CrKey) is left out and keeps the WebVTT head start.
+func readsSubtitleRenditions(ua string) bool {
+	return !strings.Contains(ua, "CrKey")
 }
 
 // audioServedAsCopy reports whether the audio this master just advertised
