@@ -1,5 +1,5 @@
 ---
-source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
+source_sha: da7363e10ec01a815d0a3ca8b730a50e2c23afc00c96395f2740b3d7a2840f6b
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -286,7 +286,7 @@ comportements habituels du navigateur n'y sont plus valables :
   environ 5 % de la largeur et de la hauteur libres de chaque côté.
 - **Testez le WebGL sur un vrai boîtier.** Un shader tourne sur le GPU et le
   pilote du boîtier, pas sur ceux de votre bureau ; gardez les coordonnées de
-  bruit bornées. `tests/plugins/weather-v2` est le widget de référence pour
+  bruit bornées. [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) est le widget de référence pour
   tout ce qui précède.
 
 ## Emplacements { #slots }
@@ -342,12 +342,12 @@ jeton ne nomment pas
 `examples/plugins/` contient des plugins fonctionnels au format de manifeste
 courant : des bases en Node.js et en Python (`nodejs-example`,
 `python-example`), un fournisseur de métadonnées (`metadata-example`), un
-récepteur de webhooks (`webhook-receiver`), un widget d'accueil avec une
-étape de build (`weather`), le stockage de données avec les permissions
-`public` et `prefs` et l'emplacement `admin.nav` (`data-demo`), un exemple de
-chaque type de champ de `config_schema`, avec une page `admin.nav` (`config-demo`), et deux thèmes
-(`theme-dark-blue`, `open-workshop`). `make plugin-zips` les empaquette
-tous.
+récepteur de webhooks (`webhook-receiver`), le stockage de données avec les
+permissions `public` et `prefs` et l'emplacement `admin.nav` (`data-demo`) et
+un exemple de chaque type de champ de `config_schema`, avec une page
+`admin.nav` (`config-demo`). `make plugin-zips` les empaquette tous. Les
+plugins et thèmes du projet - le widget météo, CShell, Dark Blue et les
+autres - vivent chacun dans leur propre dépôt sous [eveyproject](https://github.com/eveyproject).
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions

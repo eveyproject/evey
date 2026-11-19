@@ -1,16 +1,16 @@
-// E2E for the weather plugin: install zip, enable, navigate to /home,
-// assert the iframe loads its bundle without console errors and the
-// canvas renders. Uses the auth state from globalSetup.
+// E2E for the weather plugin: install it from its repository's latest signed
+// release (the path an admin takes by pasting the link, and the one the demo
+// uses), navigate to /home, assert the iframe loads its bundle without console
+// errors and the canvas renders. Uses the auth state from globalSetup.
 
 import { test, expect, request as playwrightRequest } from "@playwright/test";
-import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import type { APIRequestContext } from "@playwright/test";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STORAGE_STATE = path.join(__dirname, ".auth-state.json");
-const ZIP_PATH = path.resolve(__dirname, "../../tests/plugins/weather.zip");
+const REPOSITORY = "https://github.com/eveyproject/evey-plugin-weather";
 const BASE_URL = process.env.BASE_URL ?? "https://evey.test";
 
 test.use({ storageState: STORAGE_STATE, ignoreHTTPSErrors: true });
@@ -66,12 +66,11 @@ test.describe("Weather plugin", () => {
   // 500 "already installed", and once that is retried the next project's
   // uninstall drops the plugin the first is still waiting on, so it never
   // reaches RUNNING. Nothing about installing a plugin is browser-specific;
-  // only the R3F render below is, and one engine is enough to catch a broken
+  // only the WebGL render below is, and one engine is enough to catch a broken
   // bundle.
   test.skip(({ browserName }) => browserName !== "chromium", "owns a server-side singleton - see comment above");
 
-  test("uploads, installs, and renders the R3F scene with no console errors", async ({ page, request }) => {
-    expect(fs.existsSync(ZIP_PATH), `weather.zip not found at ${ZIP_PATH} - run scripts/build-test-plugins.sh first`).toBeTruthy();
+  test("installs from its repository and renders the scene with no console errors", async ({ page, request }) => {
     // Auth: read the JWT global-setup persisted in localStorage. We can't
     // hit /refresh because that requires the CSRF double-submit cookie which
     // Playwright's APIRequestContext can't read from the browser context.
@@ -82,33 +81,26 @@ test.describe("Weather plugin", () => {
     const apiCtx = await playwrightRequest.newContext({ ignoreHTTPSErrors: true });
     await uninstallExistingWeather(apiCtx, token);
 
-    // 1) Upload via multipart form to the admin upload endpoint.
+    // 1) Install from the repository.
     //
     // Retried, because the three browser projects run in PARALLEL against one
     // server and the plugin registry is shared: project A can install between
-    // project B's uninstall and its upload, and B then gets
-    // 500 "plugin already installed at version 1.0.1, new version must be
-    // higher". The zip carries a fixed version, so the only way through is to
-    // uninstall again and retry - which is exactly what a second operator
-    // hitting the same instance would have to do.
-    const zipBytes = fs.readFileSync(ZIP_PATH);
-    let upload = await apiCtx.post(`${BASE_URL}/api/v1/admin/plugins/upload`, {
-      headers: authHeaders(token),
-      multipart: {
-        plugin: { name: "weather.zip", mimeType: "application/zip", buffer: zipBytes },
-      },
-    });
-    for (let attempt = 0; attempt < 5 && !upload.ok(); attempt++) {
-      await uninstallExistingWeather(apiCtx, token);
-      upload = await apiCtx.post(`${BASE_URL}/api/v1/admin/plugins/upload`, {
+    // project B's uninstall and its own install, and B is then refused
+    // "already installed". The only way through is to uninstall again and
+    // retry - which is exactly what a second operator hitting the same
+    // instance would have to do.
+    const install = () =>
+      apiCtx.post(`${BASE_URL}/api/v1/admin/plugins/install`, {
         headers: authHeaders(token),
-        multipart: {
-          plugin: { name: "weather.zip", mimeType: "application/zip", buffer: zipBytes },
-        },
+        data: { source: REPOSITORY },
       });
+    let installed = await install();
+    for (let attempt = 0; attempt < 5 && !installed.ok(); attempt++) {
+      await uninstallExistingWeather(apiCtx, token);
+      installed = await install();
     }
-    expect(upload.ok(), `upload failed: ${upload.status()} ${await upload.text()}`).toBeTruthy();
-    const uploaded = await upload.json();
+    expect(installed.ok(), `install failed: ${installed.status()} ${await installed.text()}`).toBeTruthy();
+    const uploaded = await installed.json();
     expect(uploaded.id).toMatch(/^plg-/);
 
     // 2) Wait for the plugin process to come up (running status).
@@ -144,9 +136,9 @@ test.describe("Weather plugin", () => {
     expect(canvasCount).toBeGreaterThan(0);
 
     // 6) Wait a beat for shaders to compile + first frame to draw, then
-    // verify the canvas has been sized by R3F. Do NOT call getContext()
-    // here - R3F has already taken either webgl or webgl2 and asking for
-    // the OTHER kind triggers a real "context type mismatch" GL error.
+    // verify the canvas has been sized. Do NOT call getContext() here - the
+    // plugin has already taken either webgl or webgl2 and asking for the
+    // OTHER kind triggers a real "context type mismatch" GL error.
     await page.waitForTimeout(2000);
     const dims = await canvas.first().evaluate((c: HTMLCanvasElement) => ({ w: c.width, h: c.height }));
     expect(dims.w, "canvas must have non-zero width").toBeGreaterThan(0);

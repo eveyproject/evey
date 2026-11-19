@@ -1,5 +1,5 @@
 ---
-source_sha: 3369e1ee02f4a1bf1c2f0ead7f53e5774d9411f2bda9655d52d7668ded65435d
+source_sha: b18e66cd23013ccd6ced688f3fd357b93c8fa9be670c7a19e6f2a00f52e8b0b6
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -173,7 +173,7 @@ frontend:
 模块会拿到一个 `window.evey` 桥接接口：`evey.onInit` 把插件的配置、语言区域、主题以及它所在的界面类型交给它；
 `evey.resize`、`evey.toast` 和 `evey.navigate` 在固定的限度内操作页面；当清单声明了 `prefs` 或 `public` 时，
 `evey.prefs.*` 和 `evey.media.*` 会借助宿主为框架持有的一个短期令牌访问服务器。
-`examples/plugins/weather` 是一个带构建步骤的完整小组件；`examples/plugins/data-demo` 演示了 `prefs`、`public` 和 `admin.nav` 插槽。
+[evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) 是一个带构建步骤的完整小组件；`examples/plugins/data-demo` 演示了 `prefs`、`public` 和 `admin.nav` 插槽。
 桥接接口和插槽的说明见[插件 API 参考](api-reference.md#frontend-api)。
 
 ## 6. 与外界通信 { #6-reach-the-outside-world }

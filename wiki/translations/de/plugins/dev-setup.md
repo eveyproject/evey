@@ -1,5 +1,5 @@
 ---
-source_sha: 3369e1ee02f4a1bf1c2f0ead7f53e5774d9411f2bda9655d52d7668ded65435d
+source_sha: b18e66cd23013ccd6ced688f3fd357b93c8fa9be670c7a19e6f2a00f52e8b0b6
 reviewed: true
 ---
 # Ein Plugin schreiben { #writing-a-plugin }
@@ -227,7 +227,7 @@ der es angezeigt wird. `evey.resize`, `evey.toast` und `evey.navigate` wirken
 innerhalb fester Grenzen auf die Seite. Und wenn das Manifest `prefs` oder
 `public` angibt, erreichen `evey.prefs.*` und `evey.media.*` den Server über
 einen kurzlebigen Token, den der Host für den Frame verwaltet.
-`examples/plugins/weather` ist ein vollständiges Widget mit Build-Schritt;
+[evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) ist ein vollständiges Widget mit Build-Schritt;
 `examples/plugins/data-demo` zeigt `prefs`, `public` und den Slot
 `admin.nav`. Die Brücke und die Slots sind in der
 [Plugin-API-Referenz](api-reference.md#frontend-api) beschrieben.

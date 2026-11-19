@@ -209,7 +209,7 @@ config, the locale, the theme and the surface it landed on; `evey.resize`,
 `evey.toast` and `evey.navigate` act on the page within fixed limits; and,
 when the manifest declares `prefs` or `public`, `evey.prefs.*` and
 `evey.media.*` reach the server through a short-lived token the host holds for
-the frame. `examples/plugins/weather` is a complete widget with a build step;
+the frame. [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) is a complete widget with a build step;
 `examples/plugins/data-demo` shows `prefs`, `public` and the `admin.nav` slot.
 The bridge and the slots are described in the
 [API reference](api-reference.md#frontend-api).
