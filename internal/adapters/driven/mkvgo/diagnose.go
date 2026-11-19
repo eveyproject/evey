@@ -32,16 +32,33 @@ func (a *Adapter) Diagnose(ctx context.Context, path string) (*mkv.Diagnosis, er
 		return nil, fmt.Errorf("diagnose: %w", err)
 	}
 	out := mapDiagnosis(d)
-	// Junk in the head (between the metadata and the first Cluster) is a
-	// "damaged" finding without a tolerant walk behind it, so no byte count:
-	// the head reader's own resync count is that figure. A count of 0 there
-	// hid the file from the resync repair and from the playback gate.
-	if out.Damaged() && out.DamagedBytes == 0 {
-		if c, err := extmatroska.Open(ctx, path); err == nil && c.ResyncedBytes > 0 {
-			out.DamagedBytes = c.ResyncedBytes
-		}
-	}
+	a.countHeadJunk(ctx, path, out)
 	return out, nil
+}
+
+// countHeadJunk completes a diagnosis with the junk the full reader had to
+// resync over ahead of the first Cluster. mkvgo's Diagnose reads the head
+// only as far as it needs: a file whose Cues sit before the junk reads
+// healthy, and where it does see the junk the finding carries no byte count.
+// Either way the file read as clean to the playback gate and to the resync
+// repair, while a device's demuxer stops dead on it.
+func (a *Adapter) countHeadJunk(ctx context.Context, path string, out *mkv.Diagnosis) {
+	if out.DamagedBytes > 0 {
+		return
+	}
+	c, err := extmatroska.Open(ctx, path, extmatroska.WithoutAttachmentData())
+	if err != nil || c.ResyncedBytes <= 0 {
+		return
+	}
+	out.DamagedBytes = c.ResyncedBytes
+	if !out.Damaged() {
+		out.Healthy = false
+		out.Findings = append(out.Findings, mkv.DiagnosisFinding{
+			Kind:   "damaged",
+			Detail: fmt.Sprintf("%d undecodable byte(s) ahead of the first Cluster were skipped to read the head of the file", c.ResyncedBytes),
+			Remedy: "mkvgo reindex --resync",
+		})
+	}
 }
 
 // ProbeContainerDamage counts the bytes of the container a demuxer that does

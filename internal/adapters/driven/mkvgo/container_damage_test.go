@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // withHeadJunk copies a fixture whose last element ahead of the first Cluster
@@ -94,4 +96,22 @@ func TestProbeContainerDamage_IgnoresOtherContainers(t *testing.T) {
 	n, err := New().ProbeContainerDamage(t.Context(), p)
 	require.NoError(t, err)
 	require.Zero(t, n)
+}
+
+// mkvgo's Diagnose reads the head only as far as it needs: on a file whose
+// Cues sit before the junk it answers healthy (measured on a 5 MB Lavf file
+// with the same six bytes). The full reader's count is what decides, and the
+// diagnosis then says damaged with the resync remedy.
+func TestCountHeadJunk_OverridesAHealthyDiagnosis(t *testing.T) {
+	damaged := withHeadJunk(t, filepath.Join("testdata", "two_editions.mkv"), 6)
+	d := &mkv.Diagnosis{Healthy: true}
+	New().countHeadJunk(t.Context(), damaged, d)
+	require.False(t, d.Healthy)
+	require.True(t, d.Damaged())
+	require.EqualValues(t, 6, d.DamagedBytes)
+
+	clean := &mkv.Diagnosis{Healthy: true}
+	New().countHeadJunk(t.Context(), filepath.Join("testdata", "two_editions.mkv"), clean)
+	require.True(t, clean.Healthy)
+	require.Zero(t, clean.DamagedBytes)
 }
