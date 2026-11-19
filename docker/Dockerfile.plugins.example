@@ -32,6 +32,8 @@ RUN install -d /etc/apt/keyrings \
     && ln -sf /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe
 
 # ── Uncomment the runtimes you need for your plugins (Debian / apt) ──
+# Any runtime on PATH can start a plugin: its entrypoint names it
+# ("java -jar plugin.jar", "dotnet plugin.dll"), nothing to declare elsewhere.
 
 # PHP
 # RUN apt-get update && apt-get install -y --no-install-recommends php-cli php-grpc php-protobuf composer
@@ -40,8 +42,13 @@ RUN install -d /etc/apt/keyrings \
 # RUN apt-get update && apt-get install -y --no-install-recommends ruby ruby-dev build-essential \
 #     && gem install grpc google-protobuf
 
-# Java/Kotlin (JRE only - plugins ship compiled .jar)
-# RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless
+# Java/Kotlin (JRE only - plugins ship a compiled .jar, entrypoint "java -jar plugin.jar")
+# RUN apt-get update && apt-get install -y --no-install-recommends openjdk-21-jre-headless
+
+# .NET (runtime only - plugins ship a compiled .dll, entrypoint "dotnet plugin.dll")
+# RUN curl -fsSL https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb -o /tmp/ms.deb \
+#     && dpkg -i /tmp/ms.deb && rm /tmp/ms.deb \
+#     && apt-get update && apt-get install -y --no-install-recommends dotnet-runtime-8.0
 
 # Dart
 # RUN apt-get update && apt-get install -y --no-install-recommends dart

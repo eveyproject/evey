@@ -1,5 +1,5 @@
 ---
-source_sha: da7363e10ec01a815d0a3ca8b730a50e2c23afc00c96395f2740b3d7a2840f6b
+source_sha: 58c9f2033d994c265409f943a03c3ecdfebe68484e88c1a7d2abf916dab22917
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -20,7 +20,7 @@ máximo.
 name: my-plugin              # obligatorio; único, en kebab-case
 version: 1.2.3               # obligatorio; semver, X.Y.Z o X.Y.Z-label
 kind: plugin                 # obligatorio; "plugin" o "theme"
-language: nodejs             # obligatorio para un plugin; un runtime de la imagen
+language: nodejs             # obligatorio para un plugin; elige los stubs que se copian
 entrypoint: node index.js    # obligatorio para un plugin; la línea de comandos que ejecuta el servidor
 
 display_name: My Plugin      # opcional; una cadena, o un mapa {en: ..., fr: ...}
@@ -56,8 +56,8 @@ config_schema:               # los campos del panel Config de la tarjeta del plu
 |---|---|
 | `name`, `version`, `kind` | Obligatorios. `version` tiene que seguir `X.Y.Z` o `X.Y.Z-label`; una actualización tiene que llevar una versión mayor que la instalada. |
 | `display_name` | El nombre que ve la gente; `name` sigue siendo el identificador con el que se asocia una actualización. Una sola cadena cuenta como inglés y vale para todos los idiomas; un mapa va indexado por código de idioma (`en`, `fr`, `pt-BR`). Cada valor tiene de 1 a 40 caracteres, sin espacios alrededor ni caracteres de control. Hoy lo muestra el selector de temas. |
-| `language` | Obligatorio para `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` o `go`. Elige la comprobación del runtime y los stubs que se copian junto al entrypoint; no lanza nada. |
-| `entrypoint` | Obligatorio para `kind: plugin`. La primera palabra es el intérprete (o el binario, con `native-binary`) y el resto son sus argumentos; el proceso se ejecuta en la carpeta del plugin. |
+| `language` | Obligatorio para `kind: plugin`, con cualquier valor. Elige los stubs que se copian junto al entrypoint (los de `sdk/<language>/`). Para un script lanzado por su shebang (`entrypoint: main.py`), `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` y `sh` exigen además ese intérprete en la imagen. No lanza nada. |
+| `entrypoint` | Obligatorio para `kind: plugin`. La primera palabra es un archivo del paquete (un binario, con `native-binary`, o un script) o bien un comando de la imagen que se encuentra en su `PATH` (`node`, `python3`, `java`, `dotnet`), y el resto son sus argumentos; un comando que falta rechaza la instalación. El proceso se ejecuta en la carpeta del plugin. |
 | `permissions` | Cada valor tiene que estar en el [catálogo de permisos](security-model.md#permissions-catalog). `network` exige un `external_fetch` no vacío. |
 | `external_fetch` | Nombres de host. Un esquema y una ruta final se descartan al analizar; los hosts coinciden exactamente, un comodín `*.example.com` se rechaza en la instalación; una entrada sin puerto solo permite los puertos 80 y 443, `host:port` solo ese puerto; una IP literal hace que se rechace la instalación ([reglas](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` o `notification.sender`; todo lo demás se rechaza. Un tema no puede declarar ninguna. |
@@ -354,7 +354,7 @@ uno en su propio repositorio bajo [eveyproject](https://github.com/eveyproject).
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
-runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint ; launchers: runner_start.go - resolveCommand ; launcher_resolve.go - lookupLauncher
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
 env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)

@@ -15,7 +15,7 @@ most.
 name: my-plugin              # required; unique, kebab-case
 version: 1.2.3               # required; semver, X.Y.Z or X.Y.Z-label
 kind: plugin                 # required; "plugin" or "theme"
-language: nodejs             # required for a plugin; a runtime of the image
+language: nodejs             # required for a plugin; picks the stubs copied
 entrypoint: node index.js    # required for a plugin; the command line the server runs
 
 display_name: My Plugin      # optional; a string, or a map {en: ..., fr: ...}
@@ -51,8 +51,8 @@ config_schema:               # the fields of the Config panel on the plugin's ca
 |---|---|
 | `name`, `version`, `kind` | Required. `version` must match `X.Y.Z` or `X.Y.Z-label`; an update must carry a higher version than the installed one. |
 | `display_name` | The name people see; `name` stays the identifier an update is matched on. One string counts as English and stands for every language; a map is keyed by language tag (`en`, `fr`, `pt-BR`). Each value is 1 to 40 characters, without surrounding spaces or control characters. Today the theme picker shows it. |
-| `language` | Required for `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` or `go`. It picks the runtime check and the stubs copied next to the entrypoint; it does not launch anything. |
-| `entrypoint` | Required for `kind: plugin`. The first token is the interpreter (or the binary, with `native-binary`), the rest its arguments; the process runs in the plugin's directory. |
+| `language` | Required for `kind: plugin`, any value. It picks the stubs copied next to the entrypoint (those of `sdk/<language>/`). For a script started through its shebang (`entrypoint: main.py`), `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` and `sh` also require that interpreter in the image. It does not launch anything. |
+| `entrypoint` | Required for `kind: plugin`. The first token is a file of the package (a binary, with `native-binary`, or a script) or else a command of the image found on its `PATH` (`node`, `python3`, `java`, `dotnet`), the rest its arguments; a missing command refuses the install. The process runs in the plugin's directory. |
 | `permissions` | Each value must be in the [permissions catalog](security-model.md#permissions-catalog). `network` requires a non-empty `external_fetch`. |
 | `external_fetch` | Hostnames. A scheme and a trailing path are dropped at parse; hosts match exactly, a `*.example.com` wildcard is refused at install; an entry without a port allows ports 80 and 443 only, `host:port` allows that port only; an IP literal refuses the install ([rules](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` or `notification.sender`; anything else is refused. A theme may declare none. |
@@ -334,7 +334,7 @@ CShell, Dark Blue and the others - each live in their own repository under
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; display_name.go - DisplayName ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
-runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint ; launchers: runner_start.go - resolveCommand ; launcher_resolve.go - lookupLauncher
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
 env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent, Ask ; runner_control.go - SendEvent (no caller), Ask

@@ -159,6 +159,27 @@ jobs:
       - name: test (postgres - testcontainers)
         run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=600s
 
+  # The plugin runner against runtimes added to the image (JRE, .NET): the unit
+  # job has neither the runtimes nor the sandbox library in place.
+  plugin-runtimes:
+    name: Plugins - added runtimes start in the sandbox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: install buf
+        uses: bufbuild/buf-action@8c6a16e16f12ba20b6470afa9c2ba9b5ba8c97c3 # v1
+        with:
+          version: "1.68.2"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          setup_only: true
+
+      - name: generate proto
+        run: buf generate
+
+      - name: java -jar and dotnet plugins through the runner
+        run: make plugin-runtimes-itest
+
   frontend:
     name: Frontend - typecheck, test & build
     # Self-hosted disabled; restore this ternary to keep fork PRs on GitHub-hosted (RCE guard):
@@ -607,7 +628,7 @@ jobs:
     name: Docker - merge & push
     runs-on: ubuntu-latest  # GitHub-hosted
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
-    needs: [backend, frontend, docker-plan, docker-build]
+    needs: [backend, plugin-runtimes, frontend, docker-plan, docker-build]
     # !cancelled() && !failure(): see docker-build.
     # Never on PRs; backend/frontend gate this so a failing test blocks the image.
     if: ${{ !cancelled() && !failure() && needs.docker-build.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
@@ -842,12 +863,13 @@ jobs:
     name: CI passed
     runs-on: ubuntu-latest  # GitHub-hosted
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
-    needs: [backend, frontend, docker-plan, client-updates-build, client-updates-sign, docker-build, docker, docker-sign]
+    needs: [backend, plugin-runtimes, frontend, docker-plan, client-updates-build, client-updates-sign, docker-build, docker, docker-sign]
     if: always()
     steps:
       - name: verify required jobs
         env:
           BACKEND: ${{ needs.backend.result }}
+          PLUGIN_RUNTIMES: ${{ needs.plugin-runtimes.result }}
           FRONTEND: ${{ needs.frontend.result }}
           DOCKER_PLAN: ${{ needs.docker-plan.result }}
           CLIENT_UPDATES_BUILD: ${{ needs.client-updates-build.result }}
@@ -858,7 +880,7 @@ jobs:
         run: |
           set -e
           fail=0
-          for kv in "backend=$BACKEND" "frontend=$FRONTEND" "docker-plan=$DOCKER_PLAN" "client-updates-build=$CLIENT_UPDATES_BUILD" "client-updates-sign=$CLIENT_UPDATES_SIGN" "docker-build=$DOCKER_BUILD" "docker=$DOCKER" "docker-sign=$DOCKER_SIGN"; do
+          for kv in "backend=$BACKEND" "plugin-runtimes=$PLUGIN_RUNTIMES" "frontend=$FRONTEND" "docker-plan=$DOCKER_PLAN" "client-updates-build=$CLIENT_UPDATES_BUILD" "client-updates-sign=$CLIENT_UPDATES_SIGN" "docker-build=$DOCKER_BUILD" "docker=$DOCKER" "docker-sign=$DOCKER_SIGN"; do
             name="${kv%%=*}"
             result="${kv#*=}"
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then

@@ -1,5 +1,5 @@
 ---
-source_sha: cd248efab1b67da1bac31b8aa74aa2efe53af88dd685f73cd4f56ef6e10f9c92
+source_sha: ab73fda2e83598a016cce0f1a7289f4776a65f8d15e88fb0d034453a8fdbad9a
 reviewed: true
 ---
 # 插件沙箱与威胁模型 { #plugin-sandbox-and-threat-model }
@@ -296,8 +296,8 @@ Evey 项目自己的密钥一开始就在列表里，名称为 **Evey project**�
 ### `landlock` { #landlock }
 
 - **文件系统：** 由启动器应用的 Landlock 允许列表。系统目录（`/usr`、`/lib`、`/lib64`、`/bin`、`/sbin`、`/etc`、`/app`）只读；
-  `/dev` 里只有 `null`、`zero`、`full`、`random` 和 `urandom`，所以显卡节点和服务器的终端都无法访问；插件的目录和套接字目录可读写；
-  其他一切，包括 `/data` 和其他插件，一律拒绝。获得了 `hardware.gpu` 权限的插件，作为唯一的例外，可以访问它的渲染节点。
+  `/dev` 里只有 `null`、`zero`、`full`、`random` 和 `urandom`，所以显卡节点和服务器的终端都无法访问；`/proc` 里只有插件自己的 `maps`，所以容器的连接（`net/tcp`）、挂载点和其他进程都无法访问；插件的目录和套接字目录可读写；
+  其他一切，包括 `/data` 和其他插件，一律拒绝。由安装在 `/opt` 下它自己目录里的运行时启动的插件，还可以读取该目录；安装在系统目录之外其他任何位置、或其目录会包含插件或服务器的运行时，会被拒绝。获得了 `hardware.gpu` 权限的插件，作为唯一的例外，可以访问它的渲染节点。
 - **网络：** `-restrict-net` 和 `-deny-inet`；只能通过 `Fetch` 外连。
 - **系统调用：** 内核过滤器和 `LD_PRELOAD` 过滤器。
 - **要求：** 5.13 或更新的内核，且 Landlock 在已启用的 LSM 列表里，再加上启动器（在较新的宿主上使用官方镜像时，两者都满足）。
@@ -325,7 +325,8 @@ Evey 项目自己的密钥一开始就在列表里，名称为 **Evey project**�
 
 ### `strict` { #strict }
 
-`bubblewrap` 加上 `LD_PRELOAD` 过滤器（只对解释型插件）。
+`bubblewrap` 加上 `LD_PRELOAD` 过滤器，由插件自己在沙箱内加载（针对未声明 `subprocess` 的插件）。
+到 0.1.9 为止，这个模式在启动时会拒绝所有插件：过滤器由 `bwrap` 自己加载，会拒绝它创建的命名空间。
 
 ### `basic` { #basic }
 
@@ -385,7 +386,7 @@ Evey 项目自己的密钥一开始就在列表里，名称为 **Evey project**�
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
 package source: internal/app/plugin/install.go - CheckRequestedSource, ErrInsecureSource, downloadIfURL (http and redirect refusal, 100 MB) ; installer_service.go - SafeHTTPClientNoProxy ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; internal/adapters/driving/http/plugin_asset_handler.go - preview JSON source ; internal/pkg/ssrf/dialer.go
-runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
+runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes, safeProcFiles ; launcher_resolve.go - computeRuntimeReadPaths, runtimeRootExposable ; runner_sandbox.go - applyBwrapSandbox, runner_bwrap.go - withBwrapPreload (strict) ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
 resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
 bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx
 config: internal/config/config.go - EVEY_PLUGINS_SANDBOX_MODE, EVEY_PLUGINS_UID_SEPARATION, EVEY_PLUGINS_COSIGN_POLICY, EVEY_PLUGINS_COSIGN_PUBLIC_KEY, EVEY_PLUGINS_MEMORY_MB, EVEY_PLUGINS_PIDS_MAX, EVEY_PLUGINS_DISK_MAX_MB, EVEY_PLUGINS_CPU_NICE, EVEY_SERVER_PORT, EVEY_GRPC_BIND

@@ -1,5 +1,5 @@
 ---
-source_sha: b18e66cd23013ccd6ced688f3fd357b93c8fa9be670c7a19e6f2a00f52e8b0b6
+source_sha: f3c32fedbed0345e969d8297fc60bb16cf6ce06f7de011b4a299b2800d6c8a7f
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -35,9 +35,7 @@ flowchart LR
 | `bubblewrap`（`bwrap`） | 只有 `bubblewrap` 和 `strict` 沙箱模式才需要。默认的 `auto` 模式使用 Landlock，在 5.13 或更新的内核上什么都不用装。 |
 | [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) | 在分发之前给插件包签名（[第 7 节](#7-sign-your-plugin)）。开发时用不到。 |
 
-从服务器能启动的运行时里选择插件的语言：`python`、`nodejs`、`php`、`ruby`、`lua`、`bash` 和 `sh` 需要镜像里有对应的解释器；
-`go` 提供编译好的二进制文件，需要 `native-binary` 权限。默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua；`-nodejs` 镜像保留 Python 和 Node.js，`-lean` 镜像只保留 Python。
-如果清单写了镜像里没有的运行时，安装时就会被拒绝，并列出可用的运行时。
+选择插件的语言。入口写明由什么来运行它：镜像里的一个运行时（`node main.js`、`python3 main.py`、`java -jar plugin.jar`、`dotnet plugin.dll`），或者插件包自带的二进制文件（`go`，需要 `native-binary` 权限）。默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua；`-nodejs` 镜像保留 Python 和 Node.js，`-lean` 镜像只保留 Python。其他任何运行时都要加进镜像（[见下文](#a-runtime-the-image-does-not-carry)）。如果入口写的命令镜像里没有、插件包也没有自带，安装时就会被拒绝。
 
 各镜像按 `language` 为插件提供的内容：
 
@@ -69,6 +67,37 @@ protoc --proto_path=proto \
 ```
 
 `make plugin-sdk` 会重新生成随附的存根；每个 `sdk/<lang>/README.md` 都写明了该语言需要哪个 gRPC 插件。
+
+### 镜像里没有的运行时 { #a-runtime-the-image-does-not-carry }
+
+把运行时安装进一个基于 Evey 镜像构建的镜像，并在您的 `compose.yaml` 里使用这个镜像。服务器能启动其 `PATH` 里的任何命令，所以其他地方都不用改。下面是两个例子：用于以 `.jar` 发布的插件的 JRE，和用于以 `.dll` 发布的插件的 .NET 运行时：
+
+```dockerfile title="Dockerfile"
+FROM eveyproject/evey:latest
+
+# Java: plugins shipped as a .jar, started by "java -jar plugin.jar"
+# (the JRE's install script links its manual page, a slim image has no man1)
+RUN mkdir -p /usr/share/man/man1 \
+    && apt-get update && apt-get install -y --no-install-recommends openjdk-21-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# .NET: plugins shipped as a .dll, started by "dotnet plugin.dll"
+RUN curl -fsSL https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb -o /tmp/ms.deb \
+    && dpkg -i /tmp/ms.deb && rm /tmp/ms.deb \
+    && apt-get update && apt-get install -y --no-install-recommends dotnet-runtime-8.0 \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+插件的清单在入口里写明运行时。静态分析读不了 `.jar` 或 `.dll`，所以插件包要声明 `native-binary`，和编译好的 Go 插件一样：
+
+```yaml title="plugin.yaml"
+language: java                  # a label: no stubs are copied for it
+entrypoint: java -jar plugin.jar
+permissions:
+  - native-binary
+```
+
+插件包自带 gRPC 实现（`.jar` 里的 grpc-java，`.dll` 文件夹里的 Grpc.Net）。在沙箱里，插件除了常规的系统目录，还能看到运行时的安装目录（当它位于 `/opt` 下时），以及运行时的软件包所链接到的 `/etc` 下的目录（`/etc/alternatives`、`/etc/java-21-openjdk`），仅此而已。安装在系统目录之外其他任何位置、或安装在同时存放插件或服务器的目录中的运行时会被拒绝：请把它安装在 `/usr` 下，或 `/opt` 下它自己的目录里。JVM 和 .NET 的垃圾回收器根据插件的内存上限（**资源限制**里的**最大内存（MiB）**）来确定堆大小，而不是根据主机的内存；对 Java 来说，入口上的 `-Xmx` 仍然优先。
 
 ## 2. 在本地启动 Evey { #2-bring-up-evey-locally }
 
@@ -109,8 +138,8 @@ make dev                        # postgres、meilisearch、服务器（Air）、
       - api.library             # 允许后端读取媒体条目
     ```
 
-    `language` 告诉服务器要检查哪个运行时、复制哪些存根；`entrypoint` 是它要执行的命令，
-    在插件的目录里运行，并带有下一步介绍的环境变量。
+    `language` 告诉服务器要复制哪些存根；`entrypoint` 是它要执行的命令，
+    在插件的目录里运行，并带有下一步介绍的环境变量。它的第一个词是镜像里的命令（`node`）或插件包里的文件。
 
 3. **阅读 `main.js`。** 服务器给进程传三个变量：`EVEY_PLUGIN_ID`、`EVEY_PLUGIN_SOCK`（*您的*进程必须在这个套接字上监听，提供 `PluginService`）
    和 `EVEY_HOST_SOCK`（您连接这个套接字来调用 `HostService`）。示例从自己的目录加载 `plugin_api.proto`（服务器把它复制到了那里），
@@ -260,7 +289,7 @@ external_fetch:
 每一步都可能拒绝这个包；管理员会看到原因，服务器日志里有详细信息。
 
 1. **清单。** 直接从 ZIP 包里读取 `plugin.yaml`：必填字段、semver 版本号、已知的权限和能力、插槽在允许列表里、
-   `external_fetch` 的条目是纯主机名、声明了 `frontend` 时有 `web_root`。声明的 `language` 必须是镜像里有的运行时。
+   `external_fetch` 的条目是纯主机名、声明了 `frontend` 时有 `web_root`。入口必须能启动：它的第一个词是插件包里的文件或镜像里的命令，通过 shebang 启动的脚本（`entrypoint: main.py`）还要求镜像里有其 `language` 对应的解释器。
 2. **版本和权限升级。** 对于已经安装的插件，新版本必须更高；任何新增的权限、能力、插槽或主机，都会让安装停在这一步，
    直到管理员批准这些差异（上传路由上的 `accept_permission_changes=true`）。
 3. **签名和哈希。** 除非策略为 `off`，签名会根据插件包自带的 `cosign.pub` 来验证；只有在 `enforce` 下，验证失败才会阻止安装。ZIP 包的哈希会被记录下来，
@@ -317,7 +346,7 @@ Evey 项目的插件就是这样发布的，您可以复制它的 release 工作
 
 | 现象 | 原因 | 解决办法 |
 |---|---|---|
-| `plugin requires "nodejs" runtime which is not installed in this image` | 这个镜像版本缺少对应的解释器。 | 使用默认镜像或 `-nodejs` 镜像，或者用 Python 编写插件。 |
+| `plugin (language "nodejs", entrypoint "node main.js") cannot run on this image: the entrypoint runs "node", which is neither installed in this image nor shipped by the plugin` | 这个镜像缺少入口所写的运行时。 | 使用默认镜像或 `-nodejs` 镜像，[把运行时加进镜像](#a-runtime-the-image-does-not-carry)，或者用 Python 编写插件。 |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | 安装时一律拒绝通配符，没有例外。 | 列出您需要的每一个主机名（`api.tmdb.org`、`image.tmdb.org`）。 |
 | `manifest: frontend slot "admin.section" not allowed` | 这个插槽不在允许列表里。 | 从[插槽列表](api-reference.md#slots)里选一个；`admin.nav` 是管理区域里唯一的插槽。 |
 | `manifest: network permission requires non-empty external_fetch` | 声明了 `network` 却没有主机。 | 加上主机，或者去掉这个权限。 |
@@ -329,7 +358,7 @@ Evey 项目的插件就是这样发布的，您可以复制它的 release 工作
 | 界面模块没有出现 | 插件被禁用了、插槽名称拼错了，或者 `src` 不在 `web_root` 之下。 | 检查卡片的状态、插槽名称，以及浏览器网络面板里 `/api/v1/plugins/<id>/assets/...` 的请求。 |
 
 <!-- sources
-runtimes, image variants: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries, compiledLanguages ; internal/app/plugin/install.go - parseAndValidateManifest ; Dockerfile (RUNTIMES lean/nodejs/full)
+runtimes, image variants: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint, shebangInterpreters ; launcher_resolve.go - lookupLauncher, computeRuntimeReadPaths, runtimeRootExposable ; runner_start.go - resolveCommand, buildPluginEnv (JAVA_TOOL_OPTIONS, DOTNET_GCHeapHardLimit) ; runner_landlock.go - safeProcFiles ; internal/app/plugin/install.go - parseAndValidateManifest ; Dockerfile (RUNTIMES lean/nodejs/full) ; added runtimes measured by pluginrunner/runner_runtimes_test.go - TestRuntimeLaunchers (scripts/plugin-runtimes-itest.sh, testdata/runtimes/Dockerfile)
 stubs copied at start, NODE_PATH: internal/adapters/driven/filesystem/plugin_fs.go - CopySDKStubs ; internal/adapters/driven/pluginrunner/runner_start.go ; sdk/python/README.md ; examples/plugins/nodejs-example/package.json
 dev stack: DEV.md (Quick Start) ; Makefile - setup, dev ; docker-compose.yml (evey-data/plugins:/data/plugins)
 example: examples/plugins/nodejs-example/main.js, plugin.yaml

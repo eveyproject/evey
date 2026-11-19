@@ -28,3 +28,25 @@ func TestBuildPluginEnv_NoCapNoNodeOptions(t *testing.T) {
 		}
 	}
 }
+
+// The JVM and the .NET GC size their heap from the host's RAM unless told the
+// plugin's cap: 256 MiB gives MaxRAM=256 MiB and a 192 MiB GC hard limit (hex).
+func TestBuildPluginEnv_CapsJVMAndDotnetHeap(t *testing.T) {
+	env := buildPluginEnv("plg-x", "s", "h", 256<<20)
+	want := map[string]bool{"JAVA_TOOL_OPTIONS=-XX:MaxRAM=268435456": false, "DOTNET_GCHeapHardLimit=c000000": false}
+	for _, e := range env {
+		if _, ok := want[e]; ok {
+			want[e] = true
+		}
+	}
+	for kv, seen := range want {
+		if !seen {
+			t.Errorf("missing %s in %v", kv, env)
+		}
+	}
+	for _, e := range buildPluginEnv("plg-x", "s", "h", 0) {
+		if strings.HasPrefix(e, "JAVA_TOOL_OPTIONS=") || strings.HasPrefix(e, "DOTNET_GCHeapHardLimit=") {
+			t.Errorf("no cap should inject no heap limit, got %q", e)
+		}
+	}
+}

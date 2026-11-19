@@ -330,8 +330,9 @@ func (s *InstallerService) installLocalZip(ctx context.Context, zipPath, expecte
 }
 
 // parseAndValidateManifest parses the plugin manifest from zipPath, validates
-// it, and fails fast if the host image lacks the declared runtime. Themes
-// have no backend language and bypass the runtime check. The checker is
+// it, and fails fast if the host image cannot run its entrypoint (launcher
+// missing, or the interpreter of a shipped script). Themes have no backend
+// and bypass the runtime check. The checker is
 // optional - callers that don't wire it (legacy tests) keep the previous
 // behaviour.
 func (s *InstallerService) parseAndValidateManifest(zipPath string) (*plugin.PluginManifest, error) {
@@ -346,11 +347,11 @@ func (s *InstallerService) parseAndValidateManifest(zipPath string) (*plugin.Plu
 		return nil, err
 	}
 
-	if s.runtimes != nil && manifest.Kind != plugin.KindTheme && manifest.Language != "" {
-		if !s.runtimes.IsAvailable(manifest.Language) {
+	if s.runtimes != nil && manifest.Kind != plugin.KindTheme {
+		if err := s.runtimes.CheckEntrypoint(zipPath, manifest.Language, manifest.Entrypoint); err != nil {
 			return nil, fmt.Errorf(
-				"plugin requires %q runtime which is not installed in this image; available runtimes: %v - the default image (no tag suffix) ships every runtime, the -lean and -nodejs variants do not",
-				manifest.Language, s.runtimes.Available(),
+				"plugin (language %q, entrypoint %q) cannot run on this image: %w; script interpreters available: %v - the default image (no tag suffix) ships python, nodejs, php, ruby and lua, the -lean and -nodejs variants fewer, and any other runtime is added to the image (docker/Dockerfile.plugins.example)",
+				manifest.Language, manifest.Entrypoint, err, s.runtimes.Available(),
 			)
 		}
 	}
