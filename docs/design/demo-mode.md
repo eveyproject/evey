@@ -215,12 +215,14 @@ keys, SMTP password, VAPID private key) is served masked by every admin read,
 the demo's open ones included.
 
 **Pre-installed rather than installable:** the bootstrap installs the `weather`
-plugin from the bundle the operator drops under `EVEY_DEMO_PLUGIN_DIR`
-(`weather.zip` and `weather.zip.sig`, the release ZIP of
-`eveyproject/evey-plugin-weather` and its signature: the default signature
-policy refuses an unsigned package, and the project key is trusted out of the
-box), sets
-it on Paris and re-applies that config at every boot. It is the cheapest honest
+plugin from its repository, `eveyproject/evey-plugin-weather`: the latest
+signed release, the same path as pasting that link in the plugin panel, so the
+plugin then follows the repository's releases. The project key is trusted out
+of the box, so the default signature policy accepts it. For a server that cannot
+reach GitHub, a bundle the operator drops under `EVEY_DEMO_PLUGIN_DIR` is taken
+instead (`weather.zip` and `weather.zip.sig`); with neither, the demo boots
+without the plugin and the next boot tries again. The bootstrap sets the plugin
+on Paris and re-applies that config at every boot. It is the cheapest honest
 demonstration of the plugin system - it renders a real home-page section and
 fetches from a real third party through the egress broker. Visual only: the
 seeded plugin is shared by every visitor, so its config is read-only like every
