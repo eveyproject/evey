@@ -42,3 +42,40 @@ func TestProbeRuntime_Go(t *testing.T) {
 		t.Fatal("expected go version output")
 	}
 }
+
+// A launcher an installed plugin starts through is listed even when the
+// catalogue does not know it, once, and without running it for a version.
+func TestDetectRuntimes_ListsLaunchersPluginsUse(t *testing.T) {
+	runtimes := DetectRuntimes("/opt/acme/bin/acme-vm", "/opt/acme/bin/acme-vm", "/usr/bin/java")
+	var acme, java int
+	for _, rt := range runtimes {
+		switch {
+		case rt.Language == "acme-vm":
+			acme++
+			if rt.Command != "/opt/acme/bin/acme-vm" || rt.Version != "" {
+				t.Errorf("unexpected entry %+v", rt)
+			}
+		case rt.Language == "java" && rt.Version == "":
+			java++
+		}
+	}
+	if acme != 1 {
+		t.Errorf("want the plugin's launcher listed once, got %d in %+v", acme, runtimes)
+	}
+	if java != 0 {
+		t.Errorf("a catalogue launcher must come from its probe, not from the plugin list: %+v", runtimes)
+	}
+}
+
+func TestFirstVersionLine(t *testing.T) {
+	cases := map[string]string{
+		"openjdk version \"21.0.1\" LTS\nOpenJDK Runtime":          `openjdk version "21.0.1" LTS`,
+		"Microsoft.NETCore.App 8.0.0 [/usr/share/dotnet/shared]\n": "Microsoft.NETCore.App 8.0.0",
+		"v22.1.0\n": "v22.1.0",
+	}
+	for in, want := range cases {
+		if got := firstVersionLine(in); got != want {
+			t.Errorf("firstVersionLine(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

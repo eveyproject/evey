@@ -58,6 +58,7 @@ func (p *portList) Set(v string) error {
 type config struct {
 	roPaths         []string
 	rwPaths         []string
+	roFilePaths     []string // individual files (/proc/self/maps…) allowed read only, skipped if missing
 	devPaths        []string // individual device nodes (/dev/null…) allowed read+write, skipped if missing
 	renderDevPath   string   // GPU DRM render node (/dev/dri/renderD12N): read+write+IOCTL_DEV - the hardware.gpu grant, never a card node
 	rlimitAS        uint64   // RLIMIT_AS bytes (virtual mem); risky for node, off by default
@@ -107,10 +108,11 @@ func run(argv []string) int {
 		return 2
 	}
 
-	var ro, rw, dev stringList
+	var ro, roFile, rw, dev stringList
 	var netConnect portList
 	fs := flag.NewFlagSet("evey-plugin-launcher", flag.ContinueOnError)
 	fs.Var(&ro, "ro", "directory to allow read+execute (repeatable)")
+	fs.Var(&roFile, "ro-file", "single file to allow read only, e.g. /proc/self/maps (repeatable; skipped if missing). Use instead of -ro on its directory so its siblings stay denied.")
 	fs.Var(&rw, "rw", "directory to allow read+write+create (repeatable)")
 	fs.Var(&dev, "dev", "single device node to allow read+write, e.g. /dev/null (repeatable; skipped if missing). Use instead of -rw /dev so GPU/disk nodes stay denied.")
 	renderDev := fs.String("render-dev", "", "GPU DRM render node (/dev/dri/renderD12N) to allow read+write+IOCTL_DEV - the hardware.gpu grant. Refused unless the path matches a render node; never a card/primary node.")
@@ -134,6 +136,7 @@ func run(argv []string) int {
 	cfg := config{
 		roPaths:         ro,
 		rwPaths:         rw,
+		roFilePaths:     roFile,
 		devPaths:        dev,
 		renderDevPath:   *renderDev,
 		rlimitAS:        *asLimit,

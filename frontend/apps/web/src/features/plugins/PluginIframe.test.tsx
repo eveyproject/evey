@@ -87,8 +87,8 @@ describe("PluginIframe", () => {
     });
   });
 
-  // The redteam-exfil fixture (tests/plugins/redteam-exfil) attempts eight
-  // browser-side exfiltration vectors and expects every one to render BLOCKED.
+  // A red-team plugin (the former redteam-exfil fixture) attempted eight
+  // browser-side exfiltration vectors and expected every one to render BLOCKED.
   // The containment is the sandbox attribute set here plus the policy the
   // server sends with /plugin-frame.html (default-src 'none', connect-src
   // from the manifest only, sandbox even top-level - plugin_frame_handler_test.go).

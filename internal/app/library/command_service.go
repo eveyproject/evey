@@ -211,6 +211,12 @@ func (s *CommandService) WithInterleaveProber(p InterleaveProber) {
 	s.scan.WithInterleaveProber(p)
 }
 
+// WithContainerChecker arms the scan-time container check (see
+// ScanService.WithContainerChecker).
+func (s *CommandService) WithContainerChecker(c ContainerChecker) {
+	s.scan.WithContainerChecker(c)
+}
+
 func (s *CommandService) WithMusicScanner(sc TypedDirectoryScanner) {
 	s.scan.WithMusicScanner(sc)
 }

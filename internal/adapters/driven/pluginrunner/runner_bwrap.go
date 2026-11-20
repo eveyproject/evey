@@ -44,8 +44,9 @@ func buildBwrapCmd(pluginDir, pluginSockDir, mode string) []string {
 		// The launcher's seccomp filter refuses unshare and CLONE_NEW* instead.
 	}
 
-	// Selective read-only mounts: cover all supported plugin runtimes
-	// (bash, lua, nodejs, python, php) on Alpine and Debian without exposing
+	// Selective read-only mounts: cover the runtimes installed under the system
+	// dirs on Alpine and Debian (a launcher reading elsewhere gets its own
+	// binds, withBwrapReadOnly) without exposing
 	// secrets-bearing host paths like /data, /var, /home, /root, /etc/passwd,
 	// /etc/shadow, /etc/ssh, or /run.
 	// --ro-bind-try silently skips paths absent on the current distro.
@@ -108,6 +109,33 @@ func withBwrapLauncher(prefix []string, launcher string) []string {
 	out := make([]string, 0, len(prefix)+3)
 	out = append(out, prefix[:sep]...)
 	out = append(out, "--ro-bind", launcher, launcher)
+	return append(out, prefix[sep:]...)
+}
+
+// withBwrapReadOnly binds each path read-only at its own path before the "--"
+// that ends a buildBwrapCmd prefix (the read paths of a launcher, see
+// computeRuntimeReadPaths).
+func withBwrapReadOnly(prefix, paths []string) []string {
+	if len(paths) == 0 {
+		return prefix
+	}
+	sep := len(prefix) - 1
+	out := make([]string, 0, len(prefix)+3*len(paths))
+	out = append(out, prefix[:sep]...)
+	for _, p := range paths {
+		out = append(out, "--ro-bind-try", p, p)
+	}
+	return append(out, prefix[sep:]...)
+}
+
+// withBwrapPreload makes the payload, not bwrap, load the seccomp lib: bound
+// read-only at its own path (it lives outside the bound system dirs) and named
+// in the sandboxed process's LD_PRELOAD, before the "--" that ends the prefix.
+func withBwrapPreload(prefix []string, lib string) []string {
+	sep := len(prefix) - 1
+	out := make([]string, 0, len(prefix)+6)
+	out = append(out, prefix[:sep]...)
+	out = append(out, "--ro-bind", lib, lib, "--setenv", "LD_PRELOAD", lib)
 	return append(out, prefix[sep:]...)
 }
 

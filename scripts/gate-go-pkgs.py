@@ -124,7 +124,7 @@ def selftest() -> int:
         (["internal/app/user/access_service.go"], ["internal/app/user"]),
         (["internal/app/user/testdata/x/fixture.json"], ["internal/app/user"]),
         (["i18n/fr/admin.yaml"], ["internal/pkg/i18n"]),
-        (["examples/plugins/weather/plugin.yaml", "cmd/evey/main.go"],
+        (["examples/plugins/python-example/plugin.yaml", "cmd/evey/main.go"],
          ["cmd/evey", "internal/adapters/driven/pluginrunner"]),
         (["go.sum", "internal/app/user/a.go"], [ALL]),
         (["internal/adapters/driven/postgres/user_repo.go"], []),

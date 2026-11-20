@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { type ConfigFieldSchema, normaliseOptions, validateConfigField } from "@evey/client";
+import { type ConfigFieldSchema, normaliseOptions, refreshPluginLists, validateConfigField } from "@evey/client";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -15,7 +15,6 @@ import {
   useAdminPluginServiceUpdatePluginConfig,
   useAdminPluginServiceGetPluginLogs,
   getAdminPluginServiceGetPluginConfigQueryKey,
-  getAdminPluginServiceListPluginsQueryKey,
   apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
@@ -470,7 +469,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
             setUpdateSource(null);
             setUpdateSourceInput("");
             // Refresh the card's version / source hash / permission badges.
-            void queryClient.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() });
+            void refreshPluginLists(queryClient);
           }}
         />
       )}

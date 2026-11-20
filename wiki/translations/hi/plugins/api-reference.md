@@ -1,5 +1,5 @@
 ---
-source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
+source_sha: 58c9f2033d994c265409f943a03c3ecdfebe68484e88c1a7d2abf916dab22917
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -19,7 +19,7 @@ reviewed: true
 name: my-plugin              # ज़रूरी; अनोखा, kebab-case
 version: 1.2.3               # ज़रूरी; semver, X.Y.Z या X.Y.Z-label
 kind: plugin                 # ज़रूरी; "plugin" या "theme"
-language: nodejs             # प्लगइन के लिए ज़रूरी; इमेज का कोई runtime
+language: nodejs             # प्लगइन के लिए ज़रूरी; कॉपी होने वाले stub चुनता है
 entrypoint: node index.js    # प्लगइन के लिए ज़रूरी; वह कमांड लाइन जो सर्वर चलाता है
 
 display_name: My Plugin      # वैकल्पिक; एक स्ट्रिंग, या एक map {en: ..., fr: ...}
@@ -55,8 +55,8 @@ config_schema:               # प्लगइन के कार्ड पर 
 |---|---|
 | `name`, `version`, `kind` | ज़रूरी। `version` `X.Y.Z` या `X.Y.Z-label` जैसा होना चाहिए; अपडेट का वर्ज़न इंस्टॉल किए गए वर्ज़न से ऊँचा होना चाहिए। |
 | `display_name` | वह नाम जो लोग देखते हैं; `name` वही पहचान रहता है जिससे अपडेट को उसके plugin से जोड़ा जाता है। एक अकेली स्ट्रिंग अंग्रेज़ी मानी जाती है और सभी भाषाओं के लिए चलती है; map की keys भाषा के कोड होते हैं (`en`, `fr`, `pt-BR`)। हर मान 1 से 40 अक्षरों का होता है, आगे-पीछे खाली जगह या control अक्षरों के बिना। अभी इसे थीम चुनने वाली जगह दिखाती है। |
-| `language` | `kind: plugin` के लिए ज़रूरी: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` या `go`। इससे तय होता है कि कौन सा runtime जाँचा जाए और कौन से stub entrypoint के बगल में कॉपी हों; यह कुछ शुरू नहीं करता। |
-| `entrypoint` | `kind: plugin` के लिए ज़रूरी। पहला शब्द interpreter है (या `native-binary` के साथ binary), बाकी उसके arguments; प्रोसेस प्लगइन के फ़ोल्डर में चलता है। |
+| `language` | `kind: plugin` के लिए ज़रूरी, कोई भी मान। इससे तय होता है कि कौन से stub entrypoint के बगल में कॉपी हों (`sdk/<language>/` वाले)। shebang से शुरू होने वाली स्क्रिप्ट (`entrypoint: main.py`) के लिए `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` और `sh` में इमेज में वह interpreter भी चाहिए। यह कुछ शुरू नहीं करता। |
+| `entrypoint` | `kind: plugin` के लिए ज़रूरी। पहला शब्द पैकेज की कोई फ़ाइल है (binary, `native-binary` के साथ, या स्क्रिप्ट) या फिर इमेज की कोई कमांड जो उसके `PATH` में मिलती है (`node`, `python3`, `java`, `dotnet`), बाकी उसके arguments; कमांड न मिले तो इंस्टॉल मना हो जाता है। प्रोसेस प्लगइन के फ़ोल्डर में चलता है। |
 | `permissions` | हर मान [अनुमतियों की सूची](security-model.md#permissions-catalog) में होना चाहिए। `network` के लिए `external_fetch` खाली नहीं होना चाहिए। |
 | `external_fetch` | होस्ट के नाम। scheme और अंत का path पार्स के समय हटा दिए जाते हैं; होस्ट ठीक-ठीक मिलने चाहिए, `*.example.com` जैसा wildcard इंस्टॉल पर मना हो जाता है; बिना port वाली एंट्री सिर्फ़ port 80 और 443 की अनुमति देती है, `host:port` सिर्फ़ उसी port की; IP लिखने पर इंस्टॉल मना होता है ([नियम](security-model.md#external-fetch-rules))। |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` या `notification.sender`; बाकी सब मना है। थीम कोई क्षमता नहीं बता सकती। |
@@ -275,7 +275,7 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
   ऊँचाई का लगभग 5% खाली छोड़ें।
 - **WebGL असली डिवाइस पर परखें।** shader डिवाइस के GPU और driver पर चलता है,
   आपके कंप्यूटर पर नहीं; noise के coordinates सीमित रखें।
-  `tests/plugins/weather-v2` ऊपर की सभी बातों के लिए नमूने वाला विजेट है।
+  [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) ऊपर की सभी बातों के लिए नमूने वाला विजेट है।
 
 ## स्लॉट { #slots }
 
@@ -325,15 +325,16 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
 
 `examples/plugins/` में मौजूदा manifest फ़ॉर्मैट वाले चलते प्लगइन हैं: Node.js
 और Python में शुरुआती प्लगइन (`nodejs-example`, `python-example`), एक मेटाडेटा
-provider (`metadata-example`), एक वेबहुक receiver (`webhook-receiver`), build
-step वाला एक होम विजेट (`weather`), `public` और `prefs` अनुमतियों और `admin.nav`
-स्लॉट के साथ डेटा स्टोर (`data-demo`), `config_schema` के हर फ़ील्ड टाइप का उदाहरण, `admin.nav` पेज के साथ
-(`config-demo`), और दो थीम (`theme-dark-blue`, `open-workshop`)। `make plugin-zips`
-इन सबको पैक करता है।
+provider (`metadata-example`), एक वेबहुक receiver (`webhook-receiver`), `public`
+और `prefs` अनुमतियों और `admin.nav` स्लॉट के साथ डेटा स्टोर (`data-demo`) और
+`config_schema` के हर फ़ील्ड टाइप का उदाहरण, `admin.nav` पेज के साथ
+(`config-demo`)। `make plugin-zips` इन सबको पैक करता है। प्रोजेक्ट के अपने प्लगइन
+और थीम - मौसम विजेट, CShell, Dark Blue और बाकी - हर एक [eveyproject](https://github.com/eveyproject) के तहत अपनी
+अलग repository में रहते हैं।
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
-runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint ; launchers: runner_start.go - resolveCommand ; launcher_resolve.go - lookupLauncher
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
 env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)

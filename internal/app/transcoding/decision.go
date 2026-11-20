@@ -158,6 +158,10 @@ type TranscodingPreferences struct {
 	// where the typed 503 they all know how to show is met. Request-scoped,
 	// injected by the caller from the media file, like SourceBitrateKbps.
 	SourceNeedsRemux bool
+	// SourceRefusesDirectPlay: the file's container is damaged, or a device's
+	// demuxer already refused it (MediaFile.RefusesDirectPlay). Its tracks
+	// still copy; only the raw file is never handed over (container_damaged).
+	SourceRefusesDirectPlay bool
 	// SourceBitrateKbps is the file's overall bitrate (size / duration), the
 	// bitrate cap's fallback when the video stream carries none - an MKV
 	// without a BPS tag probes 0 per stream, and a 70 Mb/s remux then sailed
@@ -350,6 +354,7 @@ func MakePlaybackDecisionWithPrefs(
 	applyAudioChannelTarget(d, specs, client, prefs)
 	applySiblingAudioUndecodable(d, specs, client, prefs)
 	applyNeedsRemux(d, prefs)
+	applyContainerDamaged(d, prefs)
 	// Last word on the audio verdict, and it must stay last: it reads the
 	// reasons every pass above may have added to tell a direct play (raw file,
 	// no packaging) from a segmented session (fMP4, passthrough set applies).
@@ -971,6 +976,18 @@ func applyNeedsRemux(d *transcoding.PlaybackDecision, prefs TranscodingPreferenc
 	d.TranscodeReasons = append(d.TranscodeReasons, "file_needs_remux")
 }
 
+// applyContainerDamaged keeps a file whose container a device's demuxer stops
+// on off direct play: a few undecodable bytes ffmpeg and mkvgo step over end
+// the playback on a television. The reason weighs like an incompatible
+// container - both tracks keep their copy verdicts and the server remuxes
+// them (direct_stream, the HLS copy rung) - never a re-encode.
+func applyContainerDamaged(d *transcoding.PlaybackDecision, prefs TranscodingPreferences) {
+	if !prefs.SourceRefusesDirectPlay {
+		return
+	}
+	d.TranscodeReasons = append(d.TranscodeReasons, "container_damaged")
+}
+
 func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.ClientProfile) {
 	switch {
 	case len(d.TranscodeReasons) == 0:
@@ -1088,7 +1105,7 @@ func containsReason(reasons []string, reason string) bool {
 
 func onlyContainerIssue(reasons []string) bool {
 	for _, r := range reasons {
-		if r != "container_incompatible" {
+		if r != "container_incompatible" && r != "container_damaged" {
 			return false
 		}
 	}

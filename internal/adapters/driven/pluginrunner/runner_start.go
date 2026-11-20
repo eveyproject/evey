@@ -21,15 +21,6 @@ import (
 // containment, socket dir setup, command resolution, environment build, the
 // process launch and its lifecycle/IPC connection tracking.
 
-var knownInterpreters = map[string]bool{
-	"python3": true, "python": true, "node": true, "php": true,
-	"ruby": true, "perl": true, "lua": true, "bash": true, "sh": true,
-}
-
-func isInterpreter(cmd string) bool {
-	return knownInterpreters[filepath.Base(cmd)]
-}
-
 func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, error) {
 	resolved, info, err := r.containPluginFile(entrypoint, installDir)
 	if err != nil {
@@ -49,6 +40,19 @@ func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, erro
 // or an absolute path escaped the install dir (bounded by bwrap/Landlock at
 // runtime, but the path must not point outside to begin with).
 func (r *Runner) containPluginFile(path, installDir string) (string, os.FileInfo, error) {
+	resolved, info, err := r.containPluginPath(path, installDir)
+	if err != nil {
+		return "", nil, err
+	}
+	if info.IsDir() {
+		return "", nil, errors.New("plugin file is a directory")
+	}
+	return resolved, info, nil
+}
+
+// containPluginPath is containPluginFile without the regular-file demand: a
+// launcher argument may name a directory of the plugin ("node .").
+func (r *Runner) containPluginPath(path, installDir string) (string, os.FileInfo, error) {
 	if strings.Contains(path, "..") {
 		return "", nil, errors.New("plugin file path must not contain '..'")
 	}
@@ -79,9 +83,6 @@ func (r *Runner) containPluginFile(path, installDir string) (string, os.FileInfo
 	info, err := os.Stat(resolved)
 	if err != nil {
 		return "", nil, fmt.Errorf("stat plugin file: %w", err)
-	}
-	if info.IsDir() {
-		return "", nil, errors.New("plugin file is a directory")
 	}
 	return resolved, info, nil
 }
@@ -310,8 +311,9 @@ func (r *Runner) makeSockParentTraversable(groupGID int) error {
 }
 
 // resolveCommand parses p.Entrypoint (falling back to p.Name) and returns
-// the fully resolved command name and args. Interpreters (python, node…)
-// are looked up in PATH; binaries are path-confined to r.pluginDirs.
+// the fully resolved command name and args. A first word naming a file the
+// plugin ships is that binary, path-confined to r.pluginDirs; otherwise it is
+// a launcher installed in the image (java, dotnet, python3...), found on PATH.
 func (r *Runner) resolveCommand(p *plugin.Plugin) (string, []string, error) {
 	entrypoint := p.Entrypoint
 	if entrypoint == "" {
@@ -322,22 +324,17 @@ func (r *Runner) resolveCommand(p *plugin.Plugin) (string, []string, error) {
 		return "", nil, fmt.Errorf("plugin %s: empty entrypoint", p.ID)
 	}
 
-	if isInterpreter(parts[0]) {
-		if _, lookErr := exec.LookPath(parts[0]); lookErr != nil {
-			return "", nil, fmt.Errorf("plugin %s: runtime %q not installed", p.ID, parts[0])
-		}
-		var cmdArgs []string
-		if len(parts) > 1 {
-			// The script rides the same containment as a binary entrypoint
-			// (minus the exec bit - the interpreter reads it): no "..", no
-			// absolute path outside the allowed plugin directories.
-			scriptPath, _, err := r.containPluginFile(parts[1], p.InstallDir)
+	if !r.shipsFile(parts[0], p.InstallDir) {
+		if launcher, ok := lookupLauncher(parts[0], r.pluginDirs); ok {
+			args, err := r.containLauncherArgs(parts[1:], p.InstallDir)
 			if err != nil {
-				return "", nil, fmt.Errorf("plugin %s: script: %w", p.ID, err)
+				return "", nil, fmt.Errorf("plugin %s: %w", p.ID, err)
 			}
-			cmdArgs = append([]string{scriptPath}, parts[2:]...)
+			return launcher, args, nil
 		}
-		return parts[0], cmdArgs, nil
+		if !strings.ContainsRune(parts[0], '/') {
+			return "", nil, fmt.Errorf("plugin %s: runtime %q not installed in this image, and the plugin does not ship it", p.ID, parts[0])
+		}
 	}
 
 	resolved, resolveErr := r.validateEntrypoint(parts[0], p.InstallDir)
@@ -345,6 +342,59 @@ func (r *Runner) resolveCommand(p *plugin.Plugin) (string, []string, error) {
 		return "", nil, fmt.Errorf("plugin %s: %w", p.ID, resolveErr)
 	}
 	return resolved, parts[1:], nil
+}
+
+// ImageLauncher returns the launcher of the image a plugin starts through
+// (the absolute path of java, dotnet, node...), false for a theme or a plugin
+// that ships its own binary.
+func (r *Runner) ImageLauncher(p *plugin.Plugin) (string, bool) {
+	parts := strings.Fields(p.Entrypoint)
+	if len(parts) == 0 || r.shipsFile(parts[0], p.InstallDir) {
+		return "", false
+	}
+	return lookupLauncher(parts[0], r.pluginDirs)
+}
+
+// shipsFile reports whether an entrypoint's first word names a file of the
+// plugin: a bare name present in its install dir, or a path inside the plugin
+// directories. The plugin's own file wins over a launcher of the same name.
+func (r *Runner) shipsFile(name, installDir string) bool {
+	if filepath.IsAbs(name) {
+		return insideAny(filepath.Clean(name), r.pluginDirs)
+	}
+	if strings.ContainsRune(name, '/') {
+		return true
+	}
+	if installDir == "" {
+		return false
+	}
+	info, err := os.Lstat(filepath.Join(installDir, name))
+	return err == nil && !info.IsDir()
+}
+
+// containLauncherArgs confines the launcher's arguments the way a binary
+// entrypoint is confined: no ".." path element, an absolute path only inside
+// the plugin directories, and an argument naming a file of the plugin
+// ("main.py", "plugin.jar") is resolved through containPluginPath, so a link
+// out of the install dir is refused. Flags pass through ("-jar", "-u").
+func (r *Runner) containLauncherArgs(args []string, installDir string) ([]string, error) {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		if slices.Contains(strings.FieldsFunc(a, func(c rune) bool { return c == '/' || c == '=' }), "..") {
+			return nil, fmt.Errorf("launcher argument %q must not contain '..'", a)
+		}
+		_, statErr := os.Lstat(filepath.Join(installDir, a))
+		if !filepath.IsAbs(a) && (installDir == "" || statErr != nil) {
+			out = append(out, a)
+			continue
+		}
+		resolved, _, err := r.containPluginPath(a, installDir)
+		if err != nil {
+			return nil, fmt.Errorf("launcher argument: %w", err)
+		}
+		out = append(out, resolved)
+	}
+	return out, nil
 }
 
 // registerHostSock provisions the per-plugin host gRPC socket before the
@@ -389,9 +439,16 @@ func buildPluginEnv(pluginID, sock, hostSock string, memCapBytes int64) []string
 	// into the monitor's kill threshold instead of garbage-collecting below
 	// it. 3/4 of the cap leaves room for the non-heap RSS (code, stack,
 	// buffers). Harmless for non-node plugins - only node reads NODE_OPTIONS.
+	// Same for the JVM and the .NET GC, which size their heap from the host's
+	// RAM: MaxRAM makes the JVM's ergonomics read the cap instead (an -Xmx on
+	// the entrypoint still wins), the hard limit is read as hex by .NET.
 	if memCapBytes > 0 {
 		heapMB := memCapBytes * 3 / 4 >> 20
-		env = append(env, fmt.Sprintf("NODE_OPTIONS=--max-old-space-size=%d", heapMB))
+		env = append(env,
+			fmt.Sprintf("NODE_OPTIONS=--max-old-space-size=%d", heapMB),
+			fmt.Sprintf("JAVA_TOOL_OPTIONS=-XX:MaxRAM=%d", memCapBytes),
+			fmt.Sprintf("DOTNET_GCHeapHardLimit=%x", memCapBytes*3/4),
+		)
 	}
 	return env
 }

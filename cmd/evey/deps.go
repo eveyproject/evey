@@ -177,12 +177,15 @@ type repoDeps struct {
 	profileRepo       domainuser.ProfileRepository
 	serverCfgRepo     domainshared.ServerConfigRepository
 	mediaItemRepo     mediaItemCounter
-	userRepo          domainuser.UserRepository
-	apiKeyRepo        domainuser.APIKeyRepository
-	pluginRepo        domainplugin.PluginRepository
-	pluginDataRepo    domainplugin.PluginDataRepository
-	quickConnectRepo  domainuser.QuickConnectRepository
-	introMetaCache    grpcapi.IntroCacheInvalidator
+	// directPlayRefusals records a device's refusal of a raw file on the
+	// catalog (the player-event beacon).
+	directPlayRefusals httpapi.DirectPlayRefusalRecorder
+	userRepo           domainuser.UserRepository
+	apiKeyRepo         domainuser.APIKeyRepository
+	pluginRepo         domainplugin.PluginRepository
+	pluginDataRepo     domainplugin.PluginDataRepository
+	quickConnectRepo   domainuser.QuickConnectRepository
+	introMetaCache     grpcapi.IntroCacheInvalidator
 	// repairJournal records every media rewrite. Its absence is why the
 	// 2026-07-13 batch could not be explained seven weeks later.
 	repairJournal appmaintenance.RepairJournal
@@ -217,10 +220,11 @@ type appDeps struct {
 	// presenceTracker is the ONE live "who is online" registry, shared by the
 	// gRPC heartbeat (web/mobile/TV apps) and the HTTP cast-beacon route (a
 	// beaconing Chromecast counts as an online device of the casting user).
-	presenceTracker    *apppresence.Tracker
-	hlsAESSecret       []byte
-	seekIndexFileState appmaintenance.FileStateRefresher
-	interleaveRecorder appmaintenance.InterleaveRecorder
+	presenceTracker         *apppresence.Tracker
+	hlsAESSecret            []byte
+	seekIndexFileState      appmaintenance.FileStateRefresher
+	interleaveRecorder      appmaintenance.InterleaveRecorder
+	containerDamageRecorder appmaintenance.ContainerDamageRecorder
 	// seekIndexSvc is published by buildGRPCServer so the HTTP layer can serve
 	// the sync-preview clip from the same instance. Built before the HTTP
 	// handler, so it is never nil by the time that route is registered.

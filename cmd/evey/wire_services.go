@@ -317,6 +317,9 @@ func startTranscodingWorkers(
 	// Every probed file is measured for tracks stored in blocks, so playback
 	// refuses it (file_needs_remux) instead of stalling on it.
 	libCmdSvc.WithInterleaveProber(mkvgo.New())
+	// And its container checked: a file a device's demuxer would stop on is
+	// remuxed from its first play instead of handed over whole.
+	libCmdSvc.WithContainerChecker(mkvgo.New())
 
 	// kfProber is returned because the PACED keyframe backfill worker (built at
 	// the call site, after the load-test runner) shares this same dispatcher.
@@ -450,8 +453,8 @@ func buildPluginSubsystem(ctx context.Context, infra *infraDeps, rootLog *slog.L
 	// Safe here: AutoStartPlugins only runs after wiring completes (main.go).
 	infra.pluginRunner.WithSDKStubs(pluginFS)
 	cssSanitizer := pluginrunner.NewCSSSanitizer()
-	runtimeChecker := pluginrunner.NewRuntimeAvailability()
-	slog.Info("plugin runtimes detected", slog.Any("available", runtimeChecker.Available()))
+	runtimeChecker := pluginrunner.NewRuntimeAvailability(infra.pluginRunner.PluginDirs()...)
+	slog.Info("plugin script interpreters detected", slog.Any("available", runtimeChecker.Available()))
 	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, infra.pluginRunner, infra.manifestParser, bus,
 		appplugin.InstallerWithInstaller(infra.pluginInstaller),
 		appplugin.InstallerWithAnalyzer(infra.pluginAnalyzer),

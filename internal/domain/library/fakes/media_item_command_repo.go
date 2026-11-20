@@ -163,6 +163,7 @@ func (r *FakeMediaItemCommandRepo) ListScanSummaries(_ context.Context, libraryI
 				row.ModTime = item.File.ModTime
 				row.StreamProbeAttempts = item.File.StreamProbeAttempts
 				row.StreamProbeVersion = item.File.StreamProbeVersion
+				row.ContainerCheckVersion = item.File.ContainerCheckVersion
 			}
 			result = append(result, row)
 		}

@@ -268,19 +268,20 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// The plan's decision (Decide: the core plus the request-time pins), the
 	// same one the master this info announces will be served from.
 	decided := h.decider.Reported(r.Context(), apptranscoding.PlaybackRequest{
-		MediaID:             mediaID,
-		SourcePath:          item.File.Path,
-		Container:           item.File.ContainerFormat,
-		Streams:             streams,
-		Client:              client,
-		Prefs:               prefs,
-		MaxBitrateKbps:      userMaxBitrate,
-		AudioTrack:          audioTrack,
-		SubtitleBurnInTrack: prefs.SubtitleBurnInTrack,
-		WasmAudio:           prefs.WasmAudio,
-		SourceBytes:         sourceBytesOf(item),
-		SourceBitrateKbps:   item.File.BitrateBps() / 1000,
-		SourceNeedsRemux:    item.File.NeedsRemux(),
+		MediaID:                 mediaID,
+		SourcePath:              item.File.Path,
+		Container:               item.File.ContainerFormat,
+		Streams:                 streams,
+		Client:                  client,
+		Prefs:                   prefs,
+		MaxBitrateKbps:          userMaxBitrate,
+		AudioTrack:              audioTrack,
+		SubtitleBurnInTrack:     prefs.SubtitleBurnInTrack,
+		WasmAudio:               prefs.WasmAudio,
+		SourceBytes:             sourceBytesOf(item),
+		SourceBitrateKbps:       item.File.BitrateBps() / 1000,
+		SourceNeedsRemux:        item.File.NeedsRemux(),
+		SourceRefusesDirectPlay: item.File.RefusesDirectPlay(),
 	})
 	decision := &decided
 

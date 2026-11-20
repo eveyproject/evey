@@ -1,5 +1,5 @@
 ---
-source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
+source_sha: 58c9f2033d994c265409f943a03c3ecdfebe68484e88c1a7d2abf916dab22917
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -16,7 +16,7 @@ reviewed: true
 name: my-plugin              # 必填；唯一，kebab-case 格式
 version: 1.2.3               # 必填；semver，X.Y.Z 或 X.Y.Z-label
 kind: plugin                 # 必填；"plugin" 或 "theme"
-language: nodejs             # 插件必填；镜像里的一个运行时
+language: nodejs             # 插件必填；决定复制哪些存根
 entrypoint: node index.js    # 插件必填；服务器执行的命令行
 
 display_name: My Plugin      # 可选；一个字符串，或一个映射 {en: ..., fr: ...}
@@ -52,8 +52,8 @@ config_schema:               # 插件卡片上“配置”面板里的字段
 |---|---|
 | `name`、`version`、`kind` | 必填。`version` 必须符合 `X.Y.Z` 或 `X.Y.Z-label`；更新包的版本必须高于已安装的版本。 |
 | `display_name` | 给人看的名称；`name` 仍是更新时用来对应插件的标识。只写一个字符串时算作英文，适用于所有语言；映射以语言代码为键（`en`、`fr`、`pt-BR`）。每个值 1 到 40 个字符，前后不能有空格，也不能含控制字符。目前由主题选择器显示。 |
-| `language` | `kind: plugin` 必填：`python`、`nodejs`、`php`、`ruby`、`lua`、`bash`、`sh` 或 `go`。它决定检查哪个运行时、把哪些存根复制到入口旁边；它本身不启动任何东西。 |
-| `entrypoint` | `kind: plugin` 必填。第一个词是解释器（声明了 `native-binary` 时是二进制文件），其余是它的参数；进程在插件的目录里运行。 |
+| `language` | `kind: plugin` 必填，可以是任意值。它决定把哪些存根复制到入口旁边（即 `sdk/<language>/` 里的）。对于通过 shebang 启动的脚本（`entrypoint: main.py`），`python`、`nodejs`、`php`、`ruby`、`lua`、`bash` 和 `sh` 还要求镜像里有对应的解释器。它本身不启动任何东西。 |
+| `entrypoint` | `kind: plugin` 必填。第一个词是插件包里的文件（二进制文件，声明了 `native-binary` 时；或脚本），或者是镜像里能在其 `PATH` 中找到的命令（`node`、`python3`、`java`、`dotnet`），其余是它的参数；命令找不到会让安装被拒绝。进程在插件的目录里运行。 |
 | `permissions` | 每个值都必须在[权限目录](security-model.md#permissions-catalog)里。`network` 要求 `external_fetch` 不为空。 |
 | `external_fetch` | 主机名。协议前缀和末尾的路径在解析时会被丢弃；主机必须完全匹配，`*.example.com` 这样的通配符在安装时会被拒绝；不带端口的条目只允许 80 和 443 端口，`host:port` 只允许该端口；IP 地址会导致安装被拒绝（[规则](security-model.md#external-fetch-rules)）。 |
 | `capabilities` | `metadata.provider`、`media.read`、`media.write`、`webhook.receiver` 或 `notification.sender`；其他值都会被拒绝。主题不能声明任何能力。 |
@@ -232,7 +232,7 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 - **没有焦点，也没有指针。** 小组件永远不会获得方向键的焦点，也没有悬停效果；任何需要交互的东西都应放在网页和移动端。
 - **文字不要贴着边缘。** 电视会过扫描：每一边都留出大约 5% 的宽度和高度。
 - **在真实的电视盒上测试 WebGL。** 着色器运行在电视盒自己的 GPU 和驱动上，而不是您电脑上的；噪声坐标要保持在有限范围内。
-  `tests/plugins/weather-v2` 是以上所有要点的参考小组件。
+  [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) 是以上所有要点的参考小组件。
 
 ## 插槽 { #slots }
 
@@ -272,13 +272,13 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 ## 示例 { #examples }
 
 `examples/plugins/` 里有按当前清单格式编写、可以直接运行的插件：Node.js 和 Python 的入门示例（`nodejs-example`、`python-example`）、
-一个元数据提供方（`metadata-example`）、一个 Webhook 接收端（`webhook-receiver`）、一个带构建步骤的首页小组件（`weather`）、
-一个演示数据存储、`public` 和 `prefs` 权限以及 `admin.nav` 插槽的示例（`data-demo`）、一个展示所有 `config_schema` 字段类型的示例，带有一个 `admin.nav` 页面（`config-demo`），
-以及两个主题（`theme-dark-blue`、`open-workshop`）。`make plugin-zips` 会把它们全部打包。
+一个元数据提供方（`metadata-example`）、一个 Webhook 接收端（`webhook-receiver`）、
+一个演示数据存储、`public` 和 `prefs` 权限以及 `admin.nav` 插槽的示例（`data-demo`），以及一个展示所有 `config_schema` 字段类型的示例，带有一个 `admin.nav` 页面（`config-demo`）。
+`make plugin-zips` 会把它们全部打包。项目自己的插件和主题（天气小组件、CShell、Dark Blue 等）各自位于 [eveyproject](https://github.com/eveyproject) 下的独立仓库中。
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
-runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint ; launchers: runner_start.go - resolveCommand ; launcher_resolve.go - lookupLauncher
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
 env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)

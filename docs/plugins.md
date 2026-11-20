@@ -51,10 +51,13 @@ when it has one, runs in an isolated frame of the page.
 </figure>
 
 A package whose analysis finds a critical pattern is refused, whatever you
-answer. Warnings are shown and left to you. The plugin's language must be
-among the **Available Runtimes** of the server: the default image ships
+answer. Warnings are shown and left to you. The runtime that starts the
+plugin must be in the server's image: the default image ships
 Python, Node.js, PHP, Ruby and Lua; the `-nodejs` image keeps Python and
-Node.js and the `-lean` image keeps Python only.
+Node.js and the `-lean` image keeps Python only, and
+[any other is added to the image](plugins/dev-setup.md#a-runtime-the-image-does-not-carry).
+**Available Runtimes** lists the ones the server found, and the one each
+installed plugin starts through.
 
 !!! tip "Signed plugins"
     A plugin author can sign the ZIP with [cosign](https://docs.sigstore.dev/cosign/system_config/installation/);

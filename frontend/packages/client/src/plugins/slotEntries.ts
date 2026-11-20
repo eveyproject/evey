@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { eveyFetch, getAdminPluginServiceListPluginsQueryKey } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 
 export interface PluginFrontModule {
@@ -45,8 +45,21 @@ export interface SlotFilter {
   excludeRegistered?: Set<string>;
 }
 
-/** The query every plugin surface shares, so an install, enable or uninstall on the admin page refreshes them all. */
+/** The query every plugin surface shares (home rows, slots, the customise panel). */
 export const PLUGIN_LIST_QUERY_KEY = ["/api/v1/plugins"] as const;
+
+/**
+ * After an admin installs, removes, enables, disables or updates a plugin:
+ * the admin list and every viewer surface reload. The viewer list counts as
+ * fresh for a minute, so refreshing the admin list alone left the home of the
+ * very tab that installed a plugin without it until a reload.
+ */
+export function refreshPluginLists(queryClient: QueryClient): Promise<void> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }),
+    queryClient.invalidateQueries({ queryKey: PLUGIN_LIST_QUERY_KEY }),
+  ]).then(() => undefined);
+}
 
 export function usePluginList() {
   const isAuthenticated = useAuthStore((s) => !!s.accessToken);

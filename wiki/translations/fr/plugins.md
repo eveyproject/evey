@@ -1,5 +1,5 @@
 ---
-source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
+source_sha: d330f2e3c1bd08e716c4ab9372f05aae3fc2469d580dbafb23819e7b62a15484
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -58,10 +58,13 @@ de la page.
 
 Un paquet dont l'analyse relève un motif critique est refusé, quelle que soit
 votre réponse. Les avertissements sont affichés et laissés à votre
-appréciation. Le langage du plugin doit figurer parmi les **Environnements
-d'exécution disponibles** du serveur : l'image par défaut embarque
+appréciation. Le runtime qui démarre le plugin doit figurer dans l'image du
+serveur : l'image par défaut embarque
 Python, Node.js, PHP, Ruby et Lua ; l'image `-nodejs` garde Python et
-Node.js et l'image `-lean` ne garde que Python.
+Node.js, l'image `-lean` ne garde que Python, et
+[tout autre s'ajoute à l'image](plugins/dev-setup.md#a-runtime-the-image-does-not-carry).
+Les **Environnements d'exécution disponibles** listent ceux que le serveur a
+trouvés, et celui par lequel démarre chaque plugin installé.
 
 !!! tip "Plugins signés"
     L'auteur d'un plugin peut signer le ZIP avec [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) ;

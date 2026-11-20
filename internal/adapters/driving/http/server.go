@@ -87,7 +87,10 @@ type HTTPServer struct {
 	// than the raw JWT generator.
 	TokenGen domainuser.TokenGenerator
 	// PluginTokenGen parses scoped plugin tokens (outside user.TokenGenerator).
-	PluginTokenGen   PluginTokenParser
+	PluginTokenGen PluginTokenParser
+	// PluginLaunchers lists the image launchers installed plugins start
+	// through (absolute paths), for the admin's runtime list. nil lists none.
+	PluginLaunchers  func(context.Context) []string
 	Cfg              *config.Config
 	StreamTokenStore *appmedia.StreamTokenStore
 	ShareSvc         *appmedia.ShareService
@@ -165,6 +168,9 @@ type HTTPServer struct {
 	// QoESink ingests CMCD telemetry from every segment / master / variant
 	// request. Nil-safe: the VOD handler short-circuits when this is unset.
 	QoESink appqoe.EventSink
+	// DirectPlayRefusals records a native player's refusal of a raw file on
+	// the catalog. Nil-safe: the beacon is then only logged.
+	DirectPlayRefusals DirectPlayRefusalRecorder
 
 	// CopySeekProber resolves where a pre-input -ss really lands for the copy
 	// rung's mid-stream sessions (sparse container seek indexes land on the
@@ -571,7 +577,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			WithPlayerEventCastCommand(s.CastCommandConsume),
 			// And as the native players' QoE feed: ExoPlayer/AVPlayer send no
 			// CMCD of their own, the app posts qoe_sample beacons instead.
-			WithPlayerEventQoESink(s.QoESink)))))
+			WithPlayerEventQoESink(s.QoESink),
+			// And as the catalog's memory of a raw file a device refused.
+			WithPlayerEventDirectPlayRefusal(s.DirectPlayRefusals)))))
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo, s.UserQuerySvc)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
@@ -887,7 +895,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	// Ratings, popular, analytics, filter → gRPC (grpcapi/rating_handler, activity_handler, library_handler)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen, s.LibQuerySvc)
-	registerAvailableRuntimesRoute(mux, s.TokenGen)
+	registerAvailableRuntimesRoute(mux, s.TokenGen, s.PluginLaunchers)
 	musicOpts := []musicRouteOption{}
 	if s.PhotoCacheDir != "" {
 		// Track (tag-embedded) art variants live next to the photo cache, under

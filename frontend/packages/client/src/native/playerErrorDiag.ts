@@ -95,6 +95,18 @@ export function audioDecoderFailureCodec(message: string): string | null {
   return AUDIO_MIME_CODEC[diag.mime.toLowerCase()] ?? null;
 }
 
+/**
+ * Whether the player's own demuxer refused the media file: ExoPlayer's
+ * ParserException on media data ("Invalid integer size: 30
+ * {contentIsMalformed=true, dataType=1}"). A few stray bytes a resyncing
+ * reader (ffmpeg, VLC, mkvgo) steps over stop it dead, and asking for the same
+ * file again fails identically; the server's remux of the same tracks does not.
+ * A manifest parse error (dataType=4) is not one: the file was never read.
+ */
+export function containerParseFailure(message: string): boolean {
+  return /contentIsMalformed=\w+, dataType=1\b/.test(message ?? "") || /\bERROR_CODE_PARSING_CONTAINER_\w+/.test(message ?? "");
+}
+
 /** The stream info's PLAY_METHOD_* as the log names it; "offline" for a downloaded file. */
 export function playMethodName(playMethod: string | undefined, offline = false): string {
   if (offline) return "offline";

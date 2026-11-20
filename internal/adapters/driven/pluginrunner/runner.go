@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"os/exec"
+	"slices"
 	"sync"
 	"time"
 
@@ -173,6 +174,11 @@ func NewRunner(pluginDirs ...string) *Runner {
 		processes:  make(map[string]*processEntry),
 		pluginDirs: dirs,
 	}
+}
+
+// PluginDirs returns the directories plugins are installed under.
+func (r *Runner) PluginDirs() []string {
+	return slices.Clone(r.pluginDirs)
 }
 
 func (r *Runner) WithLogger(l *PluginLogger) *Runner {

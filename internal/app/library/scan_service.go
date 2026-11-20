@@ -100,6 +100,7 @@ type ScanService struct {
 	ingestActivePlayback func() int
 	keyframeWarmer       func(ctx context.Context, mediaItemID, path string) bool
 	interleave           InterleaveProber // optional; see WithInterleaveProber
+	containerCheck       ContainerChecker // optional; see WithContainerChecker
 	// budget bounds the per-file fan-out of processNewItems: each file holds
 	// one slot of the library_scan share for as long as it is analysed. nil
 	// (tests) falls back to scanWorkerCount.
@@ -334,6 +335,43 @@ func (s *ScanService) probeInterleave(ctx context.Context, f *library.MediaFile,
 		return
 	}
 	f.InterleaveBackstepMs = int64(back * 1000)
+}
+
+// ContainerChecker counts the bytes of a container a demuxer that does not
+// resynchronize stops on (see library.MediaFile.ContainerDamagedBytes).
+// Satisfied by the mkvgo adapter.
+type ContainerChecker interface {
+	ProbeContainerDamage(ctx context.Context, path string) (int64, error)
+}
+
+// WithContainerChecker checks every probed file's container (a head-mostly
+// mkvgo diagnose) so a file a device's demuxer would refuse is remuxed from
+// its first play. Optional; without it the media-health scan and the
+// players' reports are the only sources.
+func (s *ScanService) WithContainerChecker(c ContainerChecker) *ScanService {
+	s.containerCheck = c
+	return s
+}
+
+// checkContainer fills f.ContainerDamagedBytes and stamps the check version;
+// a failed check keeps the previous value and leaves the row owed a check
+// (no finding is not a clearance). Reports whether the check ran.
+func (s *ScanService) checkContainer(ctx context.Context, f *library.MediaFile, path string) bool {
+	if s.containerCheck == nil || f == nil {
+		return false
+	}
+	n, err := s.containerCheck.ProbeContainerDamage(ctx, path)
+	if err != nil {
+		slog.WarnContext(ctx, "scan: container check failed", slog.String("path", path), slog.Any("err", err))
+		return false
+	}
+	if n > 0 && f.ContainerDamagedBytes == 0 {
+		slog.WarnContext(ctx, "scan: damaged container, remuxed instead of handed over whole",
+			slog.String("path", path), slog.Int64("damaged_bytes", n))
+	}
+	f.ContainerDamagedBytes = n
+	f.ContainerCheckVersion = library.ContainerCheckVersion
+	return true
 }
 
 type scanWork struct {
@@ -579,7 +617,10 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 			// re-probe so fields the prober has since learned get stored (no
 			// prober wired = nothing to refresh).
 			NeedsReprobe: (row.StreamProbeAttempts > 0 && row.StreamProbeAttempts < maxStreamProbeAttempts) ||
-				(s.prober != nil && row.StreamProbeAttempts == 0 && row.StreamProbeVersion < library.StreamProbeVersion),
+				(s.prober != nil && row.StreamProbeAttempts == 0 && row.StreamProbeVersion < library.StreamProbeVersion) ||
+				// A container never checked (or by an older revision) is
+				// owed the check alone, paced like the re-probes above.
+				(s.containerCheck != nil && row.ContainerCheckVersion < library.ContainerCheckVersion),
 		}
 	}
 	return scanindex.New(entries), nil
@@ -1067,6 +1108,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		item.File.ContainerFormat = container
 	}
 	s.probeInterleave(ctx, item.File, f.Path)
+	s.checkContainer(ctx, item.File, f.Path)
 	// Persist whenever the probe taught us anything - container included. Gating
 	// only on duration silently dropped ContainerFormat for a file whose probe
 	// succeeded but reported no duration: a successful probe leaves
@@ -1137,6 +1179,9 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		} else if existing.File.StreamProbeAttempts == 0 && existing.File.StreamProbeVersion < library.StreamProbeVersion &&
 			s.staleReprobes.Allow() && !s.isPlaying(ctx, existing.ID) {
 			s.reprobeStaleVersion(ctx, existing, f.Path)
+		} else if s.containerCheck != nil && existing.File.ContainerCheckVersion < library.ContainerCheckVersion &&
+			s.staleReprobes.Allow() && !s.isPlaying(ctx, existing.ID) {
+			s.recheckContainer(ctx, existing, f.Path)
 		}
 		return
 	}
@@ -1181,6 +1226,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		existing.File.ContainerFormat = container
 	}
 	s.probeInterleave(ctx, existing.File, f.Path)
+	s.checkContainer(ctx, existing.File, f.Path)
 	existing.UpdatedAt = time.Now()
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
 		slog.WarnContext(ctx, "update media item after probe failed", slog.String("media_id", string(existing.ID)), slog.Any("err", err))
@@ -1237,6 +1283,7 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 			item.File.ContainerFormat = container
 		}
 		s.probeInterleave(ctx, item.File, path)
+		s.checkContainer(ctx, item.File, path)
 		slog.InfoContext(ctx, "scan: streamless file re-probe succeeded",
 			slog.String("media_id", string(item.ID)), slog.String("path", path))
 	} else {
@@ -1315,7 +1362,20 @@ func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.Med
 	if result.Container != "" {
 		item.File.ContainerFormat = result.Container
 	}
+	s.checkContainer(ctx, item.File, path)
 	item.UpdatedAt = time.Now()
+}
+
+// recheckContainer runs the container check alone on an unchanged file last
+// checked by an older revision (or never): the streams stay as they are.
+func (s *ScanService) recheckContainer(ctx context.Context, item *library.MediaItem, path string) {
+	if !s.checkContainer(ctx, item.File, path) {
+		return
+	}
+	item.UpdatedAt = time.Now()
+	if err := s.mediaItems.Update(ctx, item); err != nil {
+		slog.WarnContext(ctx, "update media item after container check failed", slog.String("media_id", string(item.ID)), slog.Any("err", err))
+	}
 }
 
 // hasContainerStream reports whether any stored stream came from the

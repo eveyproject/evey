@@ -62,7 +62,7 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
-import { audioDecoderFailureCodec, diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
+import { audioDecoderFailureCodec, containerParseFailure, diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
 import { subscribePlayerStatus } from "@evey/client/native/playerStatus";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -279,7 +279,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
-  const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, selectAudioStream, progress, restartPositionMs } =
+  const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, refuseDirectPlay, selectAudioStream, progress, restartPositionMs } =
     usePlaySession(sessionMediaId, {
       ...(trackPick.audio === undefined ? {} : { audioStreamIndex: trackPick.audio }),
       // The encoder is pre-warmed where the player will start.
@@ -334,6 +334,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // One renegotiation per media after the player failed to decode an audio
   // track: the codec leaves the declaration and the server is asked again.
   const audioFallbackTriedRef = useRef(false);
+  const refuseDirectPlayRef = useRef(refuseDirectPlay);
+  refuseDirectPlayRef.current = refuseDirectPlay;
   // When the last reload on a 404 or 410 was made (see playbackReloadRetry).
   const reloadRetryAtRef = useRef<number | null>(null);
   // The status listener is installed before restartWithTracks exists in its
@@ -759,6 +761,20 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
           audioFallbackTriedRef.current = true;
           reportPlayerEvent({
             type: "native_audio_codec_refused",
+            details: ev.error?.message ?? "",
+            fatal: false,
+            posSec: Math.round(currentTimeRef.current),
+            diag: diagnoseNativePlayerError(ev.error?.message ?? "", playMethodRef.current),
+          });
+          restartWithTracksRef.current?.();
+          return;
+        }
+        // The player's own demuxer refused the file it was handed whole: the
+        // same file again fails the same way, the server's remux of its
+        // tracks does not. Once per title, and only out of a direct play.
+        if (containerParseFailure(ev.error?.message ?? "") && playMethodRef.current !== "offline" && refuseDirectPlayRef.current()) {
+          reportPlayerEvent({
+            type: "native_direct_play_refused",
             details: ev.error?.message ?? "",
             fatal: false,
             posSec: Math.round(currentTimeRef.current),

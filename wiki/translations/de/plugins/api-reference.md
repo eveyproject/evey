@@ -1,5 +1,5 @@
 ---
-source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
+source_sha: 58c9f2033d994c265409f943a03c3ecdfebe68484e88c1a7d2abf916dab22917
 reviewed: true
 ---
 # Plugin-API-Referenz { #plugin-api-reference }
@@ -20,7 +20,7 @@ höchstens 1 MB groß.
 name: my-plugin              # Pflicht; eindeutig, kebab-case
 version: 1.2.3               # Pflicht; semver, X.Y.Z oder X.Y.Z-label
 kind: plugin                 # Pflicht; "plugin" oder "theme"
-language: nodejs             # Pflicht für ein Plugin; eine Laufzeit des Images
+language: nodejs             # Pflicht für ein Plugin; wählt die kopierten Stubs
 entrypoint: node index.js    # Pflicht für ein Plugin; die Befehlszeile, die der Server startet
 
 display_name: My Plugin      # optional; eine Zeichenkette oder eine Map {en: ..., fr: ...}
@@ -56,8 +56,8 @@ config_schema:               # die Felder des Bereichs Konfiguration auf der Kar
 |---|---|
 | `name`, `version`, `kind` | Pflicht. `version` muss `X.Y.Z` oder `X.Y.Z-label` entsprechen; ein Update muss eine höhere Version tragen als die installierte. |
 | `display_name` | Der Name, den die Leute sehen; `name` bleibt die Kennung, über die ein Update zugeordnet wird. Eine einzelne Zeichenkette zählt als Englisch und gilt für alle Sprachen; eine Map ist nach Sprachcode geschlüsselt (`en`, `fr`, `pt-BR`). Jeder Wert hat 1 bis 40 Zeichen, ohne umgebende Leerzeichen oder Steuerzeichen. Derzeit zeigt ihn die Theme-Auswahl an. |
-| `language` | Pflicht für `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` oder `go`. Es bestimmt die Prüfung der Laufzeit und die Stubs, die neben den Einstiegspunkt kopiert werden; es startet selbst nichts. |
-| `entrypoint` | Pflicht für `kind: plugin`. Das erste Wort ist der Interpreter (oder die Binärdatei, mit `native-binary`), der Rest sind seine Argumente; der Prozess läuft im Verzeichnis des Plugins. |
+| `language` | Pflicht für `kind: plugin`, beliebiger Wert. Es bestimmt die Stubs, die neben den Einstiegspunkt kopiert werden (die aus `sdk/<language>/`). Bei einem Skript, das über seinen Shebang gestartet wird (`entrypoint: main.py`), verlangen `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` und `sh` zusätzlich diesen Interpreter im Image. Es startet selbst nichts. |
+| `entrypoint` | Pflicht für `kind: plugin`. Das erste Wort ist eine Datei des Pakets (eine Binärdatei, mit `native-binary`, oder ein Skript) oder sonst ein Befehl des Images, der in seinem `PATH` gefunden wird (`node`, `python3`, `java`, `dotnet`), der Rest sind seine Argumente; ein fehlender Befehl lehnt die Installation ab. Der Prozess läuft im Verzeichnis des Plugins. |
 | `permissions` | Jeder Wert muss im [Katalog der Berechtigungen](security-model.md#permissions-catalog) stehen. `network` verlangt ein nicht leeres `external_fetch`. |
 | `external_fetch` | Hostnamen. Ein Schema und ein abschließender Pfad werden beim Einlesen entfernt; Hosts müssen exakt passen, ein Platzhalter `*.example.com` wird bei der Installation abgelehnt; ein Eintrag ohne Port erlaubt nur die Ports 80 und 443, `host:port` nur diesen Port; eine IP-Adresse lässt die Installation scheitern ([Regeln](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` oder `notification.sender`; alles andere wird abgelehnt. Ein Theme darf keine angeben. |
@@ -292,7 +292,7 @@ gilt, gilt dort nicht mehr:
   (Overscan): Lassen Sie an jeder Seite etwa 5 % der Breite und Höhe frei.
 - **Testen Sie WebGL auf einer echten Box.** Ein Shader läuft auf der GPU
   und dem Treiber der Box, nicht auf denen Ihres Rechners; halten Sie
-  Rauschkoordinaten begrenzt. `tests/plugins/weather-v2` ist das
+  Rauschkoordinaten begrenzt. [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) ist das
   Referenz-Widget für all das.
 
 ## Slots { #slots }
@@ -350,15 +350,16 @@ die die Bereiche des Tokens nicht nennen
 `examples/plugins/` enthält funktionierende Plugins im aktuellen
 Manifestformat: Vorlagen in Node.js und Python (`nodejs-example`,
 `python-example`), einen Metadatenanbieter (`metadata-example`), einen
-Webhook-Empfänger (`webhook-receiver`), ein Startseiten-Widget mit
-Build-Schritt (`weather`), den Datenspeicher mit den Berechtigungen `public`
-und `prefs` und dem Slot `admin.nav` (`data-demo`), einen Rundgang durch
-alle Feldtypen von `config_schema`, mit einer `admin.nav`-Seite (`config-demo`), und zwei Themes
-(`theme-dark-blue`, `open-workshop`). `make plugin-zips` packt sie alle.
+Webhook-Empfänger (`webhook-receiver`), den Datenspeicher mit den
+Berechtigungen `public` und `prefs` und dem Slot `admin.nav` (`data-demo`) und
+einen Rundgang durch alle Feldtypen von `config_schema`, mit einer
+`admin.nav`-Seite (`config-demo`). `make plugin-zips` packt sie alle. Die
+Plugins und Themes des Projekts - das Wetter-Widget, CShell, Dark Blue und die
+anderen - liegen jeweils in einem eigenen Repository unter [eveyproject](https://github.com/eveyproject).
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
-runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint ; launchers: runner_start.go - resolveCommand ; launcher_resolve.go - lookupLauncher
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
 env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)

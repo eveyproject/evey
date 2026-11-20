@@ -372,6 +372,9 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		// routes it to the HLS master (never the raw file) so every client
 		// meets the typed 503 (file_needs_remux) it already knows how to show.
 		preq.SourceNeedsRemux = item.File.NeedsRemux()
+		// A damaged container, or one a device's demuxer already refused:
+		// the tracks copy, the raw file is never handed over.
+		preq.SourceRefusesDirectPlay = item.File.RefusesDirectPlay()
 	}
 	// The plan's decision, the one the master this info announces is served
 	// from: the core plus the request-time pins and the route's tone-map

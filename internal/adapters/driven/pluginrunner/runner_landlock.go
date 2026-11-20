@@ -59,6 +59,16 @@ var systemReadOnlyDirs = []string{"/usr", "/lib", "/lib64", "/bin", "/sbin", "/e
 // already wires stdout/stderr and a daemon has no legitimate terminal.
 var safeDevNodes = []string{"/dev/null", "/dev/zero", "/dev/full", "/dev/random", "/dev/urandom"}
 
+// safeProcFiles are the only entries of its own /proc directory a plugin may
+// read, granted one by one like safeDevNodes: Landlock mode shares the
+// server's network and mount namespaces, so the directory as a whole would
+// hand over net/tcp (the container's connections, clients' addresses) and
+// mountinfo (the host's mount layout). CoreCLR refuses to boot without maps
+// (its own address space, read for the main thread's stack bounds); nothing
+// else it opens there is needed. The launcher resolves the link to its own
+// pid, which exec keeps: another process's entries stay denied.
+var safeProcFiles = []string{"/proc/self/maps"}
+
 // buildLauncherArgv builds the evey-plugin-launcher argv wrapping the plugin
 // command: a filesystem allowlist (system dirs read-only; the plugin's own dir
 // + socket dir read-write), the TCP egress policy, and the kernel seccomp
@@ -77,6 +87,15 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 	args = append(args, launcher)
 	for _, d := range systemReadOnlyDirs {
 		args = append(args, "-ro", d)
+	}
+	for _, f := range safeProcFiles {
+		args = append(args, "-ro-file", f)
+	}
+	// A launcher from the image installed outside those dirs (/opt/...).
+	if len(cmd.Args) > 0 {
+		for _, d := range launcherReadPaths(cmd.Args[0]) {
+			args = append(args, "-ro", d)
+		}
 	}
 	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir)
 	for _, d := range safeDevNodes {

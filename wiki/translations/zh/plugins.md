@@ -1,5 +1,5 @@
 ---
-source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
+source_sha: d330f2e3c1bd08e716c4ab9372f05aae3fc2469d580dbafb23819e7b62a15484
 reviewed: true
 ---
 # 插件 { #plugins }
@@ -45,8 +45,9 @@ reviewed: true
 </figure>
 
 如果分析在安装包里发现了严重的问题，不管您怎么回答，安装都会被拒绝。警告会显示出来，由您决定。
-插件使用的语言必须在服务器的**可用运行时**里：默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua，`-nodejs` 镜像保留 Python 和 Node.js，
-`-lean` 镜像只保留 Python。
+启动插件的运行时必须在服务器的镜像里：默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua，`-nodejs` 镜像保留 Python 和 Node.js，
+`-lean` 镜像只保留 Python，[其他运行时则要加进镜像](plugins/dev-setup.md#a-runtime-the-image-does-not-carry)。
+**可用运行时**列出服务器找到的运行时，以及每个已安装插件所用的那个。
 
 !!! tip "签名的插件"
     插件作者可以用 [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) 给 ZIP 签名，

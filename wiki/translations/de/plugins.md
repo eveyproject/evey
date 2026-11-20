@@ -1,5 +1,5 @@
 ---
-source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
+source_sha: d330f2e3c1bd08e716c4ab9372f05aae3fc2469d580dbafb23819e7b62a15484
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -60,9 +60,12 @@ läuft in einem isolierten Rahmen der Seite.
 
 Ein Paket, in dem die Analyse ein kritisches Muster findet, wird abgelehnt,
 egal was Sie antworten. Warnungen werden angezeigt, die Entscheidung liegt bei
-Ihnen. Die Sprache des Plugins muss zu den **Verfügbaren Laufzeiten** des
-Servers gehören: Das Standard-Image bringt Python, Node.js, PHP, Ruby und Lua mit, das Image
-`-nodejs` behält Python und Node.js und das Image `-lean` nur Python.
+Ihnen. Die Laufzeit, die das Plugin startet, muss im Image des Servers
+enthalten sein: Das Standard-Image bringt Python, Node.js, PHP, Ruby und Lua mit, das Image
+`-nodejs` behält Python und Node.js, das Image `-lean` nur Python, und
+[jede andere wird dem Image hinzugefügt](plugins/dev-setup.md#a-runtime-the-image-does-not-carry).
+Die **Verfügbaren Laufzeiten** listen die Laufzeiten auf, die der Server
+gefunden hat, und diejenige, über die jedes installierte Plugin startet.
 
 !!! tip "Signierte Plugins"
     Ein Plugin-Autor kann das ZIP mit [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
