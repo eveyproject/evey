@@ -138,6 +138,7 @@ func probe(ctx context.Context, ffprobe, url string) ([]byte, error) {
 		}
 		pctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		var stderr strings.Builder
+		//nolint:gosec // G204: the operator's ffprobe flag; the URL is one of the demo catalog's, compiled in
 		cmd := exec.CommandContext(pctx, ffprobe, "-v", "error", "-user_agent", userAgent, "-select_streams", "v:0",
 			"-show_entries", "stream=width,height:format=duration", "-of", "json", url)
 		cmd.Stderr = &stderr
@@ -174,6 +175,7 @@ func write(ctx context.Context, ffmpeg, dest string, s shape) error {
 		"-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
 		"-t", strconv.FormatFloat(s.seconds, 'f', 3, 64), "-g", "10"}
 	args = append(append(args, codecs...), part)
+	//nolint:gosec // G204: the operator's ffmpeg flag; the arguments are built here from the catalog's sizes
 	if out, err := exec.CommandContext(ctx, ffmpeg, args...).CombinedOutput(); err != nil {
 		err = fmt.Errorf("ffmpeg: %w: %s", err, strings.TrimSpace(string(out)))
 		if rmErr := os.Remove(part); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
