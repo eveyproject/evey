@@ -979,8 +979,9 @@ func (b *Bootstrapper) SeedHistory(ctx context.Context, libs map[string]shared.L
 }
 
 // seedOne writes one title's progress unless the profile already has some.
-// percent 0 marks it watched; otherwise the position is that share of the
-// file's duration (a title whose duration is unknown is marked watched).
+// percent 0 is a title played to its end, which the watch history lists;
+// otherwise the position is that share of the file's duration. A title whose
+// duration is unknown is marked watched, and the history leaves it out.
 func (b *Bootstrapper) seedOne(ctx context.Context, profileID string, item *library.MediaItem, percent int) error {
 	if existing, err := b.progress.GetByProfileAndMedia(ctx, profileID, string(item.ID)); err == nil && existing != nil {
 		return nil
@@ -989,9 +990,13 @@ func (b *Bootstrapper) seedOne(ctx context.Context, profileID string, item *libr
 	if item.File != nil {
 		durationMs = int64(item.File.Duration.Seconds() * 1000)
 	}
-	if percent <= 0 || durationMs <= 0 {
+	if durationMs <= 0 {
 		if err := b.history.MarkAsWatched(ctx, profileID, string(item.ID)); err != nil {
 			return fmt.Errorf("demo: seed history: mark %s watched: %w", item.Title, err)
+		}
+	} else if percent <= 0 {
+		if err := b.history.ReportProgress(ctx, profileID, string(item.ID), durationMs, true); err != nil {
+			return fmt.Errorf("demo: seed history: finish %s: %w", item.Title, err)
 		}
 	} else if err := b.history.ReportProgress(ctx, profileID, string(item.ID), durationMs*int64(percent)/100, false); err != nil {
 		return fmt.Errorf("demo: seed history: resume %s: %w", item.Title, err)

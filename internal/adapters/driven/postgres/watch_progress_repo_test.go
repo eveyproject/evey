@@ -419,6 +419,7 @@ func TestWatchProgressRepo_Cursor_Resume_Delete(t *testing.T) {
 		{"wpc-b", 0, false, now.Add(-time.Hour)}, // never really started
 		{"wpc-c", 5000, true, now.Add(-time.Hour)},
 		{"wpc-d", 900000, false, now},
+		{"wpc-e", 0, true, now}, // marked as watched, never played
 	}
 	for _, r := range rows {
 		require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(r.id, lib.ID)))
@@ -441,11 +442,10 @@ func TestWatchProgressRepo_Cursor_Resume_Delete(t *testing.T) {
 	last := page[len(page)-1]
 	page, err = wpRepo.GetByProfileCursor(ctx, string(p.ID), &playback.WatchHistoryCursor{LastPlayedAt: last.LastPlayedAt, MediaItemID: string(last.MediaItemID)}, 2)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"wpc-b", "wpc-a"}, ids(page), "the tied sibling is neither repeated nor lost")
-	last = page[len(page)-1]
-	page, err = wpRepo.GetByProfileCursor(ctx, string(p.ID), &playback.WatchHistoryCursor{LastPlayedAt: last.LastPlayedAt, MediaItemID: string(last.MediaItemID)}, 2)
+	assert.Equal(t, []string{"wpc-a"}, ids(page), "a row with no position was never played: it is not history")
+	offsetPage, err := wpRepo.GetByProfile(ctx, string(p.ID), 10, 0)
 	require.NoError(t, err)
-	assert.Empty(t, page)
+	assert.ElementsMatch(t, []string{"wpc-d", "wpc-c", "wpc-a"}, ids(offsetPage), "the offset listing answers the same rows")
 
 	resume, err := wpRepo.GetResumeItems(ctx, string(p.ID), 10)
 	require.NoError(t, err)
@@ -458,7 +458,7 @@ func TestWatchProgressRepo_Cursor_Resume_Delete(t *testing.T) {
 	require.NoError(t, wpRepo.Delete(ctx, string(p.ID), "wpc-d"), "deleting twice is a no-op")
 	all, err := wpRepo.GetByProfileCursor(ctx, string(p.ID), nil, 10)
 	require.NoError(t, err)
-	assert.Len(t, all, 3, "the other rows stay")
+	assert.Len(t, all, 2, "the other played rows stay")
 }
 
 // DescendantIDs walks the whole tree under a series (seasons, then episodes)
