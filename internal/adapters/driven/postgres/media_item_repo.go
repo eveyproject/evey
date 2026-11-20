@@ -75,28 +75,37 @@ func NewMediaItemRepository(db *sql.DB) *MediaItemRepository {
 // stripped (so the row inserts); such a file needs renaming to play.
 // U+0000 is valid UTF-8 that Postgres refuses all the same, with the same
 // every-pass failure; it goes too.
+//
+// A field is written only when stripping changes it. The file and the catalog
+// are pointers a caller may share between items (a shallow copy of an item
+// shares them), and two writers saving such items at once would otherwise
+// race on fields they both leave as they are.
 func sanitizeMediaItemText(item *library.MediaItem) {
-	v := func(s string) string { return strings.ReplaceAll(strings.ToValidUTF8(s, ""), "\x00", "") }
-	item.Title = v(item.Title)
-	item.ScanTitle = v(item.ScanTitle)
-	item.SortTitle = v(item.SortTitle)
-	item.OriginalTitle = v(item.OriginalTitle)
-	item.Overview = v(item.Overview)
-	item.Tagline = v(item.Tagline)
+	v := func(p *string) {
+		if s := strings.ReplaceAll(strings.ToValidUTF8(*p, ""), "\x00", ""); s != *p {
+			*p = s
+		}
+	}
+	v(&item.Title)
+	v(&item.ScanTitle)
+	v(&item.SortTitle)
+	v(&item.OriginalTitle)
+	v(&item.Overview)
+	v(&item.Tagline)
 	if item.File != nil {
-		item.File.Path = v(item.File.Path)
-		item.File.ContainerFormat = v(item.File.ContainerFormat)
-		item.File.Fingerprint = v(item.File.Fingerprint)
+		v(&item.File.Path)
+		v(&item.File.ContainerFormat)
+		v(&item.File.Fingerprint)
 	}
 	if item.Catalog != nil {
 		for i := range item.Catalog.Genres {
-			item.Catalog.Genres[i] = v(item.Catalog.Genres[i])
+			v(&item.Catalog.Genres[i])
 		}
 		for i := range item.Catalog.Studios {
-			item.Catalog.Studios[i] = v(item.Catalog.Studios[i])
+			v(&item.Catalog.Studios[i])
 		}
 		for i := range item.Catalog.Tags {
-			item.Catalog.Tags[i] = v(item.Catalog.Tags[i])
+			v(&item.Catalog.Tags[i])
 		}
 	}
 }
