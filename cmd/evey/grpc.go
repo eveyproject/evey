@@ -127,6 +127,9 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// The measure reaches the catalog so playback refuses such a file
 		// (file_needs_remux) instead of stalling on it; cleared by the repair.
 		WithInterleaveRecorder(deps.interleaveRecorder).
+		// Every diagnosis reaches the catalog too: a damaged container is
+		// remuxed instead of handed to a device whole, until it is repaired.
+		WithContainerDamageRecorder(deps.containerDamageRecorder).
 		// The re-mux itself: three demuxers of the file and a muxer that waits
 		// for no block, proven packet for packet before the swap.
 		WithReinterleaver(ffmpeg.NewReinterleaver("ffmpeg", "ffprobe")).

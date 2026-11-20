@@ -28,6 +28,8 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		fileSize, durationMs, bitrate                   *int64
 		streamProbeAttempts, interleaveBackstepMs       sql.NullInt64
 		streamProbeVersion, parserVersion               sql.NullInt64
+		containerDamagedBytes, containerCheckVersion    sql.NullInt64
+		directPlayRefused                               sql.NullBool
 		modTimeRaw, latestChildAddedAt                  sql.NullTime
 		premiereDate                                    sql.NullTime
 		year                                            sql.NullInt64
@@ -43,7 +45,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle,
 		&item.SortTitle, &item.OriginalTitle, &item.Overview, &item.Tagline, &item.IndexNumber,
 		&item.AddedAt, &item.UpdatedAt, &latestChildAddedAt,
-		&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat, &streamProbeAttempts, &interleaveBackstepMs, &streamProbeVersion, &parserVersion,
+		&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat, &streamProbeAttempts, &interleaveBackstepMs, &streamProbeVersion, &parserVersion, &containerDamagedBytes, &containerCheckVersion, &directPlayRefused,
 		&premiereDate, &year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
 		&communityRating, &officialRating, &certJSON, &providerRatingsJSON,
 		&seriesOfficialRating, &seriesCertJSON, &seriesTagsJSON,
@@ -71,6 +73,11 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 	}
 	if item.File != nil && parserVersion.Valid {
 		item.File.ParserVersion = int(parserVersion.Int64)
+	}
+	if item.File != nil {
+		item.File.ContainerDamagedBytes = containerDamagedBytes.Int64
+		item.File.ContainerCheckVersion = int(containerCheckVersion.Int64)
+		item.File.DirectPlayRefused = directPlayRefused.Bool
 	}
 	cat, err := buildMediaCatalog(premiereDate, year, providerJSON, genresJSON, studiosJSON, tagsJSON)
 	if err != nil {

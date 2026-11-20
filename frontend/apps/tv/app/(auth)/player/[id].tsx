@@ -25,7 +25,7 @@ import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
-import { audioDecoderFailureCodec, diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
+import { audioDecoderFailureCodec, containerParseFailure, diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
 import { getDeviceAudioCodecs, refuseAudioCodec } from "../../../src/lib/deviceCodecs";
 import { subscribePlayerStatus } from "@evey/client/native/playerStatus";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
@@ -144,7 +144,7 @@ export default function PlayerScreen() {
   useEffect(() => {
     useMusicQueueStore.getState().clear();
   }, [mediaId]);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress, restartPositionMs } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, refuseDirectPlay, progress, restartPositionMs } =
     usePlaySession(mediaId, {
       ...(trackPick.audio === undefined ? {} : { audioStreamIndex: trackPick.audio }),
       // The encoder is pre-warmed where the player will start: over, or at
@@ -255,6 +255,8 @@ export default function PlayerScreen() {
   // track (see the status listener), through a ref: the listener is installed
   // once, restartWithTracks changes with the selection.
   const audioFallbackTriedRef = useRef(false);
+  const refuseDirectPlayRef = useRef(refuseDirectPlay);
+  refuseDirectPlayRef.current = refuseDirectPlay;
   useEffect(() => { audioFallbackTriedRef.current = false; }, [mediaId]);
   const restartWithTracksRef = useRef<(() => void) | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -526,6 +528,22 @@ export default function PlayerScreen() {
         withPlayer((p) => { at = Math.round(p.currentTime || 0); });
         reportPlayerEvent({
           type: "native_audio_codec_refused",
+          details: ev.error?.message ?? "",
+          fatal: false,
+          posSec: at,
+          diag: diagnoseNativePlayerError(ev.error?.message ?? "", playMethodRef.current),
+        });
+        restartWithTracksRef.current?.();
+        return;
+      }
+      // The player's own demuxer refused the file it was handed whole: the
+      // same file again fails the same way, the server's remux of its tracks
+      // does not. Once per title, and only out of a direct play.
+      if (ev.status === "error" && containerParseFailure(ev.error?.message ?? "") && refuseDirectPlayRef.current()) {
+        let at = 0;
+        withPlayer((p) => { at = Math.round(p.currentTime || 0); });
+        reportPlayerEvent({
+          type: "native_direct_play_refused",
           details: ev.error?.message ?? "",
           fatal: false,
           posSec: at,

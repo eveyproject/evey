@@ -161,6 +161,14 @@ type InterleaveRecorder interface {
 	SetInterleaveBackstep(ctx context.Context, path string, backstepMs int64) error
 }
 
+// ContainerDamageRecorder stores the container's damaged byte count on the
+// catalog entry, where the playback gate reads it
+// (library.MediaFile.RefusesDirectPlay). Implemented by the media-item
+// repository; optional.
+type ContainerDamageRecorder interface {
+	SetContainerDamage(ctx context.Context, path string, damagedBytes int64) error
+}
+
 // AudioPictureLag is one audio track's offset against the PICTURE, read off
 // the file's own text subtitles: positive = the audio must move later.
 type AudioPictureLag struct {
@@ -653,22 +661,23 @@ type cachedScan struct {
 type SeekIndexService struct {
 	reindexer     mkv.Reindexer
 	catalog       MediaCatalog
-	fileState     FileStateRefresher   // optional; see WithFileStateRefresher
-	audioDelay    AudioDelayProber     // optional; see WithAudioDelayProber
-	interleave    InterleaveProber     // optional; see WithInterleaveProber
-	interleaveRec InterleaveRecorder   // optional; see WithInterleaveRecorder
-	audioPicture  AudioPictureProber   // optional; see WithAudioPictureProber
-	muxer         MuxerProber          // optional; see WithMuxerProber
-	audioCoh      AudioCoherenceProber // optional; see WithAudioCoherenceProber
-	audible       AudibleTracksProber  // optional; see WithAudibleTracksProber
-	journal       RepairJournal        // optional; see WithRepairJournal
-	retimer       TrackRetimer         // optional; see WithTrackRetimer
-	audioTracks   AudioTrackLister     // optional; see WithAudioTrackLister
-	preview       SyncPreviewRenderer  // optional; see WithSyncPreviewRenderer
-	diagnoser     mkv.Diagnoser        // optional; see WithDiagnoser
-	integrity     AudioIntegrityProber // optional; see WithAudioIntegrityProber
-	relocator     MediaRelocator       // optional; see WithMediaRelocator
-	reinterleaver Reinterleaver        // optional; see WithReinterleaver
+	fileState     FileStateRefresher      // optional; see WithFileStateRefresher
+	audioDelay    AudioDelayProber        // optional; see WithAudioDelayProber
+	interleave    InterleaveProber        // optional; see WithInterleaveProber
+	interleaveRec InterleaveRecorder      // optional; see WithInterleaveRecorder
+	damageRec     ContainerDamageRecorder // optional; see WithContainerDamageRecorder
+	audioPicture  AudioPictureProber      // optional; see WithAudioPictureProber
+	muxer         MuxerProber             // optional; see WithMuxerProber
+	audioCoh      AudioCoherenceProber    // optional; see WithAudioCoherenceProber
+	audible       AudibleTracksProber     // optional; see WithAudibleTracksProber
+	journal       RepairJournal           // optional; see WithRepairJournal
+	retimer       TrackRetimer            // optional; see WithTrackRetimer
+	audioTracks   AudioTrackLister        // optional; see WithAudioTrackLister
+	preview       SyncPreviewRenderer     // optional; see WithSyncPreviewRenderer
+	diagnoser     mkv.Diagnoser           // optional; see WithDiagnoser
+	integrity     AudioIntegrityProber    // optional; see WithAudioIntegrityProber
+	relocator     MediaRelocator          // optional; see WithMediaRelocator
+	reinterleaver Reinterleaver           // optional; see WithReinterleaver
 	logger        *slog.Logger
 
 	stateDir string // "" = no persistence (WithStateDir enables it)
@@ -798,6 +807,14 @@ func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexSe
 // and chainable; without it InterleaveBackstepSec stays 0 everywhere.
 func (s *SeekIndexService) WithInterleaveProber(p InterleaveProber) *SeekIndexService {
 	s.interleave = p
+	return s
+}
+
+// WithContainerDamageRecorder makes every diagnosis reach the catalog, so a
+// damaged container is remuxed instead of handed to a device whole (and is
+// handed over again once a resync repaired it).
+func (s *SeekIndexService) WithContainerDamageRecorder(r ContainerDamageRecorder) *SeekIndexService {
+	s.damageRec = r
 	return s
 }
 

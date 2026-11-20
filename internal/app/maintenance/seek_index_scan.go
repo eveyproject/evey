@@ -384,6 +384,7 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 		st.MissingTailBytes = d.MissingTailBytes
 		st.DamagedBytes = d.DamagedBytes
 		st.TrailingJunk = d.TrailingJunk()
+		s.recordContainerDamage(ctx, path, d.DamagedBytes, d.Damaged())
 		// How far before the VIDEO's end the audio content stops (mkvgo
 		// TrackEnds). Meaningless for a wrong-container file (its Matroska
 		// duration is not one) and redundant for a truncated one (the WHOLE
@@ -437,6 +438,25 @@ func (s *SeekIndexService) probeInterleave(ctx context.Context, path string, st 
 	// Logged inside; the next scan records again.
 	if err := s.recordInterleave(ctx, path, back); err != nil {
 		return
+	}
+}
+
+// recordContainerDamage pushes the diagnosis to the catalog, 0 included: a
+// resynced or re-acquired file is handed over whole again. A damaged finding
+// whose size is unknown counts as 1, never as clean. Only logged on failure:
+// the next scan records again.
+func (s *SeekIndexService) recordContainerDamage(ctx context.Context, path string, damagedBytes int64, damaged bool) {
+	if s.damageRec == nil {
+		return
+	}
+	if damaged {
+		damagedBytes = max(damagedBytes, 1)
+	} else {
+		damagedBytes = 0
+	}
+	if err := s.damageRec.SetContainerDamage(ctx, path, damagedBytes); err != nil {
+		s.logger.Warn("seek-index scan: container damage not recorded",
+			slog.String("path", path), slog.Any("err", err))
 	}
 }
 

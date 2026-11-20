@@ -195,6 +195,7 @@ streamInfo:
     abr_floor_requested: Palier de survie demandé par le lecteur
     file_needs_remux: "Fichier rangé par blocs mono-piste (réparation nécessaire)"
     sibling_audio_undecodable: "Une autre piste audio du fichier n'est pas lisible sur cet appareil"
+    container_damaged: "Conteneur du fichier abîmé : ses pistes sont remuxées au lieu de transmettre le fichier"
     audio_layout_unknown: "Disposition des canaux audio inconnue, réencodée pour l'appareil"
     audio_passthrough_unsupported: "Piste audio non transmissible telle quelle dans le flux"
     preferred_video_codec: "Codec vidéo préféré (réglage du profil)"

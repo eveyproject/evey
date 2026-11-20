@@ -590,3 +590,62 @@ describe("usePlaySession: what the phone's copy already guarded", () => {
     expect(result.current.streamUrl).not.toContain("audioTrack=0");
   });
 });
+
+// The box's own Matroska demuxer stopped on a file ffmpeg, VLC and mkvgo read
+// past (six stray bytes ahead of the first cluster): handing it the same file
+// again fails the same way, so the next stream declares no Matroska and the
+// server remuxes the copied tracks into HLS - no re-encode.
+describe("refuseDirectPlay", () => {
+  const realFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = vi.fn().mockResolvedValue({ status: 200, headers: { get: () => null }, json: async () => ({}) }) as unknown as typeof fetch;
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+    stopStreamMock.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("asks again without Matroska once, and gets the master instead of the file", async () => {
+    const { renderHook, waitFor, act } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+    getStreamInfoMock.mockImplementation(async (_id: string, params: { supportedContainers: string[] }) =>
+      params.supportedContainers.includes("mkv")
+        ? { playMethod: "PLAY_METHOD_DIRECT_PLAY" }
+        : { playMethod: "PLAY_METHOD_DIRECT_STREAM", videoDecision: "copy" },
+    );
+    eveyFetchMock.mockImplementation(async (req: { url: string }) =>
+      req.url.includes("stream-token") ? { token: "t1", mediaId: "m1" } : null,
+    );
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.streamUrl).not.toBeNull());
+    expect(result.current.streamUrl).toContain("/api/v1/media/m1/stream?");
+
+    let refused = false;
+    act(() => {
+      refused = result.current.refuseDirectPlay();
+    });
+    expect(refused).toBe(true);
+    act(() => result.current.restartWithTracks());
+    await waitFor(() => expect(result.current.streamUrl).toContain("/hls/master.m3u8"));
+    expect(getStreamInfoMock).toHaveBeenLastCalledWith("m1", expect.objectContaining({ supportedContainers: ["mp4", "hls"] }));
+    expect(new URL(result.current.streamUrl as string).searchParams.get("containers")).toBe("mp4,hls");
+
+    // A second refusal is a real failure, not one more retry.
+    expect(result.current.refuseDirectPlay()).toBe(false);
+  });
+
+  it("does nothing out of a stream the server already remuxes", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_TRANSCODE" });
+    eveyFetchMock.mockImplementation(async (req: { url: string }) =>
+      req.url.includes("stream-token") ? { token: "t1", mediaId: "m1" } : null,
+    );
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.streamUrl).not.toBeNull());
+    expect(result.current.refuseDirectPlay()).toBe(false);
+  });
+});

@@ -168,6 +168,9 @@ type HTTPServer struct {
 	// QoESink ingests CMCD telemetry from every segment / master / variant
 	// request. Nil-safe: the VOD handler short-circuits when this is unset.
 	QoESink appqoe.EventSink
+	// DirectPlayRefusals records a native player's refusal of a raw file on
+	// the catalog. Nil-safe: the beacon is then only logged.
+	DirectPlayRefusals DirectPlayRefusalRecorder
 
 	// CopySeekProber resolves where a pre-input -ss really lands for the copy
 	// rung's mid-stream sessions (sparse container seek indexes land on the
@@ -574,7 +577,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			WithPlayerEventCastCommand(s.CastCommandConsume),
 			// And as the native players' QoE feed: ExoPlayer/AVPlayer send no
 			// CMCD of their own, the app posts qoe_sample beacons instead.
-			WithPlayerEventQoESink(s.QoESink)))))
+			WithPlayerEventQoESink(s.QoESink),
+			// And as the catalog's memory of a raw file a device refused.
+			WithPlayerEventDirectPlayRefusal(s.DirectPlayRefusals)))))
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo, s.UserQuerySvc)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
