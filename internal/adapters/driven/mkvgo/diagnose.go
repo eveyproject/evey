@@ -31,34 +31,7 @@ func (a *Adapter) Diagnose(ctx context.Context, path string) (*mkv.Diagnosis, er
 	if err != nil {
 		return nil, fmt.Errorf("diagnose: %w", err)
 	}
-	out := mapDiagnosis(d)
-	a.countHeadJunk(ctx, path, out)
-	return out, nil
-}
-
-// countHeadJunk completes a diagnosis with the junk the full reader had to
-// resync over ahead of the first Cluster. mkvgo's Diagnose reads the head
-// only as far as it needs: a file whose Cues sit before the junk reads
-// healthy, and where it does see the junk the finding carries no byte count.
-// Either way the file read as clean to the playback gate and to the resync
-// repair, while a device's demuxer stops dead on it.
-func (a *Adapter) countHeadJunk(ctx context.Context, path string, out *mkv.Diagnosis) {
-	if out.DamagedBytes > 0 {
-		return
-	}
-	c, err := extmatroska.Open(ctx, path, extmatroska.WithoutAttachmentData())
-	if err != nil || c.ResyncedBytes <= 0 {
-		return
-	}
-	out.DamagedBytes = c.ResyncedBytes
-	if !out.Damaged() {
-		out.Healthy = false
-		out.Findings = append(out.Findings, mkv.DiagnosisFinding{
-			Kind:   "damaged",
-			Detail: fmt.Sprintf("%d undecodable byte(s) ahead of the first Cluster were skipped to read the head of the file", c.ResyncedBytes),
-			Remedy: "mkvgo reindex --resync",
-		})
-	}
+	return mapDiagnosis(d), nil
 }
 
 // ProbeContainerDamage counts the bytes of the container a demuxer that does
@@ -122,16 +95,18 @@ func mapDiagnosis(d *extmatroska.Diagnosis) *mkv.Diagnosis {
 	if ends := d.TrackEnds; ends != nil && ends.AudioShortfallMs > 0 {
 		out.AudioShortfallMs = ends.AudioShortfallMs
 	}
-	if d.Damage != nil {
-		// Since mkvgo v0.25 the salvage walk counts surplus bytes past the
-		// declared Segment end (trailing junk) in BytesSkipped too, yet that
-		// media is complete - only a mid-Segment "damaged" finding means a
-		// resync repair has something to skip. Relaying the raw byte count would
-		// mislabel a whole file with trailing junk as corrupt. Its trailing-junk
-		// finding is copied above and surfaced via Diagnosis.TrailingJunk().
-		if out.Damaged() {
+	// Since mkvgo v0.25 the salvage walk counts surplus bytes past the declared
+	// Segment end (trailing junk) in BytesSkipped too, yet that media is
+	// complete - only a "damaged" finding means a resync repair has something
+	// to skip. Relaying the raw byte count would mislabel a whole file with
+	// trailing junk as corrupt. Its trailing-junk finding is copied above and
+	// surfaced via Diagnosis.TrailingJunk(). Junk ahead of the first Cluster is
+	// counted apart (ResyncedBytes): the salvage walk does not run for it.
+	if out.Damaged() {
+		if d.Damage != nil {
 			out.DamagedBytes = d.Damage.BytesSkipped
 		}
+		out.DamagedBytes = max(out.DamagedBytes, d.ResyncedBytes)
 	}
 	return out
 }
