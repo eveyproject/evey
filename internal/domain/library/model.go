@@ -369,7 +369,7 @@ const ParserVersion = 2
 //	   AC-3 stream states over its container's, the HEVC bit depth, the MPEG-2
 //	   colour, the MP4 stts frame rate, the mov_text label and the MP4 handler
 //	   names an older probe took for titles. Dry run on the NAS library
-//	   (8,797 files, 2026-10-15): 576 files corrected, none skipped.
+//	   (8,797 files): 576 files corrected, none skipped.
 //	3: mkvgo 0.53 - a fragmented MP4's duration (mehd, else the fragments'
 //	   end), a Matroska audio track without Channels read as one channel and
 //	   without SamplingFrequency as the codec header's rate (an absurd rate
@@ -390,7 +390,12 @@ const ParserVersion = 2
 //	6: mkvgo 0.64 - the identifier the file gives each track (the Matroska
 //	   TrackNumber, the MP4 track_ID), stored so a packager rendition pairs
 //	   with its track by number instead of by name.
-const StreamProbeVersion = 6
+//	7: mkvgo 0.71.2 - an HEVC declared bt2020-10 whose first sample carries
+//	   an Alternative Transfer Characteristics SEI is HLG, an H.264 record
+//	   with no SPS (avc3, a fragmented MP4) gets its profile and level from
+//	   the SPS its samples carry, an MPEG-2 track gets its profile and level,
+//	   and every video stream read by mkvgo stores its pixel format.
+const StreamProbeVersion = 7
 
 // LevelProbeVersion is the current revision of the video level backfill's
 // probe. media_streams.level_probe_version records the revision at which a
@@ -400,7 +405,7 @@ const LevelProbeVersion = 1
 
 // InterleaveBackstepFlagMs is the floor above which a file NeedsRemux. Every
 // muxer keeps cluster timestamps monotonic (494 real files read 0); the 20
-// prod victims of the 2026-07-12 two-input remux read 17 s to 2259 s.
+// prod victims of an earlier two-input remux read 17 s to 2259 s.
 const InterleaveBackstepFlagMs = 10_000
 
 // NeedsRemux reports a file whose tracks are stored in blocks of one track at
@@ -741,7 +746,7 @@ type PersonTranslation struct {
 // ErrMediaItemGone is returned when a trickplay manifest cannot be written
 // because the media item it references has been deleted - a foreign-key
 // violation. The generation job runs for minutes and races user deletes, so a
-// vanished subject is a skip, not a failure (prod, 2026-09-02).
+// vanished subject is a skip, not a failure (measured in production).
 var ErrMediaItemGone = errors.New("media item deleted before its trickplay manifest could be written")
 
 type TrickplayManifest struct {
