@@ -155,6 +155,11 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 				bd := int(*t.VideoBitDepth)
 				ms.BitDepth = &bd
 			}
+			// ffprobe's pix_fmt vocabulary. Unknown, the playback decision and
+			// the hardware decode route take the source for 4:2:0.
+			if pf := t.PixelFormat; pf != "" {
+				ms.PixelFormat = &pf
+			}
 			if cs := t.ColorSpaceName(); cs != "" {
 				ms.ColorSpace = &cs
 			}

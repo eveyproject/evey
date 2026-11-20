@@ -501,3 +501,26 @@ func TestMapContainer_KeepsTheFileTrackNumber(t *testing.T) {
 	assert.Equal(t, 7, *res.Streams[1].SourceTrackID)
 	assert.Nil(t, res.Streams[2].SourceTrackID, "an unknown number stays unknown")
 }
+
+// The pixel format mkvgo reads (chroma subsampling and bit depth) is stored
+// like ffprobe's pix_fmt. Left empty, the playback decision and the hardware
+// decode route take any source for 4:2:0, so a 4:4:4 H.264 would be sent to a
+// client or a decoder that cannot read it.
+func TestMapContainer_PixelFormat(t *testing.T) {
+	for _, pf := range []string{"yuv420p", "yuv420p10le", "yuv444p"} {
+		c := &extmkv.Container{Tracks: []extmkv.Track{{
+			Type: extmkv.VideoTrack, Codec: "h264", Profile: "High 4:4:4 Predictive",
+			Width: new(uint32(1920)), Height: new(uint32(1080)), PixelFormat: pf,
+		}}}
+		res, ok := mapContainer(c, true)
+		require.True(t, ok, pf)
+		require.NotNil(t, res.Streams[0].PixelFormat, pf)
+		assert.Equal(t, pf, *res.Streams[0].PixelFormat)
+	}
+	c := &extmkv.Container{Tracks: []extmkv.Track{{
+		Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)),
+	}}}
+	res, ok := mapContainer(c, true)
+	require.True(t, ok)
+	assert.Nil(t, res.Streams[0].PixelFormat, "an unread pixel format stays unknown")
+}
