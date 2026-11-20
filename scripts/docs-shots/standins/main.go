@@ -14,8 +14,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -130,7 +132,7 @@ const userAgent = "Evey-demo-bootstrap/1.0 (+https://eveyproject.org)"
 // again after a pause when the host is busy.
 func probe(ctx context.Context, ffprobe, url string) ([]byte, error) {
 	var last error
-	for attempt := 0; attempt < 4; attempt++ {
+	for attempt := range 4 {
 		if attempt > 0 {
 			time.Sleep(time.Duration(attempt) * 20 * time.Second)
 		}
@@ -173,8 +175,11 @@ func write(ctx context.Context, ffmpeg, dest string, s shape) error {
 		"-t", strconv.FormatFloat(s.seconds, 'f', 3, 64), "-g", "10"}
 	args = append(append(args, codecs...), part)
 	if out, err := exec.CommandContext(ctx, ffmpeg, args...).CombinedOutput(); err != nil {
-		_ = os.Remove(part)
-		return fmt.Errorf("ffmpeg: %w: %s", err, strings.TrimSpace(string(out)))
+		err = fmt.Errorf("ffmpeg: %w: %s", err, strings.TrimSpace(string(out)))
+		if rmErr := os.Remove(part); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+			err = errors.Join(err, rmErr)
+		}
+		return err
 	}
 	return os.Rename(part, dest)
 }
