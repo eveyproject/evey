@@ -1,5 +1,5 @@
 ---
-source_sha: 58c9f2033d994c265409f943a03c3ecdfebe68484e88c1a7d2abf916dab22917
+source_sha: 3b4318e6bc6ae273dc5806dac61bebaa3c65f30d724c824dac69762f571c5c52
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -271,6 +271,25 @@ URL `data:` : un fichier écrit par le backend à l'exécution devient utilisabl
 dans le cadre sans question d'origine croisée. Seules les ressources du
 plugin sont accessibles.
 
+### `evey.config.save(values)` (emplacement `admin.plugin.config` uniquement) { #eveyconfigsavevalues }
+
+Écrit la configuration serveur du plugin, les valeurs qu'un administrateur
+renseigne selon `config_schema`. Les clés données sont fusionnées dans la
+configuration enregistrée, les autres clés restent telles quelles, et le
+serveur valide le résultat par rapport au schéma exactement comme pour le
+formulaire généré. Les valeurs sont des chaînes, comme dans le formulaire. La
+promesse est résolue avec `{ values }`, la configuration telle qu'enregistrée
+(champs secrets masqués), et rejetée avec le message du serveur quand une
+valeur est refusée. Partout ailleurs que dans `admin.plugin.config`, l'appel
+est rejeté.
+
+```js
+await evey.config.save({ city: "Brest", lat: "48.39", lon: "-4.49" });
+```
+
+Les valeurs actuelles arrivent dans `onInit` sous le nom `config`, comme dans
+chaque emplacement.
+
 ### Sur une télévision { #on-a-television }
 
 L'application télévision exécute le module dans une WebView, et quelques
@@ -301,13 +320,18 @@ comportements habituels du navigateur n'y sont plus valables :
 | `settings.user.appearance` | La section apparence des paramètres utilisateur |
 | `sidebar.bottom` | Le bas de la barre de navigation principale |
 | `admin.nav` | Une entrée du menu d'administration, qui ouvre la page du plugin |
+| `admin.plugin.config` | Le panneau de configuration propre au plugin, dans sa carte de l'écran d'administration des plugins |
 
-`admin.nav` est le seul emplacement de la zone d'administration. Il n'injecte
-rien dans les écrans d'administration existants : il ajoute une entrée de
-menu qui ouvre la page du plugin dans le même cadre isolé, sur une route
-réservée aux administrateurs. Le demander apparaît dans la différence
-soumise au consentement. Tout autre emplacement `admin.*`, `login.*`,
-`setup.*` et `profile.security.*` est refusé à l'installation.
+`admin.nav` et `admin.plugin.config` sont les seuls emplacements de la zone
+d'administration. Aucun n'injecte rien dans les écrans d'administration
+existants : `admin.nav` ajoute une entrée de menu qui ouvre la page du plugin
+dans le même cadre isolé, sur une route réservée aux administrateurs ;
+`admin.plugin.config` prend la place du formulaire généré à partir de
+`config_schema`, dans la carte du plugin lui-même, pour une valeur qu'un champ
+simple ne sait pas bien choisir (une ville parmi des homonymes, par exemple).
+Demander l'un ou l'autre apparaît dans la différence soumise au consentement.
+Tout autre emplacement `admin.*`, `login.*`, `setup.*` et
+`profile.security.*` est refusé à l'installation.
 
 ## Capacités { #capabilities }
 

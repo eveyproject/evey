@@ -1,5 +1,5 @@
 ---
-source_sha: 58c9f2033d994c265409f943a03c3ecdfebe68484e88c1a7d2abf916dab22917
+source_sha: 3b4318e6bc6ae273dc5806dac61bebaa3c65f30d724c824dac69762f571c5c52
 reviewed: true
 ---
 # Plugin-API-Referenz { #plugin-api-reference }
@@ -276,6 +276,24 @@ relativen Pfad, als `data:`-URL: Eine Datei, die das Backend zur Laufzeit
 geschrieben hat, wird im Frame nutzbar, ohne Probleme mit fremden Ursprüngen.
 Nur die eigenen Dateien des Plugins sind erreichbar.
 
+### `evey.config.save(values)` (nur Slot `admin.plugin.config`) { #eveyconfigsavevalues }
+
+Schreibt die Server-Konfiguration des Plugins, also die Werte, die ein
+Administrator zu `config_schema` setzt. Die übergebenen Schlüssel werden in die
+gespeicherte Konfiguration eingemischt, die übrigen Schlüssel bleiben, wie sie
+sind, und der Server prüft das Ergebnis genau wie beim generierten Formular
+gegen das Schema. Die Werte sind Strings, wie im Formular. Das Promise wird mit
+`{ values }` erfüllt, der gespeicherten Konfiguration (geheime Felder
+maskiert), und mit der Meldung des Servers abgelehnt, wenn ein Wert
+zurückgewiesen wird. Überall außer in `admin.plugin.config` wird der Aufruf
+abgelehnt.
+
+```js
+await evey.config.save({ city: "Brest", lat: "48.39", lon: "-4.49" });
+```
+
+Die aktuellen Werte kommen in `onInit` als `config` an, wie in jedem Slot.
+
 ### Auf einem Fernseher { #on-a-television }
 
 Die TV-App führt das Modul in einer WebView aus, und einiges, das im Browser
@@ -307,11 +325,16 @@ gilt, gilt dort nicht mehr:
 | `settings.user.appearance` | Der Bereich Darstellung in den Benutzereinstellungen |
 | `sidebar.bottom` | Der untere Teil der Hauptnavigation |
 | `admin.nav` | Ein Eintrag im Verwaltungsmenü, der die eigene Seite des Plugins öffnet |
+| `admin.plugin.config` | Das eigene Konfigurationspanel des Plugins, in seiner Karte auf dem Verwaltungsbildschirm der Plugins |
 
-`admin.nav` ist der einzige Slot im Verwaltungsbereich. Er fügt nichts in
-bestehende Verwaltungsbildschirme ein: Er ergänzt einen Menüeintrag, der die
+`admin.nav` und `admin.plugin.config` sind die einzigen Slots im
+Verwaltungsbereich. Keiner von beiden fügt etwas in bestehende
+Verwaltungsbildschirme ein: `admin.nav` ergänzt einen Menüeintrag, der die
 Seite des Plugins im selben Sandbox-Frame öffnet, auf einer Route nur für
-Administratoren. Wer ihn verlangt, erscheint damit in der Übersicht der
+Administratoren; `admin.plugin.config` ersetzt das aus `config_schema`
+generierte Formular innerhalb der eigenen Karte des Plugins, für einen Wert,
+den ein einfaches Feld schlecht auswählen kann (etwa eine Stadt unter
+gleichnamigen). Wer einen von beiden verlangt, erscheint in der Übersicht der
 Änderungen, die bestätigt werden müssen. Jeder andere Slot `admin.*`,
 `login.*`, `setup.*` und `profile.security.*` wird bei der Installation
 abgelehnt.

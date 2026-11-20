@@ -1,5 +1,5 @@
 ---
-source_sha: eb74ee171e9411bc9b9f6cd25d7a873ba78a10c83fa82335cbfa41e930babd88
+source_sha: 13578526cc8b3dca869c39f2d16115b20a7b94c76284ec714952528d760503e8
 reviewed: true
 ---
 # 权限与插槽 { #permissions-and-slots }
@@ -94,12 +94,15 @@ reviewed: true
 | `settings.user.appearance` | 是 | 用户设置里的外观部分 |
 | `sidebar.bottom` | 是 | 导航栏的底部区域 |
 | `admin.nav` | 是 | 管理面板里的一个导航入口，打开插件自己的沙箱页面；它不会注入到已有的管理界面里 |
+| `admin.plugin.config` | 是 | 插件自己的配置面板，取代生成的表单，位于管理员插件界面中它自己的卡片里 |
 
-**永远不允许：** `admin.*`（`admin.nav` 除外）、`login.*`、`setup.*`、`profile.security.*`。
+**永远不允许：** `admin.*`（`admin.nav` 和 `admin.plugin.config` 除外）、`login.*`、`setup.*`、`profile.security.*`。
 这些路径事关身份验证或权限，在那里注入内容可能被用来提升权限或钓鱼。
 
 `admin.nav` 的内容和其他插槽一样在沙箱中运行：它在一个不带 `allow-same-origin` 的 `<iframe sandbox="allow-scripts">` 里渲染，
-所在页面的策略是 `default-src 'none'`。所以它只是显示在管理区域里的第三方内容，并不是授予插件的管理能力。
+所在页面的策略是 `default-src 'none'`。所以它只是显示在管理区域里的第三方内容，并不是授予插件的管理能力。`admin.plugin.config` 同样如此，只是该插槽里多一个桥接调用：
+`evey.config.save` 只写入这个插件自己的配置，别的什么都不写，使用管理员的会话，并像生成的表单一样按模式校验。
+宿主只在该插槽里响应它。
 
 桥接层限制了框架能向页面提出的请求：`evey.toast` 每秒最多 3 条消息，每条 200 个字符，不能含 HTML；
 `evey.navigate` 只能导航到 `/home`、`/library`、`/media`、`/player`、`/settings` 和 `/search`；`evey.resize` 被限制在 50 到 800 px 之间。

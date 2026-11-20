@@ -39,6 +39,13 @@ export interface EveyBridge {
   assets: {
     read(path: string): Promise<string>;
   };
+  // Writes the plugin's OWN server config (the admin's config_schema values):
+  // the given keys are merged into the stored config, the server validates
+  // them against the schema. Only answered in the admin.plugin.config slot,
+  // which only an admin sees; anywhere else the promise is rejected.
+  config: {
+    save(values: Record<string, string>): Promise<{ values: Record<string, string> }>;
+  };
 }
 
 export const BRIDGE_SCRIPT = `
@@ -76,6 +83,9 @@ export const BRIDGE_SCRIPT = `
     },
     assets: {
       read: function(path) { return rpc("assets.read", { path: path }); }
+    },
+    config: {
+      save: function(values) { return rpc("config.save", { values: values || {} }); }
     },
     onInit: function(cb) {
       initCallbacks.push(cb);

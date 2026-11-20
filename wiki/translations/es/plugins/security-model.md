@@ -1,5 +1,5 @@
 ---
-source_sha: eb74ee171e9411bc9b9f6cd25d7a873ba78a10c83fa82335cbfa41e930babd88
+source_sha: 13578526cc8b3dca869c39f2d16115b20a7b94c76284ec714952528d760503e8
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -130,8 +130,9 @@ explícita. Las rutas críticas no están, a propósito.
 | `settings.user.appearance` | Sí | Sección Apariencia de los ajustes del usuario |
 | `sidebar.bottom` | Sí | Zona inferior del panel de navegación |
 | `admin.nav` | Sí | Una entrada de navegación en el panel de administración que abre la página propia del plugin, en su sandbox; no inyecta nada en las pantallas de administración existentes |
+| `admin.plugin.config` | Sí | El panel de configuración propio del plugin, en lugar del formulario generado, dentro de su propia tarjeta de la pantalla de plugins de administración |
 
-**Nunca permitidos:** `admin.*` (salvo `admin.nav`), `login.*`, `setup.*`,
+**Nunca permitidos:** `admin.*` (salvo `admin.nav` y `admin.plugin.config`), `login.*`, `setup.*`,
 `profile.security.*`. Son rutas críticas para la autenticación o los
 privilegios, e inyectar algo ahí es una vía para escalar privilegios o hacer
 phishing.
@@ -140,7 +141,11 @@ El contenido de `admin.nav` va en un sandbox como cualquier otro slot: se
 muestra en un `<iframe sandbox="allow-scripts">` sin `allow-same-origin`, en
 una página cuya política es `default-src 'none'`, así que es contenido de
 terceros mostrado en la zona de administración, no una capacidad de
-administración concedida al plugin.
+administración concedida al plugin. Lo mismo vale para
+`admin.plugin.config`, con una llamada más del puente en ese slot:
+`evey.config.save` escribe la configuración del propio plugin y nada más, con
+la sesión del administrador y validada contra el esquema como el formulario
+generado. El host solo la atiende en ese slot.
 
 El puente limita lo que un marco puede pedir a la página: `evey.toast` como
 mucho 3 mensajes por segundo, 200 caracteres, sin HTML; `evey.navigate` solo

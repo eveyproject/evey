@@ -258,6 +258,22 @@ Reads one of the plugin's own `web_root` files, by relative path, as a
 `data:` URL: a file the backend wrote at run time becomes usable in the frame
 without a cross-origin concern. Only the plugin's own assets are reachable.
 
+### `evey.config.save(values)` (slot `admin.plugin.config` only)
+
+Writes the plugin's server config, the values an administrator sets against
+`config_schema`. The given keys are merged into the stored config, the other
+keys stay as they are, and the server validates the result against the
+schema exactly as it does the generated form. Values are strings, as in the
+form. The promise resolves to `{ values }`, the config as stored (secret
+fields masked), and is rejected with the server's message when a value is
+refused. Anywhere but `admin.plugin.config` the call is rejected.
+
+```js
+await evey.config.save({ city: "Brest", lat: "48.39", lon: "-4.49" });
+```
+
+The current values arrive in `onInit` as `config`, as in every slot.
+
 ### On a television
 
 The television app runs the module in a WebView, and a few things that are
@@ -287,12 +303,16 @@ true in a browser stop being true there:
 | `settings.user.appearance` | The appearance section of the user settings |
 | `sidebar.bottom` | The bottom of the main navigation sidebar |
 | `admin.nav` | One entry in the admin menu, opening the plugin's own page |
+| `admin.plugin.config` | The plugin's own config panel, in its card on the admin plugins screen |
 
-`admin.nav` is the only admin-area slot. It injects nothing into existing
-admin screens: it adds a menu entry that opens the plugin's page in the same
-sandboxed frame, on an admin-gated route. Asking for it shows in the consent
-diff. Every other `admin.*`, `login.*`, `setup.*` and `profile.security.*`
-slot is refused at install.
+`admin.nav` and `admin.plugin.config` are the only admin-area slots. Neither
+injects anything into existing admin screens: `admin.nav` adds a menu entry
+that opens the plugin's page in the same sandboxed frame, on an admin-gated
+route; `admin.plugin.config` takes the place of the form generated from
+`config_schema`, inside the plugin's own card, for a value a plain field
+cannot pick well (a city among homonyms, say). Asking for either shows in the
+consent diff. Every other `admin.*`, `login.*`, `setup.*` and
+`profile.security.*` slot is refused at install.
 
 ## Capabilities
 

@@ -5,6 +5,14 @@ import { adminPluginServiceIssuePluginToken } from "@evey/api";
 // scoped plugin token the plugin never sees. The server enforces the plugin's
 // granted scopes on that token (deny-by-default); this module only decides
 // WHICH endpoint a method maps to, and that only this allowlist is reachable.
+//
+// `evey.config.save` is the one call that runs on the viewer's own session:
+// it writes the plugin's server config, an admin endpoint. A host enables it
+// only for the admin.plugin.config slot, which only the admin plugin screens
+// mount; everywhere else it is refused like an unknown method.
+
+/** The slot a plugin draws its own server config panel in, inside the admin plugin card. */
+export const ADMIN_CONFIG_SLOT = "admin.plugin.config";
 
 export interface PluginRequest {
   /** API path, relative to the server (`/api/v1/...`). */
@@ -32,6 +40,13 @@ export interface PluginRpcTransport {
    * is. Defaults to a data: URL of the blob.
    */
   posterToDataUrl?: (blob: Blob) => Promise<string>;
+}
+
+export interface PluginRpcOptions {
+  /** Allows `config.save`: true only in the admin.plugin.config slot. */
+  configWrite?: boolean;
+  /** Called after `config.save` went through, so the host refreshes what shows the config. */
+  onConfigSaved?: () => void;
 }
 
 // Strict path guard for a plugin's OWN web_root assets (the server also
@@ -95,7 +110,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
  * re-issued once on a 401) and answers `call(method, args)` with what the
  * plugin's promise resolves to.
  */
-export function createPluginRpc(pluginId: string, transport: PluginRpcTransport) {
+export function createPluginRpc(pluginId: string, transport: PluginRpcTransport, options: PluginRpcOptions = {}) {
   let token: string | null = null;
   // The issue in flight: a widget fires several calls at boot and each one
   // issued its own token. The first issue is shared by every caller that finds it.
@@ -124,7 +139,46 @@ export function createPluginRpc(pluginId: string, transport: PluginRpcTransport)
     return transport.request(req);
   }
 
+  async function errorMessage(res: Response): Promise<string> {
+    try {
+      const b = (await res.clone().json()) as { message?: string };
+      if (b.message) return b.message;
+    } catch {
+      /* no JSON body */
+    }
+    return String(res.status);
+  }
+
+  // Merges the plugin's values into the stored config and writes it back: the
+  // admin endpoint replaces the whole config, and a panel that edits a few keys
+  // must not drop the others. Secret fields come back masked and the server
+  // keeps the stored value for a mask. The server validates against the schema.
+  async function saveConfig(args: Record<string, unknown>): Promise<{ values: Record<string, string> }> {
+    if (!options.configWrite) throw new Error("method not permitted: config.save");
+    const raw = args.values;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("config.save needs an object of values");
+    const path = `/api/v1/admin/plugins/${encodeURIComponent(pluginId)}/config`;
+    const current = await transport.request({ path, method: "GET" });
+    if (!current.ok) throw new Error(await errorMessage(current));
+    const stored = ((await current.json()) as { values?: Record<string, string> }).values ?? {};
+    const values: Record<string, string> = { ...stored };
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      values[k] = v == null ? "" : String(v);
+    }
+    const res = await transport.request({
+      path,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values }),
+    });
+    if (!res.ok) throw new Error(await errorMessage(res));
+    const saved = ((await res.json()) as { values?: Record<string, string> }).values ?? {};
+    options.onConfigSaved?.();
+    return { values: saved };
+  }
+
   async function call(method: string, args: Record<string, unknown>): Promise<unknown> {
+    if (method === "config.save") return saveConfig(args);
     let tok = await ensureToken();
     if (!tok) throw new Error("plugin token unavailable");
     let res = await send(method, args, tok);
@@ -133,16 +187,7 @@ export function createPluginRpc(pluginId: string, transport: PluginRpcTransport)
       tok = await ensureToken();
       if (tok) res = await send(method, args, tok);
     }
-    if (!res.ok) {
-      let msg = String(res.status);
-      try {
-        const b = (await res.clone().json()) as { message?: string };
-        if (b.message) msg = b.message;
-      } catch {
-        /* no JSON body */
-      }
-      throw new Error(msg);
-    }
+    if (!res.ok) throw new Error(await errorMessage(res));
     // assets.read returns binary; a data: URL is same-origin inside the
     // sandbox and safe as a WebGL texture.
     if (method === "assets.read") return blobToDataUrl(await res.blob());

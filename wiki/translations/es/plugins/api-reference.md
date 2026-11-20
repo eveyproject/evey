@@ -1,5 +1,5 @@
 ---
-source_sha: 58c9f2033d994c265409f943a03c3ecdfebe68484e88c1a7d2abf916dab22917
+source_sha: 3b4318e6bc6ae273dc5806dac61bebaa3c65f30d724c824dac69762f571c5c52
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -272,6 +272,24 @@ como URL `data:`: un archivo que el backend escribió mientras funcionaba se
 puede usar en el marco sin problemas de origen cruzado. Solo se puede llegar
 a los archivos del propio plugin.
 
+### `evey.config.save(values)` (solo en el slot `admin.plugin.config`) { #eveyconfigsavevalues }
+
+Escribe la configuración de servidor del plugin, los valores que un
+administrador fija según `config_schema`. Las claves dadas se fusionan con la
+configuración guardada, las demás claves se quedan como están, y el servidor
+valida el resultado contra el esquema exactamente igual que con el formulario
+generado. Los valores son cadenas, como en el formulario. La promesa se
+resuelve con `{ values }`, la configuración tal como queda guardada (campos
+secretos enmascarados), y se rechaza con el mensaje del servidor cuando se
+rechaza un valor. En cualquier sitio que no sea `admin.plugin.config`, la
+llamada se rechaza.
+
+```js
+await evey.config.save({ city: "Brest", lat: "48.39", lon: "-4.49" });
+```
+
+Los valores actuales llegan a `onInit` como `config`, como en todos los slots.
+
 ### En un televisor { #on-a-television }
 
 La aplicación de televisión ejecuta el módulo en un WebView, y algunas cosas
@@ -304,12 +322,17 @@ que son ciertas en un navegador dejan de serlo ahí:
 | `settings.user.appearance` | La sección de apariencia de los ajustes del usuario |
 | `sidebar.bottom` | La parte de abajo de la barra lateral de navegación principal |
 | `admin.nav` | Una entrada en el menú de administración que abre la página propia del plugin |
+| `admin.plugin.config` | El panel de configuración propio del plugin, en su tarjeta de la pantalla de plugins de administración |
 
-`admin.nav` es el único slot de la zona de administración. No inyecta nada en
-las pantallas de administración existentes: añade una entrada de menú que
-abre la página del plugin en el mismo marco con sandbox, en una ruta
-reservada a los administradores. Pedirlo aparece en la diferencia que se
-muestra para dar el consentimiento. Cualquier otro slot `admin.*`, `login.*`,
+`admin.nav` y `admin.plugin.config` son los únicos slots de la zona de
+administración. Ninguno inyecta nada en las pantallas de administración
+existentes: `admin.nav` añade una entrada de menú que abre la página del
+plugin en el mismo marco con sandbox, en una ruta reservada a los
+administradores; `admin.plugin.config` ocupa el lugar del formulario generado
+a partir de `config_schema`, dentro de la tarjeta del propio plugin, para un
+valor que un campo simple no sabe elegir bien (una ciudad entre homónimas, por
+ejemplo). Pedir cualquiera de los dos aparece en la diferencia que se muestra
+para dar el consentimiento. Cualquier otro slot `admin.*`, `login.*`,
 `setup.*` y `profile.security.*` se rechaza al instalar.
 
 ## Capacidades { #capabilities }
