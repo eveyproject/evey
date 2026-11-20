@@ -1,0 +1,57 @@
+# Takes the documentation screenshots again from the published image and says
+# which images of docs/images no longer match the product.
+#
+# A throwaway demo instance (scripts/docs-shots/run.sh) is photographed by
+# Playwright; the new WebP images come back as an artifact, with the list of
+# those that changed in the job summary. Nothing is committed: copying an image
+# into docs/images stays a reviewed change.
+
+name: Docs screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Evey image to photograph"
+        default: "ghcr.io/eveyproject/evey:master"
+  schedule:
+    - cron: "0 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-shots
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: tools
+        run: |
+          npm ci --prefix tests/e2e
+          (cd tests/e2e && npx playwright install --with-deps chromium)
+          pip install Pillow==11.3.0
+      - name: screenshots
+        env:
+          IMAGE: ${{ inputs.image || 'ghcr.io/eveyproject/evey:master' }}
+        run: scripts/docs-shots/run.sh "$RUNNER_TEMP/docs-shots"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: docs-screenshots
+          path: ${{ runner.temp }}/docs-shots/webp/
+          if-no-files-found: warn

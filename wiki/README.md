@@ -120,3 +120,24 @@ make wiki-publish    # build HEAD, commit it into ../eveyproject.github.io
 The site is served by GitHub Pages from `eveyproject/eveyproject.github.io`.
 `make wiki-publish` builds HEAD in a detached worktree and commits the result
 into the local clone of that repository; pushing that clone puts it live.
+
+## Screenshots
+
+The images in `docs/images/` are screenshots of the demo. `make docs-shots`
+takes the web ones again from a throwaway demo instance of the published
+master image (`IMAGE=` picks another) and writes the new WebP images, with the
+list of those that changed, to `tmp/docs-shots/webp/`. The "Docs screenshots"
+workflow does the same every Monday and on demand; its artifact holds the
+images and its summary the list. Nothing is copied into `docs/images/` on its
+own: an image that changed is reviewed and committed like any other change.
+
+The demo downloads gigabytes of films, but the screenshots show the pictures of
+only two of them (Spring and Sprite Fright). Every other video
+is a stand-in written before the demo starts: black and silent, with the
+duration, frame size and container of the real file, so the posters, the
+progress bars and the badges come out the same. `scripts/docs-shots/` holds
+the pieces: `standins/` (the stand-ins, read from the demo manifest),
+`shoot.mjs` (Playwright, the crops), `compare.py` (WebP and the changed list)
+and `run.sh` (all of it). The app screenshots, the setup wizard and Media
+Health are still taken by hand: the demo locks the full scan, and the one the
+server runs on its own covers only the files that changed since the last.
