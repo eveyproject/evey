@@ -196,18 +196,16 @@ try {
       await shot(admin, "showcase-media");
     }
 
-    const first = await watch(browser, "famille@demo.invalid", spring, 160);
-    if (wanted("showcase-player")) {
-      await wakeControls(first);
-      await shot(first, "showcase-player");
-    }
-    const second = await watch(browser, "invite@demo.invalid", sprite, 160);
+    // Sprite Fright starts alone: with no other playback its keyframes are
+    // indexed on demand when the published image has not yet, so it is
+    // remuxed. Transcoded, it would be H.264, which this Chromium cannot play.
+    const spriteView = await watch(browser, "invite@demo.invalid", sprite, 160);
     if (wanted("player-stream-info")) {
-      await wakeControls(second);
-      await second.getByRole("button", { name: /stream info/i }).first().click();
-      await second.waitForTimeout(1500);
+      await wakeControls(spriteView);
+      await spriteView.getByRole("button", { name: /stream info/i }).first().click();
+      await spriteView.waitForTimeout(1500);
       // The panel, with as much of the picture to its left as it is wide.
-      const clip = await second.evaluate(() => {
+      const clip = await spriteView.evaluate(() => {
         const leaf = [...document.querySelectorAll("body *")].find((e) => e.children.length === 0 && e.textContent.trim() === "Method");
         let n = leaf;
         while (n && n.getBoundingClientRect().height < 400) n = n.parentElement;
@@ -215,8 +213,14 @@ try {
         const x = Math.max(0, r.left - r.width);
         return { x, y: Math.max(0, r.top - 100), width: r.right + 16 - x, height: Math.min(window.innerHeight, r.bottom + 16) - Math.max(0, r.top - 100) };
       });
-      await shot(second, "player-stream-info", clip);
-      await second.keyboard.press("Escape");
+      await shot(spriteView, "player-stream-info", clip);
+      await spriteView.keyboard.press("Escape");
+    }
+
+    const springView = await watch(browser, "famille@demo.invalid", spring, 160);
+    if (wanted("showcase-player")) {
+      await wakeControls(springView);
+      await shot(springView, "showcase-player");
     }
 
     if (wanted("showcase-dashboard")) {
