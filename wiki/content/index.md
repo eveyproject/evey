@@ -176,6 +176,7 @@ files are locked down depends on the machine, and the **Security Dashboard**
 shows the mode in use. A plugin's widget shows on the web, on Android and on
 the TV; on the TV you can see it but not use it.
 [Plugins](plugins.md) ·
+[Official plugins](plugins.md#official-plugins) ·
 [Security model and plugin sandbox](SECURITY.md#sandbox-modes)
 
 ## Find your way
