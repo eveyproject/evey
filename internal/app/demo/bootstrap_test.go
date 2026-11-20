@@ -786,11 +786,19 @@ func TestArrangeHome_WritesTheManifestOrderAndHidesTheRest(t *testing.T) {
 
 // fakeHistory records what the seed asked the playback service to write.
 type fakeHistory struct {
-	resumed map[string]int64
-	watched []string
+	resumed  map[string]int64
+	finished map[string]int64
+	watched  []string
 }
 
-func (f *fakeHistory) ReportProgress(_ context.Context, _ string, mediaItemID string, positionMs int64, _ bool) error {
+func (f *fakeHistory) ReportProgress(_ context.Context, _ string, mediaItemID string, positionMs int64, completed bool) error {
+	if completed {
+		if f.finished == nil {
+			f.finished = map[string]int64{}
+		}
+		f.finished[mediaItemID] = positionMs
+		return nil
+	}
 	if f.resumed == nil {
 		f.resumed = map[string]int64{}
 	}
@@ -856,14 +864,18 @@ func TestSeedHistory_ResumesWatchesAndSkipsWhatExists(t *testing.T) {
 	if _, ok := hist.resumed["bleep-e4"]; ok {
 		t.Error("Colonel Bleep E4 was seeded, only the episode after the watched ones is resumed")
 	}
-	wantWatched := []string{"bbb", "bleep-e1", "bleep-e2"}
+	// A watched film is a play to its end: the watch history lists it.
+	if got := hist.finished["bbb"]; got != 10*60*1000 {
+		t.Errorf("Big Buck Bunny finished at %d ms, want its ten minutes", got)
+	}
+	wantWatched := []string{"bleep-e1", "bleep-e2"}
 	if strings.Join(hist.watched, ",") != strings.Join(wantWatched, ",") {
 		t.Errorf("watched = %v, want %v", hist.watched, wantWatched)
 	}
 
 	// Next boot: the titles have progress on the demo profile (the seed's,
 	// or a visitor's who moved on), nothing is rewritten.
-	hist.resumed, hist.watched = nil, nil
+	hist.resumed, hist.finished, hist.watched = nil, nil, nil
 	admin, _ := h.users.GetByUsername(ctx, demo.Username)
 	profs, _ := h.profiles.GetByUserID(ctx, admin.ID)
 	pid := profs[0].ID
@@ -873,7 +885,7 @@ func TestSeedHistory_ResumesWatchesAndSkipsWhatExists(t *testing.T) {
 	if err := h.boot.SeedHistory(ctx, libs); err != nil {
 		t.Fatal(err)
 	}
-	if len(hist.resumed) != 0 || len(hist.watched) != 0 {
+	if len(hist.resumed) != 0 || len(hist.finished) != 0 || len(hist.watched) != 0 {
 		t.Errorf("second boot rewrote history: resumed=%v watched=%v", hist.resumed, hist.watched)
 	}
 }

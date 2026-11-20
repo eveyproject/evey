@@ -851,8 +851,8 @@ func TestPlaybackHandler_GetWatchHistory_EnrichesEpisodeLabel(t *testing.T) {
 	mediaRepo.Seed(&library.MediaItem{ID: "ep-1", Type: library.Episode, ParentID: "season-1", Title: "Some Episode", IndexNumber: &epNum})
 	mediaRepo.Seed(&library.MediaItem{ID: "movie-1", Type: library.MovieItem, Title: "Some Movie"})
 
-	progressRepo.Upsert(context.Background(), &playback.WatchProgress{ID: "wp-ep", ProfileID: "profile-1", MediaItemID: "ep-1", LastPlayedAt: time.Now()})
-	progressRepo.Upsert(context.Background(), &playback.WatchProgress{ID: "wp-mov", ProfileID: "profile-1", MediaItemID: "movie-1", LastPlayedAt: time.Now().Add(-time.Minute)})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{ID: "wp-ep", ProfileID: "profile-1", MediaItemID: "ep-1", Position: mustPlaybackDurationMs(t, 30000), LastPlayedAt: time.Now()})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{ID: "wp-mov", ProfileID: "profile-1", MediaItemID: "movie-1", Position: mustPlaybackDurationMs(t, 30000), LastPlayedAt: time.Now().Add(-time.Minute)})
 
 	resp, err := h.GetWatchHistory(ctx, &eveyv1.GetWatchHistoryRequest{Limit: 10})
 	require.NoError(t, err)

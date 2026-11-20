@@ -277,6 +277,10 @@ func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, prof
 	return wp, nil
 }
 
+// GetByProfile and GetByProfileCursor list the watch history: the titles a
+// profile played. A row without a position is a title marked as watched by
+// hand, or the series and season rows that mark writes: none was played, and
+// its date is the click, not a viewing.
 func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID string, limit, offset int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetByProfile")
 	defer span.End()
@@ -285,7 +289,7 @@ func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID st
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
-		 FROM watch_progress WHERE profile_id = $1
+		 FROM watch_progress WHERE profile_id = $1 AND position_ms > 0
 		 ORDER BY last_played_at DESC, id DESC LIMIT $2 OFFSET $3`, profileID, limit, offset)
 	if err != nil {
 		span.RecordError(err)
@@ -312,7 +316,7 @@ func (r *WatchProgressRepository) GetByProfileCursor(ctx context.Context, profil
 		limit = 500
 	}
 	query := `SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
-		 FROM watch_progress WHERE profile_id = $1`
+		 FROM watch_progress WHERE profile_id = $1 AND position_ms > 0`
 	args := []any{profileID}
 	i := 2
 	if cursor != nil {

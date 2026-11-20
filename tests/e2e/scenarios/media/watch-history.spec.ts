@@ -12,26 +12,21 @@ test.describe("Watch History", () => {
     await expect(content.first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("mark watched → appears in history", async ({ page }) => {
+  test("a title marked as watched without being played stays out of the history", async ({ page }) => {
     const id = await gotoRandomMedia(page);
     test.skip(!id, "No media found");
+    test.skip(!(await page.locator(watchSel).isVisible({ timeout: 3_000 }).catch(() => false)), "No mark-watched button");
 
-    const hasWatch = await page.locator(watchSel).isVisible({ timeout: 3_000 }).catch(() => false);
-    if (hasWatch) {
-      await Promise.all([
-        page.waitForResponse((r) => r.url().includes("/api/v1/playback/") && r.request().method() === "POST", { timeout: 10_000 }),
-        page.locator(watchSel).click(),
-      ]);
-      await expect(page.locator(unwatchSel)).toBeVisible({ timeout: 10_000 });
-    } else {
-      test.skip(!(await page.locator(unwatchSel).isVisible({ timeout: 1_000 }).catch(() => false)), "No watched button");
-    }
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes("/api/v1/playback/") && r.request().method() === "POST", { timeout: 10_000 }),
+      page.locator(watchSel).click(),
+    ]);
+    await expect(page.locator(unwatchSel)).toBeVisible({ timeout: 10_000 });
 
     await goto(page, "/profile/history");
-    const list = page.locator('[data-testid="history-list"]');
-    await expect(list).toBeVisible({ timeout: 10_000 });
-    const items = page.locator('[data-testid="history-item"]');
-    expect(await items.count()).toBeGreaterThan(0);
+    const content = page.locator('[data-testid="history-list"], [data-testid="history-empty"]');
+    await expect(content.first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(`[data-testid="history-item"] a[href="/media/${id}"]`)).toHaveCount(0);
 
     // cleanup
     await goto(page, `/media/${id}`);
