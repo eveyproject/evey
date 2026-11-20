@@ -27,11 +27,18 @@ const (
 	levelEligibleSQL = `stream_type = 'video'
 	   AND lower(codec) IN ('h264', 'hevc', 'av1', 'vp9', 'mpeg2video', 'mpeg4', 'msmpeg4v3')`
 
-	// Keyframe backfill: streams the video-copy rung can serve.
+	// Keyframe backfill: streams the video-copy rung can serve, by the rules of
+	// transcoding.CopyRungEligible. A VP9 without a level takes the one its
+	// picture size implies, and a VP9 Profile 0 is 8-bit, so it copies without
+	// a known transfer. A stream the guard accepts and this query leaves out is
+	// never indexed, so it is transcoded.
 	keyframesEligibleSQL = `stream_type = 'video'
-	   AND level IS NOT NULL
+	   AND (level IS NOT NULL
+	     OR (lower(codec) = 'vp9' AND width > 0 AND height > 0))
 	   AND (lower(codec) = 'h264'
-	     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND color_transfer IS NOT NULL
+	     OR (lower(codec) IN ('hevc', 'av1', 'vp9')
+	         AND (color_transfer IS NOT NULL
+	           OR (lower(codec) = 'vp9' AND lower(trim(profile)) = 'profile 0'))
 	         AND (dovi_profile IS NULL
 	           OR (dovi_profile = 8 AND dovi_bl_compat IN (1, 2, 4)))))`
 

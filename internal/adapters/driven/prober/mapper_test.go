@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
+	"github.com/gravity-zero/mkvgo/mkv/reader"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -440,31 +441,38 @@ func TestScanTypeOf_AgreesWithMkvgo(t *testing.T) {
 }
 
 // The Matroska "VP9 Codec Feature Metadata" CodecPrivate (Sprite Fright's
-// real bytes) is not a vpcC: a reader that took it for one produced
-// "Profile 1", level 1 and a ycgco colour. Such a track goes to ffprobe; a
-// track with no CodecPrivate (a WebM) or a real vpcC fast-paths as before.
-func TestMapContainer_VP9FeatureMetadataGoesToFFprobe(t *testing.T) {
+// real bytes: profile 0, bit depth 8, chroma 4:2:0, no level record) is read
+// by mkvgo as what it is, so such a track takes the fast path with mkvgo's
+// profile and the level its picture size implies. ffprobe reports that track
+// with level -99, stored as no level: the copy rung then never saw it.
+func TestMapContainer_VP9FeatureMetadataFastPaths(t *testing.T) {
+	spriteFright := []byte{0x01, 0x01, 0x00, 0x03, 0x01, 0x08, 0x04, 0x01, 0x01}
+	fm, ok := reader.ParseVP9FeatureMetadata(spriteFright)
+	require.True(t, ok, "mkvgo recognises the feature metadata form")
+	require.NotNil(t, fm.Profile)
+	assert.Equal(t, uint8(0), *fm.Profile)
+	assert.Nil(t, fm.Level, "the file states no level")
+	assert.Equal(t, uint16(40), extmkv.VP9Level(new(uint32(2048)), new(uint32(858))), "level 4.0 for 2048x858")
+
 	bt709 := uint16(1)
 	vp9 := func(cp []byte) *extmkv.Container {
 		tr := extmkv.Track{
-			Type: extmkv.VideoTrack, Codec: "vp9",
+			Type: extmkv.VideoTrack, Codec: "vp9", Profile: "Profile 0", Level: new(uint16(40)),
 			Width: new(uint32(2048)), Height: new(uint32(858)),
 			CodecPrivate: cp, ColorSpace: &bt709, ColourDetermined: true,
 		}
 		return &extmkv.Container{DurationMs: 1000, Tracks: []extmkv.Track{tr}}
 	}
-	_, ok := mapContainer(vp9([]byte{0x01, 0x01, 0x00, 0x03, 0x01, 0x08, 0x04, 0x01, 0x01}), true)
-	assert.False(t, ok, "feature metadata CodecPrivate must fall back to ffprobe")
+	res, ok := mapContainer(vp9(spriteFright), true)
+	require.True(t, ok, "a feature metadata CodecPrivate fast-paths")
+	require.NotNil(t, res.Streams[0].Level)
+	assert.Equal(t, 40, *res.Streams[0].Level)
+	assert.Equal(t, "Profile 0", res.Streams[0].Profile)
 
-	res, ok := mapContainer(vp9(nil), true)
+	res, ok = mapContainer(vp9(nil), true)
 	require.True(t, ok, "a WebM VP9 without CodecPrivate fast-paths")
 	require.NotNil(t, res.Streams[0].FieldOrder)
 	assert.Equal(t, "progressive", *res.Streams[0].FieldOrder, "VP9 has no interlaced mode")
-
-	// A real vpcC: version 1, three flag bytes, then profile/level/bitdepth-chroma.
-	res, ok = mapContainer(vp9([]byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x28, 0x80, 0x01, 0x01, 0x01, 0x00, 0x00}), true)
-	assert.True(t, ok, "a vpcC-shaped CodecPrivate is not the feature-metadata form")
-	_ = res
 }
 
 // VP8 has no interlaced mode either: ffprobe says "progressive", so does the
