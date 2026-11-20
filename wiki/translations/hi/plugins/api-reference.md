@@ -1,5 +1,5 @@
 ---
-source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
+source_sha: da7363e10ec01a815d0a3ca8b730a50e2c23afc00c96395f2740b3d7a2840f6b
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -275,7 +275,7 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
   ऊँचाई का लगभग 5% खाली छोड़ें।
 - **WebGL असली डिवाइस पर परखें।** shader डिवाइस के GPU और driver पर चलता है,
   आपके कंप्यूटर पर नहीं; noise के coordinates सीमित रखें।
-  `tests/plugins/weather-v2` ऊपर की सभी बातों के लिए नमूने वाला विजेट है।
+  [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) ऊपर की सभी बातों के लिए नमूने वाला विजेट है।
 
 ## स्लॉट { #slots }
 
@@ -325,11 +325,12 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
 
 `examples/plugins/` में मौजूदा manifest फ़ॉर्मैट वाले चलते प्लगइन हैं: Node.js
 और Python में शुरुआती प्लगइन (`nodejs-example`, `python-example`), एक मेटाडेटा
-provider (`metadata-example`), एक वेबहुक receiver (`webhook-receiver`), build
-step वाला एक होम विजेट (`weather`), `public` और `prefs` अनुमतियों और `admin.nav`
-स्लॉट के साथ डेटा स्टोर (`data-demo`), `config_schema` के हर फ़ील्ड टाइप का उदाहरण, `admin.nav` पेज के साथ
-(`config-demo`), और दो थीम (`theme-dark-blue`, `open-workshop`)। `make plugin-zips`
-इन सबको पैक करता है।
+provider (`metadata-example`), एक वेबहुक receiver (`webhook-receiver`), `public`
+और `prefs` अनुमतियों और `admin.nav` स्लॉट के साथ डेटा स्टोर (`data-demo`) और
+`config_schema` के हर फ़ील्ड टाइप का उदाहरण, `admin.nav` पेज के साथ
+(`config-demo`)। `make plugin-zips` इन सबको पैक करता है। प्रोजेक्ट के अपने प्लगइन
+और थीम - मौसम विजेट, CShell, Dark Blue और बाकी - हर एक [eveyproject](https://github.com/eveyproject) के तहत अपनी
+अलग repository में रहते हैं।
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions

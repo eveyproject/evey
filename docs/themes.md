@@ -29,8 +29,8 @@ One string (`display_name: Aurora`) stands for every language.
 
 The ZIP holds `theme.css` and/or `theme.js` at its root, next to the
 manifest. A package with neither is accepted and has no visible effect.
-`examples/plugins/theme-dark-blue` (a short `theme.css` overriding the colour
-variables) and `examples/plugins/open-workshop` (a complete restyle) both pass
+[evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) (a short `theme.css` overriding the colour
+variables) and [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) (a complete restyle) both pass
 the sanitizer and are good starting points.
 
 ## theme.css
@@ -45,7 +45,7 @@ browser remembers applies before sign-in too.
 ### Start from the custom properties
 
 The interface draws its surfaces, text, accent, borders and radii from a set
-of custom properties on `:root`; `examples/plugins/theme-dark-blue/theme.css`
+of custom properties on `:root`; [`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css)
 lists them with a comment each. Overriding them restyles every screen at
 once:
 
@@ -168,7 +168,7 @@ display_name: internal/domain/plugin/display_name.go - DisplayName.Validate ; fr
 routes, auth: internal/adapters/driving/http/theme_asset_handler.go (theme.css open, theme.js authMw)
 link injection, hidden iframe, connect-src none: frontend/apps/web/src/features/themes/ThemeLoader.tsx
 sanitizer: internal/adapters/driven/pluginrunner/css_sanitizer.go - SanitizeCSS, reImport, reURLExternal, reURLExternalUnterminated, reImageSetCandidateExternal, reCustomPropExternalURL, reURLJavascript, reExpression, reMozBinding, reBehavior, reSensitiveSelector, overlaySignals.isOverlay, stripPointerEventsOnInteractive, reZIndex ; written back at install: internal/app/plugin/install.go - validateStagedPlugin
-custom properties: examples/plugins/theme-dark-blue/theme.css
+custom properties: github.com/eveyproject/evey-theme-dark-blue - theme.css
 stable hooks: frontend/apps/web/src (evey-app-header, evey-media-grid, evey-media-card, evey-poster, evey-media-detail)
 theme.js bridge: frontend/apps/web/src/features/themes/theme-bridge.ts - THEME_BRIDGE_SCRIPT ; policy: theme-css-policy.ts - applyThemeCSSPolicy, MAX_DECLARATIONS, MAX_VALUE_LENGTH, FORBIDDEN_IN_VALUE
 scanner: internal/pkg/themejs/scan.go - blockedLiterals, blockedRegex, Scan

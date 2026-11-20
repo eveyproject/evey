@@ -1,5 +1,5 @@
 ---
-source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
+source_sha: da7363e10ec01a815d0a3ca8b730a50e2c23afc00c96395f2740b3d7a2840f6b
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -232,7 +232,7 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 - **没有焦点，也没有指针。** 小组件永远不会获得方向键的焦点，也没有悬停效果；任何需要交互的东西都应放在网页和移动端。
 - **文字不要贴着边缘。** 电视会过扫描：每一边都留出大约 5% 的宽度和高度。
 - **在真实的电视盒上测试 WebGL。** 着色器运行在电视盒自己的 GPU 和驱动上，而不是您电脑上的；噪声坐标要保持在有限范围内。
-  `tests/plugins/weather-v2` 是以上所有要点的参考小组件。
+  [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) 是以上所有要点的参考小组件。
 
 ## 插槽 { #slots }
 
@@ -272,9 +272,9 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 ## 示例 { #examples }
 
 `examples/plugins/` 里有按当前清单格式编写、可以直接运行的插件：Node.js 和 Python 的入门示例（`nodejs-example`、`python-example`）、
-一个元数据提供方（`metadata-example`）、一个 Webhook 接收端（`webhook-receiver`）、一个带构建步骤的首页小组件（`weather`）、
-一个演示数据存储、`public` 和 `prefs` 权限以及 `admin.nav` 插槽的示例（`data-demo`）、一个展示所有 `config_schema` 字段类型的示例，带有一个 `admin.nav` 页面（`config-demo`），
-以及两个主题（`theme-dark-blue`、`open-workshop`）。`make plugin-zips` 会把它们全部打包。
+一个元数据提供方（`metadata-example`）、一个 Webhook 接收端（`webhook-receiver`）、
+一个演示数据存储、`public` 和 `prefs` 权限以及 `admin.nav` 插槽的示例（`data-demo`），以及一个展示所有 `config_schema` 字段类型的示例，带有一个 `admin.nav` 页面（`config-demo`）。
+`make plugin-zips` 会把它们全部打包。项目自己的插件和主题（天气小组件、CShell、Dark Blue 等）各自位于 [eveyproject](https://github.com/eveyproject) 下的独立仓库中。
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions

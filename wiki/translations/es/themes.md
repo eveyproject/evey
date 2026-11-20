@@ -1,5 +1,5 @@
 ---
-source_sha: c9ba18045bcbe3d08d580a1cbe44e2e75fa72e4dfd7da439e4833b40fb13734a
+source_sha: c15e2f946d7ceb98981eb10c13c6e984330ed9b068cf5361e6596b0002c587b5
 reviewed: true
 ---
 # Temas
@@ -34,8 +34,8 @@ cadena (`display_name: Aurora`) vale para todos los idiomas.
 
 El ZIP lleva `theme.css` y/o `theme.js` en su raíz, junto al manifiesto. Un
 paquete sin ninguno de los dos se acepta y no tiene ningún efecto visible.
-`examples/plugins/theme-dark-blue` (un `theme.css` corto que cambia las
-variables de color) y `examples/plugins/open-workshop` (un cambio de aspecto
+[evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) (un `theme.css` corto que cambia las
+variables de color) y [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) (un cambio de aspecto
 completo) pasan los dos el saneador y son buenos puntos de partida.
 
 ## theme.css
@@ -51,7 +51,7 @@ navegador recuerda se aplica también antes de iniciar sesión.
 
 La interfaz toma sus superficies, su texto, su color de acento, sus bordes y
 sus radios de un conjunto de propiedades personalizadas en `:root`;
-`examples/plugins/theme-dark-blue/theme.css` las enumera, cada una con un
+[`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) las enumera, cada una con un
 comentario. Cambiarlas cambia el aspecto de todas las pantallas a la vez:
 
 ```css title="theme.css"
@@ -175,7 +175,7 @@ theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n co
 routes, auth: internal/adapters/driving/http/theme_asset_handler.go (theme.css open, theme.js authMw)
 link injection, hidden iframe, connect-src none: frontend/apps/web/src/features/themes/ThemeLoader.tsx
 sanitizer: internal/adapters/driven/pluginrunner/css_sanitizer.go - SanitizeCSS, reImport, reURLExternal, reURLExternalUnterminated, reImageSetCandidateExternal, reCustomPropExternalURL, reURLJavascript, reExpression, reMozBinding, reBehavior, reSensitiveSelector, overlaySignals.isOverlay, stripPointerEventsOnInteractive, reZIndex ; written back at install: internal/app/plugin/install.go - validateStagedPlugin
-custom properties: examples/plugins/theme-dark-blue/theme.css
+custom properties: github.com/eveyproject/evey-theme-dark-blue - theme.css
 stable hooks: frontend/apps/web/src (evey-app-header, evey-media-grid, evey-media-card, evey-poster, evey-media-detail)
 theme.js bridge: frontend/apps/web/src/features/themes/theme-bridge.ts - THEME_BRIDGE_SCRIPT ; policy: theme-css-policy.ts - applyThemeCSSPolicy, MAX_DECLARATIONS, MAX_VALUE_LENGTH, FORBIDDEN_IN_VALUE
 scanner: internal/pkg/themejs/scan.go - blockedLiterals, blockedRegex, Scan

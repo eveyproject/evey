@@ -1,5 +1,5 @@
 ---
-source_sha: 3369e1ee02f4a1bf1c2f0ead7f53e5774d9411f2bda9655d52d7668ded65435d
+source_sha: b18e66cd23013ccd6ced688f3fd357b93c8fa9be670c7a19e6f2a00f52e8b0b6
 reviewed: true
 ---
 # Écrire un plugin { #writing-a-plugin }
@@ -223,7 +223,7 @@ s'affiche ; `evey.resize`, `evey.toast` et `evey.navigate` agissent sur la
 page dans des limites fixes ; et, quand le manifeste déclare `prefs` ou
 `public`, `evey.prefs.*` et `evey.media.*` atteignent le serveur par un jeton
 de courte durée que l'hôte détient pour le cadre.
-`examples/plugins/weather` est un widget complet avec une étape de build ;
+[evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) est un widget complet avec une étape de build ;
 `examples/plugins/data-demo` montre `prefs`, `public` et l'emplacement
 `admin.nav`. Le pont et les emplacements sont décrits dans la
 [référence de l'API](api-reference.md#frontend-api).

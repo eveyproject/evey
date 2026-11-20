@@ -110,7 +110,7 @@ desyncs shipped in one day once, invisible to every unit suite.
 
 ## Golden path 5 - build a plugin
 
-Reference implementation: `tests/plugins/weather-v2` (zero-runtime-dep WebGL
+Reference implementation: [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) (zero-runtime-dep WebGL
 + DDD; the packaging script `build-zip.sh` knows the analyzer's traps - e.g.
 the literal string "npm install" anywhere in the zip is a CRITICAL reject).
 Frontends run in a sandboxed iframe (web) / WebView (mobile) with the

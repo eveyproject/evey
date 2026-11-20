@@ -1,5 +1,5 @@
 ---
-source_sha: 3369e1ee02f4a1bf1c2f0ead7f53e5774d9411f2bda9655d52d7668ded65435d
+source_sha: b18e66cd23013ccd6ced688f3fd357b93c8fa9be670c7a19e6f2a00f52e8b0b6
 reviewed: true
 ---
 # प्लगइन लिखना { #writing-a-plugin }
@@ -210,7 +210,7 @@ frontend:
 `evey.toast` और `evey.navigate` तय सीमाओं के अंदर पेज पर काम करते हैं; और जब
 manifest `prefs` या `public` बताता है, तो `evey.prefs.*` और `evey.media.*` एक कम
 समय वाले token से सर्वर तक पहुँचते हैं, जिसे होस्ट उस फ़्रेम के लिए रखता है।
-`examples/plugins/weather` build step वाला एक पूरा विजेट है;
+[evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) build step वाला एक पूरा विजेट है;
 `examples/plugins/data-demo` `prefs`, `public` और `admin.nav` स्लॉट दिखाता है। bridge
 और स्लॉट [प्लगइन API संदर्भ](api-reference.md#frontend-api) में बताए गए हैं।
 

@@ -272,7 +272,7 @@ true in a browser stop being true there:
 - **Keep text away from the edges.** Televisions overscan: leave about 5% of
   the width and height free on every side.
 - **Test WebGL on a real box.** A shader runs on the box's GPU and driver,
-  not on your desktop's; keep noise coordinates bounded. `tests/plugins/weather-v2`
+  not on your desktop's; keep noise coordinates bounded. [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather)
   is the reference widget for all of the above.
 
 ## Slots
@@ -325,12 +325,12 @@ server refuses by default every method the token's scopes do not name
 `examples/plugins/` holds working plugins in the current manifest format:
 starters in Node.js and Python (`nodejs-example`, `python-example`), a
 metadata provider (`metadata-example`), a webhook receiver
-(`webhook-receiver`), a home widget with a build step (`weather`), the data
-store with the `public` and `prefs` permissions and the `admin.nav` slot
-(`data-demo`), a tour of every `config_schema` field type, with an `admin.nav` page
-(`config-demo`),
-and two themes (`theme-dark-blue`, `open-workshop`). `make plugin-zips`
-packages them all.
+(`webhook-receiver`), the data store with the `public` and `prefs` permissions
+and the `admin.nav` slot (`data-demo`) and a tour of every `config_schema`
+field type, with an `admin.nav` page (`config-demo`). `make plugin-zips`
+packages them all. The project's own plugins and themes - the weather widget,
+CShell, Dark Blue and the others - each live in their own repository under
+[eveyproject](https://github.com/eveyproject).
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; display_name.go - DisplayName ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions

@@ -1,5 +1,5 @@
 ---
-source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
+source_sha: da7363e10ec01a815d0a3ca8b730a50e2c23afc00c96395f2740b3d7a2840f6b
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -289,7 +289,7 @@ que son ciertas en un navegador dejan de serlo ahí:
   altura por cada lado.
 - **Prueba WebGL en un aparato real.** Un shader se ejecuta en la GPU y el
   controlador del aparato, no en los de tu ordenador; mantén acotadas las
-  coordenadas del ruido. `tests/plugins/weather-v2` es el widget de
+  coordenadas del ruido. [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) es el widget de
   referencia para todo lo anterior.
 
 ## Slots { #slots }
@@ -345,11 +345,12 @@ los alcances del token
 `examples/plugins/` contiene plugins que funcionan con el formato actual del
 manifiesto: plantillas de inicio en Node.js y Python (`nodejs-example`,
 `python-example`), un proveedor de metadatos (`metadata-example`), un
-receptor de webhooks (`webhook-receiver`), un widget de inicio con un paso de
-compilación (`weather`), el almacén de datos con los permisos `public` y
-`prefs` y el slot `admin.nav` (`data-demo`), un recorrido por todos los tipos
-de campo de `config_schema`, con una página `admin.nav` (`config-demo`), y dos temas (`theme-dark-blue`,
-`open-workshop`). `make plugin-zips` los empaqueta todos.
+receptor de webhooks (`webhook-receiver`), el almacén de datos con los
+permisos `public` y `prefs` y el slot `admin.nav` (`data-demo`) y un recorrido
+por todos los tipos de campo de `config_schema`, con una página `admin.nav`
+(`config-demo`). `make plugin-zips` los empaqueta todos. Los plugins y temas
+del proyecto - el widget del tiempo, CShell, Dark Blue y los demás - viven cada
+uno en su propio repositorio bajo [eveyproject](https://github.com/eveyproject).
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
