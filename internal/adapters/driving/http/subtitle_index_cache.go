@@ -14,17 +14,20 @@ package httpapi
 // on disk. After that, serving a track is 19 ms for a forced subtitle and
 // 310 ms for a full dialogue one (mkvgo measurements on SSD, 15.8 GB source).
 //
-// Stored beside the extracted WebVTT and keyed the same way, because it is
-// exactly as stale-able: an index built for one file must never be applied to
-// another. mkvgo carries its own guard as well (source size, Segment UID and
+// Stored beside the extracted WebVTT and keyed on the same file identity,
+// because it is exactly as stale-able: an index built for one file must never
+// be applied to another. mkvgo carries its own guard as well (source size, Segment UID and
 // timecode scale, checked before a single cue is read, then per block), so a
 // key that slips through cannot make it emit cues read from the wrong bytes.
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gravity-zero/mkvgo/matroska"
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
@@ -52,10 +55,29 @@ func newSubtitleIndexCache(dataDir string) subtitleIndexCache {
 
 // key identifies the index of one FILE - not of one track, unlike the WebVTT
 // cache: a single index covers every text track, which is the whole point of
-// paying for one walk. -1 stands in for "the file, all tracks" in the shared
-// key shape.
+// paying for one walk. Path, size and mtime only. Unlike a WebVTT, the index
+// is not output of the packager but a map of the source, and the blob carries
+// its own format version: a build that cannot read it gets a decode error,
+// which is a miss here, and mkvgo drops an entry that no longer matches the
+// file. Folding the mkvgo version in threw every index away on each upgrade,
+// each one a full read of a film to rebuild.
 func (c subtitleIndexCache) key(filePath string) string {
-	return subtitleCache(c).keyFor(filePath, -1)
+	if c.dir == "" {
+		return ""
+	}
+	st, err := os.Stat(filePath)
+	if err != nil {
+		return ""
+	}
+	h := sha256.New()
+	_, _ = h.Write([]byte("subtitle-index"))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(filePath))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(strconv.FormatInt(st.Size(), 10)))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(strconv.FormatInt(st.ModTime().Unix(), 10)))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (c subtitleIndexCache) path(key string) string {
