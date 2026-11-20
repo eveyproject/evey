@@ -6,7 +6,7 @@
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go \
 	mutation-test docker-image verify-deploy ops-image ops ops-upgrade \
-	wiki wiki-check wiki-serve wiki-drafts wiki-publish
+	wiki wiki-check wiki-serve wiki-drafts wiki-publish docs-shots
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
@@ -942,6 +942,12 @@ WIKI_RUN = $(WIKI_DOCKER) $(WIKI_IMAGE)
 
 # Fast, host-side, no Docker: the manifest, the translation freshness digests
 # and the leak guard. This is the one that must stay quick enough to run often.
+# Documentation screenshots from a throwaway demo of IMAGE (default the
+# published master image): new WebP images and the list of those that changed
+# land in tmp/docs-shots/webp. The weekly "Docs screenshots" workflow runs the same.
+docs-shots:
+	@scripts/docs-shots/run.sh tmp/docs-shots
+
 wiki-check:
 	@echo "→ wiki: assemble + guards"
 	@python3 wiki/assemble.py --check
