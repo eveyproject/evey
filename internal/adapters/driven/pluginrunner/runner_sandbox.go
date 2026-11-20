@@ -169,6 +169,9 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 
 	// cmd.Args[0] is the program name; the original full argv is cmd.Args.
 	originalArgv := cmd.Args // e.g. ["/data/plugins/foo/plugin", "--arg"]
+	// A launcher from the image may read outside the bound system dirs: its
+	// /etc/alternatives link, the /etc config its package links to, an /opt root.
+	prefix = withBwrapReadOnly(prefix, launcherReadPaths(cmd.Args[0]))
 	// bwrap has no syscall filter of its own: the launcher installs the seccomp
 	// denylist inside it. No uid drop, the user namespace already maps one.
 	if launcher, lerr := launcherPath(); lerr == nil {
@@ -180,21 +183,16 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 			slog.String("plugin_id", p.ID), slog.Any("err", lerr))
 	}
 
-	// New argv: bwrap [flags] -- <original argv...>. prefix is freshly built by
-	// buildBwrapCmd and not reused, so appending into it is safe.
-	prefix = append(prefix, originalArgv...)
-
-	cmd.Path = bwrapPath
-	cmd.Args = prefix
-
-	// "strict" = bubblewrap + LD_PRELOAD seccomp lib on top.
-	if mode == sandboxModeStrict {
+	// "strict" = bubblewrap + LD_PRELOAD seccomp lib on top. The lib is set for
+	// the payload inside the sandbox, never in bwrap's own environment: loaded
+	// into bwrap, its filter denies the unshare bwrap is there to do and every
+	// plugin is refused at start. A plugin granted "subprocess" skips it, as in
+	// Landlock mode: the lib denies execve, the launcher's seccomp still applies.
+	if mode == sandboxModeStrict && !slices.Contains(p.Permissions, subprocessPerm) {
 		libPath := r.ensureSandboxLib()
 		switch {
 		case libPath != "":
-			// overrideEnv, not append: glibc getenv takes the first match, so a
-			// pre-existing LD_PRELOAD would silently keep the shim unloaded.
-			cmd.Env = overrideEnv(cmd.Env, map[string]string{"LD_PRELOAD": libPath})
+			prefix = withBwrapPreload(prefix, libPath)
 		case !r.allowMissingSandbox:
 			slog.ErrorContext(parentCtx, "refusing to start plugin without seccomp lib (strict mode)",
 				slog.String("plugin_id", p.ID),
@@ -208,6 +206,13 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 				slog.String("plugin_id", p.ID))
 		}
 	}
+
+	// New argv: bwrap [flags] -- <original argv...>. prefix is freshly built by
+	// buildBwrapCmd and not reused, so appending into it is safe.
+	prefix = append(prefix, originalArgv...)
+
+	cmd.Path = bwrapPath
+	cmd.Args = prefix
 
 	slog.Info("plugin sandbox applied",
 		slog.String("plugin_id", p.ID),

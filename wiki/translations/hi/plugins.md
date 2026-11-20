@@ -1,5 +1,5 @@
 ---
-source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
+source_sha: d330f2e3c1bd08e716c4ab9372f05aae3fc2469d580dbafb23819e7b62a15484
 reviewed: true
 ---
 # प्लगइन { #plugins }
@@ -56,9 +56,12 @@ reviewed: true
 
 जिस पैकेज की जाँच में कोई गंभीर पैटर्न मिलता है, वह मना कर दिया जाता है, आप
 चाहे जो जवाब दें। चेतावनियाँ दिखाई जाती हैं और फ़ैसला आप पर छोड़ा जाता है।
-प्लगइन की भाषा सर्वर के **उपलब्ध रनटाइम** में होनी चाहिए: डिफ़ॉल्ट इमेज में
-Python, Node.js, PHP, Ruby और Lua हैं, `-nodejs` इमेज में Python और Node.js रहते हैं
-और `-lean` इमेज में सिर्फ़ Python रहता है।
+प्लगइन को शुरू करने वाला रनटाइम सर्वर की इमेज में होना चाहिए: डिफ़ॉल्ट इमेज में
+Python, Node.js, PHP, Ruby और Lua हैं, `-nodejs` इमेज में Python और Node.js रहते हैं,
+`-lean` इमेज में सिर्फ़ Python रहता है, और
+[कोई दूसरा रनटाइम इमेज में जोड़ा जाता है](plugins/dev-setup.md#a-runtime-the-image-does-not-carry)।
+**उपलब्ध रनटाइम** में वे रनटाइम दिखते हैं जो सर्वर को मिले, और वह रनटाइम भी जिससे
+हर इंस्टॉल किया गया प्लगइन शुरू होता है।
 
 !!! tip "सिग्नेचर वाले प्लगइन"
     प्लगइन बनाने वाला ZIP पर [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)

@@ -121,6 +121,7 @@ scripts/*
 !scripts/gate-go-pkgs.py
 !scripts/verify-commit.sh
 !scripts/client-release-ldflags.sh
+!scripts/plugin-runtimes-itest.sh
 !scripts/dash-harness/
 !scripts/dash-harness/*
 # Cuts the fixtures ac3Worker.real.test.ts reads (named in its header).

@@ -450,8 +450,8 @@ func buildPluginSubsystem(ctx context.Context, infra *infraDeps, rootLog *slog.L
 	// Safe here: AutoStartPlugins only runs after wiring completes (main.go).
 	infra.pluginRunner.WithSDKStubs(pluginFS)
 	cssSanitizer := pluginrunner.NewCSSSanitizer()
-	runtimeChecker := pluginrunner.NewRuntimeAvailability()
-	slog.Info("plugin runtimes detected", slog.Any("available", runtimeChecker.Available()))
+	runtimeChecker := pluginrunner.NewRuntimeAvailability(infra.pluginRunner.PluginDirs()...)
+	slog.Info("plugin script interpreters detected", slog.Any("available", runtimeChecker.Available()))
 	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, infra.pluginRunner, infra.manifestParser, bus,
 		appplugin.InstallerWithInstaller(infra.pluginInstaller),
 		appplugin.InstallerWithAnalyzer(infra.pluginAnalyzer),

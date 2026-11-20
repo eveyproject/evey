@@ -19,6 +19,14 @@ protobuf {
 }
 ```
 
-The `.jar` plugin is self-contained - Evey just runs `java -jar plugin.jar`.
+The `.jar` plugin is self-contained - Evey just runs `java -jar plugin.jar`:
 
-Requires JRE 17+ in the container (see `Dockerfile.plugins.example`).
+```yaml
+language: java
+entrypoint: java -jar plugin.jar
+permissions:
+  - native-binary   # a .jar cannot be statically analyzed
+```
+
+Requires a JRE in the server image (Debian 13: `openjdk-21-jre-headless`, see
+`docker/Dockerfile.plugins.example`); without one the install is refused.

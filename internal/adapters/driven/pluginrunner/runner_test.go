@@ -205,31 +205,6 @@ func TestRunnerWithIPCCallback(t *testing.T) {
 	assert.True(t, called)
 }
 
-func TestIsInterpreter(t *testing.T) {
-	tests := []struct {
-		cmd  string
-		want bool
-	}{
-		{"python3", true},
-		{"python", true},
-		{"node", true},
-		{"php", true},
-		{"ruby", true},
-		{"bash", true},
-		{"sh", true},
-		{"perl", true},
-		{"lua", true},
-		{"gcc", false},
-		{"/usr/bin/node", true},
-		{"custom-binary", false},
-	}
-	for _, tt := range tests {
-		if got := isInterpreter(tt.cmd); got != tt.want {
-			t.Errorf("isInterpreter(%q) = %v, want %v", tt.cmd, got, tt.want)
-		}
-	}
-}
-
 func TestValidateEntrypoint_DirectoryIsError(t *testing.T) {
 	dir := t.TempDir()
 	r := NewRunner(dir)

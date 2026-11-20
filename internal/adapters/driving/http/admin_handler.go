@@ -86,12 +86,19 @@ func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen domainuser.To
 	mux.HandleFunc("GET /api/v1/admin/logs/media", admin(h.handleResolveLogMedia))
 }
 
-func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen domainuser.TokenGenerator) {
+// registerAvailableRuntimesRoute serves the runtimes of the image. usedLaunchers
+// (nil in tests) names the launchers installed plugins start through, so one
+// outside the known catalogue shows up as soon as a plugin runs on it.
+func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, usedLaunchers func(context.Context) []string) {
 	admin := httpAdminMiddleware(tokenGen)
 	mux.HandleFunc("GET /api/v1/admin/plugin-runtimes/available", admin(func(w http.ResponseWriter, r *http.Request) {
 		_, span := tracing.StartSpan(r.Context(), "http.admin.AvailableRuntimes")
 		defer span.End()
-		runtimes := runtimedetect.DetectRuntimes()
+		var used []string
+		if usedLaunchers != nil {
+			used = usedLaunchers(r.Context())
+		}
+		runtimes := runtimedetect.DetectRuntimes(used...)
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"runtimes": runtimes}); err != nil {
 			span.RecordError(err)

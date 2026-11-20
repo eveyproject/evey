@@ -271,6 +271,36 @@ func TestLandlock_EndToEnd(t *testing.T) {
 	})
 }
 
+// TestLandlock_ProcSelfFileOnly pins the -ro-file grant the runner uses for
+// /proc: the one file is readable by the process itself, and the rest of its
+// /proc directory stays denied - net/tcp (the container's connections, in the
+// server's network namespace), mountinfo (the host's mount layout), environ.
+// Read with shell builtins: a child process is another /proc entry.
+func TestLandlock_ProcSelfFileOnly(t *testing.T) {
+	if abi, err := landlockABI(); err != nil || abi < 1 {
+		t.Skipf("Landlock unavailable on this kernel (abi=%d err=%v)", abi, err)
+	}
+	reexec := func(shellCmd string) string {
+		args := []string{
+			"-ro", "/usr", "-ro", "/bin", "-ro", "/lib", "-ro", "/lib64", "-ro", "/etc",
+			"-ro-file", "/proc/self/maps", "-require-landlock", "--", "/bin/sh", "-c", shellCmd,
+		}
+		cmd := exec.Command(os.Args[0], args...)
+		cmd.Env = append(os.Environ(), "EVEY_LAUNCHER_REEXEC=1")
+		out, _ := cmd.CombinedOutput()
+		return string(out)
+	}
+	if out := reexec("read l < /proc/self/maps && echo MAPS-OK"); !strings.Contains(out, "MAPS-OK") {
+		t.Fatalf("the granted file must be readable, got %q", out)
+	}
+	for _, denied := range []string{"net/tcp", "mountinfo", "environ", "status"} {
+		out := reexec("read l < /proc/self/" + denied + " && echo LEAKED")
+		if strings.Contains(out, "LEAKED") {
+			t.Errorf("/proc/self/%s readable with only maps granted: %q", denied, out)
+		}
+	}
+}
+
 func TestSupportedNetAccess_PerABI(t *testing.T) {
 	for abi := 1; abi <= 3; abi++ {
 		if supportedNetAccess(abi) != 0 {

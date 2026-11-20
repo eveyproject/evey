@@ -1,5 +1,5 @@
 ---
-source_sha: da7363e10ec01a815d0a3ca8b730a50e2c23afc00c96395f2740b3d7a2840f6b
+source_sha: 58c9f2033d994c265409f943a03c3ecdfebe68484e88c1a7d2abf916dab22917
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -20,7 +20,7 @@ plus.
 name: my-plugin              # obligatoire ; unique, en kebab-case
 version: 1.2.3               # obligatoire ; semver, X.Y.Z ou X.Y.Z-label
 kind: plugin                 # obligatoire ; "plugin" ou "theme"
-language: nodejs             # obligatoire pour un plugin ; un environnement de l'image
+language: nodejs             # obligatoire pour un plugin ; choisit les stubs copiés
 entrypoint: node index.js    # obligatoire pour un plugin ; la ligne de commande que le serveur lance
 
 display_name: My Plugin      # facultatif ; une chaîne, ou une table {en: ..., fr: ...}
@@ -56,8 +56,8 @@ config_schema:               # les champs du panneau Config sur la carte du plug
 |---|---|
 | `name`, `version`, `kind` | Obligatoires. `version` doit suivre `X.Y.Z` ou `X.Y.Z-label` ; une mise à jour doit porter une version supérieure à celle installée. |
 | `display_name` | Le nom que voient les gens ; `name` reste l'identifiant qui relie une mise à jour à son plugin. Une chaîne seule compte comme de l'anglais et vaut pour toutes les langues ; une table est indexée par code de langue (`en`, `fr`, `pt-BR`). Chaque valeur fait de 1 à 40 caractères, sans espace autour ni caractère de contrôle. Aujourd'hui, c'est le sélecteur de thème qui l'affiche. |
-| `language` | Obligatoire pour `kind: plugin` : `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` ou `go`. Il détermine la vérification de l'environnement et les stubs copiés à côté du point d'entrée ; il ne lance rien. |
-| `entrypoint` | Obligatoire pour `kind: plugin`. Le premier mot est l'interpréteur (ou le binaire, avec `native-binary`), le reste ses arguments ; le processus tourne dans le dossier du plugin. |
+| `language` | Obligatoire pour `kind: plugin`, toute valeur. Il choisit les stubs copiés à côté du point d'entrée (ceux de `sdk/<language>/`). Pour un script lancé par son shebang (`entrypoint: main.py`), `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` et `sh` exigent en plus cet interpréteur dans l'image. Il ne lance rien. |
+| `entrypoint` | Obligatoire pour `kind: plugin`. Le premier mot est un fichier du paquet (un binaire, avec `native-binary`, ou un script) ou sinon une commande de l'image trouvée dans son `PATH` (`node`, `python3`, `java`, `dotnet`), le reste ses arguments ; une commande absente refuse l'installation. Le processus tourne dans le dossier du plugin. |
 | `permissions` | Chaque valeur doit figurer dans le [catalogue des permissions](security-model.md#permissions-catalog). `network` exige un `external_fetch` non vide. |
 | `external_fetch` | Des noms d'hôte. Un schéma et un chemin final sont retirés à l'analyse ; les hôtes correspondent exactement, un joker `*.example.com` est refusé à l'installation ; une entrée sans port n'autorise que les ports 80 et 443, `host:port` n'autorise que ce port ; une adresse IP fait refuser l'installation ([règles](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` ou `notification.sender` ; toute autre valeur est refusée. Un thème ne peut en déclarer aucune. |
@@ -351,7 +351,7 @@ autres - vivent chacun dans leur propre dépôt sous [eveyproject](https://githu
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
-runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint ; launchers: runner_start.go - resolveCommand ; launcher_resolve.go - lookupLauncher
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
 env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)

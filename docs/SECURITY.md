@@ -407,9 +407,14 @@ the **Host sandbox** line of **Admin → Plugins → Security Dashboard**.
 - **Filesystem:** a Landlock allowlist applied by the launcher. System
   directories (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`, `/app`)
   read-only; of `/dev`, only `null`, `zero`, `full`, `random` and `urandom`,
-  so graphics card nodes and the server's terminal stay out of reach; the
+  so graphics card nodes and the server's terminal stay out of reach; of
+  `/proc`, only the plugin's own `maps`, so the container's connections
+  (`net/tcp`), its mount points and other processes stay out of reach; the
   plugin's directory and socket directory read-write; everything else,
-  including `/data` and other plugins, denied. A plugin granted
+  including `/data` and other plugins, denied. A plugin started by a runtime
+  installed in a directory of its own under `/opt` also reads that
+  directory; a runtime anywhere else outside the system directories, or whose
+  directory would hold the plugins or the server, is refused. A plugin granted
   `hardware.gpu` gets its render node as the one exception.
 - **Network:** `-restrict-net` and `-deny-inet`; egress only through `Fetch`.
 - **System calls:** the kernel filter and the `LD_PRELOAD` filter.
@@ -444,7 +449,10 @@ the **Host sandbox** line of **Admin → Plugins → Security Dashboard**.
 
 ### `strict`
 
-`bubblewrap` plus the `LD_PRELOAD` filter (interpreted plugins only).
+`bubblewrap` plus the `LD_PRELOAD` filter, loaded by the plugin inside the
+sandbox (plugins that do not declare `subprocess`). Up to 0.1.9 this mode
+refused every plugin at start: the filter was loaded by `bwrap` itself and
+denied the namespaces it creates.
 
 ### `basic`
 
@@ -524,7 +532,7 @@ Do not test against Evey instances that are not yours.
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
 package source: internal/app/plugin/install.go - CheckRequestedSource, ErrInsecureSource, downloadIfURL (http and redirect refusal, 100 MB) ; installer_service.go - SafeHTTPClientNoProxy ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; internal/adapters/driving/http/plugin_asset_handler.go - preview JSON source ; internal/pkg/ssrf/dialer.go
-runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
+runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes, safeProcFiles ; launcher_resolve.go - computeRuntimeReadPaths, runtimeRootExposable ; runner_sandbox.go - applyBwrapSandbox, runner_bwrap.go - withBwrapPreload (strict) ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
 resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
 bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx
 config: internal/config/config.go - EVEY_PLUGINS_SANDBOX_MODE, EVEY_PLUGINS_UID_SEPARATION, EVEY_PLUGINS_COSIGN_POLICY, EVEY_PLUGINS_COSIGN_PUBLIC_KEY, EVEY_PLUGINS_MEMORY_MB, EVEY_PLUGINS_PIDS_MAX, EVEY_PLUGINS_DISK_MAX_MB, EVEY_PLUGINS_CPU_NICE, EVEY_SERVER_PORT, EVEY_GRPC_BIND

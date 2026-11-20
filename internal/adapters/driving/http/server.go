@@ -87,7 +87,10 @@ type HTTPServer struct {
 	// than the raw JWT generator.
 	TokenGen domainuser.TokenGenerator
 	// PluginTokenGen parses scoped plugin tokens (outside user.TokenGenerator).
-	PluginTokenGen   PluginTokenParser
+	PluginTokenGen PluginTokenParser
+	// PluginLaunchers lists the image launchers installed plugins start
+	// through (absolute paths), for the admin's runtime list. nil lists none.
+	PluginLaunchers  func(context.Context) []string
 	Cfg              *config.Config
 	StreamTokenStore *appmedia.StreamTokenStore
 	ShareSvc         *appmedia.ShareService
@@ -887,7 +890,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	// Ratings, popular, analytics, filter → gRPC (grpcapi/rating_handler, activity_handler, library_handler)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen, s.LibQuerySvc)
-	registerAvailableRuntimesRoute(mux, s.TokenGen)
+	registerAvailableRuntimesRoute(mux, s.TokenGen, s.PluginLaunchers)
 	musicOpts := []musicRouteOption{}
 	if s.PhotoCacheDir != "" {
 		// Track (tag-embedded) art variants live next to the photo cache, under

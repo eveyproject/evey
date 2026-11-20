@@ -177,6 +177,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		SearchHealth: deps.searchHealth,
 
 		TokenGen:         deps.auth.userTokenGen,
+		PluginLaunchers:  pluginLaunchers(deps),
 		PluginTokenGen:   deps.auth.tokenGen,
 		Cfg:              cfg,
 		StreamTokenStore: deps.media.streamTokenStore,
@@ -462,4 +463,23 @@ func startUpdateCheck(ctx context.Context, cfgRepo shared.ServerConfigRepository
 		svc.Start(ctx)
 	}
 	return svc
+}
+
+// pluginLaunchers lists the image launchers installed plugins start through
+// (java, dotnet...), for the admin's runtime list.
+func pluginLaunchers(deps *appDeps) func(context.Context) []string {
+	return func(ctx context.Context) []string {
+		plugins, err := deps.engagement.pluginQuerySvc.ListPlugins(ctx)
+		if err != nil {
+			slog.WarnContext(ctx, "list plugins for the runtime list", slog.Any("err", err))
+			return nil
+		}
+		var out []string
+		for _, p := range plugins {
+			if path, ok := deps.pluginRunner.ImageLauncher(p); ok {
+				out = append(out, path)
+			}
+		}
+		return out
+	}
 }
