@@ -209,6 +209,43 @@ func TestApplyBwrapSandbox_PayloadRunsThroughLauncher(t *testing.T) {
 	assert.Contains(t, cmd.Env, "TMPDIR=/data/plugins/bwrap-launcher")
 }
 
+// TestApplyBwrapSandbox_StrictPreloadsThePayloadNotBwrap: in strict mode the
+// seccomp lib is loaded by the sandboxed process. In bwrap's own environment
+// it denies the unshare bwrap exists to do, and no plugin starts.
+func TestApplyBwrapSandbox_StrictPreloadsThePayloadNotBwrap(t *testing.T) {
+	binDir := t.TempDir()
+	fakeBwrap := filepath.Join(binDir, "bwrap")
+	require.NoError(t, os.WriteFile(fakeBwrap, []byte("#!/bin/sh\n"), 0o755)) //nolint:gosec // test stub must be executable
+	t.Setenv("PATH", binDir)
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", filepath.Join(binDir, "missing-launcher"))
+	lib := filepath.Join(binDir, "libevey-sandbox.so")
+	require.NoError(t, os.WriteFile(lib, []byte("stub"), 0o644)) //nolint:gosec // test stub
+
+	strict := func(perms ...string) *exec.Cmd {
+		r := NewRunner(t.TempDir()).WithSandboxLibPath(lib)
+		p := &plugin.Plugin{ID: "bwrap-strict", InstallDir: "/data/plugins/bwrap-strict", Permissions: perms}
+		cmd := exec.Command("/usr/bin/node", "main.js")
+		cmd.Env = []string{"EVEY_PLUGIN_ID=bwrap-strict"}
+		_, info, err := r.applyBwrapSandbox(context.Background(), p, cmd, sandboxModeStrict)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = info.Close() })
+		return cmd
+	}
+
+	cmd := strict()
+	for _, e := range cmd.Env {
+		assert.False(t, strings.HasPrefix(e, "LD_PRELOAD="), "bwrap itself must not load the lib: %s", e)
+	}
+	sep := slices.Index(cmd.Args, "--")
+	require.Positive(t, sep)
+	flags := strings.Join(cmd.Args[:sep], " ")
+	assert.Contains(t, flags, "--setenv LD_PRELOAD "+lib)
+	assert.Contains(t, flags, "--ro-bind "+lib+" "+lib, "the lib lives outside the bound system dirs")
+
+	// A plugin allowed to spawn children does not get the execve-denying lib.
+	assert.NotContains(t, strings.Join(strict(subprocessPerm).Args, " "), "LD_PRELOAD")
+}
+
 // TestBuildBwrapCmd_MasksTTY: /dev/tty (the terminal the server was started
 // from, TIOCSTI) is masked by an unopenable bind of /dev/null.
 func TestBuildBwrapCmd_MasksTTY(t *testing.T) {

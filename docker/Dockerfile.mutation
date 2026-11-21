@@ -18,7 +18,23 @@ RUN apk add --no-cache gcc musl-dev linux-headers git bash
 
 # Pinned: 0.5.0 is the version whose behaviour is documented above. A bump may
 # add --exclude and make part of this setup unnecessary - check before upgrading.
-RUN go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.5.0
+#
+# 0.5.0 guesses a mutant's package by walking up from the file's directory
+# until a directory ends with the package clause. internal/adapters/driving/http
+# declares `package httpapi`, so the walk reaches the root and every mutant ran
+# `go test <module root>`, which fails to build and counts as KILLED: a 100%
+# score in seconds. The patch takes the file's own directory, which is what
+# `go test` needs whatever the package is called.
+RUN go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.5.0 \
+    && cp -r "$(go env GOMODCACHE)/github.com/go-gremlins/gremlins@v0.5.0" /tmp/gremlins \
+    && chmod -R u+w /tmp/gremlins && cd /tmp/gremlins \
+    && sed -i -e 's|if strings.HasSuffix(p, fPkg) {|if fPkg != "" {|' \
+              -e 's|pkg = fmt.Sprintf("%s/%s", mu.module.Name, p)|pkg = filepath.ToSlash(filepath.Join(mu.module.Name, p))|' \
+              internal/engine/engine.go \
+    && grep -q 'if fPkg != "" {' internal/engine/engine.go \
+    && grep -q 'filepath.Join(mu.module.Name, p)' internal/engine/engine.go \
+    && go build -o "$(go env GOPATH)/bin/gremlins" ./cmd/gremlins \
+    && cd / && rm -rf /tmp/gremlins
 
 # Same non-root uid as the test image's plugin user, so anything this container
 # writes into a mounted volume stays consistent with the rest of the stack.

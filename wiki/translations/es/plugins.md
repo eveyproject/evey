@@ -1,5 +1,5 @@
 ---
-source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
+source_sha: a6ee5bb3a713126f80980171824729c7a7f52b33aea955b32f44d8d66312d559
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -30,6 +30,26 @@ página.
 
 </div>
 
+## Plugins oficiales { #official-plugins }
+
+El proyecto Evey publica los plugins y temas de abajo, cada uno en su propio
+repositorio. Para instalar uno, pega el enlace de su repositorio en la pestaña
+**Desde URL** de **Instalar plugin**: el servidor toma la última release, y el
+paquete sigue después ese repositorio para sus actualizaciones. Sus releases
+están firmadas con la clave del proyecto, que es de confianza desde el
+principio.
+
+| Nombre | Tipo | Qué hace | Repositorio |
+| --- | --- | --- | --- |
+| Tiempo | Plugin | El tiempo local en la página de inicio, sobre un cielo que le corresponde. | [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) |
+| Marquee | Plugin | Un muro de carteles hecho con tu biblioteca, con una ruleta para elegir qué ver esta noche. | [evey-plugin-marquee](https://github.com/eveyproject/evey-plugin-marquee) |
+| Librarian | Plugin | Lista los duplicados probables y las películas que faltan en una saga numerada. Lee la biblioteca y nunca toca un archivo. | [evey-plugin-librarian](https://github.com/eveyproject/evey-plugin-librarian) |
+| CShell | Tema | Un aspecto de terminal: negro puro, ámbar, fuente monoespaciada. | [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) |
+| Azul oscuro | Tema | Un tema de color azul oscuro. | [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) |
+
+Para escribir el tuyo, [evey-plugin-template](https://github.com/eveyproject/evey-plugin-template) es un repositorio del que partir:
+un plugin mínimo, sus pruebas y el workflow que firma sus releases.
+
 ## Instalar un plugin { #install-a-plugin }
 
 1. En **Administración → Plugins**, abre **Instalar plugin** y elige el
@@ -57,10 +77,13 @@ página.
 </figure>
 
 Un paquete cuyo análisis encuentra un patrón crítico se rechaza, respondas lo
-que respondas. Los avisos se muestran y la decisión es tuya. El lenguaje del
-plugin tiene que estar entre los **Entornos de ejecución disponibles** del
-servidor: la imagen por defecto trae Python, Node.js, PHP, Ruby y Lua, la imagen
-`-nodejs` conserva Python y Node.js y la imagen `-lean` solo Python.
+que respondas. Los avisos se muestran y la decisión es tuya. El entorno de
+ejecución que arranca el plugin tiene que estar en la imagen del servidor: la
+imagen por defecto trae Python, Node.js, PHP, Ruby y Lua, la imagen
+`-nodejs` conserva Python y Node.js, la imagen `-lean` solo Python, y
+[cualquier otro se añade a la imagen](plugins/dev-setup.md#a-runtime-the-image-does-not-carry).
+Los **Entornos de ejecución disponibles** listan los que el servidor ha
+encontrado y aquel con el que arranca cada plugin instalado.
 
 !!! tip "Plugins firmados"
     El autor de un plugin puede firmar el ZIP con [cosign](https://docs.sigstore.dev/cosign/system_config/installation/);
@@ -244,6 +267,9 @@ y, opcionalmente, un script aislado en un marco oculto. Se instala desde el
 mismo cuadro **Instalar plugin**; la hoja de estilos se sanea al instalarla.
 Después, cada usuario lo elige en **Ajustes → Apariencia → Tema**. Lo que
 puede contener un tema se describe en [Temas](themes.md).
+
+Los temas del proyecto aparecen en
+[Plugins oficiales](#official-plugins).
 
 ## Escribir un plugin { #writing-a-plugin }
 

@@ -179,7 +179,7 @@ func TestAvailableRuntimes_OK(t *testing.T) {
 	adminToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "admin-1", IsAdmin: true})
 
 	mux := http.NewServeMux()
-	registerAvailableRuntimesRoute(mux, gen)
+	registerAvailableRuntimesRoute(mux, gen, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/plugin-runtimes/available", nil)
 	req.Header.Set("Authorization", "Bearer "+adminToken)

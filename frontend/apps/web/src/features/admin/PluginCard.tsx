@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { type ConfigFieldSchema, normaliseOptions, validateConfigField } from "@evey/client";
+import { type ConfigFieldSchema, normaliseOptions, refreshPluginLists, validateConfigField } from "@evey/client";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -15,7 +15,6 @@ import {
   useAdminPluginServiceUpdatePluginConfig,
   useAdminPluginServiceGetPluginLogs,
   getAdminPluginServiceGetPluginConfigQueryKey,
-  getAdminPluginServiceListPluginsQueryKey,
   apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
@@ -26,6 +25,8 @@ import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 import { PluginMetadataSettings } from "./PluginMetadataSettings";
 import { PluginSignatureBadge } from "./PluginSignatureBadge";
 import { PluginAutoUpdate } from "./PluginAutoUpdate";
+import { PluginIframe } from "@/features/plugins/PluginIframe";
+import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
 
 type PluginWithPermissions = V1Plugin & {
   permissions?: string[];
@@ -172,6 +173,9 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
     try { return JSON.parse(data.configSchemaJson); }
     catch (err) { console.warn("parse failed", err); return undefined; }
   }, [data?.configSchemaJson]);
+  // A plugin that draws its own config panel (a city picker, say) gets it
+  // here in place of the generated form; it saves through evey.config.save.
+  const ownPanel = usePluginSlotEntries("admin.plugin.config").find((e) => e.pluginId === pluginId);
 
   const updateConfig = useAdminPluginServiceUpdatePluginConfig({
     mutation: {
@@ -184,6 +188,20 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugin.configSaveFailed"))),
     },
   });
+
+  if (ownPanel) {
+    return (
+      <DemoReadOnly>
+        <PluginIframe
+          pluginId={ownPanel.pluginId}
+          slot="admin.plugin.config"
+          src={ownPanel.entryPath}
+          externalFetch={ownPanel.externalFetch}
+          onConfigSaved={() => queryClient.invalidateQueries({ queryKey: getAdminPluginServiceGetPluginConfigQueryKey(pluginId) })}
+        />
+      </DemoReadOnly>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -470,7 +488,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
             setUpdateSource(null);
             setUpdateSourceInput("");
             // Refresh the card's version / source hash / permission badges.
-            void queryClient.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() });
+            void refreshPluginLists(queryClient);
           }}
         />
       )}

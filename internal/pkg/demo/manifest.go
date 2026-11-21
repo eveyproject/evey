@@ -278,25 +278,31 @@ var Manifest = []MediaFile{
 }
 
 // Plugin is one plugin the demo bootstrap installs so the plugin panel and
-// the home slots have something to show. File is the bundle's name under the
-// demo plugin directory (EVEY_DEMO_PLUGIN_DIR): the operator drops the
-// plugin's signed release there with its .sig beside it, the bootstrap
-// installs, enables and configures it, and skips it when the file is absent.
-// Config is applied at every boot, so a restore puts the plugin back the way
-// the demo shows it.
+// the home slots have something to show. Repository is the plugin's GitHub
+// repository: the bootstrap installs its latest signed release from there and
+// the plugin then follows it, like an install from that link in the panel.
+// File is an optional bundle name under the demo plugin directory
+// (EVEY_DEMO_PLUGIN_DIR), for a server that cannot reach GitHub: when it is
+// there it is installed instead, with its .sig beside it. Config is applied at
+// every boot, so a restore puts the plugin back the way the demo shows it.
 type Plugin struct {
-	Name   string
-	File   string
-	Config map[string]any
+	Name       string
+	Repository string
+	File       string
+	Config     map[string]any
 }
 
 // Plugins are installed at boot when missing, by name. Only visual on the
 // demo: every plugin write except reading the config is locked (policy.go).
-// The bundle is the release ZIP of the eveyproject/evey-plugin-weather
-// repository saved as weather.zip, with its signature beside it as
-// weather.zip.sig: the default signature policy refuses an unsigned package.
+// The release is signed by the project key, trusted out of the box, so the
+// default signature policy accepts it.
 var Plugins = []Plugin{
-	{Name: "weather", File: "weather.zip", Config: map[string]any{"city": "Paris", "units": "celsius"}},
+	{
+		Name:       "weather",
+		Repository: "https://github.com/eveyproject/evey-plugin-weather",
+		File:       "weather.zip",
+		Config:     map[string]any{"city": "Paris", "units": "celsius"},
+	},
 }
 
 // RetiredPlugins were seeded by an earlier demo and are uninstalled at boot

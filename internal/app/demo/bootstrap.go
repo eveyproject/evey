@@ -705,12 +705,14 @@ func randomPassword() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// EnsurePlugins installs each demo plugin whose bundle sits under the plugin
-// directory, enables it and (re)applies the manifest's config - at every boot,
-// so a visitor cannot leave it in another state and a restore shows the demo
-// as designed. A bundle that is missing is logged and skipped: the demo works
-// without its plugins, the operator sees what to drop where. No-op unless
-// WithPlugins was given.
+// EnsurePlugins installs each demo plugin that is missing, enables it and
+// (re)applies the manifest's config - at every boot, so a visitor cannot leave
+// it in another state and a restore shows the demo as designed. A bundle the
+// operator dropped under the plugin directory wins; otherwise the plugin comes
+// from its repository's latest release. A plugin that cannot be had (no
+// bundle, repository unreachable) is logged and skipped: the demo works
+// without its plugins and the next boot tries again. No-op unless WithPlugins
+// was given.
 func (b *Bootstrapper) EnsurePlugins(ctx context.Context) (map[string]string, error) {
 	ids := map[string]string{}
 	if b.plugins == nil || b.installer == nil || b.runtime == nil {
@@ -732,14 +734,19 @@ func (b *Bootstrapper) EnsurePlugins(ctx context.Context) (map[string]string, er
 			return nil, fmt.Errorf("demo: look up plugin %s: %w", spec.Name, err)
 		}
 		if p == nil {
-			bundle := filepath.Join(b.pluginDir, spec.File)
-			if _, statErr := os.Stat(bundle); statErr != nil {
-				b.log.Warn("demo: plugin bundle absent, plugin skipped - build it from examples/plugins and drop it there",
-					"plugin", spec.Name, "bundle", bundle)
+			source := b.pluginSource(spec)
+			if source == "" {
+				b.log.Warn("demo: no bundle and no repository, plugin skipped",
+					"plugin", spec.Name, "bundle_dir", b.pluginDir)
 				continue
 			}
-			if p, err = b.installer.InstallPlugin(ctx, bundle); err != nil {
-				return nil, fmt.Errorf("demo: install plugin %s: %w", spec.Name, err)
+			if p, err = b.installer.InstallPlugin(ctx, source); err != nil {
+				if source != spec.Repository {
+					return nil, fmt.Errorf("demo: install plugin %s: %w", spec.Name, err)
+				}
+				b.log.Warn("demo: plugin not installed from its repository, skipped until the next boot",
+					"plugin", spec.Name, "repository", spec.Repository, "err", err)
+				continue
 			}
 			b.log.Info("demo: plugin installed", "plugin", spec.Name, "version", p.Version)
 			if err = b.recordInstalledPlugin(ctx, spec.Name); err != nil {
@@ -765,6 +772,19 @@ func (b *Bootstrapper) EnsurePlugins(ctx context.Context) (map[string]string, er
 		}
 	}
 	return ids, nil
+}
+
+// pluginSource is where a missing demo plugin is installed from: the bundle
+// under the plugin directory when the operator dropped one, else the plugin's
+// repository, else nothing.
+func (b *Bootstrapper) pluginSource(spec demo.Plugin) string {
+	if spec.File != "" {
+		bundle := filepath.Join(b.pluginDir, spec.File)
+		if _, err := os.Stat(bundle); err == nil {
+			return bundle
+		}
+	}
+	return spec.Repository
 }
 
 // ArrangeHome writes the demo's default home page (pkg/demo.Home) as the admin
@@ -959,8 +979,9 @@ func (b *Bootstrapper) SeedHistory(ctx context.Context, libs map[string]shared.L
 }
 
 // seedOne writes one title's progress unless the profile already has some.
-// percent 0 marks it watched; otherwise the position is that share of the
-// file's duration (a title whose duration is unknown is marked watched).
+// percent 0 is a title played to its end, which the watch history lists;
+// otherwise the position is that share of the file's duration. A title whose
+// duration is unknown is marked watched, and the history leaves it out.
 func (b *Bootstrapper) seedOne(ctx context.Context, profileID string, item *library.MediaItem, percent int) error {
 	if existing, err := b.progress.GetByProfileAndMedia(ctx, profileID, string(item.ID)); err == nil && existing != nil {
 		return nil
@@ -969,9 +990,13 @@ func (b *Bootstrapper) seedOne(ctx context.Context, profileID string, item *libr
 	if item.File != nil {
 		durationMs = int64(item.File.Duration.Seconds() * 1000)
 	}
-	if percent <= 0 || durationMs <= 0 {
+	if durationMs <= 0 {
 		if err := b.history.MarkAsWatched(ctx, profileID, string(item.ID)); err != nil {
 			return fmt.Errorf("demo: seed history: mark %s watched: %w", item.Title, err)
+		}
+	} else if percent <= 0 {
+		if err := b.history.ReportProgress(ctx, profileID, string(item.ID), durationMs, true); err != nil {
+			return fmt.Errorf("demo: seed history: finish %s: %w", item.Title, err)
 		}
 	} else if err := b.history.ReportProgress(ctx, profileID, string(item.ID), durationMs*int64(percent)/100, false); err != nil {
 		return fmt.Errorf("demo: seed history: resume %s: %w", item.Title, err)

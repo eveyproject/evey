@@ -231,6 +231,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appuser.WithLoginAttemptRepository(r.LoginAttempt),
 		appuser.CommandWithTokenRevoker(securityRevoker),
 	}
+	// The public demo serves its visitors the audio track a browser plays
+	// without a server encode, among those of the picked language.
+	apptranscoding.SetDemoAudioDefault(cfg.Server.Demo)
 	if cfg.Server.Demo && !cfg.Server.DemoExtended {
 		// The published demo password is shorter than the production floor;
 		// the floor is a parameter of the service, chosen here, not a mode it
@@ -1213,12 +1216,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// The media-item repo doubles as the seek-index fingerprint refresher, so a
 		// reindexed file isn't re-probed (and its keyframe index dropped) by the
 		// next scan. r.MediaItem satisfies appmaintenance.FileStateRefresher.
-		seekIndexFileState: r.MediaItem,
-		interleaveRecorder: r.MediaItem,
-		keyframeOnDemand:   keyframeOnDemand,
-		loadTestRunner:     loadTestRunner,
-		loadTestBaseURL:    loadTestBaseURL,
-		loadTestPublicURL:  loadTestPublicURL,
+		seekIndexFileState:      r.MediaItem,
+		interleaveRecorder:      r.MediaItem,
+		containerDamageRecorder: r.MediaItem,
+		keyframeOnDemand:        keyframeOnDemand,
+		loadTestRunner:          loadTestRunner,
+		loadTestBaseURL:         loadTestBaseURL,
+		loadTestPublicURL:       loadTestPublicURL,
 		library: libraryDeps{
 			cmdSvc:            libCmdSvc,
 			querySvc:          libQuerySvc,
@@ -1310,13 +1314,16 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			profileRepo:       r.Profile,
 			serverCfgRepo:     r.ServerCfg,
 			mediaItemRepo:     r.MediaItem,
-			userRepo:          r.User,
-			apiKeyRepo:        r.APIKey,
-			pluginRepo:        r.Plugin,
-			pluginDataRepo:    r.PluginData,
-			quickConnectRepo:  r.QuickConnect,
-			introMetaCache:    r.IntroMetadataCache,
-			repairJournal:     postgres.NewRepairJournalRepository(r.AuditLog),
+			directPlayRefusals: func(ctx context.Context, id string) error {
+				return r.MediaItem.MarkDirectPlayRefused(ctx, shared.MediaItemID(id))
+			},
+			userRepo:         r.User,
+			apiKeyRepo:       r.APIKey,
+			pluginRepo:       r.Plugin,
+			pluginDataRepo:   r.PluginData,
+			quickConnectRepo: r.QuickConnect,
+			introMetaCache:   r.IntroMetadataCache,
+			repairJournal:    postgres.NewRepairJournalRepository(r.AuditLog),
 		},
 		cfgStore:          httpapi.NewServerConfigStore(r.ServerCfg),
 		serverCfgSvc:      serverCfgSvc,

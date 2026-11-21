@@ -1,5 +1,5 @@
 ---
-source_sha: a4895e025890778a9d0a64f0760fdd0793e0bf99d8c1cb1c158001fb30f2cd84
+source_sha: 1cc00b0dac14b87babd7bfde92f460e224a48a7f9e3bd7a3ac1b0b86fa0c6f9f
 reviewed: true
 ---
 # Serveur et réseau { #server-and-network }
@@ -17,6 +17,7 @@ distant** enregistre ensuite l'emporte sur elles, comme l'explique la
 | `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | L'adresse publique. Une adresse en `https://` active les cookies `Secure`, HSTS et la confiance dans `X-Forwarded-Proto`. Les liens des e-mails, les redirections d'authentification unique et les URL de diffusion en sont dérivés. | Accès distant → **URL externe** l'emporte quand elle est renseignée, immédiat ; une URL externe en `https://` active aussi le HTTPS |
 | `EVEY_SERVER_PORT` | `9090` | Le port gRPC interne. L'API HTTP et l'interface web écoutent sur ce port plus un (`9091`). | aucun |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | L'adresse d'écoute du port gRPC. Le contrôle d'accès distant ne couvre pas gRPC : l'élargir (`0.0.0.0`) affiche un avertissement, et le filtrer devient votre responsabilité. | aucun |
+| `EVEY_CLIENT_UPDATES_DIR` | `/app/client-updates` | Le dossier où le serveur lit le code des applications Android ([Mises à jour des applications servies par l'instance](../client-updates.md)). Les images publiées le remplissent ; rien n'est servi quand il est vide ou absent. | aucun |
 | `EVEY_SERVER_NAME` | `Evey` | Le nom affiché sur la page de connexion, dans la liste des serveurs des applications et dans les e-mails. | Configuration du serveur → Général → **Nom du serveur**, immédiat |
 
 ## Reverse proxy { #reverse-proxy }

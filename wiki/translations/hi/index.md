@@ -1,5 +1,5 @@
 ---
-source_sha: 59bcc3e9f3711296c6f1a612c4b161e7d6db4b6f45f2f3a8cd4b7bb292c1de82
+source_sha: 07924b10bf7a7ec7bda9b0eeeeb9e20b66dbbe8a3ce442e7d43187be3de7e9fa
 reviewed: true
 hide:
 - navigation
@@ -180,6 +180,7 @@ MKV और WebM फ़ाइलें जाँचता है और जो �
 तरीका चल रहा है। प्लगइन का विजेट वेब पर, Android पर और TV पर दिखता है। TV पर
 आप उसे देख सकते हैं, पर इस्तेमाल नहीं कर सकते।
 [प्लगइन](plugins.md) ·
+[आधिकारिक प्लगइन](plugins.md#official-plugins) ·
 [सुरक्षा मॉडल और प्लगइन सैंडबॉक्स](SECURITY.md#sandbox-modes)
 
 ## कहाँ से शुरू करें { #find-your-way }

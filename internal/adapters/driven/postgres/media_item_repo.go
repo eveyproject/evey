@@ -35,7 +35,7 @@ const DefaultListLimit = 500
 const mediaItemColumns = `mi.id, mi.library_id, mi.parent_id, mi.type, mi.title, mi.scan_title,
 	 mi.sort_title, mi.original_title, mi.overview, mi.tagline, mi.index_number,
 	 mi.added_at, mi.updated_at, mi.latest_child_added_at,
-	 mf.file_path, mf.file_size, mf.file_fingerprint, mf.mod_time, mf.duration_ms, mf.bitrate, mf.container_format, mf.stream_probe_attempts, mf.interleave_backstep_ms, mf.stream_probe_version, mf.parser_version,
+	 mf.file_path, mf.file_size, mf.file_fingerprint, mf.mod_time, mf.duration_ms, mf.bitrate, mf.container_format, mf.stream_probe_attempts, mf.interleave_backstep_ms, mf.stream_probe_version, mf.parser_version, mf.container_damaged_bytes, mf.container_check_version, mf.direct_play_refused,
 	 mc.premiere_date, mc.year, mc.provider_ids, mc.genres, mc.studios, mc.tags,
 	 mcl.community_rating, mcl.official_rating, mcl.certifications_by_country, mcl.provider_ratings,
 	 scl.official_rating, scl.certifications_by_country, sct.tags,
@@ -75,28 +75,37 @@ func NewMediaItemRepository(db *sql.DB) *MediaItemRepository {
 // stripped (so the row inserts); such a file needs renaming to play.
 // U+0000 is valid UTF-8 that Postgres refuses all the same, with the same
 // every-pass failure; it goes too.
+//
+// A field is written only when stripping changes it. The file and the catalog
+// are pointers a caller may share between items (a shallow copy of an item
+// shares them), and two writers saving such items at once would otherwise
+// race on fields they both leave as they are.
 func sanitizeMediaItemText(item *library.MediaItem) {
-	v := func(s string) string { return strings.ReplaceAll(strings.ToValidUTF8(s, ""), "\x00", "") }
-	item.Title = v(item.Title)
-	item.ScanTitle = v(item.ScanTitle)
-	item.SortTitle = v(item.SortTitle)
-	item.OriginalTitle = v(item.OriginalTitle)
-	item.Overview = v(item.Overview)
-	item.Tagline = v(item.Tagline)
+	v := func(p *string) {
+		if s := strings.ReplaceAll(strings.ToValidUTF8(*p, ""), "\x00", ""); s != *p {
+			*p = s
+		}
+	}
+	v(&item.Title)
+	v(&item.ScanTitle)
+	v(&item.SortTitle)
+	v(&item.OriginalTitle)
+	v(&item.Overview)
+	v(&item.Tagline)
 	if item.File != nil {
-		item.File.Path = v(item.File.Path)
-		item.File.ContainerFormat = v(item.File.ContainerFormat)
-		item.File.Fingerprint = v(item.File.Fingerprint)
+		v(&item.File.Path)
+		v(&item.File.ContainerFormat)
+		v(&item.File.Fingerprint)
 	}
 	if item.Catalog != nil {
 		for i := range item.Catalog.Genres {
-			item.Catalog.Genres[i] = v(item.Catalog.Genres[i])
+			v(&item.Catalog.Genres[i])
 		}
 		for i := range item.Catalog.Studios {
-			item.Catalog.Studios[i] = v(item.Catalog.Studios[i])
+			v(&item.Catalog.Studios[i])
 		}
 		for i := range item.Catalog.Tags {
-			item.Catalog.Tags[i] = v(item.Catalog.Tags[i])
+			v(&item.Catalog.Tags[i])
 		}
 	}
 }

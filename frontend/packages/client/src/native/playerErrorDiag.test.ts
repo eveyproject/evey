@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { audioDecoderFailureCodec, diagnoseNativePlayerError, playMethodName } from "./playerErrorDiag";
+import { audioDecoderFailureCodec, diagnoseNativePlayerError, playMethodName, containerParseFailure } from "./playerErrorDiag";
 
 // The message expo-video builds from an ExoPlayer PlaybackException: its own
 // message (renderer, format, format_supported) then its first cause's.
@@ -92,5 +92,22 @@ describe("playMethodName", () => {
     expect(playMethodName("PLAY_METHOD_TRANSCODE")).toBe("transcode");
     expect(playMethodName(undefined)).toBe("");
     expect(playMethodName("PLAY_METHOD_TRANSCODE", true)).toBe("offline");
+  });
+});
+
+describe("containerParseFailure", () => {
+  it("holds for ExoPlayer refusing a Matroska file a few stray bytes broke", () => {
+    expect(
+      containerParseFailure(
+        "A playback exception has occurred: Source error Invalid integer size: 30 {contentIsMalformed=true, dataType=1}",
+      ),
+    ).toBe(true);
+    expect(containerParseFailure("Source error ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED")).toBe(true);
+  });
+
+  it("does not hold for a manifest the player could not parse, nor any other failure", () => {
+    expect(containerParseFailure("Source error Input does not start with the #EXTM3U header. {contentIsMalformed=true, dataType=4}")).toBe(false);
+    expect(containerParseFailure("Source error Response code: 410")).toBe(false);
+    expect(containerParseFailure("")).toBe(false);
   });
 });

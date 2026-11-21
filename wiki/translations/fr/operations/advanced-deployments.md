@@ -1,5 +1,5 @@
 ---
-source_sha: f2e1240c1750c81d4a4d422aadadd53ecf86ab53d63aed2fc0a82c56e43e1d1f
+source_sha: 315726531fb31af3d0d5ebdc542a9ab361fbeb25f8cf24c185d7a44af2c48afb
 reviewed: true
 ---
 # Déploiements avancés { #advanced-deployments }
@@ -196,6 +196,26 @@ environnements d'exécution de plugins (Python 3, Node.js, PHP, Ruby et Lua),
 l'image compte : l'installateur refuse un plugin dont le langage déclaré manque
 à l'image, avec un message qui nomme l'image par défaut.
 
+Seule une image publiée par un tag de release ou de pré-release embarque le
+code que les applications Android prennent sur leur serveur
+([Mises à jour des applications servies par l'instance](../client-updates.md)).
+Une build de branche ou une image construite soi-même n'en sert aucun, et les
+applications gardent le code qu'elles ont.
+
+Les images publiées sont signées avec cosign, sans clé à distribuer : le
+signataire est le workflow du dépôt qui a construit l'image. Pour vérifier une
+release, avec cosign 3 ou plus récent :
+
+```bash
+cosign verify eveyproject/evey:X.Y.Z \
+  --certificate-identity https://github.com/eveyproject/evey/.github/workflows/ci.yml@refs/tags/vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Les releases 0.1.5 à 0.1.8 ont été signées après leur publication, par
+`sign-published-images.yml@refs/heads/master` à la place de
+`ci.yml@refs/tags/vX.Y.Z`. Les releases antérieures ne sont pas signées.
+
 Les images publiées embarquent les pilotes de chaque génération Intel et AMD
 prise en charge. Une image construite soi-même peut ne garder qu'une famille
 avec `docker build --build-arg GPU=intel-legacy .` (Intel Gen9 à Gen11),
@@ -219,5 +239,6 @@ embedded db, import, major upgrade, embedded meili: docker/entrypoint.sh (PG_MAJ
 external db switch and default password refusal: internal/config/config.go (EVEY_DB_HOST, hardFail on "evey")
 reindex: cmd/evey/admin.go - adminReindexSearch
 arm, variants, GPU families: Dockerfile (TARGETARCH, RUNTIMES, GPU) ; .github/workflows/ci.yml (tags, flavor suffix, platforms) ; internal/adapters/driven/ffmpeg/hwdetect.go - detectRKMPP
+app code and image signature: .github/workflows/ci.yml (client-updates-build, client-updates-sign, docker-sign) ; .github/workflows/sign-published-images.yml ; Dockerfile (COPY client-updates)
 sandbox auto: internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; i18n/fr/admin.yaml - plugins.security.title
 -->

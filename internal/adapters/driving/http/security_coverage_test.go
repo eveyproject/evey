@@ -266,7 +266,7 @@ func TestAvailableRuntimes_NoAuth_401(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 
 	mux := http.NewServeMux()
-	registerAvailableRuntimesRoute(mux, gen)
+	registerAvailableRuntimesRoute(mux, gen, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/plugin-runtimes/available", nil)
 	w := httptest.NewRecorder()

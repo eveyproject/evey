@@ -142,7 +142,7 @@ func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID 
 	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
-		if string(wp.ProfileID) == profileID {
+		if string(wp.ProfileID) == profileID && !wp.Position.IsZero() {
 			result = append(result, wp)
 		}
 	}
@@ -165,7 +165,7 @@ func (r *FakeWatchProgressRepository) GetByProfileCursor(_ context.Context, prof
 	defer r.mu.RUnlock()
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
-		if string(wp.ProfileID) == profileID {
+		if string(wp.ProfileID) == profileID && !wp.Position.IsZero() {
 			result = append(result, wp)
 		}
 	}

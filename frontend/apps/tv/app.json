@@ -2,7 +2,7 @@
   "expo": {
     "name": "Evey TV",
     "slug": "evey-tv",
-    "version": "0.2.12",
+    "version": "0.2.13",
     "scheme": "evey",
     "icon": "./assets/icon.png",
     "splash": {
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.evey.app",
-      "versionCode": 112,
+      "versionCode": 114,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-background.png",
@@ -31,6 +31,7 @@
       "./plugins/withCleartextTraffic",
       "./plugins/withReleaseSigning",
       "./plugins/withR8Minify",
+      "./plugins/withoutDeprecatedEdgeToEdge",
       [
         "./plugins/withUiScale",
         {

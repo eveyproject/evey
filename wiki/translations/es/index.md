@@ -1,5 +1,5 @@
 ---
-source_sha: 59bcc3e9f3711296c6f1a612c4b161e7d6db4b6f45f2f3a8cd4b7bb292c1de82
+source_sha: 07924b10bf7a7ec7bda9b0eeeeb9e20b66dbbe8a3ce442e7d43187be3de7e9fa
 reviewed: true
 hide:
 - navigation
@@ -184,6 +184,7 @@ El nivel de restricción del acceso a sus archivos depende de la máquina, y el 
 seguridad** muestra el modo que se usa. El widget de un plugin aparece en la
 web, en Android y en el televisor. En el televisor puedes verlo, pero no usarlo.
 [Plugins](plugins.md) ·
+[Plugins oficiales](plugins.md#official-plugins) ·
 [Modelo de seguridad y sandbox de plugins](SECURITY.md#sandbox-modes)
 
 ## Por dónde empezar { #find-your-way }

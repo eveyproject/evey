@@ -1,10 +1,10 @@
 ---
-source_sha: b190ab7985ddfa37e89a42378df8e93b54570bb6e51751fb52daa0e8570c4370
+source_sha: 9eec19e1270470e8eb8f676cf2f22f222554f5c5e20608454f081b7766ab01bd
 reviewed: true
 ---
 # Datenschutzerklärung { #privacy-policy }
 
-Zuletzt aktualisiert: 2026-10-26.
+Zuletzt aktualisiert: 2026-11-19.
 
 Diese Erklärung gilt für die Evey-Apps für Android und Android TV.
 
@@ -30,6 +30,11 @@ senden, was ein Mediaplayer zum Funktionieren braucht:
 - technische Wiedergabeberichte: welche Audio- und Videoformate das Gerät
   abspielen kann und welche Fehler beim Abspielen aufgetreten sind, damit der
   Server einen Stream wählen kann, den das Gerät abspielen kann;
+- die Update-Prüfung der App: die Plattform, der Build der App und die
+  Version des App-Codes, den sie ausführt, damit der Server den zu seiner
+  eigenen Version passenden App-Code übergeben kann. Es wird keine Kennung der Installation
+  gesendet. Dieser Code wird vom Evey-Projekt veröffentlicht und signiert;
+  der Server speichert ihn nur;
 - ein Bild, nur wenn Sie eines als Profilbild wählen, und Dateien, die Sie als
   Administrator selbst auswählen (einen externen Untertitel, ein Plugin, eine
   Sicherung).
@@ -64,7 +69,7 @@ betreibt. Das Evey-Projekt hat keinen Zugriff darauf.
 
 ## Was auf dem Gerät bleibt { #what-stays-on-the-device }
 
-Die Serveradresse, Ihr Sitzungstoken und, wenn Sie „Angemeldet bleiben“ ankreuzen, Ihr Benutzername und Ihr Passwort (im verschlüsselten Speicher von Android, dem Android-Keystore), Ihre Einstellungen und die Filme und die Musik, die Sie zum Schauen
+Die Serveradresse, Ihr Sitzungstoken und, wenn Sie „Angemeldet bleiben“ ankreuzen, Ihr Benutzername und Ihr Passwort (im verschlüsselten Speicher von Android, dem Android-Keystore), Ihre Einstellungen, der von Ihrem Server erhaltene App-Code und die Filme und die Musik, die Sie zum Schauen
 oder Hören ohne Internet herunterladen. Wenn Sie die App entfernen, wird all
 das gelöscht. Das Entsperren per Fingerabdruck oder Gesicht, wenn Sie es
 einschalten, übernimmt Android: Die App erfährt nur, ob es erfolgreich war.

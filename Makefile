@@ -1,12 +1,12 @@
 .PHONY: dash-harness directplay-harness dash-web dash-exoplayer proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
-	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene ci-secrets pre-push pre-push-dev ci-fast-frontend-static ci-fast-unit-changed gate-dev gate-dev-status hooks \
+	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene ci-secrets pre-push pre-push-dev ci-fast-frontend-static ci-fast-unit-changed plugin-runtimes-itest plugin-runtimes-itest-gate gate-dev gate-dev-status hooks \
 	gate gate-status gate-full gate-full-status verify-commit \
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go \
 	mutation-test docker-image verify-deploy ops-image ops ops-upgrade \
-	wiki wiki-check wiki-serve wiki-drafts wiki-publish
+	wiki wiki-check wiki-serve wiki-drafts wiki-publish docs-shots
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
@@ -296,8 +296,9 @@ mutation-test:
 	@# ./internal/adapters/driving/http gremlins reports "Killed 1647, Lived 0,
 	@# efficacy 100%" in 7 SECONDS with a passing baseline - and a mutant it
 	@# calls KILLED (webhook_handler.go:69, `encErr != nil` -> `== nil`)
-	@# provably survives a real test run. Root cause unidentified in gremlins
-	@# 0.5.0; what matters is that the lie is loud instead of silent.
+	@# provably survives a real test run. That one came from the package
+	@# clause (`package httpapi` in a directory named http, patched in
+	@# docker/Dockerfile.mutation); the gate stays so the next cause is loud too.
 	@#
 	@# Zero survivors in a package with real mutants has never once been true in
 	@# this repo (app/transcoding, far better tested, has 335). Treat it as a
@@ -463,6 +464,26 @@ ci-android-patch-gate:
 	  echo "→ expo-updates patch check skipped (no Android-side change since $$base)"; \
 	fi
 
+# plugin-runtimes-itest: a plugin run by a runtime added to the image (a .jar
+# by java, a .dll by dotnet) starts through the real runner in each sandbox
+# mode. The gate variant runs it only on a branch that touches what decides
+# that since its fork point with dev; PLUGIN_RUNTIMES=1 forces it. CI runs it
+# on every pull request (job plugin-runtimes).
+PLUGIN_RUNTIMES_PATHS := internal/adapters/driven/pluginrunner cmd/evey-plugin-launcher sandbox \
+	docker/Dockerfile.plugins.example scripts/plugin-runtimes-itest.sh
+
+plugin-runtimes-itest:
+	@echo "→ plugin runtimes: java -jar and dotnet through the runner, per sandbox mode (throwaway image)"
+	@GO_CI_IMAGE=$(GO_CI_IMAGE) sh scripts/plugin-runtimes-itest.sh
+
+plugin-runtimes-itest-gate:
+	@base=$$(git merge-base origin/dev HEAD 2>/dev/null || git merge-base origin/master HEAD 2>/dev/null || git rev-parse HEAD~1); \
+	if [ "$(PLUGIN_RUNTIMES)" = "1" ] || ! git diff --quiet $$base -- $(PLUGIN_RUNTIMES_PATHS); then \
+	  $(MAKE) --no-print-directory plugin-runtimes-itest; \
+	else \
+	  echo "→ plugin runtimes test skipped (no plugin runner change since $$base)"; \
+	fi
+
 ci-fast-frontend: ci-fast-frontend-static
 	@echo "→ frontend unit tests (vitest, all projects)"
 	@docker exec -w /app evey-web sh -c 'pnpm run test'
@@ -521,8 +542,8 @@ perf:
 	@echo "→ web bundle budget"
 	@sh scripts/bundle-budget.sh frontend/apps/web/dist || echo "   (build the web app first: docker exec evey-web pnpm --filter web build)"
 
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-android-patch-gate ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate tv-audit
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + expo-updates patch if touched + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite + transcode contract + audit TV)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-android-patch-gate ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate plugin-runtimes-itest-gate tv-audit
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + expo-updates patch if touched + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite + transcode contract + plugin runtimes if touched + audit TV)."
 
 # pre-push-dev: the gate for a push to dev or to a work branch (the hook picks it
 # from the destination). Everything above except what the pull request's CI
@@ -532,8 +553,8 @@ pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend c
 # run only when the branch touches what they cover: left to CI, they were the
 # usual first red run of a pull request.
 pre-push-dev: TRANSCODE_ITEST_SKIP = TestCodecStringIntegration
-pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit-changed ci-fast-frontend-static ci-fast-frontend-test-gate ci-android-patch-gate ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate
-	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race on changed packages + frontend typecheck/lint + frontend tests if touched + expo-updates patch if touched + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite if touched + transcode contract). The pull request's CI runs the rest."
+pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit-changed ci-fast-frontend-static ci-fast-frontend-test-gate ci-android-patch-gate ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout wiki-check repo-itest-gate transcode-itest-gate plugin-runtimes-itest-gate
+	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race on changed packages + frontend typecheck/lint + frontend tests if touched + expo-updates patch if touched + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + wiki guards + repo suite if touched + transcode contract + plugin runtimes if touched). The pull request's CI runs the rest."
 
 # ci-hygiene: the house rules a regex can decide - plain dashes, no AI attribution
 # trailer, no conflict marker, no elision placeholder, no .claude/ in
@@ -921,6 +942,12 @@ WIKI_RUN = $(WIKI_DOCKER) $(WIKI_IMAGE)
 
 # Fast, host-side, no Docker: the manifest, the translation freshness digests
 # and the leak guard. This is the one that must stay quick enough to run often.
+# Documentation screenshots from a throwaway demo of IMAGE (default the
+# published master image): new WebP images and the list of those that changed
+# land in tmp/docs-shots/webp. The weekly "Docs screenshots" workflow runs the same.
+docs-shots:
+	@scripts/docs-shots/run.sh tmp/docs-shots
+
 wiki-check:
 	@echo "→ wiki: assemble + guards"
 	@python3 wiki/assemble.py --check

@@ -1,5 +1,5 @@
 ---
-source_sha: 59bcc3e9f3711296c6f1a612c4b161e7d6db4b6f45f2f3a8cd4b7bb292c1de82
+source_sha: 07924b10bf7a7ec7bda9b0eeeeb9e20b66dbbe8a3ce442e7d43187be3de7e9fa
 reviewed: true
 hide:
 - navigation
@@ -189,6 +189,7 @@ dépend de la machine, et le **Tableau de bord sécurité** montre le mode utili
 widget d'un plugin s'affiche sur le web, sur Android et sur la TV. Sur la
 TV, vous pouvez le voir mais pas vous en servir.
 [Plugins](plugins.md) ·
+[Plugins officiels](plugins.md#official-plugins) ·
 [Modèle de sécurité et sandbox des plugins](SECURITY.md#sandbox-modes)
 
 ## Par où commencer { #find-your-way }

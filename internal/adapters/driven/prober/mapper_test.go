@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
+	"github.com/gravity-zero/mkvgo/mkv/reader"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -440,31 +441,38 @@ func TestScanTypeOf_AgreesWithMkvgo(t *testing.T) {
 }
 
 // The Matroska "VP9 Codec Feature Metadata" CodecPrivate (Sprite Fright's
-// real bytes) is not a vpcC: a reader that took it for one produced
-// "Profile 1", level 1 and a ycgco colour. Such a track goes to ffprobe; a
-// track with no CodecPrivate (a WebM) or a real vpcC fast-paths as before.
-func TestMapContainer_VP9FeatureMetadataGoesToFFprobe(t *testing.T) {
+// real bytes: profile 0, bit depth 8, chroma 4:2:0, no level record) is read
+// by mkvgo as what it is, so such a track takes the fast path with mkvgo's
+// profile and the level its picture size implies. ffprobe reports that track
+// with level -99, stored as no level: the copy rung then never saw it.
+func TestMapContainer_VP9FeatureMetadataFastPaths(t *testing.T) {
+	spriteFright := []byte{0x01, 0x01, 0x00, 0x03, 0x01, 0x08, 0x04, 0x01, 0x01}
+	fm, ok := reader.ParseVP9FeatureMetadata(spriteFright)
+	require.True(t, ok, "mkvgo recognises the feature metadata form")
+	require.NotNil(t, fm.Profile)
+	assert.Equal(t, uint8(0), *fm.Profile)
+	assert.Nil(t, fm.Level, "the file states no level")
+	assert.Equal(t, uint16(40), extmkv.VP9Level(new(uint32(2048)), new(uint32(858))), "level 4.0 for 2048x858")
+
 	bt709 := uint16(1)
 	vp9 := func(cp []byte) *extmkv.Container {
 		tr := extmkv.Track{
-			Type: extmkv.VideoTrack, Codec: "vp9",
+			Type: extmkv.VideoTrack, Codec: "vp9", Profile: "Profile 0", Level: new(uint16(40)),
 			Width: new(uint32(2048)), Height: new(uint32(858)),
 			CodecPrivate: cp, ColorSpace: &bt709, ColourDetermined: true,
 		}
 		return &extmkv.Container{DurationMs: 1000, Tracks: []extmkv.Track{tr}}
 	}
-	_, ok := mapContainer(vp9([]byte{0x01, 0x01, 0x00, 0x03, 0x01, 0x08, 0x04, 0x01, 0x01}), true)
-	assert.False(t, ok, "feature metadata CodecPrivate must fall back to ffprobe")
+	res, ok := mapContainer(vp9(spriteFright), true)
+	require.True(t, ok, "a feature metadata CodecPrivate fast-paths")
+	require.NotNil(t, res.Streams[0].Level)
+	assert.Equal(t, 40, *res.Streams[0].Level)
+	assert.Equal(t, "Profile 0", res.Streams[0].Profile)
 
-	res, ok := mapContainer(vp9(nil), true)
+	res, ok = mapContainer(vp9(nil), true)
 	require.True(t, ok, "a WebM VP9 without CodecPrivate fast-paths")
 	require.NotNil(t, res.Streams[0].FieldOrder)
 	assert.Equal(t, "progressive", *res.Streams[0].FieldOrder, "VP9 has no interlaced mode")
-
-	// A real vpcC: version 1, three flag bytes, then profile/level/bitdepth-chroma.
-	res, ok = mapContainer(vp9([]byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x28, 0x80, 0x01, 0x01, 0x01, 0x00, 0x00}), true)
-	assert.True(t, ok, "a vpcC-shaped CodecPrivate is not the feature-metadata form")
-	_ = res
 }
 
 // VP8 has no interlaced mode either: ffprobe says "progressive", so does the
@@ -492,4 +500,27 @@ func TestMapContainer_KeepsTheFileTrackNumber(t *testing.T) {
 	require.NotNil(t, res.Streams[1].SourceTrackID)
 	assert.Equal(t, 7, *res.Streams[1].SourceTrackID)
 	assert.Nil(t, res.Streams[2].SourceTrackID, "an unknown number stays unknown")
+}
+
+// The pixel format mkvgo reads (chroma subsampling and bit depth) is stored
+// like ffprobe's pix_fmt. Left empty, the playback decision and the hardware
+// decode route take any source for 4:2:0, so a 4:4:4 H.264 would be sent to a
+// client or a decoder that cannot read it.
+func TestMapContainer_PixelFormat(t *testing.T) {
+	for _, pf := range []string{"yuv420p", "yuv420p10le", "yuv444p"} {
+		c := &extmkv.Container{Tracks: []extmkv.Track{{
+			Type: extmkv.VideoTrack, Codec: "h264", Profile: "High 4:4:4 Predictive",
+			Width: new(uint32(1920)), Height: new(uint32(1080)), PixelFormat: pf,
+		}}}
+		res, ok := mapContainer(c, true)
+		require.True(t, ok, pf)
+		require.NotNil(t, res.Streams[0].PixelFormat, pf)
+		assert.Equal(t, pf, *res.Streams[0].PixelFormat)
+	}
+	c := &extmkv.Container{Tracks: []extmkv.Track{{
+		Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)),
+	}}}
+	res, ok := mapContainer(c, true)
+	require.True(t, ok)
+	assert.Nil(t, res.Streams[0].PixelFormat, "an unread pixel format stays unknown")
 }

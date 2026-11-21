@@ -1,3 +1,12 @@
+import com.android.build.api.instrumentation.AsmClassVisitorFactory
+import com.android.build.api.instrumentation.ClassContext
+import com.android.build.api.instrumentation.ClassData
+import com.android.build.api.instrumentation.InstrumentationParameters
+import com.android.build.api.instrumentation.InstrumentationScope
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
+
 apply plugin: "com.android.application"
 // @generated begin safeExtGet - expo prebuild (DO NOT MODIFY) sync-be4acad6508a6820102c74ab393bd7ab1093e6c0
 def safeExtGet(prop, fallback) {
@@ -105,8 +114,8 @@ android {
         applicationId 'com.evey.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 111
-        versionName "0.1.3"
+        versionCode 113
+        versionName "0.1.4"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -318,3 +327,39 @@ if (!(clientUpdateFloor ==~ /[0-9]+/)) {
     throw new GradleException("client updates: git gave no commit time, the app would accept no update")
 }
 android.defaultConfig.resValue "string", "evey_client_update_floor", "${clientUpdateFloor}000"
+
+// Android 15 deprecated the DEFAULT and SHORT_EDGES display cutout modes. React Native, androidx
+// and the image cropper still write them, so the writes are dropped from their bytecode and the
+// theme asks for ALWAYS instead (values-v30/styles.xml).
+abstract class DropCutoutModeWrites implements AsmClassVisitorFactory<InstrumentationParameters.None> {
+    @Override
+    ClassVisitor createClassVisitor(ClassContext classContext, ClassVisitor next) {
+        return new ClassVisitor(Opcodes.ASM9, next) {
+            @Override
+            MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions)
+                return new MethodVisitor(Opcodes.ASM9, mv) {
+                    @Override
+                    void visitFieldInsn(int opcode, String owner, String field, String fieldDescriptor) {
+                        if (opcode == Opcodes.PUTFIELD && owner == 'android/view/WindowManager$LayoutParams' && field == 'layoutInDisplayCutoutMode') {
+                            super.visitInsn(Opcodes.POP2)
+                        } else {
+                            super.visitFieldInsn(opcode, owner, field, fieldDescriptor)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    boolean isInstrumentable(ClassData classData) {
+        return ['com.facebook.react.views.view.WindowUtil', 'expo.modules.imagepicker.', 'androidx.core.view.WindowCompat', 'androidx.activity.EdgeToEdge'].any { classData.className.startsWith(it) }
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.instrumentation.transformClassesWith(DropCutoutModeWrites, InstrumentationScope.ALL) {}
+    }
+}

@@ -1,5 +1,5 @@
 ---
-source_sha: c9ba18045bcbe3d08d580a1cbe44e2e75fa72e4dfd7da439e4833b40fb13734a
+source_sha: c15e2f946d7ceb98981eb10c13c6e984330ed9b068cf5361e6596b0002c587b5
 reviewed: true
 ---
 # 主题
@@ -28,7 +28,7 @@ author: "..."              # 可选
 只写一个字符串（`display_name: Aurora`）即适用于所有语言。
 
 ZIP 包的根目录里，在清单旁边放 `theme.css` 和/或 `theme.js`。两个都没有的包也能安装，但没有可见效果。
-`examples/plugins/theme-dark-blue`（一个只覆盖颜色变量的简短 `theme.css`）和 `examples/plugins/open-workshop`（一套完整的外观重设计）
+[evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue)（一个只覆盖颜色变量的简短 `theme.css`）和 [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell)（一套完整的外观重设计）
 都能通过清理器，是很好的起点。
 
 ## theme.css
@@ -40,7 +40,7 @@ ZIP 包的根目录里，在清单旁边放 `theme.css` 和/或 `theme.js`。两
 ### 从自定义属性入手
 
 界面的各种表面、文字、强调色、边框和圆角，都取自 `:root` 上的一组自定义属性；
-`examples/plugins/theme-dark-blue/theme.css` 列出了它们，每一个都有注释。覆盖这些属性，就能一次改变所有界面的外观：
+[`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) 列出了它们，每一个都有注释。覆盖这些属性，就能一次改变所有界面的外观：
 
 ```css title="theme.css"
 :root {
@@ -147,7 +147,7 @@ theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n co
 routes, auth: internal/adapters/driving/http/theme_asset_handler.go (theme.css open, theme.js authMw)
 link injection, hidden iframe, connect-src none: frontend/apps/web/src/features/themes/ThemeLoader.tsx
 sanitizer: internal/adapters/driven/pluginrunner/css_sanitizer.go - SanitizeCSS, reImport, reURLExternal, reURLExternalUnterminated, reImageSetCandidateExternal, reCustomPropExternalURL, reURLJavascript, reExpression, reMozBinding, reBehavior, reSensitiveSelector, overlaySignals.isOverlay, stripPointerEventsOnInteractive, reZIndex ; written back at install: internal/app/plugin/install.go - validateStagedPlugin
-custom properties: examples/plugins/theme-dark-blue/theme.css
+custom properties: github.com/eveyproject/evey-theme-dark-blue - theme.css
 stable hooks: frontend/apps/web/src (evey-app-header, evey-media-grid, evey-media-card, evey-poster, evey-media-detail)
 theme.js bridge: frontend/apps/web/src/features/themes/theme-bridge.ts - THEME_BRIDGE_SCRIPT ; policy: theme-css-policy.ts - applyThemeCSSPolicy, MAX_DECLARATIONS, MAX_VALUE_LENGTH, FORBIDDEN_IN_VALUE
 scanner: internal/pkg/themejs/scan.go - blockedLiterals, blockedRegex, Scan

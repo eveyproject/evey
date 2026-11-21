@@ -82,7 +82,6 @@ plugins/*
 # Plugin ZIPs (dist/ contains release-ready zips, root zips are dev artifacts)
 *.zip
 !plugins/dist/*.zip
-!tests/plugins/*.zip
 !tests/plugins/cosign/*.zip
 !tests/e2e/fixtures/plugin-zips/*.zip
 
@@ -122,8 +121,12 @@ scripts/*
 !scripts/gate-go-pkgs.py
 !scripts/verify-commit.sh
 !scripts/client-release-ldflags.sh
+!scripts/plugin-runtimes-itest.sh
 !scripts/dash-harness/
 !scripts/dash-harness/*
+# Documentation screenshots (make docs-shots, Docs screenshots workflow).
+!scripts/docs-shots/
+!scripts/docs-shots/**
 # Cuts the fixtures ac3Worker.real.test.ts reads (named in its header).
 !scripts/real-audio-fixtures.sh
 !scripts/directplay-harness/

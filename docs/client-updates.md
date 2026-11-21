@@ -192,3 +192,11 @@ both when the signing certificate is renewed.
 
 No private key ever enters the repository or an image, and keys are only ever
 given as file paths.
+
+<!-- sources
+routes and what the server serves: internal/adapters/driving/http/client_update_handler.go ; internal/adapters/driving/http/client_update_handler_test.go ; internal/config/config.go - EVEY_CLIENT_UPDATES_DIR
+following the active server, restart prompt, launch guard: frontend/packages/client/src/native/clientUpdates.ts - followClientUpdateSource, clientUpdateBootGuard, clientUpdateMarkSettled ; frontend/packages/client/src/native/clientUpdates.test.ts ; i18n common.clientUpdate.*
+floor, launch by release, certificates, dropped inputs: frontend/patches - the expo-updates patch
+build checks: frontend/scripts/check-expo-updates-patch.mjs ; Dockerfile
+keys and publication: frontend/scripts/client-update-certificate.sh ; frontend/scripts/build-client-update.mjs ; frontend/scripts/sign-client-update.mjs ; .github/workflows/ci.yml (client-updates-build, client-updates-sign)
+-->

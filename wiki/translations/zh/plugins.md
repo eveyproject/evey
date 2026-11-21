@@ -1,5 +1,5 @@
 ---
-source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
+source_sha: a6ee5bb3a713126f80980171824729c7a7f52b33aea955b32f44d8d66312d559
 reviewed: true
 ---
 # 插件 { #plugins }
@@ -25,6 +25,22 @@ reviewed: true
 
 </div>
 
+## 官方插件 { #official-plugins }
+
+Evey 项目发布了下面这些插件和主题，每个都有自己的仓库。要安装其中一个，
+把它的仓库链接粘贴到**安装插件**的**从 URL 安装**选项卡里：服务器会取最新的 release，
+之后安装包会关联这个仓库来获取更新。它们的 release 用项目的密钥签名，这个密钥从一开始就受信任。
+
+| 名称 | 类型 | 作用 | 仓库 |
+| --- | --- | --- | --- |
+| 天气 | 插件 | 在首页显示本地天气，背景是与之相符的天空。 | [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) |
+| Marquee | 插件 | 用您的媒体库拼成的海报墙，还有一个轮盘帮您挑选今晚看什么。 | [evey-plugin-marquee](https://github.com/eveyproject/evey-plugin-marquee) |
+| Librarian | 插件 | 列出可能重复的影片，以及带编号的系列中缺少的影片。它只读取媒体库，从不改动任何文件。 | [evey-plugin-librarian](https://github.com/eveyproject/evey-plugin-librarian) |
+| CShell | 主题 | 终端风格：纯黑、琥珀色、等宽字体。 | [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) |
+| 深蓝 | 主题 | 一个深蓝色的配色主题。 | [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) |
+
+想自己写一个，可以从 [evey-plugin-template](https://github.com/eveyproject/evey-plugin-template) 这个仓库开始：一个最小的插件、它的测试，以及为其 release 签名的 workflow。
+
 ## 安装插件 { #install-a-plugin }
 
 1. 在**管理 → 插件**里，打开**安装插件**，选择**插件文件 (.zip)**。如果作者提供了签名，
@@ -45,8 +61,9 @@ reviewed: true
 </figure>
 
 如果分析在安装包里发现了严重的问题，不管您怎么回答，安装都会被拒绝。警告会显示出来，由您决定。
-插件使用的语言必须在服务器的**可用运行时**里：默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua，`-nodejs` 镜像保留 Python 和 Node.js，
-`-lean` 镜像只保留 Python。
+启动插件的运行时必须在服务器的镜像里：默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua，`-nodejs` 镜像保留 Python 和 Node.js，
+`-lean` 镜像只保留 Python，[其他运行时则要加进镜像](plugins/dev-setup.md#a-runtime-the-image-does-not-carry)。
+**可用运行时**列出服务器找到的运行时，以及每个已安装插件所用的那个。
 
 !!! tip "签名的插件"
     插件作者可以用 [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) 给 ZIP 签名，
@@ -169,6 +186,8 @@ CPU 优先级对之后启动的插件生效；更改沙箱模式会立即重启�
 主题是一个 `kind: theme` 的安装包，没有进程：一个样式表，还可以带一个在隐藏框架中受限运行的脚本。
 它也是通过同一个**安装插件**对话框安装的；样式表在安装时会被清理。之后，每个用户在**设置 → 外观 → 主题**里选择它。
 主题可以包含什么，见[主题](themes.md)。
+
+项目自己的主题列在[官方插件](#official-plugins)里。
 
 ## 编写插件 { #writing-a-plugin }
 

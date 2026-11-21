@@ -15,7 +15,7 @@ most.
 name: my-plugin              # required; unique, kebab-case
 version: 1.2.3               # required; semver, X.Y.Z or X.Y.Z-label
 kind: plugin                 # required; "plugin" or "theme"
-language: nodejs             # required for a plugin; a runtime of the image
+language: nodejs             # required for a plugin; picks the stubs copied
 entrypoint: node index.js    # required for a plugin; the command line the server runs
 
 display_name: My Plugin      # optional; a string, or a map {en: ..., fr: ...}
@@ -51,8 +51,8 @@ config_schema:               # the fields of the Config panel on the plugin's ca
 |---|---|
 | `name`, `version`, `kind` | Required. `version` must match `X.Y.Z` or `X.Y.Z-label`; an update must carry a higher version than the installed one. |
 | `display_name` | The name people see; `name` stays the identifier an update is matched on. One string counts as English and stands for every language; a map is keyed by language tag (`en`, `fr`, `pt-BR`). Each value is 1 to 40 characters, without surrounding spaces or control characters. Today the theme picker shows it. |
-| `language` | Required for `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` or `go`. It picks the runtime check and the stubs copied next to the entrypoint; it does not launch anything. |
-| `entrypoint` | Required for `kind: plugin`. The first token is the interpreter (or the binary, with `native-binary`), the rest its arguments; the process runs in the plugin's directory. |
+| `language` | Required for `kind: plugin`, any value. It picks the stubs copied next to the entrypoint (those of `sdk/<language>/`). For a script started through its shebang (`entrypoint: main.py`), `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` and `sh` also require that interpreter in the image. It does not launch anything. |
+| `entrypoint` | Required for `kind: plugin`. The first token is a file of the package (a binary, with `native-binary`, or a script) or else a command of the image found on its `PATH` (`node`, `python3`, `java`, `dotnet`), the rest its arguments; a missing command refuses the install. The process runs in the plugin's directory. |
 | `permissions` | Each value must be in the [permissions catalog](security-model.md#permissions-catalog). `network` requires a non-empty `external_fetch`. |
 | `external_fetch` | Hostnames. A scheme and a trailing path are dropped at parse; hosts match exactly, a `*.example.com` wildcard is refused at install; an entry without a port allows ports 80 and 443 only, `host:port` allows that port only; an IP literal refuses the install ([rules](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` or `notification.sender`; anything else is refused. A theme may declare none. |
@@ -258,6 +258,22 @@ Reads one of the plugin's own `web_root` files, by relative path, as a
 `data:` URL: a file the backend wrote at run time becomes usable in the frame
 without a cross-origin concern. Only the plugin's own assets are reachable.
 
+### `evey.config.save(values)` (slot `admin.plugin.config` only)
+
+Writes the plugin's server config, the values an administrator sets against
+`config_schema`. The given keys are merged into the stored config, the other
+keys stay as they are, and the server validates the result against the
+schema exactly as it does the generated form. Values are strings, as in the
+form. The promise resolves to `{ values }`, the config as stored (secret
+fields masked), and is rejected with the server's message when a value is
+refused. Anywhere but `admin.plugin.config` the call is rejected.
+
+```js
+await evey.config.save({ city: "Brest", lat: "48.39", lon: "-4.49" });
+```
+
+The current values arrive in `onInit` as `config`, as in every slot.
+
 ### On a television
 
 The television app runs the module in a WebView, and a few things that are
@@ -272,7 +288,7 @@ true in a browser stop being true there:
 - **Keep text away from the edges.** Televisions overscan: leave about 5% of
   the width and height free on every side.
 - **Test WebGL on a real box.** A shader runs on the box's GPU and driver,
-  not on your desktop's; keep noise coordinates bounded. `tests/plugins/weather-v2`
+  not on your desktop's; keep noise coordinates bounded. [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather)
   is the reference widget for all of the above.
 
 ## Slots
@@ -287,12 +303,16 @@ true in a browser stop being true there:
 | `settings.user.appearance` | The appearance section of the user settings |
 | `sidebar.bottom` | The bottom of the main navigation sidebar |
 | `admin.nav` | One entry in the admin menu, opening the plugin's own page |
+| `admin.plugin.config` | The plugin's own config panel, in its card on the admin plugins screen |
 
-`admin.nav` is the only admin-area slot. It injects nothing into existing
-admin screens: it adds a menu entry that opens the plugin's page in the same
-sandboxed frame, on an admin-gated route. Asking for it shows in the consent
-diff. Every other `admin.*`, `login.*`, `setup.*` and `profile.security.*`
-slot is refused at install.
+`admin.nav` and `admin.plugin.config` are the only admin-area slots. Neither
+injects anything into existing admin screens: `admin.nav` adds a menu entry
+that opens the plugin's page in the same sandboxed frame, on an admin-gated
+route; `admin.plugin.config` takes the place of the form generated from
+`config_schema`, inside the plugin's own card, for a value a plain field
+cannot pick well (a city among homonyms, say). Asking for either shows in the
+consent diff. Every other `admin.*`, `login.*`, `setup.*` and
+`profile.security.*` slot is refused at install.
 
 ## Capabilities
 
@@ -325,16 +345,16 @@ server refuses by default every method the token's scopes do not name
 `examples/plugins/` holds working plugins in the current manifest format:
 starters in Node.js and Python (`nodejs-example`, `python-example`), a
 metadata provider (`metadata-example`), a webhook receiver
-(`webhook-receiver`), a home widget with a build step (`weather`), the data
-store with the `public` and `prefs` permissions and the `admin.nav` slot
-(`data-demo`), a tour of every `config_schema` field type, with an `admin.nav` page
-(`config-demo`),
-and two themes (`theme-dark-blue`, `open-workshop`). `make plugin-zips`
-packages them all.
+(`webhook-receiver`), the data store with the `public` and `prefs` permissions
+and the `admin.nav` slot (`data-demo`) and a tour of every `config_schema`
+field type, with an `admin.nav` page (`config-demo`). `make plugin-zips`
+packages them all. The project's own plugins and themes - the weather widget,
+CShell, Dark Blue and the others - each live in their own repository under
+[eveyproject](https://github.com/eveyproject).
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; display_name.go - DisplayName ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
-runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint ; launchers: runner_start.go - resolveCommand ; launcher_resolve.go - lookupLauncher
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
 env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent, Ask ; runner_control.go - SendEvent (no caller), Ask

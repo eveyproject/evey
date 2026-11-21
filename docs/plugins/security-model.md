@@ -118,15 +118,20 @@ intentionally absent.
 | `settings.user.appearance` | Yes | Appearance section in user settings |
 | `sidebar.bottom` | Yes | Bottom area of the navigation tray |
 | `admin.nav` | Yes | One nav entry in the admin panel opening the plugin's own sandboxed page; it does not inject into existing admin screens |
+| `admin.plugin.config` | Yes | The plugin's own config panel, in place of the generated form inside its own card on the admin plugins screen |
 
-**Never allowed:** `admin.*` (except `admin.nav`), `login.*`, `setup.*`,
+**Never allowed:** `admin.*` (except `admin.nav` and `admin.plugin.config`), `login.*`, `setup.*`,
 `profile.security.*`. These paths are authentication- or privilege-critical,
 and injection there is a privilege-escalation or phishing vector.
 
 `admin.nav` content is sandboxed like any other slot: it renders in an
 `<iframe sandbox="allow-scripts">` without `allow-same-origin`, in a page
 whose policy is `default-src 'none'`, so it is third-party content displayed
-in the admin area, not an admin capability granted to the plugin.
+in the admin area, not an admin capability granted to the plugin. The same
+holds for `admin.plugin.config`, with one more bridge call there:
+`evey.config.save` writes this plugin's own config and nothing else, on the
+administrator's session, validated against the schema like the generated
+form. The host answers it in that slot only.
 
 The bridge limits what a frame can ask of the page: `evey.toast` at most 3
 messages per second, 200 characters, no HTML; `evey.navigate` only `/home`,

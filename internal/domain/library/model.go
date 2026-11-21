@@ -318,6 +318,32 @@ type MediaFile struct {
 	// (0 = before versioning). A row below the current version may have been
 	// filed under the wrong series or type and is owed a re-read of its path.
 	ParserVersion int
+	// ContainerDamagedBytes counts the bytes of the container that do not
+	// parse (junk a resynchronizing reader steps over). A device's own
+	// demuxer stops dead on them, so the file is never handed over whole:
+	// the server remuxes its tracks instead. Measured at probe time and by
+	// the media-health scan, at ContainerCheckVersion.
+	ContainerDamagedBytes int64
+	// ContainerCheckVersion is the ContainerCheckVersion the container was
+	// last checked at (0 = never): a row below it is owed a check.
+	ContainerCheckVersion int
+	// DirectPlayRefused: a player's demuxer refused this exact file. A
+	// defect the check did not see (in the body, or that a stricter demuxer
+	// than mkvgo's trips on) is learnt from the first device that hits it
+	// and spares every later one. Cleared when the file changes.
+	DirectPlayRefused bool
+}
+
+// ContainerCheckVersion is the current revision of the container check.
+// Bump to send every file through it again.
+//
+//	1: mkvgo diagnose, damaged findings (head junk counted as well).
+const ContainerCheckVersion = 1
+
+// RefusesDirectPlay reports a file no device gets whole: its container is
+// damaged, or a device's demuxer already refused it. The tracks still copy.
+func (f *MediaFile) RefusesDirectPlay() bool {
+	return f != nil && (f.ContainerDamagedBytes > 0 || f.DirectPlayRefused)
 }
 
 // ParserVersion is the current revision of the path parser. Bump when the
@@ -343,7 +369,7 @@ const ParserVersion = 2
 //	   AC-3 stream states over its container's, the HEVC bit depth, the MPEG-2
 //	   colour, the MP4 stts frame rate, the mov_text label and the MP4 handler
 //	   names an older probe took for titles. Dry run on the NAS library
-//	   (8,797 files, 2026-10-15): 576 files corrected, none skipped.
+//	   (8,797 files): 576 files corrected, none skipped.
 //	3: mkvgo 0.53 - a fragmented MP4's duration (mehd, else the fragments'
 //	   end), a Matroska audio track without Channels read as one channel and
 //	   without SamplingFrequency as the codec header's rate (an absurd rate
@@ -364,7 +390,12 @@ const ParserVersion = 2
 //	6: mkvgo 0.64 - the identifier the file gives each track (the Matroska
 //	   TrackNumber, the MP4 track_ID), stored so a packager rendition pairs
 //	   with its track by number instead of by name.
-const StreamProbeVersion = 6
+//	7: mkvgo 0.71.2 - an HEVC declared bt2020-10 whose first sample carries
+//	   an Alternative Transfer Characteristics SEI is HLG, an H.264 record
+//	   with no SPS (avc3, a fragmented MP4) gets its profile and level from
+//	   the SPS its samples carry, an MPEG-2 track gets its profile and level,
+//	   and every video stream read by mkvgo stores its pixel format.
+const StreamProbeVersion = 7
 
 // LevelProbeVersion is the current revision of the video level backfill's
 // probe. media_streams.level_probe_version records the revision at which a
@@ -374,7 +405,7 @@ const LevelProbeVersion = 1
 
 // InterleaveBackstepFlagMs is the floor above which a file NeedsRemux. Every
 // muxer keeps cluster timestamps monotonic (494 real files read 0); the 20
-// prod victims of the 2026-07-12 two-input remux read 17 s to 2259 s.
+// prod victims of an earlier two-input remux read 17 s to 2259 s.
 const InterleaveBackstepFlagMs = 10_000
 
 // NeedsRemux reports a file whose tracks are stored in blocks of one track at
@@ -406,6 +437,9 @@ type MediaItemScanRow struct {
 	// StreamProbeVersion mirrors media_files.stream_probe_version; a row below
 	// the current StreamProbeVersion is owed a head-only re-probe.
 	StreamProbeVersion int
+	// ContainerCheckVersion mirrors media_files.container_check_version; a row
+	// below the current ContainerCheckVersion is owed a container check.
+	ContainerCheckVersion int
 }
 
 // MediaItemContainerRow is a lightweight projection for pruning empty containers.
@@ -712,7 +746,7 @@ type PersonTranslation struct {
 // ErrMediaItemGone is returned when a trickplay manifest cannot be written
 // because the media item it references has been deleted - a foreign-key
 // violation. The generation job runs for minutes and races user deletes, so a
-// vanished subject is a skip, not a failure (prod, 2026-09-02).
+// vanished subject is a skip, not a failure (measured in production).
 var ErrMediaItemGone = errors.New("media item deleted before its trickplay manifest could be written")
 
 type TrickplayManifest struct {

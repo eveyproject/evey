@@ -1,5 +1,5 @@
 ---
-source_sha: 0e9677cafb6440a4984abea7c9a1d5bc5e010660e3be079a81f138d63d036a5d
+source_sha: 4171accfb7b8abe361d2b71d933ac148558ac1faa59774ca37b920c38d464e97
 reviewed: true
 ---
 # Copias de seguridad y actualizaciones { #backups-and-updates }
@@ -130,6 +130,10 @@ Eso es toda la actualización.
 - **Evey te avisa cuando hay una actualización.** Comprueba cada hora si se
   ha publicado una imagen más nueva y lo indica en el panel de
   administración. Nunca se actualiza solo.
+- **Las apps de Android siguen al servidor.** La imagen de una versión publicada lleva el
+  código de las apps de Android y Android TV que le corresponde, y las apps
+  conectadas a tu servidor lo recogen por sí solas
+  ([Mantener las apps al día](getting-started/apps.md#keeping-the-apps-up-to-date)).
 - **Qué versión está funcionando:** `docker exec evey-server evey version`
   muestra la versión y el commit.
 
@@ -150,7 +154,7 @@ Eso es toda la actualización.
    rollback` muestra los pasos exactos, con la ruta del archivo.
 3. Ejecuta `docker compose up -d`.
 
-Las huellas de la detección de intros son lo único que no te sigue. El primer
+Las huellas de la detección de intros son los únicos datos que no te siguen. El primer
 arranque de una versión que las guarda en `./evey-data/fingerprints` las mueve
 allí desde la base de datos y borra las filas que movió. Una versión anterior
 solo las lee de la base de datos, no encuentra ninguna y las vuelve a calcular
@@ -158,6 +162,10 @@ a partir de los archivos a medida que avanza la detección de intros: no se
 pierde nada, pero el servidor está más ocupado durante un tiempo. Una copia de
 seguridad hecha antes de la actualización todavía contiene esas filas, y
 restaurarla las recupera.
+
+Las apps de Android no retroceden con el servidor: conservan el código de la
+app más reciente que han ejecutado, y el servidor más antiguo tiene que
+funcionar con él.
 
 Las etiquetas de imagen, las otras variantes y las versiones para tarjetas
 gráficas se describen en
@@ -171,6 +179,7 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
+app code in the image, apps never go back: Dockerfile (COPY client-updates) ; docs/client-updates.md ; frontend/packages/client/src/native/clientUpdates.test.ts
 rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

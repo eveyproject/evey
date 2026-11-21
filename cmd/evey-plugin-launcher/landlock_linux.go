@@ -157,7 +157,7 @@ func landlockABI() (int, error) {
 }
 
 func applyLandlock(cfg config) error {
-	if len(cfg.roPaths) == 0 && len(cfg.rwPaths) == 0 && len(cfg.devPaths) == 0 && cfg.renderDevPath == "" && !cfg.restrictNet {
+	if len(cfg.roPaths) == 0 && len(cfg.roFilePaths) == 0 && len(cfg.rwPaths) == 0 && len(cfg.devPaths) == 0 && cfg.renderDevPath == "" && !cfg.restrictNet {
 		return nil // nothing requested; caller asked for no confinement
 	}
 
@@ -218,6 +218,16 @@ func applyLandlock(cfg config) error {
 	// real misconfiguration, so let the error surface.
 	for _, p := range cfg.rwPaths {
 		if err := addRule(p, readWriteAccess(abi)); err != nil {
+			return err
+		}
+	}
+	// Individual files, read only: the entries of the plugin's own /proc
+	// directory a runtime reads at start, never the directory (net/, mountinfo).
+	for _, p := range cfg.roFilePaths {
+		if !pathExists(p) {
+			continue
+		}
+		if err := addRule(p, uint64(unix.LANDLOCK_ACCESS_FS_READ_FILE)); err != nil {
 			return err
 		}
 	}

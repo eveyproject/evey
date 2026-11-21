@@ -15,7 +15,7 @@ import {
   isValidPluginId,
   parseHostMessage,
 } from "../plugins/hostProtocol";
-import { createPluginRpc } from "../plugins/pluginRpc";
+import { ADMIN_CONFIG_SLOT, createPluginRpc } from "../plugins/pluginRpc";
 import { clientLogger } from "../log";
 
 const log = clientLogger("plugin");
@@ -60,6 +60,8 @@ export interface PluginWebViewProps {
    * and on a modest set that froze the D-pad until Android killed the app.
    */
   framesHeld?: boolean;
+  /** In the admin.plugin.config slot: called once the plugin saved its server config. */
+  onConfigSaved?: () => void;
 }
 
 // Installed before the plugin's bundle: requestAnimationFrame callbacks are
@@ -90,6 +92,7 @@ const FRAME_HOLD_SCRIPT = `(function(){
  */
 export function PluginWebView({
   pluginId,
+  slot,
   entryPath,
   externalFetch,
   context,
@@ -102,6 +105,7 @@ export function PluginWebView({
   onNavigate,
   focusable,
   framesHeld = false,
+  onConfigSaved,
 }: PluginWebViewProps) {
   const { t, i18n } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -128,6 +132,8 @@ export function PluginWebView({
   // are the shared host rules; only the transport is this surface's: plain
   // fetch against the server URL, the plugin token as a Bearer header.
   const limitedToast = useMemo(() => createToastLimiter(toast), []);
+  const onConfigSavedRef = useRef(onConfigSaved);
+  useEffect(() => { onConfigSavedRef.current = onConfigSaved; }, [onConfigSaved]);
   const rpc = useMemo(
     () =>
       createPluginRpc(pluginId, {
@@ -155,8 +161,11 @@ export function PluginWebView({
             fr.readAsDataURL(blob);
           });
         },
+      }, {
+        configWrite: slot === ADMIN_CONFIG_SLOT,
+        onConfigSaved: () => onConfigSavedRef.current?.(),
       }),
-    [pluginId, serverUrl, accessToken],
+    [pluginId, serverUrl, accessToken, slot],
   );
 
   useEffect(() => {

@@ -16,7 +16,6 @@ import {
   useAdminPluginServiceGetPluginConfig,
   useAdminPluginServiceUpdatePluginConfig,
   useAdminPluginServiceGetPluginLogs,
-  getAdminPluginServiceListPluginsQueryKey,
   getAdminPluginServiceGetPluginConfigQueryKey,
   eveyFetch,
   apiErrorMessage,
@@ -24,13 +23,14 @@ import {
 import { toast, useAuthStore, useDemoStore, demoLocks } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
-import { type ConfigFieldSchema, normaliseOptions, validateConfigField } from "@evey/client";
+import { type ConfigFieldSchema, normaliseOptions, refreshPluginLists, validateConfigField } from "@evey/client";
 import {
   parseEscalationEntries,
   parseBlockedIssues,
   type InstallPreview,
   installPreviewHasWarnings,
 } from "../../../src/components/admin/plugins/pluginConfigUtils";
+import { PluginSlot, usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { PluginResourceLimitsCard } from "../../../src/components/admin/plugins/PluginResourceLimitsCard";
 import { PluginMetadataSection } from "../../../src/components/admin/plugins/PluginMetadataSection";
 import { PluginSecurityDashboard } from "../../../src/components/admin/plugins/PluginSecurityDashboard";
@@ -225,6 +225,9 @@ function PluginConfigSection({ pluginId, theme, t }: { pluginId: string; theme: 
       return undefined;
     }
   }, [data?.configSchemaJson]);
+  // A plugin that draws its own config panel (a city picker, say) gets it
+  // here in place of the generated form; it saves through evey.config.save.
+  const ownPanel = usePluginSlotEntries("admin.plugin.config").some((e) => e.pluginId === pluginId);
 
   const updateConfig = useAdminPluginServiceUpdatePluginConfig({
     mutation: {
@@ -237,6 +240,16 @@ function PluginConfigSection({ pluginId, theme, t }: { pluginId: string; theme: 
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugin.configSaveFailed", "Échec de l'enregistrement"))),
     },
   });
+
+  if (ownPanel) {
+    return (
+      <PluginSlot
+        name="admin.plugin.config"
+        pluginId={pluginId}
+        onConfigSaved={() => qc.invalidateQueries({ queryKey: getAdminPluginServiceGetPluginConfigQueryKey(pluginId) })}
+      />
+    );
+  }
 
   if (isLoading) {
     return <ActivityIndicator color={theme.colors.accent} size="small" style={{ paddingVertical: 12 }} />;
@@ -965,7 +978,7 @@ function PluginRow({
             setUpdateSource(null);
             setUpdateSourceInput("");
             toast.success(t("admin.plugin.updateApplied", "Plugin mis à jour"));
-            qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() });
+            void refreshPluginLists(qc);
           }}
         />
       ) : null}
@@ -1041,19 +1054,19 @@ export default function AdminPluginsScreen() {
 
   const enablePlugin = useAdminPluginServiceEnablePlugin({
     mutation: {
-      onSuccess: () => { toast.success(t("admin.plugins.pluginEnabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
+      onSuccess: () => { toast.success(t("admin.plugins.pluginEnabled")); void refreshPluginLists(qc); },
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugins.toggleFailed", "Failed to enable plugin"))),
     },
   });
   const disablePlugin = useAdminPluginServiceDisablePlugin({
     mutation: {
-      onSuccess: () => { toast.success(t("admin.plugins.pluginDisabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
+      onSuccess: () => { toast.success(t("admin.plugins.pluginDisabled")); void refreshPluginLists(qc); },
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugins.toggleFailed", "Failed to disable plugin"))),
     },
   });
   const uninstallPlugin = useAdminPluginServiceUninstallPlugin({
     mutation: {
-      onSuccess: () => { toast.success(t("admin.plugins.pluginUninstalled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
+      onSuccess: () => { toast.success(t("admin.plugins.pluginUninstalled")); void refreshPluginLists(qc); },
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugins.uninstallFailed", "Failed to uninstall plugin"))),
     },
   });
@@ -1083,7 +1096,7 @@ export default function AdminPluginsScreen() {
       mutationFn: ({ data }) => adminPluginServiceInstallPlugin(data, NO_TIMEOUT),
       onSuccess: () => {
         toast.success(t("admin.plugins.pluginInstalled", "Plugin installed"));
-        qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() });
+        void refreshPluginLists(qc);
         setInstallOpen(false);
         setInstallSource("");
         setEscalationEntries([]);
@@ -1145,7 +1158,7 @@ export default function AdminPluginsScreen() {
       const res = await installPluginFile(installFileUri, { accept }, accessToken);
       if (res.ok) {
         toast.success(t("admin.plugins.pluginInstalled", "Plugin installed"));
-        qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() });
+        void refreshPluginLists(qc);
         closeInstallModal();
       } else if (res.escalation && res.escalation.length > 0) {
         setEscalationEntries(res.escalation);

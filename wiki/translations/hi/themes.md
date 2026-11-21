@@ -1,5 +1,5 @@
 ---
-source_sha: c9ba18045bcbe3d08d580a1cbe44e2e75fa72e4dfd7da439e4833b40fb13734a
+source_sha: c15e2f946d7ceb98981eb10c13c6e984330ed9b068cf5361e6596b0002c587b5
 reviewed: true
 ---
 # थीम
@@ -33,8 +33,8 @@ author: "..."              # वैकल्पिक
 
 ZIP के root फ़ोल्डर में, manifest के बगल में, `theme.css` और/या `theme.js` होती है। जिस
 पैकेज में दोनों में से कोई नहीं, वह स्वीकार होता है पर कोई असर नहीं दिखता।
-`examples/plugins/theme-dark-blue` (रंगों के वेरिएबल बदलने वाली एक छोटी
-`theme.css`) और `examples/plugins/open-workshop` (पूरा नया रूप), दोनों सफ़ाई वाली
+[evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) (रंगों के वेरिएबल बदलने वाली एक छोटी
+`theme.css`) और [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) (पूरा नया रूप), दोनों सफ़ाई वाली
 जाँच पास करते हैं और शुरुआत के लिए अच्छे हैं।
 
 ## theme.css
@@ -48,7 +48,7 @@ stylesheet हर पेज के head में एक `<link rel="stylesheet"
 ### custom properties से शुरू करें
 
 इंटरफ़ेस अपनी सतहें, टेक्स्ट, accent रंग, किनारे और गोलाई `:root` पर रखी custom
-properties के एक समूह से बनाता है; `examples/plugins/theme-dark-blue/theme.css`
+properties के एक समूह से बनाता है; [`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css)
 हर एक को एक comment के साथ बताती है। इन्हें बदलने से हर स्क्रीन एक साथ बदल जाती
 है:
 
@@ -170,7 +170,7 @@ theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n co
 routes, auth: internal/adapters/driving/http/theme_asset_handler.go (theme.css open, theme.js authMw)
 link injection, hidden iframe, connect-src none: frontend/apps/web/src/features/themes/ThemeLoader.tsx
 sanitizer: internal/adapters/driven/pluginrunner/css_sanitizer.go - SanitizeCSS, reImport, reURLExternal, reURLExternalUnterminated, reImageSetCandidateExternal, reCustomPropExternalURL, reURLJavascript, reExpression, reMozBinding, reBehavior, reSensitiveSelector, overlaySignals.isOverlay, stripPointerEventsOnInteractive, reZIndex ; written back at install: internal/app/plugin/install.go - validateStagedPlugin
-custom properties: examples/plugins/theme-dark-blue/theme.css
+custom properties: github.com/eveyproject/evey-theme-dark-blue - theme.css
 stable hooks: frontend/apps/web/src (evey-app-header, evey-media-grid, evey-media-card, evey-poster, evey-media-detail)
 theme.js bridge: frontend/apps/web/src/features/themes/theme-bridge.ts - THEME_BRIDGE_SCRIPT ; policy: theme-css-policy.ts - applyThemeCSSPolicy, MAX_DECLARATIONS, MAX_VALUE_LENGTH, FORBIDDEN_IN_VALUE
 scanner: internal/pkg/themejs/scan.go - blockedLiterals, blockedRegex, Scan

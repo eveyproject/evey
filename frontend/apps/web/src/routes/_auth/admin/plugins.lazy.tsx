@@ -17,6 +17,7 @@ import {
   apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
+import { refreshPluginLists } from "@evey/client";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -34,8 +35,6 @@ import { useDemoLockFor } from "@/hooks/useDemoMode";
 export const Route = createLazyFileRoute("/_auth/admin/plugins")({
   component: PluginsPage,
 });
-
-const PLUGINS_QUERY_KEY = ["/api/v1/admin/plugins"];
 
 interface DetectedRuntime {
   language: string;
@@ -655,7 +654,7 @@ function PluginsPage() {
   const { data: runtimesData } = useAvailableRuntimes();
   const runtimes = runtimesData?.runtimes ?? [];
 
-  const invalidate = () => { void queryClient.invalidateQueries({ queryKey: PLUGINS_QUERY_KEY }); };
+  const invalidate = () => { void refreshPluginLists(queryClient); };
 
   const installTimers = useRef<number[]>([]);
   useEffect(() => () => {

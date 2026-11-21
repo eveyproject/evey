@@ -548,6 +548,7 @@ type fakePlugins struct {
 	uninstalled []string
 	enabled     []string
 	configs     map[string]map[string]any
+	installErr  error // returned by InstallPlugin when set
 }
 
 func newFakePlugins() *fakePlugins {
@@ -587,9 +588,12 @@ func (f *fakePlugins) SetUpdateState(context.Context, string, plugin.UpdateState
 
 func (f *fakePlugins) InstallPlugin(_ context.Context, source string) (*plugin.Plugin, error) {
 	f.installed = append(f.installed, source)
+	if f.installErr != nil {
+		return nil, f.installErr
+	}
 	// The real install starts the plugin and returns the record from BEFORE
 	// that: the stored row is running, the returned copy is not.
-	name := strings.TrimSuffix(filepath.Base(source), ".zip")
+	name := strings.TrimPrefix(strings.TrimSuffix(filepath.Base(source), ".zip"), "evey-plugin-")
 	p := &plugin.Plugin{ID: "id-" + name, Name: name, Version: "2.18.1", Enabled: true, Status: plugin.Running}
 	f.byName[p.Name] = p
 	p.Status = plugin.Initializing // the handshake has not landed yet
@@ -615,41 +619,29 @@ func (f *fakePlugins) UpdatePluginConfig(_ context.Context, id string, cfg map[s
 	return nil
 }
 
-// The weather plugin is installed from the bundle under the plugin dir,
-// configured on Paris and enabled; the retired weather-v2 seed is uninstalled; a
-// second boot re-applies the config and installs nothing; a missing bundle is
-// skipped, not an error; the teardown uninstalls by name and leaves the
-// operator's plugins alone.
-func TestPlugins_InstalledFromBundleConfiguredAndRemoved(t *testing.T) {
+// The weather plugin is installed from its repository, configured on Paris
+// and enabled; the retired weather-v2 seed is uninstalled; a second boot
+// re-applies the config and installs nothing; the teardown uninstalls by name
+// and leaves the operator's plugins alone.
+func TestPlugins_InstalledFromRepositoryConfiguredAndRemoved(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	fp := newFakePlugins()
 	own := &plugin.Plugin{ID: "own-1", Name: "own-theme"}
 	_ = fp.Create(ctx, own)
 	_ = fp.Create(ctx, &plugin.Plugin{ID: "old-weather", Name: "weather-v2"})
-	pluginDir := t.TempDir()
-	h.boot.WithPlugins(fp, fp, fp, pluginDir)
+	h.boot.WithPlugins(fp, fp, fp, t.TempDir())
 
-	// Bundle absent: skipped, no id; the retired seed still goes.
 	ids, err := h.boot.EnsurePlugins(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fp.installed) != 0 || len(ids) != 0 {
-		t.Fatalf("installed without a bundle: %v %v", fp.installed, ids)
-	}
 	if len(fp.uninstalled) != 1 || fp.uninstalled[0] != "old-weather" {
 		t.Fatalf("retired plugin not removed: %v", fp.uninstalled)
 	}
-
-	bundle := filepath.Join(pluginDir, "weather.zip")
-	_ = os.WriteFile(bundle, []byte("zip"), 0o644)
-	ids, err = h.boot.EnsurePlugins(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(fp.installed) != 1 || fp.installed[0] != bundle {
-		t.Fatalf("installed = %v, want the bundle once", fp.installed)
+	repo := demo.Plugins[0].Repository
+	if len(fp.installed) != 1 || fp.installed[0] != repo {
+		t.Fatalf("installed = %v, want %s once", fp.installed, repo)
 	}
 	id := fp.byName["weather"].ID
 	if ids["weather"] != id {
@@ -684,6 +676,52 @@ func TestPlugins_InstalledFromBundleConfiguredAndRemoved(t *testing.T) {
 	}
 	if _, err := fp.GetByName(ctx, "own-theme"); err != nil {
 		t.Error("the operator's plugin was removed")
+	}
+}
+
+// A bundle the operator dropped under the plugin dir (a server that cannot
+// reach GitHub) is installed instead of the repository, and a broken bundle
+// is an error the operator sees.
+func TestPlugins_OperatorBundleWinsOverRepository(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	fp := newFakePlugins()
+	pluginDir := t.TempDir()
+	bundle := filepath.Join(pluginDir, demo.Plugins[0].File)
+	_ = os.WriteFile(bundle, []byte("zip"), 0o644)
+	h.boot.WithPlugins(fp, fp, fp, pluginDir)
+
+	if _, err := h.boot.EnsurePlugins(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fp.installed) != 1 || fp.installed[0] != bundle {
+		t.Fatalf("installed = %v, want the bundle %s", fp.installed, bundle)
+	}
+
+	fp2 := newFakePlugins()
+	fp2.installErr = errors.New("bad zip")
+	h.boot.WithPlugins(fp2, fp2, fp2, pluginDir)
+	if _, err := h.boot.EnsurePlugins(ctx); err == nil {
+		t.Error("a bundle that does not install must fail the boot")
+	}
+}
+
+// A repository that cannot be reached (no network, GitHub down, a refused
+// release) leaves the demo without the plugin and boots anyway; the home
+// then has no weather section rather than a hole.
+func TestPlugins_UnreachableRepositoryIsSkipped(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	fp := newFakePlugins()
+	fp.installErr = errors.New("dial tcp: no route to host")
+	h.boot.WithPlugins(fp, fp, fp, t.TempDir())
+
+	ids, err := h.boot.EnsurePlugins(ctx)
+	if err != nil {
+		t.Fatalf("boot failed on an unreachable repository: %v", err)
+	}
+	if len(ids) != 0 || len(fp.configs) != 0 {
+		t.Errorf("ids=%v configs=%v, want nothing for a plugin that is not there", ids, fp.configs)
 	}
 }
 
@@ -748,11 +786,19 @@ func TestArrangeHome_WritesTheManifestOrderAndHidesTheRest(t *testing.T) {
 
 // fakeHistory records what the seed asked the playback service to write.
 type fakeHistory struct {
-	resumed map[string]int64
-	watched []string
+	resumed  map[string]int64
+	finished map[string]int64
+	watched  []string
 }
 
-func (f *fakeHistory) ReportProgress(_ context.Context, _ string, mediaItemID string, positionMs int64, _ bool) error {
+func (f *fakeHistory) ReportProgress(_ context.Context, _ string, mediaItemID string, positionMs int64, completed bool) error {
+	if completed {
+		if f.finished == nil {
+			f.finished = map[string]int64{}
+		}
+		f.finished[mediaItemID] = positionMs
+		return nil
+	}
 	if f.resumed == nil {
 		f.resumed = map[string]int64{}
 	}
@@ -818,14 +864,18 @@ func TestSeedHistory_ResumesWatchesAndSkipsWhatExists(t *testing.T) {
 	if _, ok := hist.resumed["bleep-e4"]; ok {
 		t.Error("Colonel Bleep E4 was seeded, only the episode after the watched ones is resumed")
 	}
-	wantWatched := []string{"bbb", "bleep-e1", "bleep-e2"}
+	// A watched film is a play to its end: the watch history lists it.
+	if got := hist.finished["bbb"]; got != 10*60*1000 {
+		t.Errorf("Big Buck Bunny finished at %d ms, want its ten minutes", got)
+	}
+	wantWatched := []string{"bleep-e1", "bleep-e2"}
 	if strings.Join(hist.watched, ",") != strings.Join(wantWatched, ",") {
 		t.Errorf("watched = %v, want %v", hist.watched, wantWatched)
 	}
 
 	// Next boot: the titles have progress on the demo profile (the seed's,
 	// or a visitor's who moved on), nothing is rewritten.
-	hist.resumed, hist.watched = nil, nil
+	hist.resumed, hist.finished, hist.watched = nil, nil, nil
 	admin, _ := h.users.GetByUsername(ctx, demo.Username)
 	profs, _ := h.profiles.GetByUserID(ctx, admin.ID)
 	pid := profs[0].ID
@@ -835,7 +885,7 @@ func TestSeedHistory_ResumesWatchesAndSkipsWhatExists(t *testing.T) {
 	if err := h.boot.SeedHistory(ctx, libs); err != nil {
 		t.Fatal(err)
 	}
-	if len(hist.resumed) != 0 || len(hist.watched) != 0 {
+	if len(hist.resumed) != 0 || len(hist.finished) != 0 || len(hist.watched) != 0 {
 		t.Errorf("second boot rewrote history: resumed=%v watched=%v", hist.resumed, hist.watched)
 	}
 }

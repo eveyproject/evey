@@ -1,18 +1,21 @@
 package pluginrunner
 
 import (
-	"log/slog"
+	"archive/zip"
+	"errors"
+	"fmt"
 	"os/exec"
+	"path"
 	"sort"
+	"strings"
 )
 
-// runtimeBinaries maps the manifest language identifier to the binary
-// name(s) we look for on PATH. Order matters: the first match wins
-// (e.g. lua 5.4 over plain lua).
-//
-// Compiled languages ("go") are intentionally absent - they have no
-// runtime to resolve; isCompiled() short-circuits them as always-available.
-var runtimeBinaries = map[string][]string{
+// shebangInterpreters maps a manifest language to the interpreter a script
+// the plugin ships runs through ("entrypoint: main.py" + "#!/usr/bin/env
+// python3"): such an entrypoint does not name its interpreter, the language
+// does. An entrypoint that names its launcher ("java -jar plugin.jar",
+// "dotnet plugin.dll") is checked on PATH, whatever its language.
+var shebangInterpreters = map[string][]string{
 	"python": {"python3", "python"},
 	"nodejs": {"node", "nodejs"},
 	"php":    {"php", "php8"},
@@ -22,58 +25,84 @@ var runtimeBinaries = map[string][]string{
 	"sh":     {"sh"},
 }
 
-// compiledLanguages need no interpreter - the plugin ships a binary.
-var compiledLanguages = map[string]bool{
-	"go": true,
-}
-
-// RuntimeAvailability is a PATH-scanning implementation of
-// plugin.RuntimeAvailabilityChecker. It probes once at construction so
-// the install hot path is lock-free + allocation-free.
-//
-// To re-detect after a runtime is installed at runtime, build a new
-// instance. Plugin install is rare enough that hot-reloading is not
-// worth the cache invalidation complexity.
+// RuntimeAvailability is the PATH-scanning implementation of
+// plugin.RuntimeAvailabilityChecker. It reads the image as it is at each
+// install, so a runtime added to the image is usable without a restart.
 type RuntimeAvailability struct {
-	available map[string]bool
+	// pluginDirs are the directories plugins are installed under: an absolute
+	// entrypoint inside them is a file of the plugin, never a launcher.
+	pluginDirs []string
 }
 
-// NewRuntimeAvailability scans PATH for each known plugin runtime and
-// returns a checker that can answer IsAvailable in O(1). Errors are
-// logged at debug level since "binary not found" is the expected case
-// for variants like evey:beta (python only).
-func NewRuntimeAvailability() *RuntimeAvailability {
-	r := &RuntimeAvailability{available: make(map[string]bool, len(runtimeBinaries)+len(compiledLanguages))}
-	for lang, candidates := range runtimeBinaries {
-		for _, bin := range candidates {
-			if _, err := exec.LookPath(bin); err == nil {
-				r.available[lang] = true
-				slog.Debug("plugin runtime detected", slog.String("language", lang), slog.String("binary", bin))
-				break
-			}
+func NewRuntimeAvailability(pluginDirs ...string) *RuntimeAvailability {
+	return &RuntimeAvailability{pluginDirs: pluginDirs}
+}
+
+// CheckEntrypoint mirrors how the runner starts the plugin (resolveCommand):
+// a first word naming a file the zip ships is the plugin's own binary or
+// script, anything else must be a launcher installed in the image.
+func (r *RuntimeAvailability) CheckEntrypoint(zipPath, language, entrypoint string) error {
+	fields := strings.Fields(entrypoint)
+	if len(fields) == 0 {
+		return errors.New("empty entrypoint")
+	}
+	name := fields[0]
+	shipped, err := zipShips(zipPath, name)
+	if err != nil {
+		return err
+	}
+	if shipped {
+		candidates, interpreted := shebangInterpreters[language]
+		if !interpreted || anyOnPath(candidates) {
+			return nil
 		}
+		return fmt.Errorf("the %s interpreter (%s) is not installed in this image", language, strings.Join(candidates, " or "))
 	}
-	for lang := range compiledLanguages {
-		r.available[lang] = true
+	if _, ok := lookupLauncher(name, r.pluginDirs); ok {
+		return nil
 	}
-	return r
+	return fmt.Errorf("the entrypoint runs %q, which is neither installed in this image nor shipped by the plugin", name)
 }
 
-func (r *RuntimeAvailability) IsAvailable(language string) bool {
-	if language == "" {
-		// Empty language only applies to themes (no backend). The installer
-		// already gates that case; treat as available here to avoid false
-		// negatives if a theme ever flows through this checker by mistake.
-		return true
-	}
-	return r.available[language]
-}
-
+// Available lists the script languages whose interpreter this image has, for
+// the hint of a refused install.
 func (r *RuntimeAvailability) Available() []string {
-	out := make([]string, 0, len(r.available))
-	for lang := range r.available {
-		out = append(out, lang)
+	var out []string
+	for lang, candidates := range shebangInterpreters {
+		if anyOnPath(candidates) {
+			out = append(out, lang)
+		}
 	}
 	sort.Strings(out)
 	return out
+}
+
+func anyOnPath(candidates []string) bool {
+	for _, bin := range candidates {
+		if _, err := exec.LookPath(bin); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// zipShips reports whether the plugin archive holds a file at name, relative
+// to its root (where plugin.yaml lives). An absolute name is never shipped:
+// the zip extracts under the plugin's own dir.
+func zipShips(zipPath, name string) (bool, error) {
+	if strings.HasPrefix(name, "/") {
+		return false, nil
+	}
+	want := path.Clean(name)
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return false, fmt.Errorf("open plugin archive: %w", err)
+	}
+	defer zr.Close() //nolint:errcheck
+	for _, f := range zr.File {
+		if !f.FileInfo().IsDir() && path.Clean(f.Name) == want {
+			return true, nil
+		}
+	}
+	return false, nil
 }

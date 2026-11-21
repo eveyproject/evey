@@ -1,5 +1,5 @@
 ---
-source_sha: 470bac12c6b787ba52a8a86766fd4938e8c15c30c6b50de12fdefd686508021d
+source_sha: a6ee5bb3a713126f80980171824729c7a7f52b33aea955b32f44d8d66312d559
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -30,6 +30,25 @@ de la page.
 
 </div>
 
+## Plugins officiels { #official-plugins }
+
+Le projet Evey publie les plugins et les thèmes ci-dessous, chacun dans son
+propre dépôt. Pour en installer un, collez le lien de son dépôt dans l'onglet
+**Depuis une URL** de **Installer un plugin** : le serveur prend la dernière
+release, et le paquet suit ensuite ce dépôt pour ses mises à jour. Leurs
+releases sont signées avec la clé du projet, qui est approuvée dès le départ.
+
+| Nom | Type | Ce qu'il fait | Dépôt |
+| --- | --- | --- | --- |
+| Météo | Plugin | La météo locale sur la page d'accueil, devant un ciel qui lui correspond. | [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) |
+| Marquee | Plugin | Un mur d'affiches construit à partir de votre bibliothèque, avec une roulette pour choisir le film du soir. | [evey-plugin-marquee](https://github.com/eveyproject/evey-plugin-marquee) |
+| Librarian | Plugin | Liste les doublons probables et les films qui manquent dans une saga numérotée. Il lit la bibliothèque et ne touche jamais à un fichier. | [evey-plugin-librarian](https://github.com/eveyproject/evey-plugin-librarian) |
+| CShell | Thème | Une allure de terminal : noir pur, ambre, police à chasse fixe. | [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) |
+| Bleu sombre | Thème | Un thème de couleurs bleu sombre. | [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) |
+
+Pour écrire le vôtre, [evey-plugin-template](https://github.com/eveyproject/evey-plugin-template) est un dépôt dont partir : un
+plugin minimal, ses tests, et le workflow qui signe ses releases.
+
 ## Installer un plugin { #install-a-plugin }
 
 1. Dans **Administration → Plugins**, ouvrez **Installer un plugin** et choisissez le
@@ -58,10 +77,13 @@ de la page.
 
 Un paquet dont l'analyse relève un motif critique est refusé, quelle que soit
 votre réponse. Les avertissements sont affichés et laissés à votre
-appréciation. Le langage du plugin doit figurer parmi les **Environnements
-d'exécution disponibles** du serveur : l'image par défaut embarque
+appréciation. Le runtime qui démarre le plugin doit figurer dans l'image du
+serveur : l'image par défaut embarque
 Python, Node.js, PHP, Ruby et Lua ; l'image `-nodejs` garde Python et
-Node.js et l'image `-lean` ne garde que Python.
+Node.js, l'image `-lean` ne garde que Python, et
+[tout autre s'ajoute à l'image](plugins/dev-setup.md#a-runtime-the-image-does-not-carry).
+Les **Environnements d'exécution disponibles** listent ceux que le serveur a
+trouvés, et celui par lequel démarre chaque plugin installé.
 
 !!! tip "Plugins signés"
     L'auteur d'un plugin peut signer le ZIP avec [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) ;
@@ -250,6 +272,9 @@ même fenêtre **Installer un plugin** ; la feuille de style est assainie à
 l'installation. Chaque utilisateur le choisit ensuite dans **Paramètres →
 Apparence → Thème**. Ce qu'un thème peut contenir est décrit dans
 [Thèmes](themes.md).
+
+Les thèmes du projet sont listés dans
+[Plugins officiels](#official-plugins).
 
 ## Écrire un plugin { #writing-a-plugin }
 

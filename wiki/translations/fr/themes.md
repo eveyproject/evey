@@ -1,5 +1,5 @@
 ---
-source_sha: c9ba18045bcbe3d08d580a1cbe44e2e75fa72e4dfd7da439e4833b40fb13734a
+source_sha: c15e2f946d7ceb98981eb10c13c6e984330ed9b068cf5361e6596b0002c587b5
 reviewed: true
 ---
 # Thèmes
@@ -34,8 +34,8 @@ chaîne seule (`display_name: Aurora`) vaut pour toutes les langues.
 
 Le ZIP contient `theme.css` et/ou `theme.js` à sa racine, à côté du
 manifeste. Un paquet qui n'a ni l'un ni l'autre est accepté et n'a aucun
-effet visible. `examples/plugins/theme-dark-blue` (un court `theme.css` qui
-redéfinit les variables de couleur) et `examples/plugins/open-workshop` (une
+effet visible. [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) (un court `theme.css` qui
+redéfinit les variables de couleur) et [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) (une
 refonte complète) passent tous deux l'assainisseur et sont de bons points de
 départ.
 
@@ -52,7 +52,7 @@ dont le navigateur se souvient s'applique aussi avant la connexion.
 
 L'interface tire ses surfaces, son texte, son accent, ses bordures et ses
 rayons d'un jeu de propriétés personnalisées sur `:root` ;
-`examples/plugins/theme-dark-blue/theme.css` les liste avec un commentaire
+[`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) les liste avec un commentaire
 chacune. Les redéfinir restyle tous les écrans d'un coup :
 
 ```css title="theme.css"
@@ -177,7 +177,7 @@ theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n co
 routes, auth: internal/adapters/driving/http/theme_asset_handler.go (theme.css open, theme.js authMw)
 link injection, hidden iframe, connect-src none: frontend/apps/web/src/features/themes/ThemeLoader.tsx
 sanitizer: internal/adapters/driven/pluginrunner/css_sanitizer.go - SanitizeCSS, reImport, reURLExternal, reURLExternalUnterminated, reImageSetCandidateExternal, reCustomPropExternalURL, reURLJavascript, reExpression, reMozBinding, reBehavior, reSensitiveSelector, overlaySignals.isOverlay, stripPointerEventsOnInteractive, reZIndex ; written back at install: internal/app/plugin/install.go - validateStagedPlugin
-custom properties: examples/plugins/theme-dark-blue/theme.css
+custom properties: github.com/eveyproject/evey-theme-dark-blue - theme.css
 stable hooks: frontend/apps/web/src (evey-app-header, evey-media-grid, evey-media-card, evey-poster, evey-media-detail)
 theme.js bridge: frontend/apps/web/src/features/themes/theme-bridge.ts - THEME_BRIDGE_SCRIPT ; policy: theme-css-policy.ts - applyThemeCSSPolicy, MAX_DECLARATIONS, MAX_VALUE_LENGTH, FORBIDDEN_IN_VALUE
 scanner: internal/pkg/themejs/scan.go - blockedLiterals, blockedRegex, Scan

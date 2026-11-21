@@ -1,5 +1,5 @@
 ---
-source_sha: cea93a4c597e3d971df3ac4817b665211b857a8b87dd611010eb9aa4fb641293
+source_sha: f3c32fedbed0345e969d8297fc60bb16cf6ce06f7de011b4a299b2800d6c8a7f
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -41,13 +41,26 @@ declaró.
 | `bubblewrap` (`bwrap`) | Solo para los modos de sandbox `bubblewrap` y `strict`. El modo por defecto, `auto`, usa Landlock y no necesita nada en un núcleo 5.13 o posterior. |
 | [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) | Para firmar tu paquete antes de distribuirlo ([sección 7](#7-sign-your-plugin)). No hace falta para desarrollar. |
 
-Elige el lenguaje de tu plugin entre los runtimes que el servidor puede
-arrancar: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` y `sh` necesitan
-su intérprete en la imagen, y `go` incluye un binario compilado y necesita el
-permiso `native-binary`. La imagen por defecto lleva Python, Node.js, PHP, Ruby y Lua; la imagen
-`-nodejs` conserva Python y Node.js y la imagen `-lean` solo Python. Un
-manifiesto que nombra un runtime que la imagen no tiene se rechaza al
-instalar, con la lista de los runtimes disponibles.
+Elige el lenguaje de tu plugin. El entrypoint nombra lo que lo ejecuta: un runtime de la imagen (`node main.js`, `python3 main.py`, `java -jar plugin.jar`, `dotnet plugin.dll`) o un binario que incluye el paquete (`go`, con el permiso `native-binary`). La imagen por defecto lleva Python, Node.js, PHP, Ruby y Lua; la imagen `-nodejs` conserva Python y Node.js y la imagen `-lean` solo Python. Cualquier otro runtime se añade a la imagen ([más abajo](#a-runtime-the-image-does-not-carry)). Un plugin cuyo entrypoint nombra un comando que la imagen no tiene, y que su paquete no incluye, se rechaza al instalar.
+
+Lo que cada imagen da a un plugin, según `language`:
+
+| `language` | Imágenes | Intérprete | gRPC aportado por la imagen | Lo que trae el paquete |
+|---|---|---|---|---|
+| `python` | por defecto, `-nodejs`, `-lean` | Python 3.13 | `grpcio`, `protobuf` | Su código. El servidor copia los stubs generados junto al entrypoint. |
+| `nodejs` | por defecto, `-nodejs` | Node.js 20 | `@grpc/grpc-js` 1.14.7, `@grpc/proto-loader` 0.8.1, desde la 0.1.9 | Su código. Hasta la 0.1.8, los dos módulos gRPC en su `node_modules`. |
+| `php` | por defecto | PHP 8.4 | ninguno | Una implementación gRPC y los stubs que generó. |
+| `ruby` | por defecto | Ruby 3.3 | ninguno | Una implementación gRPC y los stubs que generó. |
+| `lua` | por defecto | Lua 5.4 | ninguno | Una implementación gRPC y los stubs que generó. |
+| `bash`, `sh` | las tres | bash 5.2, dash | ninguno | Lo que atiende el socket gRPC. |
+| `go` | las tres | ninguno, compilado | no hace falta | Un binario estático, con el permiso `native-binary`. |
+
+Los intérpretes y los módulos de Python son los paquetes de la versión de
+Debian sobre la que se construye la imagen, así que sus versiones mayores solo
+cambian con ella. Los dos módulos de Node.js están fijados en
+`docker/plugin-runtime-node/package.json`. La construcción de la imagen falla
+si alguno no se puede cargar: una imagen nunca sale sin lo que esta tabla
+promete.
 
 El contrato gRPC es un solo archivo, `proto/plugin/v1/plugin_api.proto`. Solo
 el SDK de Python incluye stubs generados; los demás lenguajes en
@@ -69,6 +82,37 @@ protoc --proto_path=proto \
 
 `make plugin-sdk` regenera los stubs incluidos; cada `sdk/<lang>/README.md`
 indica el plugin gRPC que necesita su lenguaje.
+
+### Un runtime que la imagen no incluye { #a-runtime-the-image-does-not-carry }
+
+Instala el runtime en una imagen construida sobre la de Evey y usa esa imagen en tu `compose.yaml`. El servidor arranca cualquier comando de su `PATH`, así que nada más cambia. Dos ejemplos, un JRE para los plugins distribuidos como `.jar` y el runtime de .NET para los distribuidos como `.dll`:
+
+```dockerfile title="Dockerfile"
+FROM eveyproject/evey:latest
+
+# Java: plugins shipped as a .jar, started by "java -jar plugin.jar"
+# (the JRE's install script links its manual page, a slim image has no man1)
+RUN mkdir -p /usr/share/man/man1 \
+    && apt-get update && apt-get install -y --no-install-recommends openjdk-21-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# .NET: plugins shipped as a .dll, started by "dotnet plugin.dll"
+RUN curl -fsSL https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb -o /tmp/ms.deb \
+    && dpkg -i /tmp/ms.deb && rm /tmp/ms.deb \
+    && apt-get update && apt-get install -y --no-install-recommends dotnet-runtime-8.0 \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+El manifiesto del plugin nombra el runtime en su entrypoint. El análisis estático no puede leer un `.jar` ni un `.dll`, así que el paquete declara `native-binary`, como un plugin de Go compilado:
+
+```yaml title="plugin.yaml"
+language: java                  # a label: no stubs are copied for it
+entrypoint: java -jar plugin.jar
+permissions:
+  - native-binary
+```
+
+El paquete trae su propia implementación de gRPC (grpc-java dentro del `.jar`, Grpc.Net dentro de la carpeta del `.dll`). En el sandbox, el plugin ve, además de los directorios habituales del sistema, el directorio de instalación del runtime cuando está bajo `/opt` y los directorios de `/etc` a los que enlaza el paquete del runtime (`/etc/alternatives`, `/etc/java-21-openjdk`), nada más. Un runtime instalado en cualquier otro lugar fuera de los directorios del sistema, o en un directorio que también contiene los plugins o el servidor, se rechaza: instálelo bajo `/usr` o en un directorio propio bajo `/opt`. La JVM y el recolector de basura de .NET dimensionan su heap a partir del límite de memoria del plugin (**Memoria máx. (MiB)** en **Límites de recursos**), no de la memoria del host; un `-Xmx` en el entrypoint sigue teniendo prioridad en Java.
 
 ## 2. Arrancar Evey en local { #2-bring-up-evey-locally }
 
@@ -114,9 +158,10 @@ una cosa y lo instalamos.
       - api.library             # permite al backend leer los elementos multimedia
     ```
 
-    `language` le dice al servidor qué runtime comprobar y qué stubs copiar;
-    `entrypoint` es lo que ejecuta, en la carpeta del plugin, con el entorno
-    del paso siguiente.
+    `language` le dice al servidor qué stubs copiar; `entrypoint` es lo que
+    ejecuta, en la carpeta del plugin, con el entorno del paso siguiente. Su
+    primera palabra es un comando de la imagen (`node`) o un archivo del
+    paquete.
 
 3. **Lee `main.js`.** El servidor pasa tres variables al proceso:
    `EVEY_PLUGIN_ID`, `EVEY_PLUGIN_SOCK` (el socket en el que *tu* proceso
@@ -202,7 +247,7 @@ muestra; `evey.resize`, `evey.toast` y `evey.navigate` actúan sobre la página
 dentro de unos límites fijos; y, cuando el manifiesto declara `prefs` o
 `public`, `evey.prefs.*` y `evey.media.*` llegan al servidor con un token de
 corta duración que la página anfitriona guarda para el marco.
-`examples/plugins/weather` es un widget completo con un paso de compilación;
+[evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) es un widget completo con un paso de compilación;
 `examples/plugins/data-demo` muestra `prefs`, `public` y el slot `admin.nav`.
 El puente y los slots se describen en la
 [Referencia de la API de plugins](api-reference.md#frontend-api).
@@ -338,8 +383,10 @@ registro del servidor tiene el detalle.
 1. **Manifiesto.** `plugin.yaml` se lee directamente del ZIP: campos
    obligatorios, semver, permisos y capacidades conocidos, slots de la lista
    permitida, entradas de `external_fetch` que son nombres de host a secas,
-   `web_root` presente cuando se declara `frontend`. El `language` declarado
-   tiene que ser un runtime de la imagen.
+   `web_root` presente cuando se declara `frontend`. El entrypoint tiene que
+   poder arrancar: su primera palabra es un archivo del paquete o un comando
+   de la imagen, y un script lanzado por su shebang (`entrypoint: main.py`)
+   necesita en la imagen el intérprete de su `language`.
 2. **Versión y ampliación de permisos.** Para un plugin ya instalado, la
    versión nueva tiene que ser mayor, y cualquier permiso, capacidad, slot o
    host nuevo detiene la instalación aquí hasta que el administrador aprueba
@@ -427,7 +474,7 @@ etiqueta de versión.
 
 | Síntoma | Causa | Solución |
 |---|---|---|
-| `plugin requires "nodejs" runtime which is not installed in this image` | A la variante de la imagen le falta el intérprete. | Usa la imagen por defecto o `-nodejs`, o escribe el plugin en Python. |
+| `plugin (language "nodejs", entrypoint "node main.js") cannot run on this image: the entrypoint runs "node", which is neither installed in this image nor shipped by the plugin` | A la imagen le falta el runtime que nombra el entrypoint. | Usa la imagen por defecto o `-nodejs`, [añade el runtime a la imagen](#a-runtime-the-image-does-not-carry), o escribe el plugin en Python. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | Los comodines se rechazan al instalar, sin excepciones. | Enumera cada nombre de host que necesites (`api.tmdb.org`, `image.tmdb.org`). |
 | `manifest: frontend slot "admin.section" not allowed` | El slot no está en la lista permitida. | Elige un slot de la [lista de slots](api-reference.md#slots); `admin.nav` es el único slot de la zona de administración. |
 | `manifest: network permission requires non-empty external_fetch` | Se ha declarado `network` sin hosts. | Añade los hosts, o quita el permiso. |
@@ -439,7 +486,7 @@ etiqueta de versión.
 | El módulo de interfaz no aparece | El plugin está desactivado, el nombre del slot está mal escrito o `src` no está dentro de `web_root`. | Comprueba el estado de la tarjeta, el nombre del slot y las peticiones `/api/v1/plugins/<id>/assets/...` en el panel de red del navegador. |
 
 <!-- sources
-runtimes, image variants: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries, compiledLanguages ; internal/app/plugin/install.go - parseAndValidateManifest ; Dockerfile (RUNTIMES lean/nodejs/full)
+runtimes, image variants: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint, shebangInterpreters ; launcher_resolve.go - lookupLauncher, computeRuntimeReadPaths, runtimeRootExposable ; runner_start.go - resolveCommand, buildPluginEnv (JAVA_TOOL_OPTIONS, DOTNET_GCHeapHardLimit) ; runner_landlock.go - safeProcFiles ; internal/app/plugin/install.go - parseAndValidateManifest ; Dockerfile (RUNTIMES lean/nodejs/full) ; added runtimes measured by pluginrunner/runner_runtimes_test.go - TestRuntimeLaunchers (scripts/plugin-runtimes-itest.sh, testdata/runtimes/Dockerfile)
 stubs copied at start, NODE_PATH: internal/adapters/driven/filesystem/plugin_fs.go - CopySDKStubs ; internal/adapters/driven/pluginrunner/runner_start.go ; sdk/python/README.md ; examples/plugins/nodejs-example/package.json
 dev stack: DEV.md (Quick Start) ; Makefile - setup, dev ; docker-compose.yml (evey-data/plugins:/data/plugins)
 example: examples/plugins/nodejs-example/main.js, plugin.yaml

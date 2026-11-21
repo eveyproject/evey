@@ -115,6 +115,10 @@ That is the whole update.
 - **Evey tells you when an update exists.** It checks every hour whether a
   newer image is published and says so in the admin panel. It never updates
   itself.
+- **The Android apps follow.** A release image carries the code of the
+  Android and Android TV apps that goes with it, and the apps connected to
+  your server pick it up by themselves
+  ([Keeping the apps up to date](getting-started/apps.md#keeping-the-apps-up-to-date)).
 - **Which version is running:** `docker exec evey-server evey version` prints
   the version and the commit.
 
@@ -135,13 +139,16 @@ That is the whole update.
    steps, with the file's path.
 3. Run `docker compose up -d`.
 
-The intro detection fingerprints are the one thing that does not follow you
+The intro detection fingerprints are the only data that does not follow you
 back. The first start of a version that keeps them in
 `./evey-data/fingerprints` moves them there from the database and deletes the
 rows it moved. An older version reads them from the database only, finds none,
 and computes them again from the media files as intro detection runs: nothing
 is lost, but the server is busier for a while. A backup made before the update
 still holds the rows, and restoring it brings them back.
+
+The Android apps do not go back with the server: they keep the newest app
+code they have run, and the older server has to work with it.
 
 Image tags, other variants and graphics card builds are described in
 [Advanced deployments](operations/advanced-deployments.md#image-tags-and-variants).
@@ -155,6 +162,7 @@ keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /dat
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
 fingerprints moved out of the database at boot, rows deleted once copied: cmd/evey/fingerprint_store.go - moveAudioFingerprints, movePhashFingerprints ; internal/adapters/driven/postgres/intro_fingerprint_legacy.go ; backups hold every table but telemetry: internal/adapters/driven/postgres/backup.go - telemetryTables
+app code in the image, apps never go back: Dockerfile (COPY client-updates) ; docs/client-updates.md ; frontend/packages/client/src/native/clientUpdates.test.ts
 rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

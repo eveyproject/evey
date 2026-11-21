@@ -1,0 +1,6 @@
+<resources>
+  <style name="AppThemeBase" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <item name="android:navigationBarColor">@android:color/transparent</item>
+    <item name="android:windowLayoutInDisplayCutoutMode">always</item>
+  </style>
+</resources>

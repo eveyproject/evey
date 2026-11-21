@@ -30,6 +30,9 @@ export const VIDEO_CODECS = ["h264", "hevc", "vp9"];
 // drifting off the picture. AVPlayer (iPhone, Apple TV) reads neither
 // container, so Apple keeps mp4/hls and lets the server remux.
 export const CONTAINERS = Platform.OS === "android" ? ["mp4", "mkv", "webm", "hls"] : ["mp4", "hls"];
+// What the device declares once its own demuxer refused the file: no Matroska,
+// so the server remuxes the same copied tracks into HLS (the Apple path).
+export const REMUX_CONTAINERS = ["mp4", "hls"];
 
 interface StreamTokenResponse {
   token: string;
@@ -110,6 +113,8 @@ export interface StreamUrlOptions {
   networkType?: "wifi" | "cellular";
   /** The device's data saver line ceiling (kbps), see @evey/store dataSaver. */
   maxBitrateKbps?: number;
+  /** The containers declared, CONTAINERS when omitted. */
+  containers?: string[];
 }
 
 function appendCodecParams(params: URLSearchParams, opts: StreamUrlOptions): void {
@@ -118,7 +123,7 @@ function appendCodecParams(params: URLSearchParams, opts: StreamUrlOptions): voi
   // a hardcoded list with ac3/eac3 direct-played Dolby tracks on devices with
   // no Dolby decoder - video without sound.
   params.set("audioCodecs", getDeviceAudioCodecs().join(","));
-  params.set("containers", CONTAINERS.join(","));
+  params.set("containers", (opts.containers ?? CONTAINERS).join(","));
   // What the device takes muxed in fMP4, NOT what it decodes - see
   // getFmp4AudioPassthrough. Omitted when empty so the URL of every other
   // platform stays byte-identical to before.
@@ -275,6 +280,12 @@ export interface PlaySessionResult {
   stopSession: () => void;
   restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
   /**
+   * The device's demuxer refused the file it was direct-playing. True when the
+   * next stream will ask the server to remux it instead (the caller restarts
+   * it), false when the stream was not a direct play or this already happened.
+   */
+  refuseDirectPlay: () => boolean;
+  /**
    * The audio track the player switched to in place (absolute stream index).
    * The verdict is asked again for it, as the web does, so the panel describes
    * that track and not the one the stream was negotiated for. "reload" when
@@ -333,6 +344,9 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
   const [shedReason, setShedReason] = useState<ShedReason>(null);
   const sessionIdRef = useRef<string | null>(null);
   const startedRef = useRef(false);
+  // The device's demuxer refused this title's file: every later stream of it
+  // declares no Matroska, so the server remuxes instead of handing it over.
+  const directPlayRefusedRef = useRef(false);
   const prevMediaIdRef = useRef(mediaId);
   if (prevMediaIdRef.current !== mediaId) {
     prevMediaIdRef.current = mediaId;
@@ -341,6 +355,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
     // hints of its own route.
     firstStartRef.current = true;
     initialRef.current = initial;
+    directPlayRefusedRef.current = false;
   }
   const stoppedRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
@@ -377,6 +392,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         const verdictMaxHeight = tighterOf(explicitMaxHeight, decoderMaxHeight(limits));
         const verdictMaxWidth = decoderMaxWidth(limits);
         const supportedPixelFormats = devicePixelFormats(limits, VIDEO_CODECS);
+        const containers = directPlayRefusedRef.current ? REMUX_CONTAINERS : CONTAINERS;
 
         // The device probes run BEFORE the negotiation: GetStreamInfo has to
         // describe the same client the master URL will declare. They are local
@@ -391,7 +407,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         const verdictParams = {
           supportedCodecs: VIDEO_CODECS,
           supportedAudioCodecs: getDeviceAudioCodecs(),
-          supportedContainers: CONTAINERS,
+          supportedContainers: containers,
           // Same declaration the HLS master URL carries, so the stream-info
           // panel describes the bytes the segments will actually hold.
           fmp4AudioPassthrough: getFmp4AudioPassthrough(),
@@ -456,6 +472,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           supportsHdr,
           networkType,
           maxBitrateKbps: saver?.maxBitrateKbps,
+          containers,
         });
 
         // Direct play streams the original file with no orchestrator involved,
@@ -559,6 +576,13 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
     [startStream],
   );
 
+  const refuseDirectPlay = useCallback(() => {
+    const live = liveVerdictRef.current;
+    if (directPlayRefusedRef.current || !live || !isDirectPlay(live.info)) return false;
+    directPlayRefusedRef.current = true;
+    return true;
+  }, []);
+
   const selectAudioStream = useCallback(
     async (audioStreamIndex: number): Promise<AudioSwitchOutcome> => {
       const pick = ++audioPickRef.current;
@@ -594,5 +618,5 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, selectAudioStream, progress, restartPositionMs };
+  return { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, refuseDirectPlay, selectAudioStream, progress, restartPositionMs };
 }

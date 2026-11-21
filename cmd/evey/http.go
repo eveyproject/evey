@@ -177,6 +177,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		SearchHealth: deps.searchHealth,
 
 		TokenGen:         deps.auth.userTokenGen,
+		PluginLaunchers:  pluginLaunchers(deps),
 		PluginTokenGen:   deps.auth.tokenGen,
 		Cfg:              cfg,
 		StreamTokenStore: deps.media.streamTokenStore,
@@ -199,18 +200,19 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		UserQuerySvc:    deps.user.querySvc,
 		QuickConnectHub: qcHub,
 
-		TranscodingSvc: deps.media.transcodingSvc,
-		HLSVODOrch:     deps.media.hlsVODOrch,
-		HLSVODSoftware: deps.media.hlsVODSoftware,
-		HLSVODCache:    deps.media.hlsVODCache,
-		ProbeSignals:   deps.media.probeSignals,
-		HLSTranscoder:  deps.media.hlsTranscoder,
-		AudioOrch:      deps.media.audioOrch,
-		QoESink:        deps.media.qoeSink,
-		QoEQuerySvc:    deps.media.qoeQuerySvc,
-		ComplexityRepo: deps.media.complexityRepo,
-		CalibrationSvc: deps.media.calibrationSvc,
-		CapOverrideSvc: deps.media.capsOverrideSvc,
+		TranscodingSvc:     deps.media.transcodingSvc,
+		HLSVODOrch:         deps.media.hlsVODOrch,
+		HLSVODSoftware:     deps.media.hlsVODSoftware,
+		HLSVODCache:        deps.media.hlsVODCache,
+		ProbeSignals:       deps.media.probeSignals,
+		HLSTranscoder:      deps.media.hlsTranscoder,
+		AudioOrch:          deps.media.audioOrch,
+		QoESink:            deps.media.qoeSink,
+		DirectPlayRefusals: deps.repos.directPlayRefusals,
+		QoEQuerySvc:        deps.media.qoeQuerySvc,
+		ComplexityRepo:     deps.media.complexityRepo,
+		CalibrationSvc:     deps.media.calibrationSvc,
+		CapOverrideSvc:     deps.media.capsOverrideSvc,
 
 		MetadataCmdSvc: deps.content.metadataCmdSvc,
 		// The preview clip route: a few seconds of picture with one audio
@@ -462,4 +464,23 @@ func startUpdateCheck(ctx context.Context, cfgRepo shared.ServerConfigRepository
 		svc.Start(ctx)
 	}
 	return svc
+}
+
+// pluginLaunchers lists the image launchers installed plugins start through
+// (java, dotnet...), for the admin's runtime list.
+func pluginLaunchers(deps *appDeps) func(context.Context) []string {
+	return func(ctx context.Context) []string {
+		plugins, err := deps.engagement.pluginQuerySvc.ListPlugins(ctx)
+		if err != nil {
+			slog.WarnContext(ctx, "list plugins for the runtime list", slog.Any("err", err))
+			return nil
+		}
+		var out []string
+		for _, p := range plugins {
+			if path, ok := deps.pluginRunner.ImageLauncher(p); ok {
+				out = append(out, path)
+			}
+		}
+		return out
+	}
 }

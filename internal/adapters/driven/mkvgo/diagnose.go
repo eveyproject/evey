@@ -34,6 +34,24 @@ func (a *Adapter) Diagnose(ctx context.Context, path string) (*mkv.Diagnosis, er
 	return mapDiagnosis(d), nil
 }
 
+// ProbeContainerDamage counts the bytes of the container a demuxer that does
+// not resynchronize stops on (see library.MediaFile.ContainerDamagedBytes):
+// 0 for a clean file and for any non-Matroska one. A damaged finding whose
+// size is unknown counts as 1, never as clean.
+func (a *Adapter) ProbeContainerDamage(ctx context.Context, path string) (int64, error) {
+	if !IsEBMLContainer(path) {
+		return 0, nil
+	}
+	d, err := a.Diagnose(ctx, path)
+	if err != nil {
+		return 0, err
+	}
+	if d.Damaged() {
+		return max(d.DamagedBytes, 1), nil
+	}
+	return 0, nil
+}
+
 // mapDiagnosis distils mkvgo's triage into the domain Diagnosis. Pure - unit
 // tests construct the input shapes the wild produces.
 func mapDiagnosis(d *extmatroska.Diagnosis) *mkv.Diagnosis {
@@ -77,16 +95,18 @@ func mapDiagnosis(d *extmatroska.Diagnosis) *mkv.Diagnosis {
 	if ends := d.TrackEnds; ends != nil && ends.AudioShortfallMs > 0 {
 		out.AudioShortfallMs = ends.AudioShortfallMs
 	}
-	if d.Damage != nil {
-		// Since mkvgo v0.25 the salvage walk counts surplus bytes past the
-		// declared Segment end (trailing junk) in BytesSkipped too, yet that
-		// media is complete - only a mid-Segment "damaged" finding means a
-		// resync repair has something to skip. Relaying the raw byte count would
-		// mislabel a whole file with trailing junk as corrupt. Its trailing-junk
-		// finding is copied above and surfaced via Diagnosis.TrailingJunk().
-		if out.Damaged() {
+	// Since mkvgo v0.25 the salvage walk counts surplus bytes past the declared
+	// Segment end (trailing junk) in BytesSkipped too, yet that media is
+	// complete - only a "damaged" finding means a resync repair has something
+	// to skip. Relaying the raw byte count would mislabel a whole file with
+	// trailing junk as corrupt. Its trailing-junk finding is copied above and
+	// surfaced via Diagnosis.TrailingJunk(). Junk ahead of the first Cluster is
+	// counted apart (ResyncedBytes): the salvage walk does not run for it.
+	if out.Damaged() {
+		if d.Damage != nil {
 			out.DamagedBytes = d.Damage.BytesSkipped
 		}
+		out.DamagedBytes = max(out.DamagedBytes, d.ResyncedBytes)
 	}
 	return out
 }

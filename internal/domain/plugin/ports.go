@@ -150,15 +150,16 @@ type SignatureVerifier interface {
 	VerifySignature(ctx context.Context, zipPath, sigPath string) (*SignatureStatus, error)
 }
 
-// RuntimeAvailabilityChecker reports which plugin runtime languages the
-// host image actually supports. Used at install time to fail fast with an
-// actionable message instead of letting the plugin crash at exec.
+// RuntimeAvailabilityChecker reports whether the host image can start a
+// plugin. Used at install time to fail fast with an actionable message
+// instead of letting the plugin crash at exec.
 //
-// IsAvailable returns true for languages with a usable interpreter on PATH
-// (or compiled-only languages like "go" that need no runtime). Available
-// returns the sorted list of supported languages so the installer can
-// surface them in the error message ("the default image ships php, the -lean variant does not").
+// CheckEntrypoint returns nil when the entrypoint's first word is a file the
+// plugin archive (zipPath) ships, or a launcher installed in the image (any
+// command on PATH: java, dotnet, python3...). A shipped script whose language
+// runs it through an interpreter (python, nodejs...) also needs that
+// interpreter. Available lists the interpreters found, for the refusal hint.
 type RuntimeAvailabilityChecker interface {
-	IsAvailable(language string) bool
+	CheckEntrypoint(zipPath, language, entrypoint string) error
 	Available() []string
 }

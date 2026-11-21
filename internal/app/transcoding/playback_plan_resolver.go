@@ -226,6 +226,7 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	prefs.WasmAudio = req.WasmAudio
 	prefs.SourceBitrateKbps = req.SourceBitrateKbps
 	prefs.SourceNeedsRemux = req.SourceNeedsRemux
+	prefs.SourceRefusesDirectPlay = req.SourceRefusesDirectPlay
 	d := MakePlaybackDecisionWithPrefs(ctx, req.Streams, req.Container, req.Client, req.MaxBitrateKbps, prefs, req.SourcePath)
 	if d == nil {
 		return transcoding.PlaybackDecision{}

@@ -59,9 +59,10 @@ refuse what a stranger must not do to the host.
   (deleting it would reopen the setup wizard on a live server). `evey admin
   demo-seed` runs the same bootstrap by hand. The plugin panel is shown the
   same way: the bootstrap installs the demo plugins (`demo.Plugins`, the
-  `weather-v2` example on Paris) from the bundles the operator drops under
-  `EVEY_DEMO_PLUGIN_DIR`, enables them and re-applies their config at every
-  boot; a missing bundle is skipped. Plugins are visual on the demo: the
+  `weather` plugin on Paris) from their repository's latest signed release,
+  or from a bundle the operator drops under `EVEY_DEMO_PLUGIN_DIR` when the
+  server cannot reach GitHub, enables them and re-applies their config at
+  every boot; a plugin that cannot be had is skipped. Plugins are visual on the demo: the
   catalogue, the config and the logs read, every write - install, enable,
   config, limits - locked, since the seeded plugin is shared by every visitor. `ImpersonateUser` stays open:
   the minted token is judged by this same policy, as a non-administrator on

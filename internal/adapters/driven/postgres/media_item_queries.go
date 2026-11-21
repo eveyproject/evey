@@ -550,7 +550,8 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 		        COALESCE(mf.file_size, 0),
 		        COALESCE(mf.mod_time, '1970-01-01 00:00:00+00'::timestamptz),
 		        COALESCE(mf.stream_probe_attempts, 0),
-		        COALESCE(mf.stream_probe_version, 0)
+		        COALESCE(mf.stream_probe_version, 0),
+		        COALESCE(mf.container_check_version, 0)
 		 FROM media_items mi
 		 LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 		 WHERE mi.library_id = $1 AND mi.id > $2 ORDER BY mi.id LIMIT $3`,
@@ -562,7 +563,7 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 	var result []library.MediaItemScanRow
 	for rows.Next() {
 		var row library.MediaItemScanRow
-		if err := rows.Scan(&row.ID, &row.FilePath, &row.FileFingerprint, &row.FileSize, &row.ModTime, &row.StreamProbeAttempts, &row.StreamProbeVersion); err != nil {
+		if err := rows.Scan(&row.ID, &row.FilePath, &row.FileFingerprint, &row.FileSize, &row.ModTime, &row.StreamProbeAttempts, &row.StreamProbeVersion, &row.ContainerCheckVersion); err != nil {
 			return nil, fmt.Errorf("MediaItemRepo.listScanSummariesBatch scan: %w", err)
 		}
 		result = append(result, row)

@@ -12,6 +12,7 @@ import { onResultPicked, onScanStarted, rowClaimsFocus, scanFocusIdle } from "..
 import { interpolateFallback } from "../src/i18n/interpolateFallback";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { wikiUrl } from "@evey/client";
+import { useFieldAboveKeyboard } from "../src/hooks/useFieldAboveKeyboard";
 
 // Wiki help for novices, in the viewer's language when it is published there.
 function serverHelpUrl(lang: string): string {
@@ -165,9 +166,16 @@ export default function ServerConnect() {
   }, [renameId, renameValue, renameServer]);
 
   const s = styles(theme);
+  const keyboard = useFieldAboveKeyboard(inputFocused);
 
   return (
-    <ScrollView style={s.scroll} contentContainerStyle={s.container}>
+    <ScrollView
+      ref={keyboard.scrollRef}
+      onLayout={keyboard.onViewportLayout}
+      onContentSizeChange={keyboard.onContentSizeChange}
+      style={s.scroll}
+      contentContainerStyle={[s.container, keyboard.contentStyle]}
+    >
       <Text style={s.brand}>Evey</Text>
       <Text style={s.heading}>{t("mobile.serverConnect.title", "Connect to your server")}</Text>
 
@@ -231,6 +239,7 @@ export default function ServerConnect() {
         autoCorrect={false}
         onFocus={() => setInputFocused(true)}
         onBlur={() => setInputFocused(false)}
+        onLayout={keyboard.onFieldLayout}
         onSubmitEditing={handleConnect}
         accessible={true}
         accessibilityLabel={t("mobile.serverConnect.urlLabel", "Server URL")}

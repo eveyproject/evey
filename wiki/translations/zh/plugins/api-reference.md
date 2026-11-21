@@ -1,5 +1,5 @@
 ---
-source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
+source_sha: 3b4318e6bc6ae273dc5806dac61bebaa3c65f30d724c824dac69762f571c5c52
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -16,7 +16,7 @@ reviewed: true
 name: my-plugin              # 必填；唯一，kebab-case 格式
 version: 1.2.3               # 必填；semver，X.Y.Z 或 X.Y.Z-label
 kind: plugin                 # 必填；"plugin" 或 "theme"
-language: nodejs             # 插件必填；镜像里的一个运行时
+language: nodejs             # 插件必填；决定复制哪些存根
 entrypoint: node index.js    # 插件必填；服务器执行的命令行
 
 display_name: My Plugin      # 可选；一个字符串，或一个映射 {en: ..., fr: ...}
@@ -52,8 +52,8 @@ config_schema:               # 插件卡片上“配置”面板里的字段
 |---|---|
 | `name`、`version`、`kind` | 必填。`version` 必须符合 `X.Y.Z` 或 `X.Y.Z-label`；更新包的版本必须高于已安装的版本。 |
 | `display_name` | 给人看的名称；`name` 仍是更新时用来对应插件的标识。只写一个字符串时算作英文，适用于所有语言；映射以语言代码为键（`en`、`fr`、`pt-BR`）。每个值 1 到 40 个字符，前后不能有空格，也不能含控制字符。目前由主题选择器显示。 |
-| `language` | `kind: plugin` 必填：`python`、`nodejs`、`php`、`ruby`、`lua`、`bash`、`sh` 或 `go`。它决定检查哪个运行时、把哪些存根复制到入口旁边；它本身不启动任何东西。 |
-| `entrypoint` | `kind: plugin` 必填。第一个词是解释器（声明了 `native-binary` 时是二进制文件），其余是它的参数；进程在插件的目录里运行。 |
+| `language` | `kind: plugin` 必填，可以是任意值。它决定把哪些存根复制到入口旁边（即 `sdk/<language>/` 里的）。对于通过 shebang 启动的脚本（`entrypoint: main.py`），`python`、`nodejs`、`php`、`ruby`、`lua`、`bash` 和 `sh` 还要求镜像里有对应的解释器。它本身不启动任何东西。 |
+| `entrypoint` | `kind: plugin` 必填。第一个词是插件包里的文件（二进制文件，声明了 `native-binary` 时；或脚本），或者是镜像里能在其 `PATH` 中找到的命令（`node`、`python3`、`java`、`dotnet`），其余是它的参数；命令找不到会让安装被拒绝。进程在插件的目录里运行。 |
 | `permissions` | 每个值都必须在[权限目录](security-model.md#permissions-catalog)里。`network` 要求 `external_fetch` 不为空。 |
 | `external_fetch` | 主机名。协议前缀和末尾的路径在解析时会被丢弃；主机必须完全匹配，`*.example.com` 这样的通配符在安装时会被拒绝；不带端口的条目只允许 80 和 443 端口，`host:port` 只允许该端口；IP 地址会导致安装被拒绝（[规则](security-model.md#external-fetch-rules)）。 |
 | `capabilities` | `metadata.provider`、`media.read`、`media.write`、`webhook.receiver` 或 `notification.sender`；其他值都会被拒绝。主题不能声明任何能力。 |
@@ -223,6 +223,19 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 按相对路径读取插件自己 `web_root` 里的一个文件，返回 `data:` URL：后端在运行时写出的文件，
 就能在框架里直接使用，不用操心跨域问题。只能读到插件自己的资源。
 
+### `evey.config.save(values)`（仅限插槽 `admin.plugin.config`） { #eveyconfigsavevalues }
+
+写入插件的服务器配置，也就是管理员按 `config_schema` 设置的值。给出的键会合并进已保存的配置，
+其余的键保持原样，服务器会按模式校验合并后的结果，和校验生成的表单完全一样。值都是字符串，和表单里一样。
+Promise 会以 `{ values }` 兑现，即实际保存的配置（密钥字段会被遮蔽）；某个值被拒绝时，
+它会带着服务器的消息被拒绝。在 `admin.plugin.config` 之外的任何地方，这个调用都会被拒绝。
+
+```js
+await evey.config.save({ city: "Brest", lat: "48.39", lon: "-4.49" });
+```
+
+当前的值会在 `onInit` 里以 `config` 的形式传入，和每个插槽一样。
+
 ### 在电视上 { #on-a-television }
 
 电视应用在 WebView 里运行模块，一些在浏览器里成立的事情，在那里就不成立了：
@@ -232,7 +245,7 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 - **没有焦点，也没有指针。** 小组件永远不会获得方向键的焦点，也没有悬停效果；任何需要交互的东西都应放在网页和移动端。
 - **文字不要贴着边缘。** 电视会过扫描：每一边都留出大约 5% 的宽度和高度。
 - **在真实的电视盒上测试 WebGL。** 着色器运行在电视盒自己的 GPU 和驱动上，而不是您电脑上的；噪声坐标要保持在有限范围内。
-  `tests/plugins/weather-v2` 是以上所有要点的参考小组件。
+  [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) 是以上所有要点的参考小组件。
 
 ## 插槽 { #slots }
 
@@ -246,9 +259,12 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 | `settings.user.appearance` | 用户设置里的外观部分 |
 | `sidebar.bottom` | 主导航侧边栏的底部 |
 | `admin.nav` | 管理菜单里的一个入口，打开插件自己的页面 |
+| `admin.plugin.config` | 插件自己的配置面板，位于管理员插件界面中它自己的卡片里 |
 
-`admin.nav` 是管理区域里唯一的插槽。它不会往已有的管理界面里注入任何东西：它只是添加一个菜单入口，
-在同样的沙箱框架里、在一条仅限管理员的路由上打开插件的页面。申请这个插槽会显示在需要管理员同意的差异里。
+`admin.nav` 和 `admin.plugin.config` 是管理区域里仅有的两个插槽。两者都不会往已有的管理界面里注入任何东西：
+`admin.nav` 添加一个菜单入口，在同样的沙箱框架里、在一条仅限管理员的路由上打开插件的页面；
+`admin.plugin.config` 取代由 `config_schema` 生成的表单，显示在插件自己的卡片里，用于普通字段不太好选的值（比如在重名城市中选一个）。
+申请其中任何一个都会显示在需要管理员同意的差异里。
 其他所有 `admin.*`、`login.*`、`setup.*` 和 `profile.security.*` 插槽，安装时都会被拒绝。
 
 ## 能力 { #capabilities }
@@ -272,13 +288,13 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 ## 示例 { #examples }
 
 `examples/plugins/` 里有按当前清单格式编写、可以直接运行的插件：Node.js 和 Python 的入门示例（`nodejs-example`、`python-example`）、
-一个元数据提供方（`metadata-example`）、一个 Webhook 接收端（`webhook-receiver`）、一个带构建步骤的首页小组件（`weather`）、
-一个演示数据存储、`public` 和 `prefs` 权限以及 `admin.nav` 插槽的示例（`data-demo`）、一个展示所有 `config_schema` 字段类型的示例，带有一个 `admin.nav` 页面（`config-demo`），
-以及两个主题（`theme-dark-blue`、`open-workshop`）。`make plugin-zips` 会把它们全部打包。
+一个元数据提供方（`metadata-example`）、一个 Webhook 接收端（`webhook-receiver`）、
+一个演示数据存储、`public` 和 `prefs` 权限以及 `admin.nav` 插槽的示例（`data-demo`），以及一个展示所有 `config_schema` 字段类型的示例，带有一个 `admin.nav` 页面（`config-demo`）。
+`make plugin-zips` 会把它们全部打包。项目自己的插件和主题（天气小组件、CShell、Dark Blue 等）各自位于 [eveyproject](https://github.com/eveyproject) 下的独立仓库中。
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
-runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint ; launchers: runner_start.go - resolveCommand ; launcher_resolve.go - lookupLauncher
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
 env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)

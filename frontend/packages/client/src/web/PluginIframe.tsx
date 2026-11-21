@@ -5,6 +5,7 @@ import { eveyFetch, eveyFetchRaw } from "@evey/api";
 import {
   buildInitPayload,
   clampSlotHeight,
+  ADMIN_CONFIG_SLOT,
   createPluginRpc,
   createToastLimiter,
   frameLoadMessage,
@@ -43,6 +44,8 @@ interface PluginIframeProps {
   suggestedHeight?: number;
   /** Host pixels per plugin pixel: one per dp, as the Android television's WebView. */
   pixelScale?: number;
+  /** In the admin.plugin.config slot: called once the plugin saved its server config. */
+  onConfigSaved?: () => void;
 }
 
 /**
@@ -128,7 +131,7 @@ async function posterThumbnail(blob: Blob): Promise<string> {
 
 const MIN_SLOT_HEIGHT = 50;
 
-export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNavigate, surface = "web", suggestedHeight: hostSuggested, pixelScale = 1 }: PluginIframeProps) {
+export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNavigate, surface = "web", suggestedHeight: hostSuggested, pixelScale = 1, onConfigSaved }: PluginIframeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [suggestedHeight] = useState(() => hostSuggested ?? suggestedSlotHeight(slot, window.innerWidth));
   const [height, setHeight] = useState(suggestedHeight ?? 100);
@@ -205,14 +208,19 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
   // The toast cap and the RPC endpoint (scoped token, endpoint allowlist)
   // are the shared host rules; only the transport is this surface's.
   const limitedToast = useMemo(() => createToastLimiter(toast), []);
+  const onConfigSavedRef = useRef(onConfigSaved);
+  useEffect(() => { onConfigSavedRef.current = onConfigSaved; }, [onConfigSaved]);
   const rpc = useMemo(
     () =>
       createPluginRpc(pluginId, {
         request: (req) =>
           eveyFetchRaw({ url: req.path, method: req.method, headers: req.headers, body: req.body, authToken: req.authToken }),
         posterToDataUrl: posterThumbnail,
+      }, {
+        configWrite: slot === ADMIN_CONFIG_SLOT,
+        onConfigSaved: () => onConfigSavedRef.current?.(),
       }),
-    [pluginId],
+    [pluginId, slot],
   );
 
   // context is an inline object at every call site (context={{ mediaId }}), so

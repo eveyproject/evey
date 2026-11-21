@@ -1,5 +1,5 @@
 ---
-source_sha: cd248efab1b67da1bac31b8aa74aa2efe53af88dd685f73cd4f56ef6e10f9c92
+source_sha: ab73fda2e83598a016cce0f1a7289f4776a65f8d15e88fb0d034453a8fdbad9a
 reviewed: true
 ---
 # प्लगइन सैंडबॉक्स और ख़तरा मॉडल { #plugin-sandbox-and-threat-model }
@@ -396,9 +396,12 @@ runner एक `plugin.error` event प्रकाशित करता है 
 - **फ़ाइल सिस्टम:** launcher की लगाई Landlock अनुमति सूची। सिस्टम फ़ोल्डर (`/usr`,
   `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`, `/app`) सिर्फ़ पढ़ने के लिए; `/dev` में से
   सिर्फ़ `null`, `zero`, `full`, `random` और `urandom`, ताकि ग्राफ़िक्स कार्ड के node और
-  सर्वर का terminal पहुँच से बाहर रहें; प्लगइन का फ़ोल्डर और socket का फ़ोल्डर पढ़ने और
-  लिखने के लिए; बाकी सब, `/data` और दूसरे प्लगइन समेत, मना। `hardware.gpu` वाले प्लगइन
-  को अकेले अपवाद के रूप में अपना render node मिलता है।
+  सर्वर का terminal पहुँच से बाहर रहें; `/proc` में से सिर्फ़ प्लगइन का अपना `maps`,
+  ताकि कंटेनर के कनेक्शन (`net/tcp`), उसके mount point और दूसरी प्रक्रियाएँ पहुँच से बाहर
+  रहें; प्लगइन का फ़ोल्डर और socket का फ़ोल्डर पढ़ने और लिखने के लिए; बाकी सब,
+  `/data` और दूसरे प्लगइन समेत, मना। `/opt` के अंदर अपने अलग फ़ोल्डर में इंस्टॉल किए गए
+  रनटाइम से शुरू होने वाला प्लगइन उस फ़ोल्डर को भी पढ़ता है; सिस्टम फ़ोल्डरों के बाहर किसी और जगह इंस्टॉल किया गया रनटाइम, या ऐसा रनटाइम जिसका फ़ोल्डर प्लगइन या सर्वर को समेटे हो, मना कर दिया जाता है। `hardware.gpu` वाले
+  प्लगइन को अकेले अपवाद के रूप में अपना render node मिलता है।
 - **नेटवर्क:** `-restrict-net` और `-deny-inet`; बाहर सिर्फ़ `Fetch` से।
 - **सिस्टम कॉल:** kernel फ़िल्टर और `LD_PRELOAD` फ़िल्टर।
 - **ज़रूरत:** kernel 5.13 या नया, जिसकी चालू LSM सूची में Landlock हो, और launcher (नए
@@ -430,7 +433,9 @@ runner एक `plugin.error` event प्रकाशित करता है 
 
 ### `strict` { #strict }
 
-`bubblewrap` और साथ में `LD_PRELOAD` फ़िल्टर (सिर्फ़ interpreter वाले प्लगइन)।
+`bubblewrap` और साथ में `LD_PRELOAD` फ़िल्टर, जिसे प्लगइन खुद sandbox के अंदर लोड करता है
+(वे प्लगइन जो `subprocess` घोषित नहीं करते)। 0.1.9 तक यह मोड शुरू होते ही हर प्लगइन को
+मना कर देता था: फ़िल्टर `bwrap` खुद लोड करता था और उन namespace को मना कर देता था जो वह बनाता है।
 
 ### `basic` { #basic }
 
@@ -507,7 +512,7 @@ credentials साफ़ कर दिए जाते हैं (`internal/pkg/
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
 package source: internal/app/plugin/install.go - CheckRequestedSource, ErrInsecureSource, downloadIfURL (http and redirect refusal, 100 MB) ; installer_service.go - SafeHTTPClientNoProxy ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; internal/adapters/driving/http/plugin_asset_handler.go - preview JSON source ; internal/pkg/ssrf/dialer.go
-runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
+runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes, safeProcFiles ; launcher_resolve.go - computeRuntimeReadPaths, runtimeRootExposable ; runner_sandbox.go - applyBwrapSandbox, runner_bwrap.go - withBwrapPreload (strict) ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
 resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
 bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx
 config: internal/config/config.go - EVEY_PLUGINS_SANDBOX_MODE, EVEY_PLUGINS_UID_SEPARATION, EVEY_PLUGINS_COSIGN_POLICY, EVEY_PLUGINS_COSIGN_PUBLIC_KEY, EVEY_PLUGINS_MEMORY_MB, EVEY_PLUGINS_PIDS_MAX, EVEY_PLUGINS_DISK_MAX_MB, EVEY_PLUGINS_CPU_NICE, EVEY_SERVER_PORT, EVEY_GRPC_BIND

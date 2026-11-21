@@ -104,8 +104,9 @@ func (p *ConcatPackager) Plan(ctx context.Context, sources []string, opts apptra
 	// refusing the whole chain over one file's missing Cues.
 	// SkipUnsupported: same reason as the on-demand packager (ondemand.go) - one
 	// TrueHD/LPCM/Vorbis track must not fail the whole chain's plan.
-	// NoIFrames: same reason as the on-demand packager (ondemand.go).
-	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true, SkipUnsupported: true, NoIFrames: true}
+	// NoIFrames and SignedCompositionOffsets: same reasons as the on-demand
+	// packager (ondemand.go, planOptions).
+	o := planOptions(opts.SegmentMs)
 	// The same audio start-delay resync the single-episode packager applies
 	// (ondemand.go): an episode played in a chain must not drift where it
 	// played in sync on its own. One option set serves every source, so the

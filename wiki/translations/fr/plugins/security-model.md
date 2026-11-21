@@ -1,5 +1,5 @@
 ---
-source_sha: eb74ee171e9411bc9b9f6cd25d7a873ba78a10c83fa82335cbfa41e930babd88
+source_sha: 13578526cc8b3dca869c39f2d16115b20a7b94c76284ec714952528d760503e8
 reviewed: true
 ---
 # Permissions et emplacements { #permissions-and-slots }
@@ -133,8 +133,9 @@ absents.
 | `settings.user.appearance` | Oui | Section apparence des paramètres utilisateur |
 | `sidebar.bottom` | Oui | Bas de la barre de navigation |
 | `admin.nav` | Oui | Une entrée de menu dans le panneau d'administration qui ouvre la page isolée du plugin ; n'injecte rien dans les écrans d'administration existants |
+| `admin.plugin.config` | Oui | Le panneau de configuration propre au plugin, à la place du formulaire généré, dans sa propre carte de l'écran d'administration des plugins |
 
-**Jamais autorisés :** `admin.*` (sauf `admin.nav`), `login.*`, `setup.*`,
+**Jamais autorisés :** `admin.*` (sauf `admin.nav` et `admin.plugin.config`), `login.*`, `setup.*`,
 `profile.security.*`. Ces chemins sont critiques pour l'authentification ou
 les privilèges, et une injection à cet endroit est un vecteur d'élévation de
 privilèges ou d'hameçonnage.
@@ -143,7 +144,11 @@ Le contenu de `admin.nav` est isolé comme tout autre emplacement : il
 s'affiche dans un `<iframe sandbox="allow-scripts">` sans
 `allow-same-origin`, dans une page dont la politique est
 `default-src 'none'`. C'est du contenu tiers affiché dans la zone
-d'administration, pas une capacité d'administration accordée au plugin.
+d'administration, pas une capacité d'administration accordée au plugin. Il en va de même pour
+`admin.plugin.config`, avec un appel de pont de plus dans cet emplacement :
+`evey.config.save` écrit la configuration de ce plugin et rien d'autre, avec
+la session de l'administrateur et validée par rapport au schéma comme le
+formulaire généré. L'hôte ne le traite que dans cet emplacement.
 
 Le pont limite ce qu'un cadre peut demander à la page : `evey.toast` au plus
 3 messages par seconde, 200 caractères, sans HTML ; `evey.navigate` seulement

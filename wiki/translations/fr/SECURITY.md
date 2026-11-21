@@ -1,5 +1,5 @@
 ---
-source_sha: cd248efab1b67da1bac31b8aa74aa2efe53af88dd685f73cd4f56ef6e10f9c92
+source_sha: ab73fda2e83598a016cce0f1a7289f4776a65f8d15e88fb0d034453a8fdbad9a
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace { #plugin-sandbox-and-threat-model }
@@ -435,9 +435,14 @@ de l'hôte** de **Administration → Plugins → Tableau de bord sécurité**.
   Les dossiers système (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`,
   `/app`) en lecture seule ; de `/dev`, seulement `null`, `zero`, `full`,
   `random` et `urandom`, de sorte que les nœuds de carte graphique et le
-  terminal du serveur restent hors de portée ; le dossier du plugin et son
-  dossier de socket en lecture-écriture ; tout le reste, y compris `/data` et
-  les autres plugins, refusé. Un plugin doté de `hardware.gpu` obtient son
+  terminal du serveur restent hors de portée ; de `/proc`, seulement le
+  `maps` du plugin lui-même, de sorte que les connexions du conteneur
+  (`net/tcp`), ses points de montage et les autres processus restent hors de
+  portée ; le dossier du plugin et son dossier de socket en lecture-écriture ;
+  tout le reste, y compris `/data` et les autres plugins, refusé. Un plugin
+  démarré par un runtime installé dans un dossier à lui sous `/opt` lit aussi
+  ce dossier ; un runtime installé ailleurs en dehors des dossiers système, ou
+  dont le dossier contiendrait les plugins ou le serveur, est refusé. Un plugin doté de `hardware.gpu` obtient son
   nœud de rendu comme unique exception.
 - **Réseau :** `-restrict-net` et `-deny-inet` ; sortie uniquement via `Fetch`.
 - **Appels système :** le filtre du noyau et le filtre `LD_PRELOAD`.
@@ -474,7 +479,10 @@ de l'hôte** de **Administration → Plugins → Tableau de bord sécurité**.
 
 ### `strict` { #strict }
 
-`bubblewrap` plus le filtre `LD_PRELOAD` (plugins interprétés seulement).
+`bubblewrap` plus le filtre `LD_PRELOAD`, chargé par le plugin lui-même dans le
+bac à sable (plugins qui ne déclarent pas `subprocess`). Jusqu'à la 0.1.9, ce
+mode refusait tous les plugins au démarrage : le filtre était chargé par `bwrap`
+lui-même et refusait les espaces de noms que celui-ci crée.
 
 ### `basic` { #basic }
 
@@ -559,7 +567,7 @@ vôtres.
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
 package source: internal/app/plugin/install.go - CheckRequestedSource, ErrInsecureSource, downloadIfURL (http and redirect refusal, 100 MB) ; installer_service.go - SafeHTTPClientNoProxy ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; internal/adapters/driving/http/plugin_asset_handler.go - preview JSON source ; internal/pkg/ssrf/dialer.go
-runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
+runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes, safeProcFiles ; launcher_resolve.go - computeRuntimeReadPaths, runtimeRootExposable ; runner_sandbox.go - applyBwrapSandbox, runner_bwrap.go - withBwrapPreload (strict) ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
 resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
 bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx
 config: internal/config/config.go - EVEY_PLUGINS_SANDBOX_MODE, EVEY_PLUGINS_UID_SEPARATION, EVEY_PLUGINS_COSIGN_POLICY, EVEY_PLUGINS_COSIGN_PUBLIC_KEY, EVEY_PLUGINS_MEMORY_MB, EVEY_PLUGINS_PIDS_MAX, EVEY_PLUGINS_DISK_MAX_MB, EVEY_PLUGINS_CPU_NICE, EVEY_SERVER_PORT, EVEY_GRPC_BIND

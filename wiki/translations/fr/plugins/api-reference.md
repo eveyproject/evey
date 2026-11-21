@@ -1,5 +1,5 @@
 ---
-source_sha: 1e4a34c32030bb100fd9ed4eb4f453072e0c0140ac96d930208c883d33054dbd
+source_sha: 3b4318e6bc6ae273dc5806dac61bebaa3c65f30d724c824dac69762f571c5c52
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -20,7 +20,7 @@ plus.
 name: my-plugin              # obligatoire ; unique, en kebab-case
 version: 1.2.3               # obligatoire ; semver, X.Y.Z ou X.Y.Z-label
 kind: plugin                 # obligatoire ; "plugin" ou "theme"
-language: nodejs             # obligatoire pour un plugin ; un environnement de l'image
+language: nodejs             # obligatoire pour un plugin ; choisit les stubs copiés
 entrypoint: node index.js    # obligatoire pour un plugin ; la ligne de commande que le serveur lance
 
 display_name: My Plugin      # facultatif ; une chaîne, ou une table {en: ..., fr: ...}
@@ -56,8 +56,8 @@ config_schema:               # les champs du panneau Config sur la carte du plug
 |---|---|
 | `name`, `version`, `kind` | Obligatoires. `version` doit suivre `X.Y.Z` ou `X.Y.Z-label` ; une mise à jour doit porter une version supérieure à celle installée. |
 | `display_name` | Le nom que voient les gens ; `name` reste l'identifiant qui relie une mise à jour à son plugin. Une chaîne seule compte comme de l'anglais et vaut pour toutes les langues ; une table est indexée par code de langue (`en`, `fr`, `pt-BR`). Chaque valeur fait de 1 à 40 caractères, sans espace autour ni caractère de contrôle. Aujourd'hui, c'est le sélecteur de thème qui l'affiche. |
-| `language` | Obligatoire pour `kind: plugin` : `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` ou `go`. Il détermine la vérification de l'environnement et les stubs copiés à côté du point d'entrée ; il ne lance rien. |
-| `entrypoint` | Obligatoire pour `kind: plugin`. Le premier mot est l'interpréteur (ou le binaire, avec `native-binary`), le reste ses arguments ; le processus tourne dans le dossier du plugin. |
+| `language` | Obligatoire pour `kind: plugin`, toute valeur. Il choisit les stubs copiés à côté du point d'entrée (ceux de `sdk/<language>/`). Pour un script lancé par son shebang (`entrypoint: main.py`), `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` et `sh` exigent en plus cet interpréteur dans l'image. Il ne lance rien. |
+| `entrypoint` | Obligatoire pour `kind: plugin`. Le premier mot est un fichier du paquet (un binaire, avec `native-binary`, ou un script) ou sinon une commande de l'image trouvée dans son `PATH` (`node`, `python3`, `java`, `dotnet`), le reste ses arguments ; une commande absente refuse l'installation. Le processus tourne dans le dossier du plugin. |
 | `permissions` | Chaque valeur doit figurer dans le [catalogue des permissions](security-model.md#permissions-catalog). `network` exige un `external_fetch` non vide. |
 | `external_fetch` | Des noms d'hôte. Un schéma et un chemin final sont retirés à l'analyse ; les hôtes correspondent exactement, un joker `*.example.com` est refusé à l'installation ; une entrée sans port n'autorise que les ports 80 et 443, `host:port` n'autorise que ce port ; une adresse IP fait refuser l'installation ([règles](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` ou `notification.sender` ; toute autre valeur est refusée. Un thème ne peut en déclarer aucune. |
@@ -271,6 +271,25 @@ URL `data:` : un fichier écrit par le backend à l'exécution devient utilisabl
 dans le cadre sans question d'origine croisée. Seules les ressources du
 plugin sont accessibles.
 
+### `evey.config.save(values)` (emplacement `admin.plugin.config` uniquement) { #eveyconfigsavevalues }
+
+Écrit la configuration serveur du plugin, les valeurs qu'un administrateur
+renseigne selon `config_schema`. Les clés données sont fusionnées dans la
+configuration enregistrée, les autres clés restent telles quelles, et le
+serveur valide le résultat par rapport au schéma exactement comme pour le
+formulaire généré. Les valeurs sont des chaînes, comme dans le formulaire. La
+promesse est résolue avec `{ values }`, la configuration telle qu'enregistrée
+(champs secrets masqués), et rejetée avec le message du serveur quand une
+valeur est refusée. Partout ailleurs que dans `admin.plugin.config`, l'appel
+est rejeté.
+
+```js
+await evey.config.save({ city: "Brest", lat: "48.39", lon: "-4.49" });
+```
+
+Les valeurs actuelles arrivent dans `onInit` sous le nom `config`, comme dans
+chaque emplacement.
+
 ### Sur une télévision { #on-a-television }
 
 L'application télévision exécute le module dans une WebView, et quelques
@@ -286,7 +305,7 @@ comportements habituels du navigateur n'y sont plus valables :
   environ 5 % de la largeur et de la hauteur libres de chaque côté.
 - **Testez le WebGL sur un vrai boîtier.** Un shader tourne sur le GPU et le
   pilote du boîtier, pas sur ceux de votre bureau ; gardez les coordonnées de
-  bruit bornées. `tests/plugins/weather-v2` est le widget de référence pour
+  bruit bornées. [eveyproject/evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) est le widget de référence pour
   tout ce qui précède.
 
 ## Emplacements { #slots }
@@ -301,13 +320,18 @@ comportements habituels du navigateur n'y sont plus valables :
 | `settings.user.appearance` | La section apparence des paramètres utilisateur |
 | `sidebar.bottom` | Le bas de la barre de navigation principale |
 | `admin.nav` | Une entrée du menu d'administration, qui ouvre la page du plugin |
+| `admin.plugin.config` | Le panneau de configuration propre au plugin, dans sa carte de l'écran d'administration des plugins |
 
-`admin.nav` est le seul emplacement de la zone d'administration. Il n'injecte
-rien dans les écrans d'administration existants : il ajoute une entrée de
-menu qui ouvre la page du plugin dans le même cadre isolé, sur une route
-réservée aux administrateurs. Le demander apparaît dans la différence
-soumise au consentement. Tout autre emplacement `admin.*`, `login.*`,
-`setup.*` et `profile.security.*` est refusé à l'installation.
+`admin.nav` et `admin.plugin.config` sont les seuls emplacements de la zone
+d'administration. Aucun n'injecte rien dans les écrans d'administration
+existants : `admin.nav` ajoute une entrée de menu qui ouvre la page du plugin
+dans le même cadre isolé, sur une route réservée aux administrateurs ;
+`admin.plugin.config` prend la place du formulaire généré à partir de
+`config_schema`, dans la carte du plugin lui-même, pour une valeur qu'un champ
+simple ne sait pas bien choisir (une ville parmi des homonymes, par exemple).
+Demander l'un ou l'autre apparaît dans la différence soumise au consentement.
+Tout autre emplacement `admin.*`, `login.*`, `setup.*` et
+`profile.security.*` est refusé à l'installation.
 
 ## Capacités { #capabilities }
 
@@ -342,16 +366,16 @@ jeton ne nomment pas
 `examples/plugins/` contient des plugins fonctionnels au format de manifeste
 courant : des bases en Node.js et en Python (`nodejs-example`,
 `python-example`), un fournisseur de métadonnées (`metadata-example`), un
-récepteur de webhooks (`webhook-receiver`), un widget d'accueil avec une
-étape de build (`weather`), le stockage de données avec les permissions
-`public` et `prefs` et l'emplacement `admin.nav` (`data-demo`), un exemple de
-chaque type de champ de `config_schema`, avec une page `admin.nav` (`config-demo`), et deux thèmes
-(`theme-dark-blue`, `open-workshop`). `make plugin-zips` les empaquette
-tous.
+récepteur de webhooks (`webhook-receiver`), le stockage de données avec les
+permissions `public` et `prefs` et l'emplacement `admin.nav` (`data-demo`) et
+un exemple de chaque type de champ de `config_schema`, avec une page
+`admin.nav` (`config-demo`). `make plugin-zips` les empaquette tous. Les
+plugins et thèmes du projet - le widget météo, CShell, Dark Blue et les
+autres - vivent chacun dans leur propre dépôt sous [eveyproject](https://github.com/eveyproject).
 
 <!-- sources
 manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
-runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - CheckEntrypoint ; launchers: runner_start.go - resolveCommand ; launcher_resolve.go - lookupLauncher
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
 env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)

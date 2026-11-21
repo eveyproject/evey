@@ -54,10 +54,14 @@ func TestCommandService_MarkAsWatched_QueryService_History(t *testing.T) {
 	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
 
+	wp, err := q.GetWatchProgress(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed)
+
+	// Marked, not played: the title is watched and stays out of the history.
 	items, err := q.GetWatchHistory(ctx, "p1", 10, 0)
 	require.NoError(t, err)
-	require.Len(t, items, 1)
-	assert.True(t, items[0].Completed)
+	assert.Empty(t, items)
 
 	var found bool
 	for _, e := range bus.PublishedEvents() {

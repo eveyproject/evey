@@ -195,6 +195,7 @@ streamInfo:
     abr_floor_requested: Vom Player angeforderte Notfallstufe
     file_needs_remux: "Datei in Ein-Spur-Blöcken gespeichert (Reparatur nötig)"
     sibling_audio_undecodable: "Eine andere Audiospur der Datei kann auf diesem Gerät nicht abgespielt werden"
+    container_damaged: "Der Container der Datei ist beschädigt: ihre Spuren werden neu gemuxt, statt die Datei direkt zu übergeben"
     audio_layout_unknown: "Audio-Kanalanordnung unbekannt, für das Gerät neu kodiert"
     audio_passthrough_unsupported: "Audiospur kann im Stream nicht unverändert übertragen werden"
     preferred_video_codec: "Bevorzugter Video-Codec (Profileinstellung)"
