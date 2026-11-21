@@ -30,6 +30,7 @@ import {
   type InstallPreview,
   installPreviewHasWarnings,
 } from "../../../src/components/admin/plugins/pluginConfigUtils";
+import { PluginSlot, usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { PluginResourceLimitsCard } from "../../../src/components/admin/plugins/PluginResourceLimitsCard";
 import { PluginMetadataSection } from "../../../src/components/admin/plugins/PluginMetadataSection";
 import { PluginSecurityDashboard } from "../../../src/components/admin/plugins/PluginSecurityDashboard";
@@ -224,6 +225,9 @@ function PluginConfigSection({ pluginId, theme, t }: { pluginId: string; theme: 
       return undefined;
     }
   }, [data?.configSchemaJson]);
+  // A plugin that draws its own config panel (a city picker, say) gets it
+  // here in place of the generated form; it saves through evey.config.save.
+  const ownPanel = usePluginSlotEntries("admin.plugin.config").some((e) => e.pluginId === pluginId);
 
   const updateConfig = useAdminPluginServiceUpdatePluginConfig({
     mutation: {
@@ -236,6 +240,16 @@ function PluginConfigSection({ pluginId, theme, t }: { pluginId: string; theme: 
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugin.configSaveFailed", "Échec de l'enregistrement"))),
     },
   });
+
+  if (ownPanel) {
+    return (
+      <PluginSlot
+        name="admin.plugin.config"
+        pluginId={pluginId}
+        onConfigSaved={() => qc.invalidateQueries({ queryKey: getAdminPluginServiceGetPluginConfigQueryKey(pluginId) })}
+      />
+    );
+  }
 
   if (isLoading) {
     return <ActivityIndicator color={theme.colors.accent} size="small" style={{ paddingVertical: 12 }} />;

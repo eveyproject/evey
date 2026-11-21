@@ -1,5 +1,5 @@
 ---
-source_sha: 58c9f2033d994c265409f943a03c3ecdfebe68484e88c1a7d2abf916dab22917
+source_sha: 3b4318e6bc6ae273dc5806dac61bebaa3c65f30d724c824dac69762f571c5c52
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -223,6 +223,19 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 按相对路径读取插件自己 `web_root` 里的一个文件，返回 `data:` URL：后端在运行时写出的文件，
 就能在框架里直接使用，不用操心跨域问题。只能读到插件自己的资源。
 
+### `evey.config.save(values)`（仅限插槽 `admin.plugin.config`） { #eveyconfigsavevalues }
+
+写入插件的服务器配置，也就是管理员按 `config_schema` 设置的值。给出的键会合并进已保存的配置，
+其余的键保持原样，服务器会按模式校验合并后的结果，和校验生成的表单完全一样。值都是字符串，和表单里一样。
+Promise 会以 `{ values }` 兑现，即实际保存的配置（密钥字段会被遮蔽）；某个值被拒绝时，
+它会带着服务器的消息被拒绝。在 `admin.plugin.config` 之外的任何地方，这个调用都会被拒绝。
+
+```js
+await evey.config.save({ city: "Brest", lat: "48.39", lon: "-4.49" });
+```
+
+当前的值会在 `onInit` 里以 `config` 的形式传入，和每个插槽一样。
+
 ### 在电视上 { #on-a-television }
 
 电视应用在 WebView 里运行模块，一些在浏览器里成立的事情，在那里就不成立了：
@@ -246,9 +259,12 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 | `settings.user.appearance` | 用户设置里的外观部分 |
 | `sidebar.bottom` | 主导航侧边栏的底部 |
 | `admin.nav` | 管理菜单里的一个入口，打开插件自己的页面 |
+| `admin.plugin.config` | 插件自己的配置面板，位于管理员插件界面中它自己的卡片里 |
 
-`admin.nav` 是管理区域里唯一的插槽。它不会往已有的管理界面里注入任何东西：它只是添加一个菜单入口，
-在同样的沙箱框架里、在一条仅限管理员的路由上打开插件的页面。申请这个插槽会显示在需要管理员同意的差异里。
+`admin.nav` 和 `admin.plugin.config` 是管理区域里仅有的两个插槽。两者都不会往已有的管理界面里注入任何东西：
+`admin.nav` 添加一个菜单入口，在同样的沙箱框架里、在一条仅限管理员的路由上打开插件的页面；
+`admin.plugin.config` 取代由 `config_schema` 生成的表单，显示在插件自己的卡片里，用于普通字段不太好选的值（比如在重名城市中选一个）。
+申请其中任何一个都会显示在需要管理员同意的差异里。
 其他所有 `admin.*`、`login.*`、`setup.*` 和 `profile.security.*` 插槽，安装时都会被拒绝。
 
 ## 能力 { #capabilities }

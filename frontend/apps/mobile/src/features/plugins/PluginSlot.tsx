@@ -29,13 +29,15 @@ interface PluginSlotProps {
   context?: Record<string, unknown>;
   /** When set, only render the plugin with this id matching the slot. */
   pluginId?: string;
+  /** admin.plugin.config only: called once the plugin saved its server config. */
+  onConfigSaved?: () => void;
 }
 
 /**
  * Mobile parity with web's PluginSlot. Each matching plugin gets its own
  * WebView running the plugin's frontend bundle in isolation.
  */
-export function PluginSlot({ name, context, pluginId }: PluginSlotProps) {
+export function PluginSlot({ name, context, pluginId, onConfigSaved }: PluginSlotProps) {
   const { data, isError } = usePluginList();
   const matches = resolveSlotEntries(data?.plugins, name, { pluginId });
 
@@ -48,7 +50,7 @@ export function PluginSlot({ name, context, pluginId }: PluginSlotProps) {
   return (
     <>
       {matches.map((m) => (
-        <PluginSlotEntry key={m.pluginId} slot={name} entry={m} context={context} />
+        <PluginSlotEntry key={m.pluginId} slot={name} entry={m} context={context} onConfigSaved={onConfigSaved} />
       ))}
     </>
   );
@@ -56,7 +58,7 @@ export function PluginSlot({ name, context, pluginId }: PluginSlotProps) {
 
 // One mounted plugin. The hooks the host needs (viewport, theme, server) run
 // here, not in PluginSlot: a slot with no plugin must cost the screen nothing.
-function PluginSlotEntry({ slot, entry, context }: { slot: string; entry: SlotEntry; context?: Record<string, unknown> }) {
+function PluginSlotEntry({ slot, entry, context, onConfigSaved }: { slot: string; entry: SlotEntry; context?: Record<string, unknown>; onConfigSaved?: () => void }) {
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const { width: windowWidth } = useWindowDimensions();
@@ -72,6 +74,7 @@ function PluginSlotEntry({ slot, entry, context }: { slot: string; entry: SlotEn
       theme={{ text: theme.colors.text, textMuted: theme.colors.textMuted, accent: theme.colors.accent, bg: theme.colors.bg }}
       suggestedHeight={suggestedSlotHeight(slot, windowWidth)}
       bundleCache={diskBundleCache}
+      onConfigSaved={onConfigSaved}
       onNavigate={(path) => {
         if (isAllowedNavPath(path)) router.push(path as never);
       }}
