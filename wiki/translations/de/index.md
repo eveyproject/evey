@@ -1,5 +1,5 @@
 ---
-source_sha: 59bcc3e9f3711296c6f1a612c4b161e7d6db4b6f45f2f3a8cd4b7bb292c1de82
+source_sha: 07924b10bf7a7ec7bda9b0eeeeb9e20b66dbbe8a3ce442e7d43187be3de7e9fa
 reviewed: true
 hide:
 - navigation
@@ -190,6 +190,7 @@ zeigt den verwendeten Modus. Das Widget eines Plugins erscheint im Web, auf
 Android und auf dem Fernseher. Auf dem Fernseher können Sie es sehen, aber
 nicht bedienen.
 [Plugins](plugins.md) ·
+[Offizielle Plugins](plugins.md#official-plugins) ·
 [Sicherheitsmodell und Plugin-Sandbox](SECURITY.md#sandbox-modes)
 
 ## Hier geht es weiter { #find-your-way }

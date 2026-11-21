@@ -137,6 +137,17 @@ version: 1.0.0
 
 ZIP it, upload in Admin > Plugins. Full spec and examples: [docs/plugins.md](docs/plugins.md)
 
+Official plugins and themes, each in its own repository. Paste the repository link in Admin > Plugins > Install Plugin > From URL:
+
+| | |
+|---|---|
+| [Weather](https://github.com/eveyproject/evey-plugin-weather) | Plugin - the local weather on the home page |
+| [Marquee](https://github.com/eveyproject/evey-plugin-marquee) | Plugin - a poster wall built from your library, with a roulette |
+| [Librarian](https://github.com/eveyproject/evey-plugin-librarian) | Plugin - probable duplicates and films missing from a saga, read-only |
+| [CShell](https://github.com/eveyproject/evey-theme-cshell) | Theme - a terminal look |
+| [Dark Blue](https://github.com/eveyproject/evey-theme-dark-blue) | Theme - dark blue colours |
+| [evey-plugin-template](https://github.com/eveyproject/evey-plugin-template) | A repository to start your own plugin from |
+
 ## Languages & Accessibility
 
 The UI ships in 6 languages (EN, FR, DE, ES, ZH, HI), with English as the source

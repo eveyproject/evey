@@ -1,5 +1,5 @@
 ---
-source_sha: d330f2e3c1bd08e716c4ab9372f05aae3fc2469d580dbafb23819e7b62a15484
+source_sha: a6ee5bb3a713126f80980171824729c7a7f52b33aea955b32f44d8d66312d559
 reviewed: true
 ---
 # प्लगइन { #plugins }
@@ -28,6 +28,25 @@ reviewed: true
 </figure>
 
 </div>
+
+## आधिकारिक प्लगइन { #official-plugins }
+
+Evey प्रोजेक्ट नीचे दिए प्लगइन और थीम प्रकाशित करता है, हर एक अपनी अलग
+रिपॉज़िटरी में। किसी को इंस्टॉल करने के लिए, उसकी रिपॉज़िटरी का लिंक **प्लगइन
+इंस्टॉल करें** के **URL से** वाले टैब में चिपकाएँ: सर्वर सबसे नई release लेता है,
+और उसके बाद पैकेज अपने अपडेट के लिए उसी रिपॉज़िटरी को फ़ॉलो करता है। इनकी release
+प्रोजेक्ट की कुंजी से हस्ताक्षरित होती हैं, जिस पर शुरू से ही भरोसा किया जाता है।
+
+| नाम | प्रकार | यह क्या करता है | रिपॉज़िटरी |
+| --- | --- | --- | --- |
+| मौसम | प्लगइन | होम पेज पर स्थानीय मौसम, उससे मेल खाते आसमान के सामने। | [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) |
+| Marquee | प्लगइन | आपकी लाइब्रेरी से बनी पोस्टरों की दीवार, और आज रात क्या देखें यह चुनने के लिए एक रूलेट। | [evey-plugin-marquee](https://github.com/eveyproject/evey-plugin-marquee) |
+| Librarian | प्लगइन | संभावित डुप्लिकेट और नंबर वाली फ़िल्म शृंखला में छूटी फ़िल्मों की सूची देता है। यह लाइब्रेरी को पढ़ता है और किसी फ़ाइल को कभी नहीं छूता। | [evey-plugin-librarian](https://github.com/eveyproject/evey-plugin-librarian) |
+| CShell | थीम | टर्मिनल जैसा रूप: गहरा काला, ऐंबर, मोनोस्पेस फ़ॉन्ट। | [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) |
+| गहरा नीला | थीम | गहरे नीले रंग की थीम। | [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) |
+
+अपना प्लगइन लिखने के लिए, [evey-plugin-template](https://github.com/eveyproject/evey-plugin-template) शुरुआत करने की एक रिपॉज़िटरी है:
+एक छोटा-सा प्लगइन, उसके टेस्ट, और वह workflow जो उसकी release पर हस्ताक्षर करता है।
 
 ## प्लगइन इंस्टॉल करें { #install-a-plugin }
 
@@ -238,6 +257,8 @@ TMDB से आते हैं। प्लगइन का टेक्स्�
 डायलॉग से इंस्टॉल होती है; इंस्टॉल के समय stylesheet को साफ़ किया जाता है। फिर
 हर उपयोगकर्ता इसे **सेटिंग्स → रूप-रंग → थीम** में चुनता है। थीम में क्या हो
 सकता है, यह [थीम](themes.md) में बताया गया है।
+
+प्रोजेक्ट की थीम [आधिकारिक प्लगइन](#official-plugins) में दी गई हैं।
 
 ## प्लगइन लिखना { #writing-a-plugin }
 

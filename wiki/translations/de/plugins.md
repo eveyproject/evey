@@ -1,5 +1,5 @@
 ---
-source_sha: d330f2e3c1bd08e716c4ab9372f05aae3fc2469d580dbafb23819e7b62a15484
+source_sha: a6ee5bb3a713126f80980171824729c7a7f52b33aea955b32f44d8d66312d559
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -29,6 +29,27 @@ läuft in einem isolierten Rahmen der Seite.
 </figure>
 
 </div>
+
+## Offizielle Plugins { #official-plugins }
+
+Das Evey-Projekt veröffentlicht die folgenden Plugins und Themes, jedes in
+seinem eigenen Repository. Um eines zu installieren, fügen Sie den Link seines
+Repositorys im Reiter **Von URL** von **Plugin installieren** ein: Der Server
+nimmt das neueste Release, und das Paket folgt danach diesem Repository für
+seine Updates. Ihre Releases sind mit dem Schlüssel des Projekts signiert, dem
+von Anfang an vertraut wird.
+
+| Name | Art | Was es tut | Repository |
+| --- | --- | --- | --- |
+| Wetter | Plugin | Das lokale Wetter auf der Startseite, vor einem dazu passenden Himmel. | [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) |
+| Marquee | Plugin | Eine Plakatwand aus Ihrer Bibliothek, mit einem Roulette für die Wahl des Films am Abend. | [evey-plugin-marquee](https://github.com/eveyproject/evey-plugin-marquee) |
+| Librarian | Plugin | Listet wahrscheinliche Duplikate und die Filme auf, die in einer nummerierten Filmreihe fehlen. Es liest die Bibliothek und rührt nie eine Datei an. | [evey-plugin-librarian](https://github.com/eveyproject/evey-plugin-librarian) |
+| CShell | Theme | Ein Terminal-Look: reines Schwarz, Bernstein, Festbreitenschrift. | [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) |
+| Dunkelblau | Theme | Ein dunkelblaues Farbthema. | [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) |
+
+Für ein eigenes Plugin ist [evey-plugin-template](https://github.com/eveyproject/evey-plugin-template) ein Repository als
+Ausgangspunkt: ein minimales Plugin, seine Tests und der Workflow, der seine
+Releases signiert.
 
 ## Ein Plugin installieren { #install-a-plugin }
 
@@ -257,6 +278,9 @@ optional ein Skript, das isoliert in einem versteckten Rahmen läuft. Es wird
 bei der Installation bereinigt. Jeder Benutzer wählt es dann unter
 **Einstellungen → Darstellung → Design**. Was ein Theme enthalten darf, steht
 unter [Themes](themes.md).
+
+Die Themes des Projekts stehen unter
+[Offizielle Plugins](#official-plugins).
 
 ## Ein Plugin schreiben { #writing-a-plugin }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: d330f2e3c1bd08e716c4ab9372f05aae3fc2469d580dbafb23819e7b62a15484
+source_sha: a6ee5bb3a713126f80980171824729c7a7f52b33aea955b32f44d8d66312d559
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -29,6 +29,25 @@ de la page.
 </figure>
 
 </div>
+
+## Plugins officiels { #official-plugins }
+
+Le projet Evey publie les plugins et les thèmes ci-dessous, chacun dans son
+propre dépôt. Pour en installer un, collez le lien de son dépôt dans l'onglet
+**Depuis une URL** de **Installer un plugin** : le serveur prend la dernière
+release, et le paquet suit ensuite ce dépôt pour ses mises à jour. Leurs
+releases sont signées avec la clé du projet, qui est approuvée dès le départ.
+
+| Nom | Type | Ce qu'il fait | Dépôt |
+| --- | --- | --- | --- |
+| Météo | Plugin | La météo locale sur la page d'accueil, devant un ciel qui lui correspond. | [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) |
+| Marquee | Plugin | Un mur d'affiches construit à partir de votre bibliothèque, avec une roulette pour choisir le film du soir. | [evey-plugin-marquee](https://github.com/eveyproject/evey-plugin-marquee) |
+| Librarian | Plugin | Liste les doublons probables et les films qui manquent dans une saga numérotée. Il lit la bibliothèque et ne touche jamais à un fichier. | [evey-plugin-librarian](https://github.com/eveyproject/evey-plugin-librarian) |
+| CShell | Thème | Une allure de terminal : noir pur, ambre, police à chasse fixe. | [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) |
+| Bleu sombre | Thème | Un thème de couleurs bleu sombre. | [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) |
+
+Pour écrire le vôtre, [evey-plugin-template](https://github.com/eveyproject/evey-plugin-template) est un dépôt dont partir : un
+plugin minimal, ses tests, et le workflow qui signe ses releases.
 
 ## Installer un plugin { #install-a-plugin }
 
@@ -253,6 +272,9 @@ même fenêtre **Installer un plugin** ; la feuille de style est assainie à
 l'installation. Chaque utilisateur le choisit ensuite dans **Paramètres →
 Apparence → Thème**. Ce qu'un thème peut contenir est décrit dans
 [Thèmes](themes.md).
+
+Les thèmes du projet sont listés dans
+[Plugins officiels](#official-plugins).
 
 ## Écrire un plugin { #writing-a-plugin }
 

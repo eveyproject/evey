@@ -25,6 +25,25 @@ when it has one, runs in an isolated frame of the page.
 
 </div>
 
+## Official plugins
+
+The Evey project publishes the plugins and themes below, each in its own
+repository. To install one, paste the link of its repository in the **From
+URL** tab of **Install Plugin**: the server takes the latest release, and the
+package then follows that repository for its updates. Their releases are
+signed with the project's key, which is trusted from the start.
+
+| Name | Kind | What it does | Repository |
+| --- | --- | --- | --- |
+| Weather | Plugin | The local weather on the home page, behind a sky that matches it. | [evey-plugin-weather](https://github.com/eveyproject/evey-plugin-weather) |
+| Marquee | Plugin | A poster wall built from your library, with a roulette to pick what to watch tonight. | [evey-plugin-marquee](https://github.com/eveyproject/evey-plugin-marquee) |
+| Librarian | Plugin | Lists the probable duplicates and the films missing from a numbered saga. It reads the library and never touches a file. | [evey-plugin-librarian](https://github.com/eveyproject/evey-plugin-librarian) |
+| CShell | Theme | A terminal look: true black, amber, monospace. | [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) |
+| Dark Blue | Theme | A dark blue colour theme. | [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) |
+
+To write your own, [evey-plugin-template](https://github.com/eveyproject/evey-plugin-template) is a repository to start from: a
+minimal plugin, its tests, and the workflow that signs its releases.
+
 ## Install a plugin
 
 1. In **Admin → Plugins**, open **Install Plugin** and choose the **Plugin
@@ -231,6 +250,9 @@ optionally a script confined to a hidden frame. It is installed from the same
 then picks it under **Settings → Appearance → Theme**. What a theme may
 contain is described in [Themes](themes.md).
 
+The project's own themes are listed under
+[Official plugins](#official-plugins).
+
 ## Writing a plugin
 
 | Page | Contents |
@@ -242,6 +264,7 @@ contain is described in [Themes](themes.md).
 | [Webhooks and API keys](webhooks-api-keys.md) | Integrating Evey with other tools without writing a plugin. |
 
 <!-- sources
+official plugins, install by repository link whatever the kind, project key trusted: github.com/eveyproject (evey-plugin-weather, evey-plugin-marquee, evey-plugin-librarian, evey-theme-cshell, evey-theme-dark-blue, evey-plugin-template - plugin.yaml) ; internal/app/plugin/install_source.go - resolveInstallSource, followRepository ; migration 000196
 install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL, CheckRequestedSource ; internal/adapters/driving/grpcapi/admin_plugin.go - InstallPlugin, PreviewPluginUpdate, ApplyPluginUpdate ; i18n admin.plugin.updateSourceLabel
 critical findings refuse, warnings: internal/app/plugin/install.go - validateStagedPlugin, checkEscalatedWarnings ; i18n admin.plugins.blockedByAnalysis, installAnyway
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries ; i18n admin.plugins.availableRuntimes
