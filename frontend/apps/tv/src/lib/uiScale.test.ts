@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { describe, it, expect } from "vitest";
 import { DEFAULT_UI_SCALE, UI_SCALE_OPTIONS, effectiveUiScale, isUiScaleOption } from "./uiScale";
 import appJson from "../../app.json";
@@ -18,5 +19,23 @@ describe("uiScale", () => {
     expect(effectiveUiScale(85.4)).toBe(85);
     expect(isUiScaleOption(85)).toBe(false);
     expect(UI_SCALE_OPTIONS).toEqual([70, 80, 90, 100]);
+  });
+  it("the activity scales again when the root view becomes its content, which can happen after onCreate", () => {
+    const plugin = createRequire(import.meta.url)("../../plugins/withUiScale.js") as {
+      applyUiScaleToMainActivity: (src: string) => string;
+    };
+    const activity = [
+      "class MainActivity : ReactActivity() {",
+      "  override fun onCreate(savedInstanceState: Bundle?) {",
+      "    super.onCreate(null)",
+      "  }",
+      "}",
+      "",
+    ].join("\n");
+    const patched = plugin.applyUiScaleToMainActivity(activity);
+    expect(patched).toMatch(
+      /override fun onContentChanged\(\) \{\n\s*super\.onContentChanged\(\)\n\s*\(application as\? MainApplication\)\?\.applyUiScale\(\)/,
+    );
+    expect(plugin.applyUiScaleToMainActivity(patched)).toBe(patched);
   });
 });
