@@ -27,3 +27,12 @@
 # kotlin.Metadata unless kept (SecureStoreOptions cast NPE at boot, expo/expo#28010).
 -keep @interface expo.modules.kotlin.records.Field { *; }
 -keep @interface expo.modules.kotlin.records.Required { *; }
+
+# Android 15 deprecated the system bar colour calls. The theme sets the bar
+# colours for each Android version, so every call (React Native, the image
+# cropper, Material) is dropped.
+-assumenosideeffects class android.view.Window {
+    public void setStatusBarColor(int);
+    public void setNavigationBarColor(int);
+    public int getStatusBarColor() return 0;
+}
