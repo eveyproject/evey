@@ -519,7 +519,7 @@ func (p *OnDemandPackager) buildPlan(ctx context.Context, srcPath string, opts a
 	// path has always passed this (adapter.go); the serving path had not.
 	// NoIFrames: no client uses the I-frame stream (scrubbing uses trickplay),
 	// and a stray AVPlayer request for it cost a keyframe walk on the NAS.
-	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true, SkipUnsupported: true, NoIFrames: true}
+	o := planOptions(opts.SegmentMs)
 	// Audio start-delay resync, in presentation only, nothing written: the
 	// same per-track defect the admin retimer repairs on disk (audio_retime.go)
 	// is cancelled here at packaging time for a source the operator hasn't
@@ -576,6 +576,26 @@ func (p *OnDemandPackager) buildPlan(ctx context.Context, srcPath string, opts a
 		pl.hasDASH = true
 	}
 	return pl, nil
+}
+
+// planOptions is the option set every on-demand plan starts from, single
+// source and chain alike.
+//
+// SignedCompositionOffsets: a B-frame video keeps its composition offsets
+// signed around a first frame that presents when it decodes, with no shift
+// and no edit list to take one back. Chrome's MSE and Media3's DASH ignore an
+// edit list that opens with an empty edit, and showed the picture late by the
+// reordering depth (84 ms on an x264 B-pyramid). Init and segments both
+// change with it, so it is one setting for every plan.
+func planOptions(segmentMs int64) mp4.Options {
+	return mp4.Options{
+		SegmentMs:                segmentMs,
+		ChapterMarkers:           true,
+		SynthesizeIndex:          true,
+		SkipUnsupported:          true,
+		NoIFrames:                true,
+		SignedCompositionOffsets: true,
+	}
 }
 
 // onDemandCacheKey keys a plan by the source identity (path + size + mtime, the
