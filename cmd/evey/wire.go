@@ -231,6 +231,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appuser.WithLoginAttemptRepository(r.LoginAttempt),
 		appuser.CommandWithTokenRevoker(securityRevoker),
 	}
+	// The public demo serves its visitors the audio track a browser plays
+	// without a server encode, among those of the picked language.
+	apptranscoding.SetDemoAudioDefault(cfg.Server.Demo)
 	if cfg.Server.Demo && !cfg.Server.DemoExtended {
 		// The published demo password is shorter than the production floor;
 		// the floor is a parameter of the service, chosen here, not a mode it
