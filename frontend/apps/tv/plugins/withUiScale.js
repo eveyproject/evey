@@ -14,8 +14,9 @@ const { withMainApplication, withMainActivity } = require("expo/config-plugins")
 //      metrics) - mutated in place by applyUiScale();
 //   3. DisplayMetricsHolder's SCREEN metrics, rebuilt from the real display by
 //      ReactRootView.init() (PixelUtil.toPixelFromDIP/SP read these) - mutated
-//      by applyUiScale() once they exist, i.e. right after super.onCreate in
-//      MainActivity, and again after a configuration change.
+//      by applyUiScale() once they exist: right after super.onCreate in
+//      MainActivity, when the root view is set as the content (it may be
+//      created after onCreate), and again after a configuration change.
 //
 // defaultPercent: what a fresh install gets before the user touches the
 // setting (the owner found the stock 100 % too large on a 1080p panel).
@@ -65,6 +66,14 @@ const activityAttachSnippet = `
 
   override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
     super.onConfigurationChanged(newConfig)
+    (application as? MainApplication)?.applyUiScale()
+  }
+
+  // The root view rebuilds the screen metrics when it is created, which can
+  // happen after onCreate has returned. setContentView lands here before the
+  // first layout pass.
+  override fun onContentChanged() {
+    super.onContentChanged()
     (application as? MainApplication)?.applyUiScale()
   }
 `;

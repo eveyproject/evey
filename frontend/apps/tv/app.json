@@ -31,6 +31,7 @@
       "./plugins/withCleartextTraffic",
       "./plugins/withReleaseSigning",
       "./plugins/withR8Minify",
+      "./plugins/withoutDeprecatedEdgeToEdge",
       [
         "./plugins/withUiScale",
         {
