@@ -9,6 +9,7 @@ import { setRefreshToken } from "../src/lib/refresh-token";
 import { clearServerUrl } from "../src/lib/server-config";
 import { isAccessExpired, renewOnSignInScreen } from "../src/lib/auth-refresh";
 import { queryClient } from "../src/lib/query-client";
+import { useFieldAboveKeyboard } from "../src/hooks/useFieldAboveKeyboard";
 
 export default function Login() {
   const theme = useTheme();
@@ -21,6 +22,7 @@ export default function Login() {
   const [qcBtnFocused, setQcBtnFocused] = useState(false);
   const [serverBtnFocused, setServerBtnFocused] = useState(false);
   const setTokens = useAuthStore((s) => s.setTokens);
+  const keyboard = useFieldAboveKeyboard(userFocused || passFocused);
   // The demo publishes its credentials; the login screen is where the viewer
   // needs them. Public answer, no token required.
   const setupStatus = useAdminSystemServiceGetSetupStatus({ query: { staleTime: 60_000 } });
@@ -103,13 +105,16 @@ export default function Login() {
     login({ data: { username: username.trim(), password } });
   }
 
-  // A ScrollView, not a centred View: with the soft keyboard up the window
-  // shrinks to the top half of the screen and the sign-in and Quick Connect
-  // buttons were simply out of reach (prod, 2026-09-19).
+  // A ScrollView, not a centred View: with the soft keyboard up the buttons
+  // under the fields must stay within reach, and the fields themselves are
+  // brought to the top of the screen while one of them is edited.
   return (
     <ScrollView
+      ref={keyboard.scrollRef}
+      onLayout={keyboard.onViewportLayout}
+      onContentSizeChange={keyboard.onContentSizeChange}
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, keyboard.contentStyle]}
       keyboardShouldPersistTaps="handled"
     >
       <Text style={[styles.title, { color: theme.colors.text }]}>
@@ -130,6 +135,7 @@ export default function Login() {
         autoCorrect={false}
         onFocus={() => setUserFocused(true)}
         onBlur={() => setUserFocused(false)}
+        onLayout={keyboard.onFieldLayout}
         accessible={true}
         accessibilityLabel={t("auth.login.username")}
         style={[
