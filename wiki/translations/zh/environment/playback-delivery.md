@@ -1,5 +1,5 @@
 ---
-source_sha: b9edaa14b28ad46c4709ea321f479e45e254f3dc0abd9f7dfacfde3959487cd0
+source_sha: 2983dd1915d58079fc0869d6576c24b333374748f1584b1030d2b5c7c6aaf273
 reviewed: true
 ---
 # 播放分发与下载 { #playback-delivery-and-downloads }
@@ -20,7 +20,7 @@ reviewed: true
 | `EVEY_HLS_ONDEMAND` | 开启 | 如果文件的轨道可以直接复制，就在发送时即时重新打包，不用 ffmpeg，也不写入缓存。`off`：这类文件改用 ffmpeg 的复制方式。 | 配置条目 `transcoding.hls_ondemand`，下次播放 |
 | `EVEY_REMUX_COPY` | 开启 | ffmpeg 的复制方式：文件允许时，视频直接复制，不重新编码。`off`：这些文件改为转码。 | 配置条目 `transcoding.remux_copy`，下次播放 |
 | `EVEY_HLS_AUDIO_RENDITION_ENABLED` | `true` | 把各条音轨作为单独的音频版本提供，这样播放器换语言时不用重新获取视频。也使直接复制的视频可以与另外重新编码的音轨一起播放。 | 无 |
-| `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | 在直接复制的视频流旁边，再加一个转码出来的低画质，这样网络突然变差时，播放器可以降低一档画质，而不是卡住。在播放器用到它之前，不消耗任何资源。 | 无 |
+| `EVEY_HLS_COPY_FALLBACK_RUNG` | `false` | 在直接复制的视频流旁边，再加一个转码出来的低画质，这样网络突然变差时，播放器可以降低一档画质，而不是卡住。默认关闭：Android 播放器可能直接从这个画质开始，把本可原样复制播放的流拿去转码。 | 无 |
 | `EVEY_HLS_ONDEMAND_CONCAT` | 开启 | 网页播放器请求时，剧集之间无缝衔接播放。不能直接复制的一集会改用普通的视频流。 | 配置条目 `transcoding.hls_ondemand_concat`，需重启 |
 | `EVEY_HLS_ONDEMAND_TRACK_TRIM` | 关闭 | 每个视频流里只放选中的那条音轨，而不是全部音轨。 | 配置条目 `transcoding.hls_ondemand_track_trim`，需重启 |
 | `EVEY_HLS_ONDEMAND_ENCRYPT` | 关闭 | 用 AES-128 加密重新打包的视频流。开启后关闭两项功能：DASH 清单（只限 HLS）和剧集之间的无缝衔接播放（每一集作为单独的视频流播放）。 | 配置条目 `transcoding.hls_ondemand_encrypt`，需重启 |
