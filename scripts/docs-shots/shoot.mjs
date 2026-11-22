@@ -25,6 +25,15 @@ const CONTEXT = { viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2,
 
 async function login(browser) {
   const ctx = await browser.newContext(CONTEXT);
+  // The documentation shows Evey, not the public demo: its read-only strip is
+  // left out of every shot.
+  await ctx.addInitScript(() => {
+    document.addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style");
+      style.textContent = '[data-testid="demo-banner"] { display: none !important; }';
+      document.head.appendChild(style);
+    });
+  });
   const page = await ctx.newPage();
   await page.goto(BASE + "/login");
   await page.fill("#username", USER);
