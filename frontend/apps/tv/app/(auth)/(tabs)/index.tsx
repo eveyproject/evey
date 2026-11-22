@@ -391,8 +391,8 @@ function LibraryMediaRow({
   // on a modest set, the grid opened on its requests otherwise.
   const { prefetchQueriesOnFocus, cancelPrefetch } = useMediaPrefetch();
   const onTitleFocus = useCallback(
-    () => prefetchQueriesOnFocus(libraryFirstPageQueries(row.libraryId)),
-    [prefetchQueriesOnFocus, row.libraryId],
+    () => prefetchQueriesOnFocus(libraryFirstPageQueries(row.libraryId, row.libraryType)),
+    [prefetchQueriesOnFocus, row.libraryId, row.libraryType],
   );
   return <MediaRow {...rowProps} items={items} onEndReached={loadMore} onTitleFocus={onTitleFocus} onTitleBlur={cancelPrefetch} />;
 }

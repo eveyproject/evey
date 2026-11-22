@@ -214,6 +214,40 @@ describe("TV LibraryDetailScreen genre filter", () => {
   });
 });
 
+describe("TV LibraryDetailScreen default type", () => {
+  it("opens a shows library on its series, not on every season and episode", () => {
+    getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "Shows", type: "LIBRARY_TYPE_SHOWS" } });
+    render(<LibraryDetailScreen />);
+
+    expect(listMediaItemsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ libraryId: LIBRARY_ID, type: "MEDIA_ITEM_TYPE_SERIES" }),
+      expect.anything(),
+    );
+  });
+
+  it("lets the viewer switch a shows library to its episodes", () => {
+    getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "Shows", type: "LIBRARY_TYPE_SHOWS" } });
+    render(<LibraryDetailScreen />);
+
+    fireEvent.click(screen.getByLabelText("media.library.episodes"));
+
+    expect(listMediaItemsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: "MEDIA_ITEM_TYPE_EPISODE" }),
+      expect.anything(),
+    );
+  });
+
+  it("asks for nothing before the library's type is known", () => {
+    getLibraryMock.mockReturnValue({ data: undefined });
+    render(<LibraryDetailScreen />);
+
+    expect(listMediaItemsMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ query: expect.objectContaining({ enabled: false }) }),
+    );
+  });
+});
+
 describe("TV LibraryDetailScreen selected filters", () => {
   const mark = (label: string) => within(screen.getByLabelText(label)).queryByTestId("icon-checkmark");
 

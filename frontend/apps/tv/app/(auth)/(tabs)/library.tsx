@@ -36,7 +36,7 @@ export default function LibraryScreen() {
     <FocusableCard
       onPress={() => router.push(`/library/${item.id}`)}
       // The grid's first page, fetched while the focus rests here: it opens on it.
-      onFocus={() => prefetchQueriesOnFocus(item.id ? libraryFirstPageQueries(item.id) : [])}
+      onFocus={() => prefetchQueriesOnFocus(item.id ? libraryFirstPageQueries(item.id, item.type) : [])}
       onBlur={cancelPrefetch}
       hasTVPreferredFocus={index === 0}
       style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
