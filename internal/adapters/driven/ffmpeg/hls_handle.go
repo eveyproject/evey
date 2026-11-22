@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -155,6 +156,10 @@ type hlsHandle struct {
 	// precomputed master, and N siblings must not each clobber master.m3u8 with
 	// a one-rung playlist).
 	noMaster bool
+	// publishDir is where a rebase session's segments land: its pump moves
+	// each one out of opts.OutputDir as soon as it is complete, so the
+	// first-segment wait looks there too. Empty without a rebase pump.
+	publishDir string
 }
 
 // awaitProcExit blocks until the ffmpeg process has exited and returns its
@@ -235,7 +240,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 				return
 			}
 		}
-		if err := waitForSegment(ctx, h.procExited, h.opts.OutputDir, streamName, 10*time.Second, 100*time.Millisecond); err != nil {
+		if err := waitForSegment(ctx, h.procExited, h.segmentDirs(), streamName, startNumberFor(h.opts), 10*time.Second, 100*time.Millisecond); err != nil {
 			slog.WarnContext(ctx, "hls: first segment not yet ready, proceeding anyway", slog.String("media_id", h.opts.MediaID), slog.String("session_id", h.opts.SessionID), slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
 		}
 	} else {
@@ -251,7 +256,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			h.closeReady()
 			return
 		}
-		if err := waitForSegment(ctx, h.procExited, h.opts.OutputDir, "stream_0", 10*time.Second, 100*time.Millisecond); err != nil {
+		if err := waitForSegment(ctx, h.procExited, h.segmentDirs(), "stream_0", startNumberFor(h.opts), 10*time.Second, 100*time.Millisecond); err != nil {
 			slog.WarnContext(ctx, "hls: first segment not yet ready, proceeding anyway", slog.String("media_id", h.opts.MediaID), slog.String("session_id", h.opts.SessionID), slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
 		}
 	}
@@ -445,16 +450,28 @@ func waitForFile(ctx context.Context, exited <-chan struct{}, path string, timeo
 	}
 }
 
-func waitForSegment(ctx context.Context, exited <-chan struct{}, dir, streamPrefix string, timeout, interval time.Duration) error {
+// segmentDirs lists where this session's segments can be found.
+func (h *hlsHandle) segmentDirs() []string {
+	if h.publishDir == "" || h.publishDir == h.opts.OutputDir {
+		return []string{h.opts.OutputDir}
+	}
+	return []string{h.opts.OutputDir, h.publishDir}
+}
+
+// waitForSegment waits for a segment of streamPrefix numbered minIndex or
+// more in any of dirs. The number matters: a seek's session writes into a
+// cache that already holds the segments of the session before it.
+func waitForSegment(ctx context.Context, exited <-chan struct{}, dirs []string, streamPrefix string, minIndex int, timeout, interval time.Duration) error {
 	deadline := time.After(timeout)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	scan := func() bool {
-		entries, _ := os.ReadDir(dir)
-		for _, e := range entries {
-			name := e.Name()
-			if len(name) > len(streamPrefix) && name[:len(streamPrefix)] == streamPrefix && (strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".m4s")) {
-				return true
+		for _, dir := range dirs {
+			entries, _ := os.ReadDir(dir)
+			for _, e := range entries {
+				if idx, ok := segmentIndex(e.Name(), streamPrefix); ok && idx >= minIndex {
+					return true
+				}
 			}
 		}
 		return false
@@ -476,4 +493,24 @@ func waitForSegment(ctx context.Context, exited <-chan struct{}, dir, streamPref
 			}
 		}
 	}
+}
+
+// segmentIndex reads the number of a finished segment named
+// <streamPrefix>_<n>.m4s or .ts; partial (.tmp) and other files are not one.
+func segmentIndex(name, streamPrefix string) (int, bool) {
+	rest, ok := strings.CutPrefix(name, streamPrefix+"_")
+	if !ok {
+		return 0, false
+	}
+	num, ok := strings.CutSuffix(rest, ".m4s")
+	if !ok {
+		if num, ok = strings.CutSuffix(rest, ".ts"); !ok {
+			return 0, false
+		}
+	}
+	n, err := strconv.Atoi(num)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
 }
