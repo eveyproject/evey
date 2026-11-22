@@ -619,8 +619,10 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 			NeedsReprobe: (row.StreamProbeAttempts > 0 && row.StreamProbeAttempts < maxStreamProbeAttempts) ||
 				(s.prober != nil && row.StreamProbeAttempts == 0 && row.StreamProbeVersion < library.StreamProbeVersion) ||
 				// A container never checked (or by an older revision) is
-				// owed the check alone, paced like the re-probes above.
-				(s.containerCheck != nil && row.ContainerCheckVersion < library.ContainerCheckVersion),
+				// owed the check alone, paced like the re-probes above. Not
+				// a file the prober found no streams in: its container fails
+				// the check the same way on every pass (an empty file).
+				(s.containerCheck != nil && row.StreamProbeAttempts == 0 && row.ContainerCheckVersion < library.ContainerCheckVersion),
 		}
 	}
 	return scanindex.New(entries), nil
@@ -1179,7 +1181,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		} else if existing.File.StreamProbeAttempts == 0 && existing.File.StreamProbeVersion < library.StreamProbeVersion &&
 			s.staleReprobes.Allow() && !s.isPlaying(ctx, existing.ID) {
 			s.reprobeStaleVersion(ctx, existing, f.Path)
-		} else if s.containerCheck != nil && existing.File.ContainerCheckVersion < library.ContainerCheckVersion &&
+		} else if s.containerCheck != nil && existing.File.StreamProbeAttempts == 0 && existing.File.ContainerCheckVersion < library.ContainerCheckVersion &&
 			s.staleReprobes.Allow() && !s.isPlaying(ctx, existing.ID) {
 			s.recheckContainer(ctx, existing, f.Path)
 		}
