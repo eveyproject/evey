@@ -83,7 +83,7 @@ describe("deviceCodecs", () => {
     expect((await load()).getDeviceAudioCodecs()).toEqual(["aac", "opus", "ac3", "eac3"]);
   });
 
-  // 2026-10-01, a Chromecast HD: too slow for ac3go, the app stopped mid-episode.
+  // A Chromecast HD: too slow for ac3go, the app stopped mid-episode.
   // The launch check's verdict wins over the module's plain list.
   it("does not declare ac3go when the launch check blocks it, and reports the check", async () => {
     rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "opus"] };
@@ -132,6 +132,39 @@ describe("deviceCodecs", () => {
 
   // A receiver switched off mid-run: the DTS it took must not be declared to
   // the next negotiation, or the server hands the device a track it cannot play.
+  // A TV loads this module with its player screen: the first negotiation after
+  // a cold start came while the ac3go check was still benchmarking, declared
+  // the baseline and got an audio transcode for an AC3 the app decodes.
+  it("a negotiation waits for the launch check before reading the declaration", async () => {
+    rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "opus"] };
+    let finishCheck: (c: unknown) => void = () => {};
+    caps.checkPlaybackDecoder.mockReturnValue(new Promise((r) => (finishCheck = r)));
+    const m = await load();
+    expect(m.getDeviceAudioCodecs()).not.toContain("ac3");
+    const negotiation = m.refreshAudioSink();
+    finishCheck({ decoders: ["ac3", "eac3"], blockedBy: "", bench: null, abnormalExit: null });
+    await negotiation;
+    expect(m.getDeviceAudioCodecs()).toEqual(expect.arrayContaining(["ac3", "eac3"]));
+  });
+
+  it("a launch check that never answers holds a negotiation back only so long", async () => {
+    vi.useFakeTimers();
+    try {
+      caps.checkPlaybackDecoder.mockReturnValue(new Promise(() => {}));
+      vi.resetModules();
+      const m = await import("./deviceCodecs");
+      let done = false;
+      void m.refreshAudioSink().then(() => (done = true));
+      await vi.advanceTimersByTimeAsync(m.AUDIO_PROBE_WAIT_MS - 1);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(done).toBe(true);
+      expect(m.getDeviceAudioCodecs()).not.toContain("ac3");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("asks the sink again before a negotiation and follows its answer", async () => {
     rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "opus"] };
     // A phone on an HDMI receiver that takes the DTS bitstream.
