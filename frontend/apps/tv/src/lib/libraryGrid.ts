@@ -1,4 +1,5 @@
 import {
+  defaultTypeFilterFor,
   getLibraryServiceGetLibraryQueryOptions,
   getLibraryServiceListGenresQueryOptions,
   getLibraryServiceListMediaItemsQueryOptions,
@@ -53,13 +54,14 @@ export function buildMediaListParams(input: BuildMediaListParamsInput) {
 }
 
 /** What the grid asks for when it opens: the library, its genres, its first page. */
-export function libraryFirstPageQueries(libraryId: string): FetchQueryOptions[] {
+export function libraryFirstPageQueries(libraryId: string, libraryType?: string): FetchQueryOptions[] {
   return [
     getLibraryServiceGetLibraryQueryOptions(libraryId),
     getLibraryServiceListGenresQueryOptions(libraryId),
     getLibraryServiceListMediaItemsQueryOptions(
       buildMediaListParams({
         libraryId,
+        type: defaultTypeFilterFor(libraryType),
         sortField: LIBRARY_DEFAULT_SORT_FIELD,
         sortOrder: LIBRARY_DEFAULT_SORT_ORDER,
         cursor: "",

@@ -501,10 +501,11 @@ type TranscodingConfig struct {
 	// copy variant of the hybrid on-demand master, giving a player whose
 	// throughput collapses an ABR escape below the source bitrate (the copy
 	// path is otherwise single-variant: a bad home link freezes the picture
-	// for minutes instead of degrading it - observed on a cast session,
-	// 2026-07-31). Costs nothing until a player actually drops to it: only
-	// then does a software encode session spawn, gated by the normal
-	// admission machinery. EVEY_HLS_COPY_FALLBACK_RUNG=false to opt out.
+	// for minutes instead of degrading it). Off by default: ExoPlayer picks its
+	// first variant by its bandwidth estimate, not by the master's order, so
+	// it starts on the transcoded rung - a software encode the copy did not
+	// need, and a slower start than the copy itself.
+	// EVEY_HLS_COPY_FALLBACK_RUNG=true to opt in.
 	CopyFallbackRungEnabled bool
 
 	// Encode-calibration bench sample sources. The bench measures the host's
@@ -999,7 +1000,7 @@ func Load() (*Config, error) {
 			TrickplayCacheDir:            envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 			AudioRenditionEnabled:        envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", true),
 			CastWasmAudioEnabled:         envBool("EVEY_CAST_WASM_AUDIO_ENABLED", false),
-			CopyFallbackRungEnabled:      envBool("EVEY_HLS_COPY_FALLBACK_RUNG", true),
+			CopyFallbackRungEnabled:      envBool("EVEY_HLS_COPY_FALLBACK_RUNG", false),
 			BenchSDRSamplePath:           envStr("EVEY_BENCH_SDR_SAMPLE", ""),
 			BenchSDRSampleURL:            envStr("EVEY_BENCH_SDR_SAMPLE_URL", ""),
 			BenchSDRSampleSHA256:         envStr("EVEY_BENCH_SDR_SAMPLE_SHA256", ""),

@@ -1,5 +1,5 @@
 ---
-source_sha: 8b044cd0211312ed2f125ac244e95591553362666e859b5b4092edcb2ecc6c55
+source_sha: bc4e8000ca3b6f13e4b5d57a81bf41b5b314d18f1578b3eb3a7b6737c5d1b091
 reviewed: true
 ---
 # App-Updates von der Instanz { #app-updates-served-by-the-instance }
@@ -35,8 +35,9 @@ Code.
 - **Die Apps folgen dem aktiven Server.** Sobald ein Server gewählt ist,
   richtet die App expo-updates auf ihn aus und lädt sein Bundle im Hintergrund
   herunter (`frontend/packages/client/src/native/clientUpdates.ts`). Das
-  Bundle wird beim nächsten Start der App aktiv; ein Neustart wird nur angeboten, wenn
-  es eine andere App-Version ist als die laufende, und nie über dem Player.
+  Bundle wird beim nächsten Start der App aktiv. Das Telefon bietet einen Neustart an,
+  wenn es eine andere App-Version ist als die laufende, nie über dem Player; der
+  Fernseher nie, ein Neuladen im laufenden Betrieb ist für eine kleine Box zu schwer.
   Ist kein Server gewählt, fragt die App niemanden.
 
 ## Version der nativen Laufzeit { #native-runtime-version }

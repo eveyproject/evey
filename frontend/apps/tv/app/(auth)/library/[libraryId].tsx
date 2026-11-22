@@ -13,6 +13,7 @@ import {
   useLibraryServiceSearchMedia,
   usePlaybackServiceGetWatchHistory,
   libraryServiceListMediaItems,
+  defaultTypeFilterFor,
   itemLabel,
   WATCH_HISTORY_OVERLAY_LIMIT,
 } from "@evey/api";
@@ -315,7 +316,8 @@ export default function LibraryDetailScreen() {
   const [allItems, setAllItems] = useState<V1MediaItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [genre, setGenre] = useState("");
-  const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
+  // null until the viewer picks a type: the library's own default applies.
+  const [pickedType, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "" | null>(null);
   const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>(LIBRARY_DEFAULT_SORT_FIELD);
   const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>(LIBRARY_DEFAULT_SORT_ORDER);
   const [searchText, setSearchText] = useState("");
@@ -335,8 +337,12 @@ export default function LibraryDetailScreen() {
   const shufflingRef = useRef(false);
   const prevDataRef = useRef<unknown>(null);
 
-  const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
+  const { data: library, isError: isLibraryError, refetch: refetchLibrary } = useLibraryServiceGetLibrary(libraryId ?? "");
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
+  // A shows library opens on its series, a movies library on its movies, as
+  // on web and mobile: unfiltered, the grid listed every season and episode.
+  const defaultType = defaultTypeFilterFor(library?.type);
+  const typeFilter = pickedType ?? defaultType;
 
   // A music library holds no media_items, so browsing it here renders an empty
   // grid over a full library. Send it to the music screen instead, as web has
@@ -352,13 +358,13 @@ export default function LibraryDetailScreen() {
 
   const trimmedSearch = debouncedSearch.trim();
   const searchActive = trimmedSearch.length > 0;
-  const hasActiveFilters = Boolean(genre || typeFilter || searchActive);
+  const hasActiveFilters = Boolean(genre || typeFilter !== defaultType || searchActive);
 
   const { data, isLoading, isError, isFetching, refetch } = useLibraryServiceListMediaItems(
     buildMediaListParams({ libraryId: libraryId ?? "", type: typeFilter, genre, sortField, sortOrder, cursor, pageSize: cursor ? LIBRARY_NEXT_PAGE_SIZE : LIBRARY_PAGE_SIZE }),
     {
       query: {
-        enabled: !!libraryId && !searchActive,
+        enabled: !!libraryId && !!library && !searchActive,
         // See mobile: one cache key per cursor, and a spent cursor is never
         // read again, so don't let superseded pages pile up next to allItems.
         gcTime: 30_000,
@@ -452,7 +458,10 @@ export default function LibraryDetailScreen() {
         else toast.error(t("common.shuffleFailed"));
         return;
       }
-      const base = { libraryId, ...(typeFilter ? { type: typeFilter } : {}), ...(genre ? { genre } : {}) };
+      // A series or a season has no stream of its own: a shows library
+      // shuffles among its episodes, whatever level the grid shows.
+      const shuffleType = isShowLibrary && typeFilter !== "MEDIA_ITEM_TYPE_EPISODE" ? "MEDIA_ITEM_TYPE_EPISODE" : typeFilter;
+      const base = { libraryId, ...(shuffleType ? { type: shuffleType } : {}), ...(genre ? { genre } : {}) };
       const probe = await libraryServiceListMediaItems({ ...base, "pagination.page": 1, "pagination.pageSize": 1 });
       const total = probe.pagination?.totalItems ?? 0;
       if (total === 0) { toast.info(t("common.shuffleEmpty")); return; }
@@ -469,7 +478,7 @@ export default function LibraryDetailScreen() {
       shufflingRef.current = false;
       setShuffling(false);
     }
-  }, [libraryId, genre, typeFilter, searchActive, displayItems, router, t]);
+  }, [libraryId, genre, typeFilter, isShowLibrary, searchActive, displayItems, router, t]);
 
   // A series or a season has no video stream of its own, so "play all" only
   // makes sense once the on-screen selection is directly playable: always on
@@ -554,9 +563,12 @@ export default function LibraryDetailScreen() {
     [watchedMap, percentMap, cardWidth, titleBlock, serverUrl, authHeaders, onFocusAt, onPressAt, cancelPrefetch],
   );
 
-  const activeIsLoading = searchActive ? isSearchLoading : isLoading;
-  const activeIsError = searchActive ? isSearchError : isError;
-  const activeRefetch = searchActive ? refetchSearch : refetch;
+  // The list waits for the library's type (its default filter): until then
+  // the grid is loading, and a library that fails to load is an error, not
+  // an empty library.
+  const activeIsLoading = searchActive ? isSearchLoading : isLoading || (!library && !isLibraryError);
+  const activeIsError = searchActive ? isSearchError : isError || (!library && isLibraryError);
+  const activeRefetch = searchActive ? refetchSearch : library ? refetch : refetchLibrary;
   const isFirstPage = searchActive ? true : cursor === "";
 
   // What the grid shows, in the title bar: the filters scroll away with the

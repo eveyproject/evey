@@ -1,5 +1,5 @@
 ---
-source_sha: c10d415b34bef2e04a1ab22d33d681fd812b2937f3595c64e946bf1630b2404a
+source_sha: ae17f5e5ff88ce9f511edfc535eb116a6b3a9c79f1a2553733a4c27f6722d79a
 reviewed: true
 ---
 # Conectar las aplicaciones { #connect-the-apps }
@@ -246,29 +246,23 @@ misma cuenta. La reproducción sigue allí.
 
 ## Mantener las apps al día { #keeping-the-apps-up-to-date }
 
-Cuando tu app de Android o de Android TV es más antigua que la versión que va
-con tu servidor, te avisa:
-
-- la app de Android muestra **Actualización disponible:** y la versión en la
-  parte de arriba de la pantalla (nunca encima del vídeo);
-- el televisor lo muestra en su barra superior.
-
-Púlsalo para abrir la página de la app en Play Store. Play Store no siempre
-actualiza las apps solo (únicamente cuando el dispositivo está en reposo y
-con Wi-Fi, y se puede desactivar), y por eso existe este aviso. Cuando la app
-está al día, o cuando el servidor es más antiguo que esta función, no se
-muestra nada. La app web y la página `/tv` nunca necesitan
-actualizarse: las sirve el servidor.
+Las apps de Android y Android TV se actualizan desde Play Store. Play Store no
+siempre lo hace solo (únicamente cuando el dispositivo está en reposo y con
+Wi-Fi, y se puede desactivar): abre allí la página de la app para
+comprobarlo. La app web y la página `/tv` nunca necesitan actualizarse: las
+sirve el servidor.
 
 Las apps de Android y Android TV también reciben correcciones de tu
 servidor, sin pasar por Play Store. Una vez elegido un servidor, la app
 descarga en segundo plano el código de la app que corresponde a la versión de
-ese servidor y arranca con él la próxima vez que se abre. Cuando ese código es
-una versión de la app distinta de la que está en marcha, una ventana indica
-**Actualización lista**, con **Reiniciar** y **Más tarde**; nunca aparece
-encima del vídeo. Las apps solo aceptan código publicado por el proyecto Evey
-y nunca vuelven a uno más antiguo. Un cambio en la parte de la app que instala
-Android sigue llegando por Play Store. Cómo funciona:
+ese servidor y arranca con él la próxima vez que se abre. En el teléfono,
+cuando ese código es una versión de la app distinta de la que está en marcha,
+una ventana indica **Actualización lista**, con **Reiniciar** y **Más
+tarde**; nunca aparece encima del vídeo. El televisor arranca con él la
+próxima vez que se abre, sin preguntar. Las apps solo aceptan código
+publicado por el proyecto Evey y nunca vuelven a uno más antiguo. Un cambio en
+la parte de la app que instala Android sigue llegando por Play Store. Cómo
+funciona:
 [Actualizaciones de las apps servidas por la instancia](../client-updates.md).
 
 ## Qué reproduce cada dispositivo { #which-device-plays-what }

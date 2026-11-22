@@ -148,6 +148,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 		procExited: make(chan struct{}),
 		stderr:     stderr,
 		noMaster:   noMaster,
+		publishDir: pubDir,
 	}
 
 	if err := cmd.Start(); err != nil {

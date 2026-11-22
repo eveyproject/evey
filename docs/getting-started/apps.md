@@ -230,27 +230,20 @@ continues there.
 
 ## Keeping the apps up to date
 
-When your Android or Android TV app is older than the version that goes with
-your server, it tells you:
-
-- the Android app shows **Update available:** and the version at the top of
-  the screen (never over the video);
-- the TV shows it in its top bar.
-
-Press it to open the app's Play Store page. The Play Store does not always
-update apps by itself (only when the device is idle and on Wi-Fi, and it can
-be turned off), which is why this notice exists. When the app is up to date,
-or the server is older than this feature, nothing is shown. The web app and the
-`/tv` page never need an update: the server provides them.
+The Android and Android TV apps update through the Play Store. The Play Store
+does not always do it by itself (only when the device is idle and on Wi-Fi,
+and it can be turned off): open the app's page there to check. The web app
+and the `/tv` page never need an update: the server provides them.
 
 The Android and Android TV apps also take fixes from your server, without
 going through the Play Store. Once a server is chosen, the app downloads the
 app code that goes with that server's version, in the background, and starts
-on it the next time it is opened. When that code is another version of the app
-than the one running, a window says **Update ready**, with **Restart** and
-**Later**; it never appears over the video. The apps only accept code
-published by the Evey project, and never go back to an older one. A change to
-the part of an app that Android installs still comes through the Play Store.
+on it the next time it is opened. On the phone, when that code is another
+version of the app than the one running, a window says **Update ready**, with
+**Restart** and **Later**; it never appears over the video. The TV starts on
+it at its next opening without asking. The apps only accept code published by
+the Evey project, and never go back to an older one. A change to the part of
+an app that Android installs still comes through the Play Store.
 How it works: [App updates served by the instance](../client-updates.md).
 
 ## Which device plays what
@@ -276,7 +269,7 @@ reduced copy (off by default): cmd/evey/http.go (downloads.quality_choice) ; i18
 display mode: frontend/packages/media-caps/src/displayMode.ts - pickDisplayMode ; frontend/apps/tv/src/lib/displayFrameRate.ts - playedFrameRate
 connect hint and help link, shown with no saved server: frontend/apps/mobile/app/server-connect.tsx - serverHelpUrl ; frontend/packages/client/src/lib/wikiUrl.ts - WIKI_LOCALES ; frontend/apps/tv/app/server-connect.tsx - serverHelpUrl ; i18n mobile.serverConnect.hint, mobile.serverConnect.whereToFind, mobile.servers.yourServers
 delete from the connect screen (Android): frontend/apps/mobile/app/server-connect.tsx - handleDeleteServer ; i18n mobile.servers.deleteConfirmTitle, mobile.servers.cantDeleteOnlyServer
-update notice: internal/adapters/driving/http/health_handler.go (clients) ; scripts/client-release-ldflags.sh ; frontend/packages/client/src/native/appUpdate.ts - newerClientRelease ; frontend/apps/mobile/src/components/UpdateBanner.tsx (not on /player) ; frontend/apps/tv/src/components/TopHeader.tsx ; i18n mobile.appUpdate.available
+no app version on /healthz: internal/adapters/driving/http/health_handler.go
 play on: i18n player.playOn.* (used by frontend/apps/web and frontend/apps/mobile, not frontend/apps/tv)
 television browser: frontend/apps/tv-web (served under /tv by internal/adapters/driving/http/spa.go - clientIndex ; Dockerfile /srv/tv) ; no address to type: frontend/apps/tv-web/src/lib/servedServer.ts - servingServer ; client question: frontend/apps/tv-web/src/lib/clientChoice.ts (choiceInAddress ?client=, readChoice) ; frontend/apps/tv-web/src/components/ClientChoice.tsx ; i18n common.clientChoice.* ; full screen: frontend/apps/tv-web/public/manifest.webmanifest (display fullscreen) ; remote: frontend/apps/tv-web/src/tv/keys.ts ; player keys: frontend/apps/tv-web/src/screens/Player.tsx (PlayerView comment) ; interface size: frontend/apps/tv-web/src/screens/Settings.tsx (mobile.settings.uiScale) ; quick connect: frontend/apps/tv-web/src/screens/QuickConnect.tsx ; no cast: no useCastSession in frontend/apps/tv-web
 connect screen title on both apps: i18n mobile.serverConnect.title ; frontend/apps/tv/src/i18n/offlineStrings.ts (seeded before any server answers) ; frontend/packages/client/src/native/i18n.ts - initI18n

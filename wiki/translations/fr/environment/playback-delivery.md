@@ -1,5 +1,5 @@
 ---
-source_sha: b9edaa14b28ad46c4709ea321f479e45e254f3dc0abd9f7dfacfde3959487cd0
+source_sha: 2983dd1915d58079fc0869d6576c24b333374748f1584b1030d2b5c7c6aaf273
 reviewed: true
 ---
 # Diffusion de la lecture et téléchargements { #playback-delivery-and-downloads }
@@ -28,7 +28,7 @@ avec lequel elle a commencé.
 | `EVEY_HLS_ONDEMAND` | activé | Sert un fichier dont les pistes peuvent être copiées en le réempaquetant à la volée, sans ffmpeg et sans rien écrire dans le cache. `off` : ces fichiers passent par la voie de copie ffmpeg. | Entrées de configuration `transcoding.hls_ondemand`, lecture suivante |
 | `EVEY_REMUX_COPY` | activé | La voie de copie ffmpeg : la vidéo est copiée sans réencodage quand le fichier le permet. `off` : ces fichiers sont transcodés. | Entrées de configuration `transcoding.remux_copy`, lecture suivante |
 | `EVEY_HLS_AUDIO_RENDITION_ENABLED` | `true` | Propose les pistes audio comme des variantes séparées, pour qu'un lecteur change de langue sans recharger la vidéo. Permet aussi de lire une vidéo copiée avec une piste audio réencodée à part. | aucun |
-| `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Ajoute une qualité basse transcodée à côté d'un flux copié, pour qu'un lecteur dont la connexion chute brutalement puisse passer à cette qualité au lieu de se figer. Ne coûte rien tant qu'aucun lecteur ne l'utilise. | aucun |
+| `EVEY_HLS_COPY_FALLBACK_RUNG` | `false` | Ajoute une qualité basse transcodée à côté d'un flux copié, pour qu'un lecteur dont la connexion chute brutalement puisse passer à cette qualité au lieu de se figer. Désactivé par défaut : un lecteur Android peut démarrer sur cette qualité, ce qui transcode un flux que la copie lit tel quel. | aucun |
 | `EVEY_HLS_ONDEMAND_CONCAT` | activé | La lecture enchaînée sans coupure entre épisodes, quand le lecteur web la demande. Un épisode qui ne peut pas être copié revient au flux normal. | Entrées de configuration `transcoding.hls_ondemand_concat`, redémarrage |
 | `EVEY_HLS_ONDEMAND_TRACK_TRIM` | désactivé | Ne met dans chaque flux que la piste audio sélectionnée, au lieu de toutes. | Entrées de configuration `transcoding.hls_ondemand_track_trim`, redémarrage |
 | `EVEY_HLS_ONDEMAND_ENCRYPT` | désactivé | Chiffre en AES-128 les flux réempaquetés. Désactive deux choses : le manifeste DASH (HLS seulement) et la lecture enchaînée sans coupure entre épisodes (chaque épisode est lu comme un flux à part). | Entrées de configuration `transcoding.hls_ondemand_encrypt`, redémarrage |

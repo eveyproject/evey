@@ -55,6 +55,8 @@ type playbackHandler struct {
 	// keyframeOnDemand fills a missing keyframe index inline at GetStreamInfo
 	// (bounded fast-path probe; see apptranscoding.KeyframeOnDemand). Optional.
 	keyframeOnDemand *apptranscoding.KeyframeOnDemand
+	// deviceDecoders: see GRPCServerDeps.DeviceDecoders. Optional.
+	deviceDecoders *apptranscoding.DeviceDecoderMemory
 	// remoteAccess reads the operator-wide remote bitrate cap and the LAN list
 	// live, per request: a session whose real client IP is classified WAN is
 	// clamped to the cap, and a change in Admin -> Remote Access applies to the
@@ -349,6 +351,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	}
 
 	client := clientProfileFromRequest(req, interceptors.UserAgentFromCtx(ctx))
+	h.completeAudioDeclaration(ctx, req.MediaItemId, &client)
 	prefs, maxBitrateKbps := h.resolvePlaybackPrefs(ctx, req, streams)
 
 	preq := apptranscoding.PlaybackRequest{
@@ -1548,4 +1551,28 @@ func (h *playbackHandler) isBlockedByParental(ctx context.Context, _ string, med
 		return true, "content blocked by parental controls"
 	}
 	return false, ""
+}
+
+// completeAudioDeclaration adds to the client's audio codecs the ones its
+// app decoder passed its check for on this device before: a TV's first
+// negotiation after a cold start can leave before that check ends and declare
+// the baseline alone (see apptranscoding.DeviceDecoderMemory).
+func (h *playbackHandler) completeAudioDeclaration(ctx context.Context, mediaID string, client *transcoding.ClientProfile) {
+	if h.deviceDecoders == nil {
+		return
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return
+	}
+	device := interceptors.UserAgentFromCtx(ctx)
+	codecs, added := h.deviceDecoders.Complete(claims.UserID, device, client.AudioCodecs)
+	if len(added) == 0 {
+		return
+	}
+	client.AudioCodecs = codecs
+	slog.InfoContext(ctx, "playback decision: audio codecs completed from the device's last decoder check",
+		slog.String("media_id", mediaID),
+		slog.String("device", device),
+		slog.Any("added", added))
 }

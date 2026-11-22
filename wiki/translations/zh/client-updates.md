@@ -1,5 +1,5 @@
 ---
-source_sha: 8b044cd0211312ed2f125ac244e95591553362666e859b5b4092edcb2ecc6c55
+source_sha: bc4e8000ca3b6f13e4b5d57a81bf41b5b314d18f1578b3eb3a7b6737c5d1b091
 reviewed: true
 ---
 # 由实例提供的应用更新 { #app-updates-served-by-the-instance }
@@ -14,7 +14,7 @@ reviewed: true
 - **服务器只负责交出字节。** `GET /api/v1/client-updates/{app}/manifest` 和 `.../assets/{platform}/{runtime}/{name}` 使用 Expo Updates 协议（`internal/adapters/driving/http/client_update_handler.go`）。实例不持有任何密钥，不构建任何 manifest，也只打开该目录内的文件。
 - **应用负责验证。** 每个 bundle 都由项目签名，并随签名密钥的证书一起发送；应用用编译进自身的根证书 `frontend/client-updates/certificate.pem` 来校验这张证书。实例只能分发已发布的代码，其他任何内容都会在设备上被拒绝。
 - **应用从不回退。** 见下文“版本下限”。
-- **应用跟随当前服务器。** 选定服务器后，应用把 expo-updates 指向它，并在后台下载它的 bundle（`frontend/packages/client/src/native/clientUpdates.ts`）。bundle 在下次启动时生效；只有当它与正在运行的应用不是同一个应用版本时才会提示重新启动，而且从不出现在播放器上方。没有选定服务器时，应用不向任何人查询。
+- **应用跟随当前服务器。** 选定服务器后，应用把 expo-updates 指向它，并在后台下载它的 bundle（`frontend/packages/client/src/native/clientUpdates.ts`）。bundle 在下次启动时生效。手机只有在它与正在运行的应用不是同一个应用版本时才会提示重新启动，而且从不出现在播放器上方；电视从不提示，因为就地重新加载对小盒子来说太重。没有选定服务器时，应用不向任何人查询。
 
 ## 原生运行时版本 { #native-runtime-version }
 

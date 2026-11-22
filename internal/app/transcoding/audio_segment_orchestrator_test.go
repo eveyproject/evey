@@ -1075,3 +1075,63 @@ func TestAudioOrchestrator_ReapOfAStoppedSessionKeepsItsSuccessor(t *testing.T) 
 	ensure(100)
 	assert.Equal(t, 2, proc.startCount(), "the successor covers its own segment: no third spawn")
 }
+
+// A session paced at 4x that has only reached segment 13 is no session to wait
+// on for segment 32, even inside its lookahead: on a TV the player sat ten
+// seconds on that audio segment and gave up. It gets its own session there.
+func TestAudioOrchestrator_PacedSessionFarBehind_SpawnsAtTheRequest(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		if opts.StartNumber == 0 {
+			// The cold session has produced its burst and a little more.
+			for i := range 14 {
+				writeAudioSegment(t, cache, fp, i)
+			}
+		} else {
+			writeAudioSegment(t, cache, fp, opts.StartNumber)
+		}
+		return newAudioFakeHandle()
+	}
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 32))
+
+	require.Equal(t, 2, proc.startCount(), "segment 32 must not wait on the session still at 13")
+	assert.Equal(t, 32, proc.optsAt(1).StartNumber)
+}
+
+// The same session is still the one to wait on just past what it produced,
+// and anywhere inside the audio it reads at once.
+func TestAudioOrchestrator_PacedSessionNearby_IsRidden(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+
+	proc := newFakeAudioProcess()
+	var spawned int
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		spawned++
+		for i := opts.StartNumber; i <= opts.StartNumber+13; i++ {
+			writeAudioSegment(t, cache, fp, i)
+		}
+		return newAudioFakeHandle()
+	}
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 0))
+	assert.True(t, o.coveringSessionForTest(fp.Hash(), 9), "inside the burst")
+	assert.True(t, o.coveringSessionForTest(fp.Hash(), 16), "three segments past the last one produced")
+	assert.False(t, o.coveringSessionForTest(fp.Hash(), 20), "seven past it")
+	assert.Equal(t, 1, spawned)
+}
+
+func (o *AudioSegmentOrchestrator) coveringSessionForTest(audioHash string, segIdx int) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.coveringSessionLocked(audioHash, segIdx)
+}
