@@ -31,9 +31,6 @@ type healthResponse struct {
 	// the mobile/TV discovery probe, so the name reaches the server list from
 	// the same answer that proves this is an Evey server.
 	Name string `json:"name,omitempty"`
-	// Clients names the app builds released with this server, so an app can
-	// tell it is behind: the Play Store auto-update rarely runs on a TV.
-	Clients *healthClients `json:"clients,omitempty"`
 	// Demo says this is the public demo instance: mobile and TV read it from
 	// the same discovery answer and show the banner before login.
 	Demo bool `json:"demo,omitempty"`
@@ -43,17 +40,11 @@ type healthResponse struct {
 	DemoExtended bool `json:"demo_extended,omitempty"`
 }
 
-type healthClients struct {
-	TV     *ClientRelease `json:"tv,omitempty"`
-	Mobile *ClientRelease `json:"mobile,omitempty"`
-}
-
-// ClientRelease is a client app build, read from the app's app.json when the
-// server was built. The zero value means the build was not stamped.
-type ClientRelease struct {
-	Version     string `json:"version"`
-	VersionCode int    `json:"version_code"`
-}
+// No app version is advertised here. The apps offered their store page when
+// this answer named a newer build, but the build a server is released with
+// reaches the store days later: a box was sent to a store with nothing new,
+// and froze opening it. The apps that take the server's code get it from
+// /api/v1/client-updates; the store updates the rest.
 
 func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.health.Check")
@@ -103,15 +94,6 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 		resp.Name = s.Cfg.EffectiveServerName()
 		resp.Demo = s.Cfg.Server.Demo && !s.Cfg.Server.DemoExtended
 		resp.DemoExtended = s.Cfg.Server.DemoExtended
-	}
-	if s.TVRelease.VersionCode > 0 || s.MobileRelease.VersionCode > 0 {
-		resp.Clients = &healthClients{}
-		if tv := s.TVRelease; tv.VersionCode > 0 {
-			resp.Clients.TV = &tv
-		}
-		if mobile := s.MobileRelease; mobile.VersionCode > 0 {
-			resp.Clients.Mobile = &mobile
-		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

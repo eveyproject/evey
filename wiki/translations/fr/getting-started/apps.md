@@ -1,5 +1,5 @@
 ---
-source_sha: c10d415b34bef2e04a1ab22d33d681fd812b2937f3595c64e946bf1630b2404a
+source_sha: ae17f5e5ff88ce9f511edfc535eb116a6b3a9c79f1a2553733a4c27f6722d79a
 reviewed: true
 ---
 # Connecter les applications { #connect-the-apps }
@@ -251,31 +251,24 @@ lecture continue là-bas.
 
 ## Garder les applications à jour { #keeping-the-apps-up-to-date }
 
-Quand votre application Android ou Android TV est plus ancienne que la
-version qui va avec votre serveur, elle vous l'indique :
-
-- l'application Android affiche **Mise à jour disponible :** et la version en
-  haut de l'écran (jamais par-dessus la vidéo) ;
-- la TV l'affiche dans sa barre du haut.
-
-Appuyez dessus pour ouvrir la page de l'application sur le Play Store. Le
-Play Store ne met pas toujours les applications à jour automatiquement
-(seulement quand l'appareil ne sert pas et qu'il est en Wi-Fi, et cela peut
-être désactivé) : c'est pourquoi cet avis existe. Quand l'application est à jour, ou que le
-serveur est plus ancien que cette fonction, rien ne s'affiche. L'application
-web et la page `/tv` n'ont jamais besoin de mise à jour : c'est le
-serveur qui les fournit.
+Les applications Android et Android TV se mettent à jour par le Play Store.
+Le Play Store ne le fait pas toujours tout seul (seulement quand l'appareil
+ne sert pas et qu'il est en Wi-Fi, et cela peut être désactivé) : ouvrez la
+page de l'application sur le Play Store pour vérifier. L'application web et
+la page `/tv` n'ont jamais besoin de mise à jour : c'est le serveur qui les
+fournit.
 
 Les applications Android et Android TV reçoivent aussi des correctifs de
 votre serveur, sans passer par le Play Store. Une fois le serveur choisi,
 l'application télécharge en arrière-plan le code d'application qui va avec la
-version de ce serveur, et démarre dessus à sa prochaine ouverture. Quand ce
-code est une autre version de l'application que celle qui tourne, une fenêtre
-indique **Mise à jour prête**, avec **Redémarrer** et **Plus tard** ; elle ne
-s'affiche jamais par-dessus la vidéo. Les applications n'acceptent que du code
-publié par le projet Evey, et ne reviennent jamais à un code plus ancien. Un
-changement dans la partie de l'application qu'Android installe passe encore
-par le Play Store. Le fonctionnement :
+version de ce serveur, et démarre dessus à sa prochaine ouverture. Sur le
+téléphone, quand ce code est une autre version de l'application que celle qui
+tourne, une fenêtre indique **Mise à jour prête**, avec **Redémarrer** et
+**Plus tard** ; elle ne s'affiche jamais par-dessus la vidéo. La TV démarre
+dessus à sa prochaine ouverture, sans rien demander. Les applications
+n'acceptent que du code publié par le projet Evey, et ne reviennent jamais à
+un code plus ancien. Un changement dans la partie de l'application qu'Android
+installe passe encore par le Play Store. Le fonctionnement :
 [Mises à jour des applications servies par l'instance](../client-updates.md).
 
 ## Quel appareil lit quoi { #which-device-plays-what }

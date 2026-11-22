@@ -120,51 +120,21 @@ func TestHealthzHandler_AdvertisesTheExtendedDemoApartFromThePublicOne(t *testin
 	}
 }
 
-// The TV app compares its own versionCode to the one released with the
-// server: the Play Store auto-update rarely runs on a television (27-09, a TV
-// stuck a week on 0.1.4). Unstamped, the field is absent rather than zero.
-func TestHealthzHandler_AdvertisesTVRelease(t *testing.T) {
-	decode := func(srv *HTTPServer) map[string]any {
-		w := httptest.NewRecorder()
-		srv.healthzHandler(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
-		var body map[string]any
-		if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		return body
+// /healthz names no app build: the apps 0.2.11 and 0.1.2 open their store
+// page on any versionCode above theirs, and the build a server is released
+// with reaches the store days after it.
+func TestHealthzHandler_NamesNoAppBuild(t *testing.T) {
+	w := httptest.NewRecorder()
+	(&HTTPServer{StartTime: time.Now(), DB: &fakeDBPinger{}}).healthzHandler(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	var body map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
 	}
-
-	body := decode(&HTTPServer{StartTime: time.Now(), DB: &fakeDBPinger{}, TVRelease: ClientRelease{Version: "0.1.11", VersionCode: 56}})
-	clients, _ := body["clients"].(map[string]any)
-	tv, _ := clients["tv"].(map[string]any)
-	if tv["version"] != "0.1.11" || tv["version_code"] != float64(56) {
-		t.Fatalf("clients.tv = %v, want version 0.1.11 and version_code 56", body["clients"])
-	}
-	if _, ok := clients["mobile"]; ok {
-		t.Fatalf("TV-only stamp: clients.mobile = %v, want absent", clients["mobile"])
-	}
-
-	// The phone has the same problem (10-10: a month on beta.74 while beta.79
-	// was out), so the same answer names its build, independently of the TV's.
-	body = decode(&HTTPServer{StartTime: time.Now(), DB: &fakeDBPinger{},
-		TVRelease: ClientRelease{Version: "0.1.21", VersionCode: 86}, MobileRelease: ClientRelease{Version: "0.0.1-beta.79", VersionCode: 85}})
-	clients, _ = body["clients"].(map[string]any)
-	mobile, _ := clients["mobile"].(map[string]any)
-	if mobile["version"] != "0.0.1-beta.79" || mobile["version_code"] != float64(85) {
-		t.Fatalf("clients.mobile = %v, want version 0.0.1-beta.79 and version_code 85", body["clients"])
-	}
-	if tv, _ := clients["tv"].(map[string]any); tv["version_code"] != float64(86) {
-		t.Fatalf("clients.tv = %v, want version_code 86 next to mobile", clients["tv"])
-	}
-
-	if body := decode(&HTTPServer{StartTime: time.Now(), DB: &fakeDBPinger{}}); body["clients"] != nil {
-		t.Fatalf("unstamped build: clients = %v, want absent", body["clients"])
+	if _, ok := body["clients"]; ok {
+		t.Fatalf("clients = %v, want absent", body["clients"])
 	}
 }
 
-// The build stamps are what makes a deployment verifiable over HTTP alone
-// (scripts/verify-deploy.sh). A stamped server must report the SHA verbatim -
-// not a truncation, not the version string.
 func TestHealthzHandler_ReportsBuildStamps(t *testing.T) {
 	srv := &HTTPServer{
 		Version:      "beta-0.0.1-full",

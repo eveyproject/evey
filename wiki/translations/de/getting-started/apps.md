@@ -1,5 +1,5 @@
 ---
-source_sha: c10d415b34bef2e04a1ab22d33d681fd812b2937f3595c64e946bf1630b2404a
+source_sha: ae17f5e5ff88ce9f511edfc535eb116a6b3a9c79f1a2553733a4c27f6722d79a
 reviewed: true
 ---
 # Apps verbinden { #connect-the-apps }
@@ -253,29 +253,22 @@ angemeldet ist. Die Wiedergabe läuft dort weiter.
 
 ## Die Apps aktuell halten { #keeping-the-apps-up-to-date }
 
-Ist Ihre App für Android oder Android TV älter als die Version, die zu Ihrem
-Server passt, sagt sie es Ihnen:
-
-- Die Android-App zeigt oben auf dem Bildschirm **Update verfügbar:** und die
-  Version (nie über dem Video);
-- der Fernseher zeigt es in seiner oberen Leiste.
-
-Tippen Sie darauf, um die Seite der App im Play Store zu öffnen. Der Play
-Store aktualisiert Apps nicht immer von selbst (nur wenn das Gerät nicht
-benutzt wird und im WLAN ist, und das lässt sich abschalten). Deshalb gibt es
-diesen Hinweis. Ist die App aktuell, oder ist der Server älter als diese
-Funktion, wird nichts angezeigt. Die Web-App und die Seite `/tv` brauchen nie
-ein Update: Der Server liefert sie.
+Die Apps für Android und Android TV werden über den Play Store aktualisiert.
+Der Play Store tut das nicht immer von selbst (nur wenn das Gerät nicht
+benutzt wird und im WLAN ist, und das lässt sich abschalten): Öffnen Sie dort
+die Seite der App, um nachzusehen. Die Web-App und die Seite `/tv` brauchen
+nie ein Update: Der Server liefert sie.
 
 Die Apps für Android und Android TV erhalten Korrekturen auch von Ihrem
 Server, ohne den Weg über den Play Store. Sobald ein Server gewählt ist, lädt
 die App im Hintergrund den App-Code herunter, der zur Version dieses Servers
-gehört, und startet beim nächsten Öffnen damit. Ist dieser Code eine andere
-Version der App als die laufende, meldet ein Fenster **Update bereit**, mit
-**Neu starten** und **Später**; es erscheint nie über dem Video. Die Apps
-nehmen nur Code an, den das Evey-Projekt veröffentlicht hat, und gehen nie auf
-einen älteren zurück. Eine Änderung an dem Teil der App, den Android
-installiert, kommt weiterhin über den Play Store. So funktioniert es:
+gehört, und startet beim nächsten Öffnen damit. Auf dem Telefon meldet ein
+Fenster **Update bereit**, mit **Neu starten** und **Später**, wenn dieser
+Code eine andere Version der App als die laufende ist; es erscheint nie über
+dem Video. Der Fernseher startet beim nächsten Öffnen damit, ohne zu fragen.
+Die Apps nehmen nur Code an, den das Evey-Projekt veröffentlicht hat, und
+gehen nie auf einen älteren zurück. Eine Änderung an dem Teil der App, den
+Android installiert, kommt weiterhin über den Play Store. So funktioniert es:
 [App-Updates von der Instanz](../client-updates.md).
 
 ## Welches Gerät was abspielt { #which-device-plays-what }
