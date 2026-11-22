@@ -631,6 +631,21 @@ func TestAudioRenditionEnabledByDefault(t *testing.T) {
 	assert.False(t, off.Transcoding.AudioRenditionEnabled, "operators must be able to opt out")
 }
 
+// The copy master is single-variant unless the operator asks for the low
+// transcoded rung: an Android player started on it and transcoded a file the
+// copy plays as it is.
+func TestCopyFallbackRungOffByDefault(t *testing.T) {
+	t.Setenv("EVEY_DB_URL", "postgres://x/y")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.False(t, cfg.Transcoding.CopyFallbackRungEnabled)
+
+	t.Setenv("EVEY_HLS_COPY_FALLBACK_RUNG", "true")
+	on, err := Load()
+	require.NoError(t, err)
+	assert.True(t, on.Transcoding.CopyFallbackRungEnabled, "operators can still opt in")
+}
+
 // An unparseable value used to fall back in complete silence: the operator
 // read their own compose file and believed the setting had applied.
 func TestLoad_UnparseableValuesAreLogged(t *testing.T) {

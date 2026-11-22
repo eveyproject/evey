@@ -214,6 +214,58 @@ describe("TV LibraryDetailScreen genre filter", () => {
   });
 });
 
+describe("TV LibraryDetailScreen default type", () => {
+  it("opens a shows library on its series, not on every season and episode", () => {
+    getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "Shows", type: "LIBRARY_TYPE_SHOWS" } });
+    render(<LibraryDetailScreen />);
+
+    expect(listMediaItemsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ libraryId: LIBRARY_ID, type: "MEDIA_ITEM_TYPE_SERIES" }),
+      expect.anything(),
+    );
+  });
+
+  it("lets the viewer switch a shows library to its episodes", () => {
+    getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "Shows", type: "LIBRARY_TYPE_SHOWS" } });
+    render(<LibraryDetailScreen />);
+
+    fireEvent.click(screen.getByLabelText("media.library.episodes"));
+
+    expect(listMediaItemsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: "MEDIA_ITEM_TYPE_EPISODE" }),
+      expect.anything(),
+    );
+  });
+
+  it("asks for nothing before the library's type is known", () => {
+    getLibraryMock.mockReturnValue({ data: undefined });
+    render(<LibraryDetailScreen />);
+
+    expect(listMediaItemsMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ query: expect.objectContaining({ enabled: false }) }),
+    );
+  });
+
+  it("shows the grid loading, not an empty library, while the library's type is unknown", () => {
+    getLibraryMock.mockReturnValue({ data: undefined, isError: false });
+    listMediaItemsMock.mockReturnValue({ data: undefined, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() });
+    render(<LibraryDetailScreen />);
+
+    expect(screen.queryByText("common.noItems")).toBeNull();
+  });
+
+  it("offers a retry when the library itself fails to load", () => {
+    const refetchLibrary = vi.fn();
+    getLibraryMock.mockReturnValue({ data: undefined, isError: true, refetch: refetchLibrary });
+    listMediaItemsMock.mockReturnValue({ data: undefined, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() });
+    render(<LibraryDetailScreen />);
+
+    fireEvent.click(screen.getByLabelText("common.retry"));
+    expect(refetchLibrary).toHaveBeenCalled();
+  });
+});
+
 describe("TV LibraryDetailScreen selected filters", () => {
   const mark = (label: string) => within(screen.getByLabelText(label)).queryByTestId("icon-checkmark");
 
@@ -274,6 +326,18 @@ describe("TV LibraryDetailScreen shuffle", () => {
     expect(rawListMediaItemsMock).toHaveBeenCalledWith(
       expect.objectContaining({ libraryId: LIBRARY_ID, "pagination.page": 1, "pagination.pageSize": 1 }),
     );
+  });
+
+  it("shuffles a shows library among its episodes, while the grid shows its series", async () => {
+    getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "Shows", type: "LIBRARY_TYPE_SHOWS" } });
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    rawListMediaItemsMock.mockResolvedValue({ items: [{ id: "ep-3" }], pagination: { totalItems: 1 } });
+
+    render(<LibraryDetailScreen />);
+    fireEvent.click(screen.getByLabelText("common.shufflePlay"));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/player/ep-3"));
+    expect(rawListMediaItemsMock).toHaveBeenCalledWith(expect.objectContaining({ type: "MEDIA_ITEM_TYPE_EPISODE" }));
   });
 
   it("bakes the active genre filter into the shuffle probe", async () => {

@@ -64,14 +64,10 @@ type HTTPServer struct {
 	// verified over plain HTTP, with no shell on the host.
 	Commit    string
 	BuildDate string
-	// TVRelease and MobileRelease are the app builds released with this
-	// server, advertised on /healthz; zero when the build was not stamped.
-	TVRelease     ClientRelease
-	MobileRelease ClientRelease
-	StartTime     time.Time
-	LogDir        string
-	DataDir       string
-	HTTPSOnly     bool
+	StartTime time.Time
+	LogDir    string
+	DataDir   string
+	HTTPSOnly bool
 	// HTTPSMode, when set, is read on every request instead of HTTPSOnly, so
 	// an https External URL saved in the panel applies without a restart.
 	HTTPSMode func() bool
@@ -171,6 +167,9 @@ type HTTPServer struct {
 	// DirectPlayRefusals records a native player's refusal of a raw file on
 	// the catalog. Nil-safe: the beacon is then only logged.
 	DirectPlayRefusals DirectPlayRefusalRecorder
+	// DeviceDecoders remembers the decoder checks the apps report; the gRPC
+	// stream verdict reads the same instance. Nil-safe.
+	DeviceDecoders *apptranscoding.DeviceDecoderMemory
 
 	// CopySeekProber resolves where a pre-input -ss really lands for the copy
 	// rung's mid-stream sessions (sparse container seek indexes land on the
@@ -579,7 +578,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// CMCD of their own, the app posts qoe_sample beacons instead.
 			WithPlayerEventQoESink(s.QoESink),
 			// And as the catalog's memory of a raw file a device refused.
-			WithPlayerEventDirectPlayRefusal(s.DirectPlayRefusals)))))
+			WithPlayerEventDirectPlayRefusal(s.DirectPlayRefusals),
+			// And as the devices' decoder checks, for the stream verdict.
+			WithPlayerEventDecoderMemory(s.DeviceDecoders)))))
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo, s.UserQuerySvc)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))

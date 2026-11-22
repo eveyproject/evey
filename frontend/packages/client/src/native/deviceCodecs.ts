@@ -64,6 +64,12 @@ export function getVideoCapsReport(): Promise<VideoCapsReport | null> {
   return videoCaps;
 }
 
+// Settles once the launch probe has resolved the audio declaration, or failed
+// to: a negotiation waits on it, bounded by AUDIO_PROBE_WAIT_MS.
+let resolveAudioDeclared: () => void = () => {};
+const audioDeclared = new Promise<void>((r) => (resolveAudioDeclared = r));
+export const AUDIO_PROBE_WAIT_MS = 4000;
+
 let resolveCheck: (c: DecoderCheck | null) => void = () => {};
 const decoderCheck = new Promise<DecoderCheck | null>((r) => (resolveCheck = r));
 
@@ -90,9 +96,10 @@ export function dropPlayerAudioCodecs(): void {
  * The audio codecs this device actually decodes (or passes through over
  * HDMI), for the play-session's supportedAudioCodecs declaration. Synchronous:
  * returns the baseline until the one-shot native probe (kicked at module
- * load) lands, which is long before the user reaches a player screen. Worst
- * case of the tiny race: one session transcodes audio it could have
- * direct-played.
+ * load) lands. The module can load with the player screen itself, so a
+ * negotiation goes through refreshAudioSink, which waits for the probe:
+ * otherwise the first session after a cold start declares the baseline and
+ * gets an audio transcode for a codec the app decodes.
  */
 export function getDeviceAudioCodecs(): string[] {
   if (refused.size === 0) return current;
@@ -255,6 +262,7 @@ async function probe(): Promise<void> {
   playerCodecs = player;
   resolvedFrom = { outcome, sink };
   current = resolveAudioCodecs(BASELINE, outcome, sink, player);
+  resolveAudioDeclared();
   // Single log line so a "silent audio" report can be diagnosed from device
   // logs without guessing what this device actually detected and declared.
   log.info(`audio probe=${outcome.status} sink=${sink ? "ok" : "none"} player=${player.join(",") || "none"}${check?.blockedBy ? ` blocked=${check.blockedBy}` : ""} declared=${current.join(",")}`);
@@ -279,7 +287,7 @@ async function probe(): Promise<void> {
   }
 }
 
-void probe();
+void probe().finally(() => resolveAudioDeclared());
 
 /**
  * Asks the audio sink again before a negotiation: the Dolby/DTS family is
@@ -289,7 +297,15 @@ void probe();
  * happens: a failed probe keeps the previous declaration.
  */
 export async function refreshAudioSink(): Promise<void> {
-  if (Platform.OS !== "android" || !resolvedFrom) return;
+  if (Platform.OS !== "android") return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    audioDeclared,
+    // A probe that never answers costs this wait once, not on every start.
+    new Promise<void>((r) => (timer = setTimeout(() => (resolveAudioDeclared(), r()), AUDIO_PROBE_WAIT_MS))),
+  ]);
+  clearTimeout(timer);
+  if (!resolvedFrom) return;
   try {
     const sink = await getAudioProbe();
     resolvedFrom = { outcome: resolvedFrom.outcome, sink };

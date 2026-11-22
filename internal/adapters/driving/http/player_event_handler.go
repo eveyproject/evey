@@ -5,7 +5,7 @@ package httpapi
 // A playback failure the PLAYER sees (a decode error painting the screen in
 // coloured macroblocks, an hls.js recovery loop, an endless buffer stall) can
 // leave the server logs completely blank: every segment request answered 200,
-// nothing to log. The 2026-07-15 incident was diagnosed by inference because
+// nothing to log. A cast incident was diagnosed by inference because
 // of exactly that blindness. This endpoint lets the player post what it saw,
 // as one WARN line per event - searchable next to the ffmpeg/session lines it
 // belongs with (where=player, filtered by media_id).
@@ -30,6 +30,7 @@ import (
 
 	"github.com/eveyproject/evey/internal/app/presence"
 	appqoe "github.com/eveyproject/evey/internal/app/qoe"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	"github.com/eveyproject/evey/internal/pkg/cmcd"
 	eveymetrics "github.com/eveyproject/evey/internal/pkg/metrics"
 	"github.com/eveyproject/evey/internal/pkg/network"
@@ -97,7 +98,7 @@ type playerEventBody struct {
 	// even with the playhead frozen - from one that is merely stuck and still
 	// believes it is playing.
 	//
-	// Absent on any other beacon, and on a receiver older than 2026-09-05,
+	// Absent on any other beacon, and on a receiver predating the field,
 	// where it decodes to false and the playhead alone decides. That fallback
 	// is the safe one: a stall stays a stall.
 	Paused bool `json:"paused,omitempty"`
@@ -162,7 +163,7 @@ type playerEventDeps struct {
 	libChecker LibraryAccessChecker
 	parental   ParentalChecker
 
-	// Cast presence + TV-driven session keepalive (2026-07-29): during a cast
+	// Cast presence + TV-driven session keepalive: during a cast
 	// the PHONE carries ReportProgress, and an OEM freeze silences it - the
 	// admin panel then loses the session (~2min reaper) and shows nobody
 	// online while the TV plays on. The receiver's own beacons are the truth.
@@ -178,6 +179,10 @@ type playerEventDeps struct {
 	qoe appqoe.EventSink
 
 	directPlayRefused DirectPlayRefusalRecorder
+
+	// decoders remembers the app decoder checks the devices report, for the
+	// stream verdict (see apptranscoding.DeviceDecoderMemory). Nil: ignored.
+	decoders *apptranscoding.DeviceDecoderMemory
 }
 
 // CastAudioModeTouch mirrors the receiver's audio_mode beacon ("aac", "wasm",
@@ -286,6 +291,12 @@ func WithPlayerEventDirectPlayRefusal(rec DirectPlayRefusalRecorder) PlayerEvent
 	return func(d *playerEventDeps) { d.directPlayRefused = rec }
 }
 
+// WithPlayerEventDecoderMemory feeds the devices' decoder checks to the
+// memory the stream verdict reads.
+func WithPlayerEventDecoderMemory(m *apptranscoding.DeviceDecoderMemory) PlayerEventOption {
+	return func(d *playerEventDeps) { d.decoders = m }
+}
+
 func WithPlayerEventLibraryGuard(media mediaLibraryGetter, libChecker LibraryAccessChecker, parental ParentalChecker) PlayerEventOption {
 	return func(d *playerEventDeps) {
 		d.media = media
@@ -360,13 +371,14 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			return
 		}
 		recordDirectPlayRefusal(r, &deps, mediaID, body)
+		deps.decoders.ObservePlayerEvent(userID, r.UserAgent(), body.Type, body.Details)
 		notifyCastLiveness(r, &deps, mediaID, body.Type, body.PosSec, body.Paused)
 		notifyCastAudioMode(r, &deps, mediaID, body.Type, body.Details)
 
 		// Severity follows what the event IS. The route carries telemetry
 		// (liveness beats every 30s, load/model/shutdown markers) alongside
 		// genuine failures, and logging everything WARN drowned the admin log
-		// view in fake errors - 27 on one healthy 10-minute cast (2026-07-28).
+		// view in fake errors - 27 on one healthy 10-minute cast.
 		// WARN is reserved for what the player flags fatal or an explicit
 		// error/fatal type; everything else is INFO, same component, so the
 		// where=player filter still shows the full story in one place.

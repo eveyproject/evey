@@ -105,3 +105,21 @@ func TestScanService_ContainerCheck_FailureKeepsItOwed(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 6, h.media.All()[0].File.ContainerDamagedBytes, "the next scan checks it")
 }
+
+// An empty file has no streams and no container: the check fails on it the
+// same way every pass, so it is not owed one scan after scan.
+func TestScanService_ContainerCheck_SkipsAStreamlessFile(t *testing.T) {
+	c := &fakeContainerChecker{err: errors.New("diagnose: ebml header: EOF")}
+	h := containerCheckHarness(c)
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/a.mkv", Size: 0, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
+	}
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{}
+
+	for range 6 {
+		_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+		require.NoError(t, err)
+	}
+	require.NotZero(t, h.media.All()[0].File.StreamProbeAttempts, "the prober found no streams")
+	assert.LessOrEqual(t, c.calls.Load(), int64(1), "checked at most when first probed")
+}

@@ -1220,6 +1220,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		interleaveRecorder:      r.MediaItem,
 		containerDamageRecorder: r.MediaItem,
 		keyframeOnDemand:        keyframeOnDemand,
+		deviceDecoders:          apptranscoding.NewDeviceDecoderMemory(),
 		loadTestRunner:          loadTestRunner,
 		loadTestBaseURL:         loadTestBaseURL,
 		loadTestPublicURL:       loadTestPublicURL,
