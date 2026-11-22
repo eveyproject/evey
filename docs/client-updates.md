@@ -28,9 +28,10 @@ and keeps its own code in front of an older server.
 - **The apps follow the active server.** Once a server is chosen the app points
   expo-updates at it and downloads its bundle in the background
   (`frontend/packages/client/src/native/clientUpdates.ts`). The bundle starts
-  with the next launch; a restart is offered only when it is another app
-  version than the one running, and never over the player. With no server
-  chosen the app asks nobody.
+  with the next launch. The phone offers a restart when it is another app
+  version than the one running, never over the player; the TV never does, a
+  reload in place being too heavy for a small box. With no server chosen the
+  app asks nobody.
 
 ## Native runtime version
 

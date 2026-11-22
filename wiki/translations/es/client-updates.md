@@ -1,5 +1,5 @@
 ---
-source_sha: 8b044cd0211312ed2f125ac244e95591553362666e859b5b4092edcb2ecc6c55
+source_sha: bc4e8000ca3b6f13e4b5d57a81bf41b5b314d18f1578b3eb3a7b6737c5d1b091
 reviewed: true
 ---
 # Actualizaciones de las apps servidas por la instancia { #app-updates-served-by-the-instance }
@@ -34,8 +34,9 @@ conserva su propio código frente a un servidor más antiguo.
 - **Las apps siguen al servidor activo.** Una vez elegido un servidor, la app
   apunta expo-updates hacia él y descarga su bundle en segundo plano
   (`frontend/packages/client/src/native/clientUpdates.ts`). El bundle arranca
-  en el siguiente inicio; solo se ofrece un reinicio cuando es una versión de
-  la app distinta de la que está en marcha, y nunca encima del reproductor. Sin
+  en el siguiente inicio. El teléfono ofrece un reinicio cuando es una versión
+  de la app distinta de la que está en marcha, nunca encima del reproductor; la
+  TV nunca, porque recargar en caliente es demasiado pesado para un aparato pequeño. Sin
   servidor elegido, la app no pregunta a nadie.
 
 ## Versión del runtime nativo { #native-runtime-version }
