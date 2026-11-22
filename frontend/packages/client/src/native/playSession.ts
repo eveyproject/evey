@@ -386,12 +386,6 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         // picture, the line and the channels, whatever the menu says.
         const saver = currentDataSaverLimits();
         const explicitMaxHeight = tighterCeiling(maxHeight, saver?.maxHeight);
-        // The decoders' limits ride along with the explicit ceiling, the
-        // same declaration buildStreamUrl puts on the master URL.
-        const limits = getDeviceVideoLimits();
-        const verdictMaxHeight = tighterOf(explicitMaxHeight, decoderMaxHeight(limits));
-        const verdictMaxWidth = decoderMaxWidth(limits);
-        const supportedPixelFormats = devicePixelFormats(limits, VIDEO_CODECS);
         const containers = directPlayRefusedRef.current ? REMUX_CONTAINERS : CONTAINERS;
 
         // The device probes run BEFORE the negotiation: GetStreamInfo has to
@@ -403,6 +397,13 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           dev.networkType?.(),
           refreshAudioSink(),
         ]);
+        // Read once the launch probe has answered (refreshAudioSink waits for
+        // it): the decoders' limits ride along with the explicit ceiling, the
+        // same declaration buildStreamUrl puts on the master URL.
+        const limits = getDeviceVideoLimits();
+        const verdictMaxHeight = tighterOf(explicitMaxHeight, decoderMaxHeight(limits));
+        const verdictMaxWidth = decoderMaxWidth(limits);
+        const supportedPixelFormats = devicePixelFormats(limits, VIDEO_CODECS);
 
         const verdictParams = {
           supportedCodecs: VIDEO_CODECS,

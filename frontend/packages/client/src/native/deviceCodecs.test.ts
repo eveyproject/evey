@@ -130,8 +130,6 @@ describe("deviceCodecs", () => {
     expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus"]);
   });
 
-  // A receiver switched off mid-run: the DTS it took must not be declared to
-  // the next negotiation, or the server hands the device a track it cannot play.
   // A TV loads this module with its player screen: the first negotiation after
   // a cold start came while the ac3go check was still benchmarking, declared
   // the baseline and got an audio transcode for an AC3 the app decodes.
@@ -141,7 +139,10 @@ describe("deviceCodecs", () => {
     caps.checkPlaybackDecoder.mockReturnValue(new Promise((r) => (finishCheck = r)));
     const m = await load();
     expect(m.getDeviceAudioCodecs()).not.toContain("ac3");
-    const negotiation = m.refreshAudioSink();
+    let settled = false;
+    const negotiation = m.refreshAudioSink().then(() => (settled = true));
+    for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0));
+    expect(settled).toBe(false);
     finishCheck({ decoders: ["ac3", "eac3"], blockedBy: "", bench: null, abnormalExit: null });
     await negotiation;
     expect(m.getDeviceAudioCodecs()).toEqual(expect.arrayContaining(["ac3", "eac3"]));
@@ -160,11 +161,18 @@ describe("deviceCodecs", () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(done).toBe(true);
       expect(m.getDeviceAudioCodecs()).not.toContain("ac3");
+      // The next negotiation does not wait again.
+      let again = false;
+      void m.refreshAudioSink().then(() => (again = true));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(again).toBe(true);
     } finally {
       vi.useRealTimers();
     }
   });
 
+  // A receiver switched off mid-run: the DTS it took must not be declared to
+  // the next negotiation, or the server hands the device a track it cannot play.
   it("asks the sink again before a negotiation and follows its answer", async () => {
     rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "opus"] };
     // A phone on an HDMI receiver that takes the DTS bitstream.

@@ -301,7 +301,8 @@ export async function refreshAudioSink(): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   await Promise.race([
     audioDeclared,
-    new Promise<void>((r) => (timer = setTimeout(r, AUDIO_PROBE_WAIT_MS))),
+    // A probe that never answers costs this wait once, not on every start.
+    new Promise<void>((r) => (timer = setTimeout(() => (resolveAudioDeclared(), r()), AUDIO_PROBE_WAIT_MS))),
   ]);
   clearTimeout(timer);
   if (!resolvedFrom) return;
