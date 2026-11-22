@@ -337,7 +337,7 @@ export default function LibraryDetailScreen() {
   const shufflingRef = useRef(false);
   const prevDataRef = useRef<unknown>(null);
 
-  const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
+  const { data: library, isError: isLibraryError, refetch: refetchLibrary } = useLibraryServiceGetLibrary(libraryId ?? "");
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
   // A shows library opens on its series, a movies library on its movies, as
   // on web and mobile: unfiltered, the grid listed every season and episode.
@@ -458,7 +458,10 @@ export default function LibraryDetailScreen() {
         else toast.error(t("common.shuffleFailed"));
         return;
       }
-      const base = { libraryId, ...(typeFilter ? { type: typeFilter } : {}), ...(genre ? { genre } : {}) };
+      // A series or a season has no stream of its own: a shows library
+      // shuffles among its episodes, whatever level the grid shows.
+      const shuffleType = isShowLibrary && typeFilter !== "MEDIA_ITEM_TYPE_EPISODE" ? "MEDIA_ITEM_TYPE_EPISODE" : typeFilter;
+      const base = { libraryId, ...(shuffleType ? { type: shuffleType } : {}), ...(genre ? { genre } : {}) };
       const probe = await libraryServiceListMediaItems({ ...base, "pagination.page": 1, "pagination.pageSize": 1 });
       const total = probe.pagination?.totalItems ?? 0;
       if (total === 0) { toast.info(t("common.shuffleEmpty")); return; }
@@ -475,7 +478,7 @@ export default function LibraryDetailScreen() {
       shufflingRef.current = false;
       setShuffling(false);
     }
-  }, [libraryId, genre, typeFilter, searchActive, displayItems, router, t]);
+  }, [libraryId, genre, typeFilter, isShowLibrary, searchActive, displayItems, router, t]);
 
   // A series or a season has no video stream of its own, so "play all" only
   // makes sense once the on-screen selection is directly playable: always on
@@ -560,9 +563,12 @@ export default function LibraryDetailScreen() {
     [watchedMap, percentMap, cardWidth, titleBlock, serverUrl, authHeaders, onFocusAt, onPressAt, cancelPrefetch],
   );
 
-  const activeIsLoading = searchActive ? isSearchLoading : isLoading;
-  const activeIsError = searchActive ? isSearchError : isError;
-  const activeRefetch = searchActive ? refetchSearch : refetch;
+  // The list waits for the library's type (its default filter): until then
+  // the grid is loading, and a library that fails to load is an error, not
+  // an empty library.
+  const activeIsLoading = searchActive ? isSearchLoading : isLoading || (!library && !isLibraryError);
+  const activeIsError = searchActive ? isSearchError : isError || (!library && isLibraryError);
+  const activeRefetch = searchActive ? refetchSearch : library ? refetch : refetchLibrary;
   const isFirstPage = searchActive ? true : cursor === "";
 
   // What the grid shows, in the title bar: the filters scroll away with the
