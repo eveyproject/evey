@@ -235,6 +235,9 @@ type appDeps struct {
 	// keyframeOnDemand fills a missing keyframe index inline at playback
 	// negotiation (bounded fast-path probe shared with the backfill worker).
 	keyframeOnDemand *apptranscoding.KeyframeOnDemand
+	// deviceDecoders: the decoder checks the apps report, read by the stream
+	// verdict; one instance for the player-event route and the gRPC handler.
+	deviceDecoders *apptranscoding.DeviceDecoderMemory
 	// loadTestRunner drives the built-in capacity measurement (admin RPC);
 	// loadTestBaseURL is the loopback origin its synthetic viewers hit.
 	loadTestRunner  *apploadtest.Runner

@@ -201,6 +201,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		AudioOrch:          deps.media.audioOrch,
 		QoESink:            deps.media.qoeSink,
 		DirectPlayRefusals: deps.repos.directPlayRefusals,
+		DeviceDecoders:     deps.deviceDecoders,
 		QoEQuerySvc:        deps.media.qoeQuerySvc,
 		ComplexityRepo:     deps.media.complexityRepo,
 		CalibrationSvc:     deps.media.calibrationSvc,
