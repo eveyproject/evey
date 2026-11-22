@@ -17,7 +17,7 @@ import {
   apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import { refreshPluginLists } from "@evey/client";
+import { pluginSettlingInterval, refreshPluginLists, useViewerListFollowsPluginStates } from "@evey/client";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -649,8 +649,11 @@ function PluginsPage() {
   const [showModal, setShowModal] = useState(false);
   const [uninstallTarget, setUninstallTarget] = useState<{ id: string; name: string } | null>(null);
   const queryClient = useQueryClient();
-  const { data, isLoading } = useAdminPluginServiceListPlugins();
+  const { data, isLoading } = useAdminPluginServiceListPlugins({
+    query: { refetchInterval: (query) => pluginSettlingInterval(query.state.data?.plugins) },
+  });
   const plugins = data?.plugins ?? [];
+  useViewerListFollowsPluginStates(data?.plugins);
   const { data: runtimesData } = useAvailableRuntimes();
   const runtimes = runtimesData?.runtimes ?? [];
 
