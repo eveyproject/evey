@@ -1,4 +1,5 @@
-import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { eveyFetch, getAdminPluginServiceListPluginsQueryKey } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 
@@ -59,6 +60,46 @@ export function refreshPluginLists(queryClient: QueryClient): Promise<void> {
     queryClient.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }),
     queryClient.invalidateQueries({ queryKey: PLUGIN_LIST_QUERY_KEY }),
   ]).then(() => undefined);
+}
+
+/** How often the admin list is asked again while a plugin is still starting. */
+export const PLUGIN_SETTLING_POLL_MS = 2000;
+
+interface PluginState {
+  id?: string;
+  state?: string;
+}
+
+/**
+ * The admin list's refetch interval: a plugin still starting is asked about
+ * again until it runs or fails. The list was only read right after the admin's
+ * action, so a plugin slower than that kept "Starting" until a reload.
+ */
+export function pluginSettlingInterval(plugins: ReadonlyArray<PluginState> | undefined): number | false {
+  return (plugins ?? []).some((p) => p.state === "PLUGIN_STATE_INITIALIZING") ? PLUGIN_SETTLING_POLL_MS : false;
+}
+
+function pluginStatesSignature(plugins: ReadonlyArray<PluginState>): string {
+  return plugins.map((p) => `${p.id ?? ""}:${p.state ?? ""}`).sort().join("|");
+}
+
+/**
+ * Reloads the viewer list when a plugin of the admin list changes state. Only
+ * running plugins are in the viewer list, so the slots of one that has just
+ * finished starting (its own config panel among them) appear without a reload.
+ * Pass the list as fetched: undefined while it loads.
+ */
+export function useViewerListFollowsPluginStates(plugins: ReadonlyArray<PluginState> | undefined): void {
+  const queryClient = useQueryClient();
+  const signature = plugins === undefined ? null : pluginStatesSignature(plugins);
+  const seen = useRef<string | null>(null);
+  useEffect(() => {
+    if (signature === null) return;
+    if (seen.current !== null && seen.current !== signature) {
+      void queryClient.invalidateQueries({ queryKey: PLUGIN_LIST_QUERY_KEY });
+    }
+    seen.current = signature;
+  }, [signature, queryClient]);
 }
 
 export function usePluginList() {

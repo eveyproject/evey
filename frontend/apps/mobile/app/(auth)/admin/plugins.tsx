@@ -23,7 +23,7 @@ import {
 import { toast, useAuthStore, useDemoStore, demoLocks } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
-import { type ConfigFieldSchema, normaliseOptions, refreshPluginLists, validateConfigField } from "@evey/client";
+import { type ConfigFieldSchema, normaliseOptions, pluginSettlingInterval, refreshPluginLists, useViewerListFollowsPluginStates, validateConfigField } from "@evey/client";
 import {
   parseEscalationEntries,
   parseBlockedIssues,
@@ -1041,8 +1041,11 @@ export default function AdminPluginsScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data, isLoading, isError, refetch } = useAdminPluginServiceListPlugins();
+  const { data, isLoading, isError, refetch } = useAdminPluginServiceListPlugins({
+    query: { refetchInterval: (query) => pluginSettlingInterval(query.state.data?.plugins) },
+  });
   const plugins: Plugin[] = (data?.plugins ?? []) as Plugin[];
+  useViewerListFollowsPluginStates(data?.plugins);
 
   // Runtimes the host detected for plugin execution (mirror web useAvailableRuntimes).
   const { data: runtimesData } = useQuery({
