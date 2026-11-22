@@ -138,6 +138,17 @@ const maxAudioSessionsPerHash = 3
 // (prod 2026-09-10); a 3 s segment still lands in under a second.
 const audioRenditionReadRate = 4
 
+// audioRenditionBurstSec is the audio read at full speed before the pace
+// applies (the adapter's -readrate_initial_burst): a session lands that much
+// of its track at once, so a request inside it is worth waiting on.
+const audioRenditionBurstSec = 30
+
+// audioSeekReachSegs bounds how far past a session's last produced segment a
+// request may sit and still wait on it: at the 4x pace a 3 s segment takes
+// under a second, so four of them stay a short wait. Further, the request gets
+// its own session at its position, as the video orchestrator does.
+const audioSeekReachSegs = 4
+
 // sessionKey namespaces a session by its start segment so a seek's session and
 // the cold-start one coexist instead of aliasing.
 func audioSessionKey(hash string, startSeg int) string {
@@ -588,14 +599,41 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 // behind it. A session further back is a cold-start ffmpeg grinding towards a
 // seek target minutes away - waiting on it is what made a seek take 30 s.
 // Caller holds o.mu.
+//
+// Inside the lookahead, the session must also reach the segment soon: within
+// its initial burst, or with one of the audioSeekReachSegs segments before it
+// already on disk. A paced session 30 segments short of a resume point or a
+// skipped intro took ten seconds and more to get there while the player
+// waited on the audio alone.
 func (o *AudioSegmentOrchestrator) coveringSessionLocked(audioHash string, segIdx int) bool {
 	for _, sess := range o.byHash[audioHash] {
 		// A session being stopped stays listed until its reap but produces
 		// nothing more: waiting on it is waiting for a timeout.
-		if sess.stopped || sess.startSeg > segIdx {
+		if sess.stopped || sess.startSeg > segIdx || segIdx-sess.startSeg > audioSessionLookahead {
 			continue
 		}
-		if segIdx-sess.startSeg <= audioSessionLookahead {
+		if o.reachesSoonLocked(sess, segIdx) {
+			return true
+		}
+	}
+	return false
+}
+
+// reachesSoonLocked reports whether sess will produce segIdx within a short
+// wait. Caller holds o.mu.
+func (o *AudioSegmentOrchestrator) reachesSoonLocked(sess *audioSession, segIdx int) bool {
+	if segIdx-sess.startSeg <= audioSeekReachSegs {
+		return true
+	}
+	if sess.silence {
+		return true // a bounded silence tail is generated at once
+	}
+	if sess.fp.Grid.SegmentStartSeconds(segIdx)-sess.fp.Grid.SegmentStartSeconds(sess.startSeg) < audioRenditionBurstSec {
+		return true
+	}
+	for k := segIdx - 1; k >= segIdx-audioSeekReachSegs && k >= sess.startSeg; k-- {
+		key := SegmentKey{DecisionHash: sess.hash, VariantIdx: sess.fp.SourceTrackIdx, SegmentIdx: k, Kind: KindAudio}
+		if o.cache.IsReady(key, true) {
 			return true
 		}
 	}
