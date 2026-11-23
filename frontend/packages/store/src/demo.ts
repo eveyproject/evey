@@ -36,6 +36,23 @@ export function demoLocks(s: Pick<DemoState, "demoMode" | "demoLocked">, key: st
   return s.demoMode || s.demoLocked.includes(key);
 }
 
+// The public demo's one account. Its credentials are published (the login
+// screens show them), so the login forms fill them in on the demo.
+export const DEMO_USERNAME = "demo";
+export const DEMO_PASSWORD = "demo";
+
+/**
+ * Fills an untouched login form with the demo account once the server says it
+ * is the demo. A field the viewer already typed in (or a saved login) is kept.
+ */
+export function prefillDemoLogin(
+  setUsername: (update: (v: string) => string) => void,
+  setPassword: (update: (v: string) => string) => void,
+): void {
+  setUsername((v) => v || DEMO_USERNAME);
+  setPassword((v) => v || DEMO_PASSWORD);
+}
+
 export function isDemoMode(): boolean {
   return useDemoStore.getState().demoMode;
 }

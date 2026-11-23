@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, BackHandler
 import { router, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus } from "@evey/api";
-import { useAuthStore, useDemoStore } from "@evey/store";
+import { useAuthStore, useDemoStore, prefillDemoLogin } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { setRefreshToken } from "../src/lib/refresh-token";
 import { clearServerUrl } from "../src/lib/server-config";
@@ -32,6 +32,10 @@ export default function Login() {
   useEffect(() => {
     if (setupStatus.data) useDemoStore.getState().setDemoMode(demoMode);
   }, [demoMode, setupStatus.data]);
+  // The demo's credentials are public: its form comes filled with them.
+  useEffect(() => {
+    if (demoMode) prefillDemoLogin(setUsername, setPassword);
+  }, [demoMode]);
 
   // Back to the server screen: this is the root once a server is chosen, so
   // the remote's BACK key otherwise leaves the app for the Android home - a
