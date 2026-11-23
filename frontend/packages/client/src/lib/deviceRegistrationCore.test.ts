@@ -104,6 +104,50 @@ describe("useDeviceRegistrationCore", () => {
     unmount();
   });
 
+  // Past the per-user device cap the server accepts the upgrade, reads the
+  // register frame and closes. A tab that took that open for a success
+  // retried every second for as long as it stayed open.
+  it("backs off a socket the server closes right after it opens", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const { unmount } = mountTv();
+    await flush();
+    const delays: number[] = [];
+    for (let i = 0; i < 7; i++) {
+      const sock = FakeSocket.instances[FakeSocket.instances.length - 1];
+      act(() => sock.onopen?.());
+      act(() => sock.onclose?.());
+      const before = FakeSocket.instances.length;
+      let waited = 0;
+      while (FakeSocket.instances.length === before) {
+        await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+        waited += 1_000;
+      }
+      delays.push(waited);
+    }
+    expect(delays).toEqual([1_000, 2_000, 4_000, 8_000, 16_000, 600_000, 600_000]);
+    unmount();
+  });
+
+  it("starts the backoff over once a socket has stayed registered", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const { unmount } = mountTv();
+    await flush();
+    for (let i = 0; i < 3; i++) {
+      const sock = FakeSocket.instances[FakeSocket.instances.length - 1];
+      act(() => sock.onopen?.());
+      act(() => sock.onclose?.());
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    }
+    const sock = FakeSocket.instances[FakeSocket.instances.length - 1];
+    act(() => sock.onopen?.());
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+    act(() => sock.onclose?.());
+    const before = FakeSocket.instances.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(FakeSocket.instances.length).toBe(before + 1);
+    unmount();
+  });
+
   it("reconnects at once on return to foreground even after the socket looked unreachable", async () => {
     let notify: (bg: boolean) => void = () => {};
     const { unmount } = renderHook(() =>

@@ -238,7 +238,7 @@ describe("useDeviceRegistration (tv)", () => {
 
   // A socket that did open once is a reachable server: a later drop is an
   // outage and gets the short backoff again.
-  it("returns to the short backoff once the socket opens", async () => {
+  it("returns to the short backoff once the socket has stayed registered", async () => {
     vi.useFakeTimers();
     renderHook(() => useDeviceRegistration());
     await act(async () => { await vi.runOnlyPendingTimersAsync(); });
@@ -247,6 +247,7 @@ describe("useDeviceRegistration (tv)", () => {
       await act(async () => { await vi.runOnlyPendingTimersAsync(); });
     }
     act(() => { ws().simulateOpen(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
     const before = wsInstances.length;
     act(() => { ws().simulateClose(); });
     await act(async () => { await vi.advanceTimersByTimeAsync(1_500); });
