@@ -68,12 +68,19 @@ type KeyframeOnDemand struct {
 	frStore    FrameRateStore
 
 	// activePlayback, when set, reports live playback sessions. While any is
-	// running, TryIndex skips the detached probe entirely: a cue-less MKV's
-	// keyframe walk is a multi-second CPU/I/O burst that mkvgo can't cancel
-	// mid-read, so on a weak NAS it would starve the very playback that
-	// triggered it. The paced background backfill worker (which also yields to
-	// playback) indexes the file once nobody is watching.
+	// running, TryIndex never runs the full probe: a cue-less MKV's keyframe
+	// walk is a multi-second CPU/I/O burst that mkvgo can't cancel mid-read,
+	// so on a weak NAS it would starve the very playback that triggered it.
+	// Only indexOnly may run then; the paced background backfill worker
+	// (which also yields to playback) walks the rest once nobody is watching.
 	activePlayback func() int
+
+	// indexOnly reads the container's own seek index and nothing else (MP4
+	// stss, Matroska Cues): milliseconds, no walk, no ffprobe. It is what runs
+	// while someone watches, so a film added or opened then is not transcoded
+	// for its whole viewing for want of an index its file already carries.
+	// nil: nothing runs while someone watches.
+	indexOnly KeyframeProber
 
 	mu       sync.Mutex
 	inflight map[string]struct{}  // media IDs probed right now (skip duplicates)
@@ -112,6 +119,13 @@ func (k *KeyframeOnDemand) WithActivePlayback(count func() int) *KeyframeOnDeman
 	return k
 }
 
+// WithIndexOnlyProber wires the seek-index-only read used while playback is
+// active (see indexOnly). Chainable.
+func (k *KeyframeOnDemand) WithIndexOnlyProber(p KeyframeProber) *KeyframeOnDemand {
+	k.indexOnly = p
+	return k
+}
+
 // WithInlineBudget overrides how long TryIndex waits before detaching
 // (tests; production keeps the default). Chainable.
 func (k *KeyframeOnDemand) WithInlineBudget(d time.Duration) *KeyframeOnDemand {
@@ -143,14 +157,19 @@ func (k *KeyframeOnDemand) TryIndex(ctx context.Context, mediaID, filePath strin
 	if k == nil || filePath == "" {
 		return false
 	}
-	// Someone is watching: don't add a keyframe walk on top of a live transcode
-	// on a weak NAS. Leave it to the paced background worker (it yields to
-	// playback too); this playback transcodes, pinned as usual. Debug: every
-	// segment of that playback asks again, an INFO line each was log noise.
+	// Someone is watching: don't add a keyframe walk on top of a live stream
+	// on a weak NAS. Only the seek index the file carries is read then; a file
+	// without one is left to the paced background worker (it yields to
+	// playback too) and this playback transcodes, pinned as usual. Debug:
+	// every negotiation asks again, an INFO line each was log noise.
+	prober, indexOnly := k.prober, false
 	if k.activePlayback != nil && k.activePlayback() > 0 {
-		k.logger.Debug("keyframe on-demand: playback active, leaving to the background worker",
-			slog.String("media_id", mediaID))
-		return false
+		if k.indexOnly == nil {
+			k.logger.Debug("keyframe on-demand: playback active, leaving to the background worker",
+				slog.String("media_id", mediaID))
+			return false
+		}
+		prober, indexOnly = k.indexOnly, true
 	}
 	k.mu.Lock()
 	if _, busy := k.inflight[mediaID]; busy {
@@ -207,7 +226,7 @@ func (k *KeyframeOnDemand) TryIndex(ctx context.Context, mediaID, filePath strin
 		// the negotiation must still finish and persist for the NEXT playback.
 		bg, cancel := context.WithTimeout(context.Background(), keyframeOnDemandHardCap)
 		defer cancel()
-		done <- k.index(bg, mediaID, filePath)
+		done <- k.index(bg, mediaID, filePath, prober, indexOnly)
 	}()
 
 	select {
@@ -223,11 +242,18 @@ func (k *KeyframeOnDemand) TryIndex(ctx context.Context, mediaID, filePath strin
 }
 
 // index probes and persists; returns true when the index is available. Sets
-// the negative cache on failure. Runs on the detached goroutine.
-func (k *KeyframeOnDemand) index(ctx context.Context, mediaID, filePath string) bool {
+// the negative cache on failure, except for a seek-index-only read: a file
+// without a seek index still deserves the full probe once nobody watches.
+// Runs on the detached goroutine.
+func (k *KeyframeOnDemand) index(ctx context.Context, mediaID, filePath string, prober KeyframeProber, indexOnly bool) bool {
 	start := time.Now()
-	kf, err := k.prober.ProbeKeyframes(ctx, filePath)
+	kf, err := prober.ProbeKeyframes(ctx, filePath)
 	if err != nil || len(kf) == 0 {
+		if indexOnly {
+			k.logger.Debug("keyframe on-demand: no seek index while playback is active, leaving to the background worker",
+				slog.String("media_id", mediaID), slog.Duration("took", time.Since(start)), slog.Any("err", err))
+			return false
+		}
 		k.mu.Lock()
 		k.failed[mediaID] = time.Now()
 		k.mu.Unlock()
@@ -256,10 +282,15 @@ func (k *KeyframeOnDemand) index(ctx context.Context, mediaID, filePath string) 
 		// The background worker beat us to it - the index exists either way.
 		return true
 	}
-	k.classifyFrameRate(ctx, mediaID, filePath)
+	// The frame-rate analysis walks a whole Matroska: not while someone
+	// watches. The backfill's frame-rate drain picks the row up later.
+	if !indexOnly {
+		k.classifyFrameRate(ctx, mediaID, filePath)
+	}
 	k.logger.Info("keyframe on-demand: indexed at negotiation",
 		slog.String("media_id", mediaID),
 		slog.Int("keyframes", len(kf)),
+		slog.Bool("seek_index_only", indexOnly),
 		slog.Duration("took", time.Since(start)))
 	return true
 }

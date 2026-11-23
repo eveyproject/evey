@@ -308,7 +308,8 @@ func startTranscodingWorkers(
 	// - a file the fast-path can't index stays on the worker's slow path.
 	keyframeOnDemand := apptranscoding.NewKeyframeOnDemand(r.MediaStream, kfProber, slog.Default()).
 		WithFrameRateAnalyzer(infra.mkvAdapter, r.MediaStream).
-		WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
+		WithActivePlayback(hlsVODRemover.ActivePlaybackCount).
+		WithIndexOnlyProber(kfProber.SeekIndexOnly())
 	// First-play fast path (Phase 2 consumption): a fresh file whose serving
 	// plan says direct-play/remux gets its keyframe index warmed right at scan
 	// time through the bounded on-demand walker, so the copy rung is live on
