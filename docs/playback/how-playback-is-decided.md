@@ -130,8 +130,11 @@ track keeps up to 5.1 channels, never more: see [Audio](audio.md).
 
 The Android and Android TV apps report which pixel formats their decoders
 take (8-bit 4:2:0 per codec, 10-bit where the decoder supports it), and the
-server judges the source against that list. For a player that reports none
-(the web app, cast), it applies a conservative rule: 10-bit H.264, and any
+server judges the source against that list. The web app asks the browser
+which layouts beyond that it decodes smoothly (VP9 and AV1 in 4:4:4, 10-bit
+H.264) and reports them with the same list; a browser that decodes none of
+them smoothly reports nothing. For a player that reports none (cast, a
+browser without those decoders), the server applies a conservative rule: 10-bit H.264, and any
 video in 4:2:2, 4:4:4 or 12-bit, are re-encoded, while HEVC, VP9 and AV1 up
 to 10-bit 4:2:0 are left to the player's codec support. Dolby
 Vision is kept only in a form the player can display correctly: see
