@@ -12,7 +12,7 @@ const mockLogin = {
   error: null as Error | null,
 };
 const mockUseQuery = vi.fn();
-const mockSetupStatus: { passwordRecoveryEnabled: boolean; serverName?: string } = { passwordRecoveryEnabled: false };
+const mockSetupStatus: { passwordRecoveryEnabled: boolean; serverName?: string; demoMode?: boolean } = { passwordRecoveryEnabled: false };
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (def: Record<string, unknown>) => {
@@ -72,6 +72,21 @@ describe("LoginPage", () => {
     mockUseSearch.mockReturnValue({ oidc_error: undefined });
     mockUseQuery.mockReturnValue({ data: undefined, isLoading: false });
     mockSetupStatus.serverName = undefined;
+    mockSetupStatus.demoMode = undefined;
+  });
+
+  // The demo's credentials are public: a form shown there comes filled in.
+  it("fills the demo account in on the demo, and only there", async () => {
+    const LoginPage = await getLoginPage();
+    mockSetupStatus.demoMode = true;
+    const { unmount } = render(React.createElement(LoginPage), { wrapper: createWrapper() });
+    expect(screen.getByLabelText(/username/i)).toHaveValue("demo");
+    expect(screen.getByLabelText(/password/i, { selector: "input" })).toHaveValue("demo");
+    unmount();
+    mockSetupStatus.demoMode = false;
+    render(React.createElement(LoginPage), { wrapper: createWrapper() });
+    expect(screen.getByLabelText(/username/i)).toHaveValue("");
+    expect(screen.getByLabelText(/password/i, { selector: "input" })).toHaveValue("");
   });
 
   // The admin's server name brands the login card; the default "Evey" would

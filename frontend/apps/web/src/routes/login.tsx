@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Users, ChevronDown } from "lucide-react";
 import { EveyWordmark } from "@/components/ui/EveyLogo";
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus, adminSystemServiceGetSetupStatus, userServiceLogin, eveyFetch, normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
 import { demoAutoLoginAllowed, DEMO_USERNAME, DEMO_PASSWORD } from "@/lib/demoAutoLogin";
-import { useAuthStore, isDefaultServerName } from "@evey/store";
+import { useAuthStore, isDefaultServerName, prefillDemoLogin } from "@evey/store";
 import { ssoErrorKey } from "@evey/client";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
@@ -126,6 +126,12 @@ function LoginPage() {
   // page. (Previously read from the admin-only SystemInfo, gated on accessToken,
   // so the link never appeared.)
   const setupStatus = useAdminSystemServiceGetSetupStatus({ query: { staleTime: 60 * 1000 } });
+  // The form shows on the demo only when asked for (?manual=1, a deliberate
+  // sign-out, a failed auto sign-in): it comes filled with the public account.
+  const demoMode = setupStatus.data?.demoMode === true;
+  useEffect(() => {
+    if (demoMode) prefillDemoLogin(setUsername, setPassword);
+  }, [demoMode]);
 
   const login = useUserServiceLogin({
     mutation: {

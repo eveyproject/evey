@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useDemoStore } from "./demo";
+import { useDemoStore, prefillDemoLogin } from "./demo";
 import { useLocaleStore } from "./locale";
 import { useThemeStore } from "./theme";
 
@@ -32,5 +32,18 @@ describe("demo mode and the profile-following stores", () => {
     useThemeStore.getState().setTheme("light-blue");
     useThemeStore.getState().applyFromPreferences({ theme: "amoled" });
     expect(useThemeStore.getState().theme).toBe("light-blue");
+  });
+});
+
+describe("prefillDemoLogin", () => {
+  it("fills empty fields with the demo account and keeps what was typed", () => {
+    let user = "";
+    let pass = "";
+    prefillDemoLogin((f) => { user = f(user); }, (f) => { pass = f(pass); });
+    expect([user, pass]).toEqual(["demo", "demo"]);
+    user = "ann";
+    pass = "secret";
+    prefillDemoLogin((f) => { user = f(user); }, (f) => { pass = f(pass); });
+    expect([user, pass]).toEqual(["ann", "secret"]);
   });
 });
