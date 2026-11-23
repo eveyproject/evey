@@ -26,16 +26,16 @@ func TestStreamingRateLimitKey(t *testing.T) {
 	base.RemoteAddr = "203.0.113.7:50000"
 
 	assert.Equal(t, "p:prof-1",
-		streamingRateLimitKey(withClaims(base, &domainuser.Claims{UserID: "u1", ProfileID: "prof-1"})))
+		streamingRateLimitKey(withClaims(base, &domainuser.Claims{UserID: "u1", ProfileID: "prof-1"}), false))
 	assert.Equal(t, "u:u1",
-		streamingRateLimitKey(withClaims(base, &domainuser.Claims{UserID: "u1"})),
+		streamingRateLimitKey(withClaims(base, &domainuser.Claims{UserID: "u1"}), false),
 		"no profile (legacy token) falls back to user")
 	assert.Equal(t, "ip:203.0.113.7",
-		streamingRateLimitKey(base), "no claims (share link) falls back to IP")
+		streamingRateLimitKey(base, false), "no claims (share link) falls back to IP")
 
 	// Same raw string as a profile vs a user vs an IP must not share a bucket.
-	pk := streamingRateLimitKey(withClaims(base, &domainuser.Claims{ProfileID: "x"}))
-	uk := streamingRateLimitKey(withClaims(base, &domainuser.Claims{UserID: "x"}))
+	pk := streamingRateLimitKey(withClaims(base, &domainuser.Claims{ProfileID: "x"}), false)
+	uk := streamingRateLimitKey(withClaims(base, &domainuser.Claims{UserID: "x"}), false)
 	assert.NotEqual(t, pk, uk)
 }
 
@@ -46,7 +46,7 @@ func TestStreamingRateLimit_PerProfileIsolationAnd503(t *testing.T) {
 	lim := ratelimit.NewWithBurst(3, 0) // 3 tokens, no refill → deterministic
 	defer lim.Stop()
 	served := 0
-	h := streamingRateLimit(lim, nil, func(w http.ResponseWriter, _ *http.Request) {
+	h := streamingRateLimit(lim, nil, false, func(w http.ResponseWriter, _ *http.Request) {
 		served++
 		w.WriteHeader(http.StatusOK)
 	})
@@ -87,7 +87,7 @@ func TestStreamingRateLimit_RefusalIsLogged(t *testing.T) {
 
 	lim := ratelimit.NewWithBurst(1, 0) // 1 token, no refill → 2nd request refused
 	defer lim.Stop()
-	h := streamingRateLimit(lim, nil, func(w http.ResponseWriter, _ *http.Request) {
+	h := streamingRateLimit(lim, nil, false, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -106,7 +106,7 @@ func TestStreamingRateLimit_RefusalIsLogged(t *testing.T) {
 // A nil limiter is a transparent pass-through (no-RL deployment / tests).
 func TestStreamingRateLimit_NilIsPassthrough(t *testing.T) {
 	served := 0
-	h := streamingRateLimit(nil, nil, func(w http.ResponseWriter, _ *http.Request) {
+	h := streamingRateLimit(nil, nil, false, func(w http.ResponseWriter, _ *http.Request) {
 		served++
 		w.WriteHeader(http.StatusOK)
 	})
@@ -116,4 +116,34 @@ func TestStreamingRateLimit_NilIsPassthrough(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code)
 	}
 	assert.Equal(t, 100, served, "nil limiter never blocks")
+}
+
+// On the public demo every visitor holds the same profile: each address gets
+// its own budget, and one visitor's flood leaves the others streaming.
+func TestStreamingRateLimit_SharedAccountSplitsByAddress(t *testing.T) {
+	lim := ratelimit.NewWithBurst(3, 0)
+	defer lim.Stop()
+	h := streamingRateLimit(lim, nil, true, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	reqFrom := func(addr string) *http.Request {
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/seg.m4s", nil)
+		r.RemoteAddr = addr
+		return withClaims(r, &domainuser.Claims{UserID: "demo", ProfileID: "demo-profile"})
+	}
+	codeFor := func(addr string) int {
+		w := httptest.NewRecorder()
+		h(w, reqFrom(addr))
+		return w.Code
+	}
+	for range 3 {
+		require.Equal(t, http.StatusOK, codeFor("198.51.100.1:4000"))
+	}
+	assert.Equal(t, http.StatusServiceUnavailable, codeFor("198.51.100.1:4000"))
+	assert.Equal(t, http.StatusOK, codeFor("198.51.100.2:4000"), "another visitor keeps its own budget")
+
+	assert.Equal(t, "p:demo-profile|ip:198.51.100.1", streamingRateLimitKey(reqFrom("198.51.100.1:4000"), true))
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.RemoteAddr = "198.51.100.3:4000"
+	assert.Equal(t, "ip:198.51.100.3", streamingRateLimitKey(r, true), "a share link stays keyed by address alone")
 }

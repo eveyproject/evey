@@ -683,7 +683,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	}
 
 	if h.encryptedSegments != nil && isPlanMediaSegment(name) && (h.loadTestActive == nil || !h.loadTestActive()) {
-		key := streamingRateLimitKey(r)
+		key := streamingRateLimitKey(r, h.sharedAccount)
 		release, ok := h.encryptedSegments.acquire(key)
 		if !ok {
 			span.SetStatus(codes.Error, "encrypted segments in flight at the client's limit")
