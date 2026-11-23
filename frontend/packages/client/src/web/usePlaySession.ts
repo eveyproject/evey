@@ -12,6 +12,7 @@ import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { dataSaverLimits, tighterCeiling, useAuthStore, useDataSaverStore } from "@evey/store";
 import { getBrowserCapabilities, canWasmDecodeAC3 } from "./codec";
 import { appendCodecParams, dataSaverStreamInfoParams, prefersNativeHLS, getFmp4AudioPassthrough } from "./hlsCodecParams";
+import { browserPixelFormats, browserPixelFormatsKnown, probeBrowserPixelFormats } from "./pixelFormats";
 import { getMaxOutputChannels } from "./outputChannels";
 import { useStreamToken } from "../hooks/useStreamToken";
 import { goneReasonFromError, type ShedReason } from "../lib/shed";
@@ -151,6 +152,15 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
   }, [mintStreamToken]);
 
   const caps = useMemo(() => getBrowserCapabilities(), []);
+  // The verdict waits for the browser's pixel-format answer (milliseconds):
+  // asked without it, a 4:4:4 film this browser decodes is called a transcode.
+  const [pixelFormatsKnown, setPixelFormatsKnown] = useState(browserPixelFormatsKnown);
+  useEffect(() => {
+    if (pixelFormatsKnown) return;
+    let live = true;
+    void probeBrowserPixelFormats().then(() => { if (live) setPixelFormatsKnown(true); });
+    return () => { live = false; };
+  }, [pixelFormatsKnown]);
   const initialAudio = initialAudioRef.current;
   // A level picked on this device re-asks the verdict for the next title.
   const dataSaverLevel = useDataSaverStore((s) => s.level);
@@ -175,6 +185,8 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
       // Sending one and not the other is how the panel came to claim a copy the
       // packager was re-encoding (2026-09-06).
       fmp4AudioPassthrough: getFmp4AudioPassthrough(),
+      // Same list as the master URL's ?pixelFormats (pixelFormats.ts).
+      ...(pixelFormatsKnown && browserPixelFormats() ? { supportedPixelFormats: browserPixelFormats() } : {}),
       // The output's channel ceiling, same reading as the master URL's
       // ?maxAudioChannels: declared to one and not the other, the panel said
       // "copy 6ch" of a track the segments carried as AAC stereo. Omitted
@@ -186,14 +198,14 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
       // the master URL. An explicit ceiling, unlike the screen size above.
       ...dataSaverStreamInfoParams(saver),
     };
-  }, [caps, device.wasmAudio, initialAudio, dataSaverLevel]);
+  }, [caps, device.wasmAudio, initialAudio, dataSaverLevel, pixelFormatsKnown]);
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
     query: { retry: false },
   });
   const { data: rawStreamInfo, error: streamInfoError } = usePlaybackServiceGetStreamInfo(mediaId, streamInfoParams, {
     // A gone title answers the same 404 on every retry.
-    query: { retry: (count, err) => goneReasonFromError(err) === null && count < 3 },
+    query: { enabled: pixelFormatsKnown, retry: (count, err) => goneReasonFromError(err) === null && count < 3 },
   });
   const goneReason = streamInfoError ? goneReasonFromError(streamInfoError) : null;
 

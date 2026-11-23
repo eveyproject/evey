@@ -13,6 +13,7 @@ import { getBrowserCapabilities } from "./codec";
 import { currentDataSaverLimits, tighterCeiling } from "@evey/store";
 import { appendCodecParams, dataSaverStreamInfoParams } from "./hlsCodecParams";
 import { getMaxOutputChannels } from "./outputChannels";
+import { probeBrowserPixelFormats } from "./pixelFormats";
 import type { PlaySessionDevice } from "./usePlaySession";
 import { goneReasonFromError, isShedCode, type ShedReason } from "../lib/shed";
 
@@ -126,6 +127,8 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
   const startStream = useCallback(async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number) => {
     try {
       const caps = getBrowserCapabilities();
+      // Same list as the master URL's ?pixelFormats (pixelFormats.ts).
+      const pixelFormats = await probeBrowserPixelFormats();
       // The device's data saver caps the picture whatever the menu picked:
       // the master URL's ?maxHeight below must never be looser than its own.
       const saver = currentDataSaverLimits();
@@ -138,6 +141,7 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
           supportedContainers: caps.containers,
           supportsHdr: caps.hdr,
           wasmAudio: device.wasmAudio ?? false,
+          ...(pixelFormats ? { supportedPixelFormats: pixelFormats } : {}),
           // The same output ceiling appendCodecParams puts on the master URL,
           // so the verdict describes the audio the segments will carry.
           maxAudioChannels: tighterCeiling(getMaxOutputChannels(), saver?.maxAudioChannels),

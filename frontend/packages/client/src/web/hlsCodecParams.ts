@@ -1,5 +1,6 @@
 import { getBrowserCapabilities } from "./codec";
 import { getMaxOutputChannels } from "./outputChannels";
+import { browserPixelFormats } from "./pixelFormats";
 import { currentDataSaverLimits, tighterCeiling, type DataSaverLimits } from "@evey/store";
 
 // computeNativeHLSPreference is the pure decision behind prefersNativeHLS,
@@ -134,6 +135,11 @@ export function appendCodecParams(params: URLSearchParams): void {
   // decode HEVC+HDR10 natively (the copy rung). Only sent when true: the
   // server default is SDR (conservative, mirrors the gRPC supportsHdr param).
   if (caps.hdr) params.set("hdr", "1");
+  // The layouts past the server's 4:2:0 rule this browser decodes smoothly
+  // (pixelFormats.ts), omitted when there are none. The verdict carries the
+  // same list as supportedPixelFormats.
+  const pixelFormats = browserPixelFormats();
+  if (pixelFormats) params.set("pixelFormats", pixelFormats.join(","));
   // Channel ceiling of the OUTPUT, not of the decoder - see outputChannels.ts.
   // Omitted when the browser cannot answer, which leaves the server profile's
   // own default in place: an unknown output must not silently lose surround.
