@@ -3,7 +3,7 @@
 # which of docs/images they change.
 #
 # Usage: scripts/docs-shots/run.sh <workdir> [name ...]
-#   IMAGE  the Evey image to photograph (default ghcr.io/eveyproject/evey:master)
+#   IMAGE  the Evey image to photograph (default docker.io/eveyproject/evey:master)
 #   PORT   host port of the instance (default 9292)
 #
 # The instance runs the published image in demo mode with its own /data and
@@ -16,7 +16,7 @@ set -euo pipefail
 
 work=${1:?usage: run.sh <workdir> [name ...]}
 shift
-image=${IMAGE:-ghcr.io/eveyproject/evey:master}
+image=${IMAGE:-docker.io/eveyproject/evey:master}
 port=${PORT:-9292}
 name=evey-docshots
 repo=$(cd "$(dirname "$0")/../.." && pwd)
