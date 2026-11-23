@@ -3725,7 +3725,7 @@
   "player.streamInfo.reason.hdr_copy_unavailable": "Copy unavailable, HDR kept through the re-encode",
   "player.streamInfo.reason.hdr_tonemapping_needed": "HDR converted to SDR (tone-mapping)",
   "player.streamInfo.reason.level_exceeded": "H.264 level above the device's limit",
-  "player.streamInfo.reason.pixel_format_unsupported": "Pixel format the player cannot decode (10-bit H.264, 4:2:2)",
+  "player.streamInfo.reason.pixel_format_unsupported": "Pixel format the player cannot decode",
   "player.streamInfo.reason.preferred_audio_codec": "Preferred audio codec (profile setting)",
   "player.streamInfo.reason.preferred_video_codec": "Preferred video codec (profile setting)",
   "player.streamInfo.reason.resolution_exceeded": "Resolution above the player's limit",

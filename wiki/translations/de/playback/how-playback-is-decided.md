@@ -1,5 +1,5 @@
 ---
-source_sha: 67e86050df10dfd4a034cb857958ca84465398b13e09796335afd0ab8b1156e3
+source_sha: 81d45013cbd6dcfd89a17883182d6ff92e5bf70d73c6f592561f4623ff30f8ba
 reviewed: true
 ---
 # Wie Evey die Wiedergabeart wählt { #how-playback-is-decided }
@@ -144,8 +144,12 @@ Eine neu kodierte Spur behält bis zu 5.1 Kanäle, nie mehr: siehe
 
 Die Apps für Android und Android TV melden, welche Pixelformate ihre Decoder
 annehmen (8 Bit 4:2:0 pro Codec, 10 Bit, wo der Decoder es unterstützt), und
-der Server beurteilt die Quelle anhand dieser Liste. Für einen Player, der
-nichts meldet (die Web-App, Cast), wendet er eine vorsichtige Regel an: H.264
+der Server beurteilt die Quelle anhand dieser Liste. Die Web-App fragt den
+Browser, welche Formate darüber hinaus er flüssig dekodiert (VP9 und AV1 in
+4:4:4, H.264 mit 10 Bit), und meldet sie in derselben Liste; ein Browser, der
+keines davon flüssig dekodiert, meldet nichts. Für einen Player, der nichts
+meldet (Cast, ein Browser ohne diese Decoder), wendet der Server eine
+vorsichtige Regel an: H.264
 mit 10 Bit und jedes Video in 4:2:2, 4:4:4 oder 12 Bit werden neu kodiert.
 HEVC, VP9 und AV1 bis 10 Bit 4:2:0 hängen dagegen davon ab, welche Codecs der
 Player unterstützt. Dolby Vision bleibt nur in einer Form erhalten, die der

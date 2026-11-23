@@ -1,5 +1,5 @@
 ---
-source_sha: 67e86050df10dfd4a034cb857958ca84465398b13e09796335afd0ab8b1156e3
+source_sha: 81d45013cbd6dcfd89a17883182d6ff92e5bf70d73c6f592561f4623ff30f8ba
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture { #how-playback-is-decided }
@@ -143,9 +143,12 @@ réencodée garde au plus 5.1 canaux, jamais davantage : voir [Audio](audio.md).
 
 Les applications Android et Android TV déclarent les formats de pixels que
 leurs décodeurs acceptent (8 bits en 4:2:0 pour chaque codec, 10 bits quand le
-décodeur le permet), et le serveur juge la source d'après cette liste. Pour un
-lecteur qui n'en déclare aucun (l'application web, la diffusion), il applique
-une règle de compatibilité prudente : le H.264 en 10 bits, et toute vidéo en 4:2:2, en 4:4:4 ou en 12 bits,
+décodeur le permet), et le serveur juge la source d'après cette liste.
+L'application web demande au navigateur quels formats au-delà il décode de
+façon fluide (VP9 et AV1 en 4:4:4, H.264 en 10 bits) et les déclare dans la
+même liste ; un navigateur qui n'en décode aucun de façon fluide ne déclare
+rien. Pour un lecteur qui n'en déclare aucun (la diffusion, un navigateur sans
+ces décodeurs), le serveur applique une règle de compatibilité prudente : le H.264 en 10 bits, et toute vidéo en 4:2:2, en 4:4:4 ou en 12 bits,
 sont réencodés, alors que le HEVC, le VP9 et l'AV1 jusqu'à 10 bits en 4:2:0
 dépendent de la prise en charge du codec par le lecteur. Le Dolby Vision n'est
 conservé que sous une forme que le lecteur affiche correctement : voir
