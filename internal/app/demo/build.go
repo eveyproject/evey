@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/eveyproject/evey/internal/pkg/demo"
@@ -114,4 +115,31 @@ func (b *Bootstrapper) removeRetired(touched map[string]bool) {
 		b.log.Info("demo: retired media removed", "file", rel)
 		touched[topFolder(rel)] = true
 	}
+}
+
+// buildRevisionPath is where the revision a built file was made under is
+// recorded: a dot file beside it, which the library scan skips.
+func buildRevisionPath(dest string) string {
+	return filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".rev")
+}
+
+// buildOutdated reports whether f is built under a newer recipe than the file
+// at dest was. A file with no record counts as revision 0.
+func buildOutdated(f demo.MediaFile, dest string) bool {
+	if f.Build == nil || f.Build.Revision <= 0 {
+		return false
+	}
+	b, err := os.ReadFile(buildRevisionPath(dest))
+	if err != nil {
+		return true
+	}
+	have, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	return err != nil || have < f.Build.Revision
+}
+
+func writeBuildRevision(dest string, revision int) error {
+	if revision <= 0 {
+		return nil
+	}
+	return os.WriteFile(buildRevisionPath(dest), []byte(strconv.Itoa(revision)+"\n"), 0o644)
 }

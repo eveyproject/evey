@@ -42,6 +42,10 @@ type Build struct {
 	Args        []string
 	Chapters    []Chapter
 	DurationSec int
+	// Revision is raised when the recipe changes. A demo that holds the file
+	// under an older revision (or none) builds it again, so an existing demo
+	// gets the new tracks too instead of keeping the file it already has.
+	Revision int
 }
 
 // BuildInput is one download a Build reads. Ext keeps the extension ffmpeg
@@ -63,6 +67,10 @@ type Chapter struct {
 var RetiredMedia = []string{
 	"movies/Tears of Steel (2012).webm",
 	"movies/Matroska Test 4 - Live Stream (2008).mkv",
+	"movies/Caminandes - Llama Drama (2013).ogv",
+	"movies/Spring (2019).webm",
+	"movies/Sprite Fright (2021).mkv",
+	"movies/Elephants Dream (2006).webm",
 }
 
 // Library is one of the four demo libraries: its display name, the library
@@ -179,12 +187,22 @@ var Manifest = []MediaFile{
 	{URL: "https://archive.org/download/Bonanza_pd/Bonanza%20s01e21.mp4", Path: "series/Bonanza (1959)/Season 01/Bonanza (1959) - S01E21.mp4"},
 
 	// Films - Blender open movies, CC-BY
-	{URL: "https://archive.org/download/caminandes-1-llama-drama/1_Caminandes1_Llama_Drama_720p_vp8.ogv", Path: "movies/Caminandes - Llama Drama (2013).ogv"},
+	// The Blender 1080p master (H.264 + AAC), remuxed for every client; the
+	// Ogg upload it replaces (VP8/Theora + Vorbis) had to be encoded for all.
+	{URL: "https://archive.org/download/Caminandes1LlamaDrama/01_llama_drama_1080p.mp4", Path: "movies/Caminandes - Llama Drama (2013).mp4"},
 	{URL: "https://archive.org/download/Caminandes2GranDillama/02_gran_dillama_1080p.mp4", Path: "movies/Caminandes 2 - Gran Dillama (2013).mp4"},
 	{URL: "https://archive.org/download/CaminandesLlamigos/Caminandes_%20Llamigos-1080p.mp4", Path: "movies/Caminandes 3 - Llamigos (2016).mp4"},
-	{URL: "https://upload.wikimedia.org/wikipedia/commons/a/a5/Spring_-_Blender_Open_Movie.webm", Path: "movies/Spring (2019).webm", Defect: DefectTrailingBytes},
-	{URL: "https://archive.org/download/sprite-fright-2021/Sprite%20Fright%20%282021%29.mkv", Path: "movies/Sprite Fright (2021).mkv"},
+	// Spring and Sprite Fright as Blender Studio's H.264 + AAC releases: the
+	// VP9 + Opus uploads they replace were re-encoded for Safari and for a
+	// TV's browser.
+	{URL: "https://video.blender.org/download/web-videos/3d95fb3d-c866-42c8-9db1-fe82f48ccb95-804.mp4", Path: "movies/Spring (2019).mp4"},
+	{URL: "https://archive.org/download/sprite-fright/Sprite%20Fright%20-%20Open%20Movie%20by%20Blender%20Studio-804p.mp4", Path: "movies/Sprite Fright (2021).mp4"},
 	{URL: "https://archive.org/download/CosmosLaundromatFirstCycle/Cosmos%20Laundromat%20-%20First%20Cycle%20%281080p%29.mp4", Path: "movies/Cosmos Laundromat (2015).mp4"},
+	// Every film with surround or MP3 only also carries a stereo AAC track made
+	// once from its official mix: the one track every client takes as is (a
+	// TV's browser decodes neither Dolby nor MP3 in fMP4), so the demo's
+	// default audio (aac first) never needs an encode.
+	//
 	// Tears of Steel as a Matroska made at boot from the official files:
 	// H264 copied, the stereo MP3, the official Dolby Digital 5.1 mix, the
 	// same mix as Dolby Digital Plus (the one track encoded, once), twelve
@@ -210,7 +228,7 @@ var Manifest = []MediaFile{
 			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-HE.srt", Ext: ".srt"},
 		},
 		Args: []string{
-			"-map", "0:v:0", "-map", "0:a:0", "-map", "1:a:0", "-map", "1:a:0",
+			"-map", "0:v:0", "-map", "0:a:0", "-map", "1:a:0", "-map", "1:a:0", "-map", "1:a:0",
 			"-map", "2:s:0",
 			"-map", "3:s:0",
 			"-map", "4:s:0",
@@ -224,11 +242,13 @@ var Manifest = []MediaFile{
 			"-map", "12:s:0",
 			"-map", "13:s:0",
 			"-c", "copy", "-c:a:2", "eac3", "-b:a:2", "384k",
+			"-c:a:3", "aac", "-ac:a:3", "2", "-b:a:3", "192k",
 			"-metadata", "title=Tears of Steel",
 			"-metadata:s:v:0", "language=eng",
 			"-metadata:s:a:0", "language=eng", "-metadata:s:a:0", "title=Stereo (MP3)", "-disposition:a:0", "default",
 			"-metadata:s:a:1", "language=eng", "-metadata:s:a:1", "title=Dolby Digital 5.1", "-disposition:a:1", "0",
 			"-metadata:s:a:2", "language=eng", "-metadata:s:a:2", "title=Dolby Digital Plus 5.1", "-disposition:a:2", "0",
+			"-metadata:s:a:3", "language=eng", "-metadata:s:a:3", "title=Stereo (AAC)", "-disposition:a:3", "0",
 			"-metadata:s:s:0", "language=eng", "-metadata:s:s:0", "title=English", "-disposition:s:0", "0",
 			"-metadata:s:s:1", "language=fre", "-metadata:s:s:1", "title=Français", "-disposition:s:1", "0",
 			"-metadata:s:s:2", "language=ger", "-metadata:s:s:2", "title=Deutsch", "-disposition:s:2", "0",
@@ -251,11 +271,33 @@ var Manifest = []MediaFile{
 			{StartSec: 600, Title: "Chapter 06"},
 		},
 		DurationSec: 734,
+		Revision:    1,
 	}},
 	{URL: "https://commons.wikimedia.org/w/api.php?action=timedtext&title=File:Sintel_movie_4K.webm&lang=ja&trackformat=srt", Path: "movies/Sintel (2010).ja.srt"},
-	{URL: "https://download.blender.org/demo/movies/Sintel.2010.1080p.mkv", Path: "movies/Sintel (2010).mkv"},
-	{URL: "https://upload.wikimedia.org/wikipedia/commons/a/a2/Elephants_Dream_%282006%29.webm", Path: "movies/Elephants Dream (2006).webm"},
-	{URL: "https://download.blender.org/demo/movies/BBB/bbb_sunflower_2160p_60fps_normal.mp4.zip", Path: "movies/Big Buck Bunny (2008).mp4", ZipMember: "bbb_sunflower_2160p_60fps_normal.mp4"},
+	// Sintel carries the trailing bytes Media health shows (Spring, which
+	// carried them, is an MP4 now and the flaw is a Matroska one).
+	{Path: "movies/Sintel (2010).mkv", Defect: DefectTrailingBytes, Build: &Build{
+		Inputs: []BuildInput{{URL: "https://download.blender.org/demo/movies/Sintel.2010.1080p.mkv", Ext: ".mkv"}},
+		Args: []string{
+			"-map", "0", "-map", "0:a:0", "-c", "copy",
+			"-c:a:1", "aac", "-ac:a:1", "2", "-b:a:1", "192k",
+			"-metadata:s:a:1", "language=eng", "-metadata:s:a:1", "title=Stereo (AAC)", "-disposition:a:1", "0",
+		},
+		Revision: 1,
+	}},
+	// Blender's own H.264 + AAC release: the VP9 Profile 3 (4:4:4 10-bit)
+	// upload it replaces had to be encoded for every client but Chrome.
+	{URL: "https://download.blender.org/ED/elephantsdream-1024-h264-st-aac.mov", Path: "movies/Elephants Dream (2006).mov"},
+	{Path: "movies/Big Buck Bunny (2008).mp4", Build: &Build{
+		Inputs: []BuildInput{{URL: "https://download.blender.org/demo/movies/BBB/bbb_sunflower_2160p_60fps_normal.mp4.zip", ZipMember: "bbb_sunflower_2160p_60fps_normal.mp4", Ext: ".mp4"}},
+		Args: []string{
+			"-map", "0:v:0", "-map", "0:a:0", "-map", "0:a:1", "-map", "0:a:1", "-c", "copy",
+			"-c:a:2", "aac", "-ac:a:2", "2", "-b:a:2", "192k",
+			"-metadata:s:a:2", "title=Stereo (AAC)", "-disposition:a:2", "0",
+			"-movflags", "+faststart",
+		},
+		Revision: 1,
+	}},
 
 	// Matroska's own test suite (IETF CELLAR, github.com/ietf-wg-cellar/
 	// matroska-test-files): Elephants Dream, CC-BY, cut to exercise the parser.

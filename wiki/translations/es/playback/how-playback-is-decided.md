@@ -1,5 +1,5 @@
 ---
-source_sha: 67e86050df10dfd4a034cb857958ca84465398b13e09796335afd0ab8b1156e3
+source_sha: 81d45013cbd6dcfd89a17883182d6ff92e5bf70d73c6f592561f4623ff30f8ba
 reviewed: true
 ---
 # Cómo elige Evey el modo de reproducción { #how-playback-is-decided }
@@ -150,8 +150,12 @@ de audio máximos** del perfil. Una pista vuelta a codificar conserva hasta
 
 Las apps de Android y Android TV indican qué formatos de píxel aceptan sus
 decodificadores (8 bits 4:2:0 por códec, 10 bits cuando el decodificador lo
-admite), y el servidor juzga la fuente según esa lista. Para un reproductor
-que no indica ninguno (la app web, el envío), aplica una regla prudente: el
+admite), y el servidor juzga la fuente según esa lista. La app web pregunta
+al navegador qué formatos más allá de esos descodifica con fluidez (VP9 y AV1
+en 4:4:4, H.264 de 10 bits) y los indica en la misma lista; un navegador que
+no descodifica ninguno con fluidez no indica nada. Para un reproductor que no
+indica ninguno (el envío, un navegador sin esos descodificadores), el servidor
+aplica una regla prudente: el
 H.264 de 10 bits, y cualquier vídeo en 4:2:2, 4:4:4 o de 12 bits, se vuelven
 a codificar, mientras que HEVC, VP9 y AV1 hasta 10 bits
 4:2:0 dependen de los códecs que admita el reproductor. Dolby Vision solo se

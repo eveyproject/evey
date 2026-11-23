@@ -552,7 +552,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		// the global bucket it shared with every gateway call was being drawn
 		// down by its reads. The cost worth guarding, the production, is
 		// bounded by the handler's own slots.
-		mux.HandleFunc("GET /api/v1/media/{id}/remux.mp4", streamAuth(streamingRateLimit(s.StreamingRL, s.LoadTestActive, s.StreamMeter.Middleware(remuxHandler(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.Remuxer, s.Cfg.Transcoding.CacheDir, s.BaseURL(), s.RemuxLeases)))))
+		mux.HandleFunc("GET /api/v1/media/{id}/remux.mp4", streamAuth(streamingRateLimit(s.StreamingRL, s.LoadTestActive, s.Cfg.Server.Demo, s.StreamMeter.Middleware(remuxHandler(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.Remuxer, s.Cfg.Transcoding.CacheDir, s.BaseURL(), s.RemuxLeases)))))
 	}
 	// Artwork is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
@@ -713,7 +713,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// few seconds per stream) - the DoS vector the GlobalRL was wrong for
 			// (its per-IP 429 would 1) false-positive a multi-profile household
 			// and 2) stall hls.js).
-			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, s.LoadTestActive, s.StreamMeter.Middleware(vodHandler.serveHTTP))))
+			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, s.LoadTestActive, s.Cfg.Server.Demo, s.StreamMeter.Middleware(vodHandler.serveHTTP))))
 			// Predictive warm-up: the player POSTs at ~85% progress of an
 			// episode so the next ep's transcode is pre-spawned and the
 			// autoplay handoff feels instant. Auth-required (logged-in user

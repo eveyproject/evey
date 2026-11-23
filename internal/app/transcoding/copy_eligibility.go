@@ -99,11 +99,11 @@ func CopyBlocker(src CopySource) string {
 	}
 	// HDR needs 10 bits (PQ and HLG are specified on 10-bit signals; every
 	// HDR10/HLG/DoVi stream in the wild is Main 10 / Profile 2). A VP9
-	// Profile 0 is 8-bit 4:2:0 by definition, so its colour truth cannot hide
+	// Profile 0 (or 1) is 8-bit by definition, so its colour truth cannot hide
 	// an HDR: the gate below does not apply to it. Measured need: Sprite
 	// Fright (VP9 Profile 0 in a .mkv) reaches the decision through ffprobe,
 	// which knows its colour space but not its transfer.
-	eightBitByProfile := codec == "vp9" && vp9ProfileIdx(src.Profile) == 0
+	eightBitByProfile := codec == "vp9" && (vp9ProfileIdx(src.Profile) == 0 || vp9ProfileIdx(src.Profile) == 1)
 	if src.ColorTransfer == nil && !eightBitByProfile {
 		return "hdr_truth_unknown" // HDR/DoVi never probed → not colour-safe
 	}

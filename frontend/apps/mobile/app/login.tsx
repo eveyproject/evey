@@ -13,7 +13,7 @@ import {
   isRemoteAccessDisabled,
   remoteAccessDisabledMessage,
 } from "@evey/api";
-import { useAuthStore, useServerListStore, useDemoStore, isDefaultServerName, toast } from "@evey/store";
+import { useAuthStore, useServerListStore, useDemoStore, isDefaultServerName, prefillDemoLogin, toast } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
@@ -126,6 +126,10 @@ export default function Login() {
   useEffect(() => {
     if (setupStatus.data) useDemoStore.getState().setDemoMode(demoMode);
   }, [demoMode, setupStatus.data]);
+  // The demo's credentials are public: its form comes filled with them.
+  useEffect(() => {
+    if (demoMode) prefillDemoLogin(setUsername, setPassword);
+  }, [demoMode]);
 
   // SSO for the app: the server parks the tokens and sends a one-time code
   // through evey://oidc-callback (app/oidc-callback.tsx), which redeems it

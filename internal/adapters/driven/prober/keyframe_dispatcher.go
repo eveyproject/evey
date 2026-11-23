@@ -2,6 +2,7 @@ package prober
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 	"github.com/gravity-zero/mkvgo/mp4"
@@ -52,12 +53,39 @@ func (d *KeyframeDispatcher) ProbeKeyframes(ctx context.Context, filePath string
 	return d.fallback.ProbeKeyframes(ctx, filePath)
 }
 
+// SeekIndexOnly is the dispatcher reduced to the container's own seek index
+// (MP4 stss, Matroska Cues): no structural walk of a Cues-less Matroska, no
+// ffprobe fallback. A file without one yields no keyframes. Cheap enough to
+// run while a stream is being served.
+func (d *KeyframeDispatcher) SeekIndexOnly() KeyframeProber {
+	return seekIndexOnly{d}
+}
+
+type seekIndexOnly struct{ d *KeyframeDispatcher }
+
+func (s seekIndexOnly) ProbeKeyframes(ctx context.Context, filePath string) ([]int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "prober.keyframe.seek_index")
+	defer span.End()
+	if kf := s.d.mkvgoKeyframesWith(ctx, filePath, false); len(kf) > 0 {
+		return kf, nil
+	}
+	return nil, errNoSeekIndex
+}
+
+var errNoSeekIndex = errors.New("no seek index in the container")
+
 // mkvgoKeyframes reads the seek index head-only, or returns nil to signal the
 // caller to fall back to the ffprobe packet scan. A malformed/adversarial
 // container must never crash the backfill worker, so an in-process parse panic
 // is absorbed here (mkvgo is fuzz-tested and fail-soft, but the fast path is
 // never required).
-func (d *KeyframeDispatcher) mkvgoKeyframes(ctx context.Context, filePath string) (kf []int64) {
+func (d *KeyframeDispatcher) mkvgoKeyframes(ctx context.Context, filePath string) []int64 {
+	return d.mkvgoKeyframesWith(ctx, filePath, true)
+}
+
+// mkvgoKeyframesWith is mkvgoKeyframes; walk=false keeps a Cues-less Matroska
+// to its head (no structural pass), so it yields nothing.
+func (d *KeyframeDispatcher) mkvgoKeyframesWith(ctx context.Context, filePath string, walk bool) (kf []int64) {
 	defer func() {
 		if r := recover(); r != nil {
 			kf = nil
@@ -77,7 +105,11 @@ func (d *KeyframeDispatcher) mkvgoKeyframes(ctx context.Context, filePath string
 		// and equal to ffprobe's list, validated count==ffprobe on real files. No-op
 		// when Cues exist, so indexed files stay instant; Cues-less files get the
 		// in-process complete index instead of forking ffprobe.
-		c, err := reader.OpenMeta(ctx, filePath, reader.WithKeyframeIndex())
+		var opts []reader.ReadOption
+		if walk {
+			opts = append(opts, reader.WithKeyframeIndex())
+		}
+		c, err := reader.OpenMeta(ctx, filePath, opts...)
 		if err != nil || c == nil {
 			return nil
 		}

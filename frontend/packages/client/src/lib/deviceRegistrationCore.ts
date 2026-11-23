@@ -6,7 +6,7 @@ import { emitSettingsChanged } from "./homeLayoutRefresh";
 
 const log = clientLogger("device");
 
-// A socket that has never opened after this many attempts is treated as one
+// A socket that has never registered after this many attempts is treated as one
 // the network will not let through (a proxy that drops the Upgrade header gets
 // a 400 from the server, every time) rather than as an outage: it is retried
 // at UNREACHABLE_RETRY_MS instead of every 30 s for as long as the app runs.
@@ -22,6 +22,12 @@ const PING_INTERVAL_MS = 45_000;
 // every device of a household ping, and after a server restart reconnect,
 // in step.
 const JITTER_FRACTION = 0.2;
+// The server accepts the upgrade before it reads the register frame, and a
+// registration it refuses (the per-user device cap) is a socket closed right
+// after it opened. Only a socket still open after this long counts as
+// registered: until then the backoff keeps growing, and a refused socket
+// counts as one that never got through.
+const REGISTERED_AFTER_MS = 5_000;
 
 function jittered(ms: number): number {
   return Math.round(ms * (1 + JITTER_FRACTION * (2 * Math.random() - 1)));
@@ -96,7 +102,7 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
   // fresh values without restarting the WS on every render.
   const stateRef = useRef({ accessToken, serverUrl, deviceName, onLoadAndPlay, getDeviceId, subscribeBackground });
   stateRef.current = { accessToken, serverUrl, deviceName, onLoadAndPlay, getDeviceId, subscribeBackground };
-  // Consecutive attempts that never opened. A ref, not effect state: the effect
+  // Consecutive attempts that never registered. A ref, not effect state: the effect
   // restarts on every access-token refresh, and a socket that never gets
   // through must not get a fresh burst of short retries each time.
   const unopenedRef = useRef(0);
@@ -108,6 +114,7 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
     let attempt = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let pingTimer: ReturnType<typeof setTimeout> | null = null;
+    let registeredTimer: ReturnType<typeof setTimeout> | null = null;
     let deviceId = "";
     let backgrounded = false;
     async function connect() {
@@ -135,11 +142,14 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
         return;
       }
 
-      let opened = false;
+      let registered = false;
       ws.onopen = () => {
-        opened = true;
-        unopenedRef.current = 0;
-        attempt = 0;
+        registeredTimer = setTimeout(() => {
+          registeredTimer = null;
+          registered = true;
+          unopenedRef.current = 0;
+          attempt = 0;
+        }, REGISTERED_AFTER_MS);
         ws?.send(JSON.stringify({
           type: "register",
           deviceId,
@@ -175,7 +185,8 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
       ws.onclose = () => {
         ws = null;
         stopPing();
-        if (!opened) unopenedRef.current += 1;
+        stopRegisteredTimer();
+        if (!registered) unopenedRef.current += 1;
         scheduleReconnect();
       };
     }
@@ -192,6 +203,13 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
         }
         schedulePing();
       }, jittered(PING_INTERVAL_MS));
+    }
+
+    function stopRegisteredTimer() {
+      if (registeredTimer) {
+        clearTimeout(registeredTimer);
+        registeredTimer = null;
+      }
     }
 
     function stopPing() {
@@ -216,6 +234,7 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
     // trips onclose's own reconnect scheduling.
     function teardownSocket() {
       stopPing();
+      stopRegisteredTimer();
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;

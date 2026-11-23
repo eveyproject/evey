@@ -879,28 +879,36 @@ func av1ProfileIdx(profile string) int {
 }
 
 // vp9CodecString builds the RFC-6381 VP9 codec string from the ffprobe
-// profile + level, e.g. Profile 0 + 41 → "vp09.00.41.08". Profile 2 is the
-// 10-bit variant browsers decode; 1/3 (4:2:2/4:4:4) are not wired.
+// profile + level, e.g. Profile 0 + 41 → "vp09.00.41.08". Profiles 1 and 3
+// (4:2:2/4:4:4, 8 and 10-bit) take the same short form mkvgo's packager
+// writes; whether the client decodes that layout is the decision's pixel
+// format gate, not this string's.
 func vp9CodecString(profile string, level int, tenBit bool) string {
 	idx := vp9ProfileIdx(profile)
 	if idx < 0 {
 		return ""
 	}
 	depth := "08"
-	if tenBit || idx == 2 {
+	if tenBit || idx == 2 || idx == 3 {
 		depth = "10"
 	}
 	return fmt.Sprintf("vp09.%02d.%02d.%s", idx, level, depth)
 }
 
 // vp9ProfileIdx maps an ffprobe VP9 profile name ("Profile 0"…) to its index,
-// or -1 when unknown/unwired (profiles 1 and 3 have no browser decode).
+// or -1 when unknown. Profiles 1 and 3 (4:2:2/4:4:4) are copied to a client
+// that declares the layout (?pixelFormats): Chrome decodes a 1080p Profile 3
+// in software, every frame on time, measured.
 func vp9ProfileIdx(profile string) int {
 	switch strings.ToLower(strings.TrimSpace(profile)) {
 	case "profile 0":
 		return 0
+	case "profile 1":
+		return 1
 	case "profile 2":
 		return 2
+	case "profile 3":
+		return 3
 	}
 	return -1
 }

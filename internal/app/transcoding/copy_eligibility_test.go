@@ -92,8 +92,15 @@ func TestCopyRungEligible_AV1VP9(t *testing.T) {
 	assert.True(t, CopyRungEligible(vp9), "VP9 Profile 0 with probed truth is copyable")
 	vp9p2 := CopySource{Codec: "vp9", Profile: "Profile 2", Level: new(41), TenBit: true, ColorTransfer: &pq}
 	assert.True(t, CopyRungEligible(vp9p2), "VP9 Profile 2 (10-bit) is copyable")
-	assert.False(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 1", Level: new(41), ColorTransfer: &bt709}),
-		"VP9 Profile 1 (4:2:2) has no browser decode - not wired")
+	// Profiles 1 and 3 (4:2:2/4:4:4) are copied to a client that declares the
+	// layout; the decision's pixel format gate keeps them from any other.
+	vp9p3 := CopySource{Codec: "vp9", Profile: "Profile 3", Level: new(40), TenBit: true, ColorTransfer: &bt709}
+	assert.True(t, CopyRungEligible(vp9p3), "VP9 Profile 3 (4:4:4 10-bit) is copyable")
+	assert.Equal(t, "vp09.03.40.10", CopyVideoCodecString(vp9p3), "the short form mkvgo's packager writes")
+	assert.True(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 1", Level: new(41)}),
+		"VP9 Profile 1 is 8-bit: no HDR to probe for")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 3", Level: new(40), TenBit: true}),
+		"VP9 Profile 3 is 10-bit: an unprobed transfer still gates copy off")
 	assert.False(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 0", ColorTransfer: &bt709}),
 		"unknown level AND unknown size gates VP9 copy off")
 	// The VP9 level is never in the file: with the picture size known it is

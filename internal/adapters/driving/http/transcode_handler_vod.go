@@ -195,6 +195,9 @@ type hlsVODServe struct {
 	// whose simulated viewers all share one profile and so one gate key (the
 	// streaming rate limiter stands aside the same way). nil: never active.
 	loadTestActive func() bool
+	// sharedAccount is the public demo, where every visitor holds the same
+	// profile: the gate key then carries the client address too.
+	sharedAccount bool
 
 	// onDemandConcat serves a gapless multi-episode HLS session (mkvgo's
 	// mp4.PlanConcat) when a master request opts in with ?gapless=1 (behind

@@ -103,6 +103,43 @@ func TestKeyframeOnDemand_SkipsWhilePlaybackActive(t *testing.T) {
 	assert.Equal(t, int32(1), prober.calls.Load())
 }
 
+// While someone watches, the seek index the file carries is still read, so a
+// film opened then is not transcoded for want of it; the full probe and the
+// frame-rate walk wait until nobody watches.
+func TestKeyframeOnDemand_ReadsTheSeekIndexWhilePlaybackActive(t *testing.T) {
+	store := &fakeKfStore{rows: 1}
+	full := &fakeKfProber{kf: []int64{0, 1000}}
+	seekIndex := &fakeKfProber{kf: []int64{0, 3000, 6000}}
+	frStore := &fakeOnDemandFRStore{}
+	k := apptranscoding.NewKeyframeOnDemand(store, full, nil).
+		WithActivePlayback(func() int { return 1 }).
+		WithIndexOnlyProber(seekIndex).
+		WithFrameRateAnalyzer(&fakeOnDemandFRAnalyzer{mode: "vfr"}, frStore)
+
+	assert.True(t, k.TryIndex(context.Background(), "m1", "/f.mp4"))
+	assert.Equal(t, []int64{0, 3000, 6000}, store.saved["m1"])
+	assert.Equal(t, int32(0), full.calls.Load(), "no full probe while someone watches")
+	assert.Empty(t, frStore.targets(), "no frame-rate walk while someone watches")
+}
+
+// A file without a seek index is not written off: once nobody watches, the
+// full probe still runs at the next negotiation.
+func TestKeyframeOnDemand_NoSeekIndexWhilePlayingIsNotNegativeCached(t *testing.T) {
+	store := &fakeKfStore{rows: 1}
+	full := &fakeKfProber{kf: []int64{0, 1000}}
+	seekIndex := &fakeKfProber{err: errors.New("no cues")}
+	active := 1
+	k := apptranscoding.NewKeyframeOnDemand(store, full, nil).
+		WithActivePlayback(func() int { return active }).
+		WithIndexOnlyProber(seekIndex)
+
+	assert.False(t, k.TryIndex(context.Background(), "m1", "/f.mkv"))
+	assert.Equal(t, int32(0), full.calls.Load())
+	active = 0
+	assert.True(t, k.TryIndex(context.Background(), "m1", "/f.mkv"))
+	assert.Equal(t, int32(1), full.calls.Load())
+}
+
 func TestKeyframeOnDemand_FailureIsNegativeCached(t *testing.T) {
 	store := &fakeKfStore{rows: 1}
 	prober := &fakeKfProber{err: errors.New("no cues")}

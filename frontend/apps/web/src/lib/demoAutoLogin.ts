@@ -8,8 +8,7 @@
 const MANUAL_LOGOUT_KEY = "evey-demo-manual-logout-at";
 export const MANUAL_LOGOUT_HOLD_MS = 24 * 60 * 60 * 1000;
 
-export const DEMO_USERNAME = "demo";
-export const DEMO_PASSWORD = "demo";
+export { DEMO_USERNAME, DEMO_PASSWORD } from "@evey/store";
 
 // markDemoManualLogout records a deliberate sign-out.
 export function markDemoManualLogout(now: number = Date.now()): void {
