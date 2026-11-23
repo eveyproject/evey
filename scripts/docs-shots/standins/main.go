@@ -32,8 +32,8 @@ import (
 // now playing cards, the stream info panel): the bootstrap downloads them for
 // real.
 var kept = map[string]bool{
-	"movies/Spring (2019).webm":       true,
-	"movies/Sprite Fright (2021).mkv": true,
+	"movies/Spring (2019).mp4":        true,
+	"movies/Sprite Fright (2021).mp4": true,
 }
 
 // shape is what a stand-in copies from the real file.

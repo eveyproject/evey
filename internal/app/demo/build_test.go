@@ -101,3 +101,58 @@ func TestDownloadManifest_RemovesRetiredMedia(t *testing.T) {
 		t.Error("the retired file is still there")
 	}
 }
+
+// A recipe raised to a new revision is built again over the file an existing
+// demo already holds, once: the next boot keeps the rebuilt file.
+func TestDownloadManifest_RebuildsAnOutdatedRecipeOnce(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		_, _ = rw.Write([]byte("input"))
+	}))
+	defer srv.Close()
+	builds := 0
+	h.boot.WithHTTPClient(srv.Client()).WithAssembler(func(_ context.Context, args []string) error {
+		builds++
+		return os.WriteFile(args[len(args)-1], []byte("rebuilt"), 0o644)
+	})
+	dest := filepath.Join(h.dir, "movies", "Film (2012).mkv")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("built by an older recipe"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifest := []demo.MediaFile{{Path: "movies/Film (2012).mkv", Build: &demo.Build{
+		Inputs:   []demo.BuildInput{{URL: srv.URL + "/video.mov", Ext: ".mov"}},
+		Args:     []string{"-c", "copy"},
+		Revision: 1,
+	}}}
+	libs := map[string]shared.LibraryID{"movies": "lib-m"}
+	for range 2 {
+		if err := h.boot.DownloadManifest(ctx, manifest, libs); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if b, _ := os.ReadFile(dest); string(b) != "rebuilt" || builds != 1 {
+		t.Fatalf("want one rebuild over the old file, got %d builds and %q", builds, b)
+	}
+	entries, _ := os.ReadDir(filepath.Dir(dest))
+	for _, e := range entries {
+		if e.Name() != "Film (2012).mkv" && !strings.HasPrefix(e.Name(), ".") {
+			t.Errorf("the revision record must be a dot file the scan skips, found %s", e.Name())
+		}
+	}
+
+	// A recipe without a revision never rebuilds a file that is there.
+	manifest[0].Build.Revision = 0
+	if err := os.WriteFile(dest, []byte("kept"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.boot.DownloadManifest(ctx, manifest, libs); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(dest); string(b) != "kept" {
+		t.Errorf("an unrevised recipe rebuilt the file: %q", b)
+	}
+}

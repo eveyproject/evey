@@ -363,7 +363,7 @@ func (b *Bootstrapper) Teardown(ctx context.Context) error {
 
 	for _, f := range demo.Manifest {
 		dest := filepath.Join(b.mediaDir, filepath.FromSlash(f.Path))
-		for _, p := range []string{dest, dest + ".part", dest + ".unzip"} {
+		for _, p := range []string{dest, dest + ".part", dest + ".unzip", buildRevisionPath(dest)} {
 			if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 				b.log.Warn("demo: remove file", "path", p, "err", err)
 			}
@@ -581,15 +581,18 @@ func (b *Bootstrapper) DownloadManifest(ctx context.Context, manifest []demo.Med
 			current = folder
 		}
 		dest := filepath.Join(b.mediaDir, filepath.FromSlash(f.Path))
-		if st, err := os.Stat(dest); err == nil && st.Size() > 0 {
+		if st, err := os.Stat(dest); err == nil && st.Size() > 0 && !buildOutdated(f, dest) {
 			b.defect(f, dest, folder, touched)
 			continue
 		}
 		if f.Build != nil {
-			b.log.Info("demo: building", "file", f.Path, "inputs", len(f.Build.Inputs))
+			b.log.Info("demo: building", "file", f.Path, "inputs", len(f.Build.Inputs), "revision", f.Build.Revision)
 			if err := b.build(ctx, f, dest); err != nil {
 				b.log.Warn("demo: build failed, will retry at next boot", "file", f.Path, "err", err)
 				continue
+			}
+			if err := writeBuildRevision(dest, f.Build.Revision); err != nil {
+				b.log.Warn("demo: build revision not recorded, the file will be built again", "file", f.Path, "err", err)
 			}
 			touched[folder] = true
 			b.defect(f, dest, folder, touched)
