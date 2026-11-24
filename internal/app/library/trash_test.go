@@ -26,8 +26,8 @@ func TestLibraryRootOf_LongestRootAndNoEscape(t *testing.T) {
 	assert.Equal(t, "/media/films", libraryRootOf(roots, "/media/films/Dune/Dune.mkv"))
 	assert.Equal(t, "/media", libraryRootOf(roots, "/media/other/x.mkv"))
 	// "/" is never a usable root, and a sibling with the same prefix is not inside.
-	assert.Equal(t, "", libraryRootOf([]string{"/"}, "/x.mkv"))
-	assert.Equal(t, "", libraryRootOf([]string{"/media"}, "/media2/x.mkv"))
+	assert.Empty(t, libraryRootOf([]string{"/"}, "/x.mkv"))
+	assert.Empty(t, libraryRootOf([]string{"/media"}, "/media2/x.mkv"))
 }
 
 // The video and its subtitles go to <root>/.evey-trash/<same path>; another
@@ -108,9 +108,9 @@ func TestRestoreTarget_Refusals(t *testing.T) {
 		"relative/.evey-trash/x.mkv",                     // not absolute
 	} {
 		_, _, err := restoreTarget(libs, p)
-		assert.ErrorIs(t, err, ErrRestoreNotInTrash, p)
+		require.ErrorIs(t, err, ErrRestoreNotInTrash, p)
 	}
 	touch(t, filepath.Join(root, "Taken.mkv"))
 	_, _, err := restoreTarget(libs, filepath.Join(root, TrashDirName, "Taken.mkv"))
-	assert.ErrorIs(t, err, ErrRestoreTaken)
+	require.ErrorIs(t, err, ErrRestoreTaken)
 }
