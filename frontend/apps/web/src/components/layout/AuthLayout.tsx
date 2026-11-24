@@ -77,9 +77,11 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         <Sidebar />
       </div>
 
-      {/* Mobile sidebar overlay */}
+      {/* Mobile sidebar overlay - above the chrome row, which also sits at
+          z-sidebar and comes later in the DOM: at the same level the TopBar
+          painted over the drawer's header and cut the logo. */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-sidebar md:hidden">
+        <div className="fixed inset-0 z-overlay md:hidden">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setSidebarOpen(false)}
@@ -101,18 +103,19 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             paint above <main> content but below modals/popovers. Without a
             stacking position here, <main> (the next DOM sibling, an overflow
             scroll container) renders over the dropdowns and hides them. */}
-        <div className="relative z-sidebar flex items-center">
-          <button
-            className="md:hidden p-3 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
-            onClick={() => setSidebarOpen(true)}
-            aria-label={t("common.aria.openMenu")}
-            data-testid="open-sidebar-btn"
-          >
-            <Menu size={24} />
-          </button>
-          <div className="flex-1">
-            <TopBar />
-          </div>
+        <div className="relative z-sidebar">
+          <TopBar
+            leading={
+              <button
+                className="md:hidden -ml-1 mr-2 p-2 shrink-0 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
+                onClick={() => setSidebarOpen(true)}
+                aria-label={t("common.aria.openMenu")}
+                data-testid="open-sidebar-btn"
+              >
+                <Menu size={24} />
+              </button>
+            }
+          />
         </div>
         <main
           id="main-content"

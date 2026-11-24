@@ -1633,7 +1633,7 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 					http.Error(w, `{"message":"dash is not available for this presentation"}`, http.StatusNotFound)
 					return
 				}
-				h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}, "")
+				h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo", AudioCodec: packagedAudioCodec(rp, streams)}, "")
 				h.servePlanResourceData(w, r, mediaID, plan, planKeep(rp, streams), "manifest.mpd", span)
 				return
 			}

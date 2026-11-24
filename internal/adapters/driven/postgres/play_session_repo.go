@@ -101,8 +101,10 @@ func (r *PlaySessionRepository) SetSessionServing(ctx context.Context, sessionID
 		// audio_codec is only rewritten when the caller supplies one: every other
 		// serving record knows the engines but not the output codec, and an
 		// unconditional write would blank the label the session started with.
+		// play_method follows the served tracks (playback.MethodForTracks).
 		`UPDATE play_sessions SET video_decision = $2, audio_decision = $3, video_engine = $4, video_backend = $5, audio_engine = $6,
-		        audio_codec = COALESCE(NULLIF($7, ''), audio_codec)
+		        audio_codec = COALESCE(NULLIF($7, ''), audio_codec),
+		        play_method = `+methodForTracksSQL("$2", "$3")+`
 		 WHERE id = $1 AND ended_at IS NULL`,
 		sessionID, p.VideoDecision, p.AudioDecision, p.VideoEngine, p.VideoBackend, p.AudioEngine, p.AudioCodec)
 	if err != nil {
@@ -111,6 +113,15 @@ func (r *PlaySessionRepository) SetSessionServing(ctx context.Context, sessionID
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
+}
+
+// methodForTracksSQL is playback.MethodForTracks over the row's play_method:
+// SET reads the row as it was, so an operand naming a column reads its
+// previous value.
+func methodForTracksSQL(video, audio string) string {
+	return `CASE WHEN play_method IN ('transcode', 'direct_stream') AND ` + video + ` <> '' AND ` + audio + ` <> ''
+		     THEN CASE WHEN ` + video + ` = 'transcode' OR ` + audio + ` = 'transcode' THEN 'transcode' ELSE 'direct_stream' END
+		     ELSE play_method END`
 }
 
 // SetSessionAudioPath rewrites the audio leg of an ACTIVE session and nothing
@@ -125,7 +136,8 @@ func (r *PlaySessionRepository) SetSessionAudioPath(ctx context.Context, session
 	defer cancel()
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE play_sessions SET audio_decision = $2, audio_engine = $3,
-		        audio_codec = COALESCE(NULLIF($4, ''), audio_codec)
+		        audio_codec = COALESCE(NULLIF($4, ''), audio_codec),
+		        play_method = `+methodForTracksSQL("video_decision", "$2")+`
 		 WHERE id = $1 AND ended_at IS NULL`,
 		sessionID, decision, engine, audioCodec)
 	if err != nil {

@@ -270,6 +270,7 @@ func (r *FakePlaySessionRepository) SetSessionServing(_ context.Context, session
 		return false, nil
 	}
 	s.VideoDecision, s.AudioDecision, s.Serving = p.VideoDecision, p.AudioDecision, p
+	s.PlayMethod = playback.MethodForTracks(s.PlayMethod, p.VideoDecision, p.AudioDecision)
 	if p.AudioCodec != "" { // same contract as the SQL: empty leaves the label alone
 		s.AudioCodec = p.AudioCodec
 	}
@@ -286,6 +287,7 @@ func (r *FakePlaySessionRepository) SetSessionAudioPath(_ context.Context, sessi
 	if !ok || s.EndedAt != nil {
 		return false, nil
 	}
+	s.PlayMethod = playback.MethodForTracks(s.PlayMethod, s.VideoDecision, decision)
 	s.AudioDecision, s.Serving.AudioDecision, s.Serving.AudioEngine = decision, decision, engine
 	if audioCodec != "" {
 		s.AudioCodec = audioCodec

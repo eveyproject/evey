@@ -23,6 +23,24 @@ func (m PlayMethod) IsValid() bool {
 	return false
 }
 
+// MethodForTracks is the method a session is recorded under once its track
+// verdicts are known. The verdict's method routes: a file that must go
+// through the segmented session is "transcode" even when nothing is encoded.
+// The admin pages and the play-method counts name what was done to the bytes:
+// both tracks copied (or decoded by the client) is a remux, either one encoded
+// is a transcode. Direct play, and a verdict missing either track, keep the
+// method as given. The play-session repository applies the same rule in SQL
+// whenever the served path is recorded.
+func MethodForTracks(method, videoDecision, audioDecision string) string {
+	if (method != string(Transcode) && method != string(DirectStream)) || videoDecision == "" || audioDecision == "" {
+		return method
+	}
+	if videoDecision == "transcode" || audioDecision == "transcode" {
+		return string(Transcode)
+	}
+	return string(DirectStream)
+}
+
 // MinResumeRailPosition is how far a title must have played before the home's
 // continue-watching rail offers it. Below it the position is still kept (the
 // title page resumes from it), but a play skipped early - a shuffle draw, a
@@ -81,7 +99,7 @@ type PlaySession struct {
 	// the engines are empty until then (direct play, or a session older than the
 	// column). Every read of a session fills it, because a writer that rewrites
 	// the whole path (SetCastAudioPath) starts from it: a read that dropped the
-	// engines made the next beacon blank video_engine (prod, 2026-10-02).
+	// engines made the next beacon blank video_engine.
 	Serving ServingPath
 }
 

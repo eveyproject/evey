@@ -92,7 +92,7 @@ func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request
 		// Full packager presentation (video + audio + subtitles). When the plan
 		// trimmed the audio to the SELECTED track, buildPlan packaged that one
 		// track, so what we serve holds exactly the tracks the packager carries.
-		h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}, "")
+		h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo", AudioCodec: packagedAudioCodec(rp, streams)}, "")
 		h.servePlanResourceData(w, r, mediaID, plan, planKeep(rp, streams), "master.m3u8", span)
 		return true, ""
 	}
@@ -960,6 +960,18 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 // The plan's own track (resolved once with it, the same the ffmpeg pipeline
 // maps), so both backends agree on which track a request gets. Best-effort:
 // no streams in hand serves every audio track rather than failing the plan.
+// packagedAudioCodec names the one audio track a trimmed packager
+// presentation carries, so the session's label is the track served and not
+// whatever the client guessed at start. A presentation that carries every
+// track leaves the choice to the player: "" keeps the label as it was.
+func packagedAudioCodec(rp *requestPlan, streams []*domainlibrary.MediaStream) string {
+	keep := planKeep(rp, streams)
+	if keep == nil {
+		return ""
+	}
+	return sourceAudioCodec(streams, *keep)
+}
+
 func planKeep(rp *requestPlan, streams []*domainlibrary.MediaStream) *int {
 	if rp == nil || !rp.Plan.Delivery.AudioTrimmed || len(streams) == 0 {
 		return nil
