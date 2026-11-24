@@ -54,8 +54,12 @@ function servedCodecLabel(decision: string | undefined, source: string, target: 
   return source;
 }
 
-function sourceCodec(streams: V1StreamInfo["mediaStreams"], kind: "VIDEO" | "AUDIO"): string {
-  const s = (streams ?? []).find((x) => x.type === `MEDIA_STREAM_TYPE_${kind}`);
+// The audio codec is the track the verdict picked, not the file's first audio
+// track: a film whose first track is AC-3 5.1 played on its stereo AAC track
+// was labelled "ac3" on the dashboard.
+function sourceCodec(info: V1StreamInfo, kind: "VIDEO" | "AUDIO"): string {
+  if (kind === "AUDIO") return pickedAudioStream(info, info.audioStreamIndex)?.codec ?? "";
+  const s = (info.mediaStreams ?? []).find((x) => x.type === "MEDIA_STREAM_TYPE_VIDEO");
   return s?.codec ?? "";
 }
 
@@ -299,8 +303,8 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
           // "Now Playing" panel can distinguish a copy rung from a real transcode.
           videoDecision: rawStreamInfo.videoDecision ?? "",
           audioDecision: rawStreamInfo.audioDecision ?? "",
-          videoCodec: servedCodecLabel(rawStreamInfo.videoDecision, sourceCodec(rawStreamInfo.mediaStreams, "VIDEO"), rawStreamInfo.videoCodec),
-          audioCodec: servedCodecLabel(rawStreamInfo.audioDecision, sourceCodec(rawStreamInfo.mediaStreams, "AUDIO"), rawStreamInfo.audioCodec),
+          videoCodec: servedCodecLabel(rawStreamInfo.videoDecision, sourceCodec(rawStreamInfo, "VIDEO"), rawStreamInfo.videoCodec),
+          audioCodec: servedCodecLabel(rawStreamInfo.audioDecision, sourceCodec(rawStreamInfo, "AUDIO"), rawStreamInfo.audioCodec),
           resolution: rawStreamInfo.resolution ?? "",
         });
         if (session.id) {

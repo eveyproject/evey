@@ -45,8 +45,11 @@ export function effectivePlayMethod(input: PlayMethodInput): PlayMethodKind | ""
 
   const video = (input.videoDecision ?? "").trim();
   const audio = (input.audioDecision ?? "").trim();
-  // Sessions predating the per-track fields: the verdict is all there is.
-  if (!video && !audio) return declared;
+  // Nothing says what is done to the tracks: the method only routes (a guest's
+  // player asks for the segmented session without a verdict; a session's
+  // tracks are recorded once its master is served). Naming it "transcode"
+  // would claim an encode nobody measured, so it stays unlabelled.
+  if (!video && !audio) return declared === "transcode" ? "" : declared;
 
   if (isReencoded(video) || (isReencoded(audio) && !input.wasmAudio)) return "transcode";
   return "direct_stream";

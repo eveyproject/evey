@@ -76,6 +76,26 @@ describe("usePlaySession", () => {
     );
   });
 
+  // A film whose first audio track is AC-3 5.1, played on its stereo AAC track:
+  // the dashboard named "ac3".
+  it("labels the session with the audio track the verdict picked, not the file's first", async () => {
+    getStreamInfoFn.mockImplementation(() => ({
+      data: {
+        playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "copy", audioDecision: "copy", audioStreamIndex: 5,
+        mediaStreams: [
+          { index: 0, type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264" },
+          { index: 1, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "ac3", channels: 6, isDefault: true },
+          { index: 5, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", channels: 2 },
+        ],
+      },
+    }) as never);
+    const usePlaySession = await loadHook("");
+    await act(async () => {
+      renderHook(() => usePlaySession("media-aac"));
+    });
+    expect(startStreamFn).toHaveBeenCalledWith(expect.objectContaining({ videoCodec: "h264", audioCodec: "aac" }));
+  });
+
   it("prevents double start (StrictMode guard)", async () => {
     const usePlaySession = await loadHook("");
     const wrapper = ({ children }: { children: React.ReactNode }) =>

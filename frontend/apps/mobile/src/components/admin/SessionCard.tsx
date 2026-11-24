@@ -35,7 +35,7 @@ export function playMethodLabel(method: string, t: (k: string) => string): strin
     case "direct_play": return t("admin.sessions.directPlay");
     case "direct_stream": return t("admin.sessions.directStream");
     case "transcode": return t("admin.sessions.transcode");
-    default: return method || "Direct";
+    default: return method;
   }
 }
 
@@ -149,18 +149,20 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
       </View>
 
       <View style={styles.badgeRow}>
-        <View style={[
-          styles.badge,
-          { backgroundColor: method === "transcode" ? `${theme.colors.warning}20` : `${theme.colors.success}20` },
-        ]}>
-          <Text style={{
-            fontSize: 10,
-            fontWeight: "600",
-            color: method === "transcode" ? theme.colors.warning : theme.colors.success,
-          }}>
-            {playMethodLabel(method, t)}
-          </Text>
-        </View>
+        {method ? (
+          <View style={[
+            styles.badge,
+            { backgroundColor: method === "transcode" ? `${theme.colors.warning}20` : `${theme.colors.success}20` },
+          ]}>
+            <Text style={{
+              fontSize: 10,
+              fontWeight: "600",
+              color: method === "transcode" ? theme.colors.warning : theme.colors.success,
+            }}>
+              {playMethodLabel(method, t)}
+            </Text>
+          </View>
+        ) : null}
         {session.resolution ? <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{session.resolution}</Text> : null}
         {session.videoCodec ? <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{session.videoCodec}</Text> : null}
         {session.audioCodec ? <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{session.audioCodec}</Text> : null}

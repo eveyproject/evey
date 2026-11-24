@@ -12,7 +12,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/playback"
 )
 
-// Prod, 2026-10-02: 58 non-direct sessions carried video_engine = ”. The
+// Seen in production: non-direct sessions carried video_engine = ”. The
 // beacon path (SetCastAudioPath) reads the live session, swaps the audio leg
 // and writes the WHOLE serving path back; the read never selected the engine
 // columns, so every beacon blanked video_engine and video_backend. The read
@@ -126,4 +126,50 @@ func TestPlaySessionRepo_SetSessionAudioPath_NeverTouchesTheVideoLeg(t *testing.
 	ok, err = repo.SetSessionAudioPath(ctx, "ps12-ghost", "wasm", "client", "")
 	require.NoError(t, err)
 	assert.False(t, ok)
+}
+
+// An app that predates the per-track verdicts starts its session as
+// "transcode" whatever is served. The master render records what is really
+// served, and the method follows it: both tracks copied is a remux, an encoded
+// track makes it a transcode again, direct play is never renamed.
+func TestPlaySessionRepo_ServedPathNamesTheMethod(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("psu13")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("psp13", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("pslib13")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	item := newTestMediaItem("psmi13", lib.ID)
+	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
+	repo := postgres.NewPlaySessionRepository(db)
+	method := func(id string) string {
+		got, err := repo.GetByID(ctx, id)
+		require.NoError(t, err)
+		return got.PlayMethod
+	}
+
+	s := newTestPlaySession("ps13-seg", string(p.ID), string(item.ID))
+	s.PlayMethod = string(playback.Transcode)
+	require.NoError(t, repo.Create(ctx, s))
+
+	_, err := repo.SetSessionServing(ctx, s.ID, playback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"})
+	require.NoError(t, err)
+	assert.Equal(t, string(playback.DirectStream), method(s.ID), "both tracks copied: a remux")
+
+	_, err = repo.SetSessionAudioPath(ctx, s.ID, "transcode", "ffmpeg", "")
+	require.NoError(t, err)
+	assert.Equal(t, string(playback.Transcode), method(s.ID), "the audio now encoded")
+
+	_, err = repo.SetSessionAudioPath(ctx, s.ID, "wasm", "client", "")
+	require.NoError(t, err)
+	assert.Equal(t, string(playback.DirectStream), method(s.ID), "decoded by the client: nothing encoded")
+
+	direct := newTestPlaySession("ps13-direct", string(p.ID), string(item.ID))
+	require.NoError(t, repo.Create(ctx, direct))
+	_, err = repo.SetSessionServing(ctx, direct.ID, playback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", AudioDecision: "copy", AudioEngine: "ffmpeg"})
+	require.NoError(t, err)
+	assert.Equal(t, string(playback.DirectPlay), method(direct.ID), "direct play is never renamed")
 }
