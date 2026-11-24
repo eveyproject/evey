@@ -5,8 +5,8 @@
 -- different paths (the client's echo of its verdict, the master render, the
 -- audio playlist, the wasm beacon) and disagreed with one another.
 ALTER TABLE play_sessions
-  ADD COLUMN served JSONB NOT NULL DEFAULT '{}'::jsonb,
-  ADD COLUMN played JSONB,
+  ADD COLUMN IF NOT EXISTS served JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS played JSONB,
   DROP COLUMN IF EXISTS video_decision,
   DROP COLUMN IF EXISTS audio_decision,
   DROP COLUMN IF EXISTS video_engine,
