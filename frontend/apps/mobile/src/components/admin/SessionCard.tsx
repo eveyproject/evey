@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { episodeLabel, formatTimeMs, sessionTrackLines, type V1ActiveSession } from "@evey/api";
+import { effectivePlayMethod, episodeLabel, formatTimeMs, sessionTrackLines, type V1ActiveSession } from "@evey/api";
 import { router } from "expo-router";
 import { useTheme } from "../../providers/ThemeProvider";
 import { TrickplayPreview } from "../TrickplayPreview";
@@ -92,6 +92,9 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
   const [message, setMessage] = useState("");
 
   const sessionId = session.sessionId ?? "";
+  // What was done to the bytes, not the route: a segmented session whose
+  // tracks both copy is a remux.
+  const method = effectivePlayMethod(session);
   const progress = Math.min(100, Math.max(0, session.progress ?? 0));
   const durationMs = parseInt(session.durationMs ?? "0");
   const positionMs = parseInt(session.positionMs ?? "0");
@@ -148,14 +151,14 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
       <View style={styles.badgeRow}>
         <View style={[
           styles.badge,
-          { backgroundColor: session.playMethod === "transcode" ? `${theme.colors.warning}20` : `${theme.colors.success}20` },
+          { backgroundColor: method === "transcode" ? `${theme.colors.warning}20` : `${theme.colors.success}20` },
         ]}>
           <Text style={{
             fontSize: 10,
             fontWeight: "600",
-            color: session.playMethod === "transcode" ? theme.colors.warning : theme.colors.success,
+            color: method === "transcode" ? theme.colors.warning : theme.colors.success,
           }}>
-            {playMethodLabel(session.playMethod ?? "", t)}
+            {playMethodLabel(method, t)}
           </Text>
         </View>
         {session.resolution ? <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{session.resolution}</Text> : null}
