@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { View, Text, Pressable, StyleSheet, Animated, Modal, ScrollView } from "react-native";
 import { router, usePathname } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -33,6 +34,10 @@ export const NAV_ITEMS: NavItem[] = [
 // Mirror of web's AdminNav sections (features/admin/AdminNav.tsx), mapped to
 // the existing mobile admin routes. Shown in place of the main nav while the
 // user is inside /admin - one tap to any admin area, "back to app" to leave.
+// The admin section the plugin pages (slot admin.nav) follow, on every
+// surface: between "Users and access" and "Integrations".
+export const PLUGIN_PAGES_AFTER = "admin.nav.usersAccess";
+
 export const ADMIN_SECTIONS: { titleKey: string; items: NavItem[] }[] = [
   {
     titleKey: "admin.nav.dashboardSystem",
@@ -191,47 +196,51 @@ export function SideDrawer() {
                 <Text style={[styles.navLabel, { color: theme.colors.text }]} numberOfLines={1}>{t("common.nav.backToApp")}</Text>
               </Pressable>
               {ADMIN_SECTIONS.map((section) => (
-                <View key={section.titleKey}>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
-                    {t(section.titleKey).toUpperCase()}
-                  </Text>
-                  {section.items.map((item) => drawerItem(item, isAdminLinkActive(pathname, item.href)))}
-                </View>
+                <Fragment key={section.titleKey}>
+                  <View>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+                      {t(section.titleKey).toUpperCase()}
+                    </Text>
+                    {section.items.map((item) => drawerItem(item, isAdminLinkActive(pathname, item.href)))}
+                  </View>
+                  {/* Plugin pages (slot admin.nav) sit between "Users and access"
+                      and "Integrations", as on the web; none installed, no section. */}
+                  {section.titleKey === PLUGIN_PAGES_AFTER && pluginAdminEntries.length > 0 && (
+                    <View>
+                      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+                        {t("admin.nav.plugins").toUpperCase()}
+                      </Text>
+                      {pluginAdminEntries.map((entry) => {
+                        const href = `/admin/extensions/${entry.pluginId}`;
+                        const active = isAdminLinkActive(pathname, href);
+                        return (
+                          <Pressable
+                            key={entry.pluginId}
+                            onPress={() => navigate(href)}
+                            style={[
+                              styles.navItem,
+                              { borderLeftColor: active ? theme.colors.accent : "transparent" },
+                              active && { backgroundColor: theme.colors.surfaceRaised },
+                            ]}
+                            accessible={true}
+                            accessibilityLabel={entry.name}
+                            accessibilityRole="menuitem"
+                          >
+                            <Ionicons
+                              name={active ? "extension-puzzle" : "extension-puzzle-outline"}
+                              size={ICON_SIZE.lg}
+                              color={active ? theme.colors.accent : theme.colors.textMuted}
+                            />
+                            <Text style={[styles.navLabel, { color: active ? theme.colors.accent : theme.colors.text }]} numberOfLines={1}>
+                              {entry.name}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+                </Fragment>
               ))}
-              {pluginAdminEntries.length > 0 && (
-                <View>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
-                    {t("admin.nav.plugins").toUpperCase()}
-                  </Text>
-                  {pluginAdminEntries.map((entry) => {
-                    const href = `/admin/extensions/${entry.pluginId}`;
-                    const active = isAdminLinkActive(pathname, href);
-                    return (
-                      <Pressable
-                        key={entry.pluginId}
-                        onPress={() => navigate(href)}
-                        style={[
-                          styles.navItem,
-                          { borderLeftColor: active ? theme.colors.accent : "transparent" },
-                          active && { backgroundColor: theme.colors.surfaceRaised },
-                        ]}
-                        accessible={true}
-                        accessibilityLabel={entry.name}
-                        accessibilityRole="menuitem"
-                      >
-                        <Ionicons
-                          name={active ? "extension-puzzle" : "extension-puzzle-outline"}
-                          size={ICON_SIZE.lg}
-                          color={active ? theme.colors.accent : theme.colors.textMuted}
-                        />
-                        <Text style={[styles.navLabel, { color: active ? theme.colors.accent : theme.colors.text }]} numberOfLines={1}>
-                          {entry.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
             </>
           ) : (
             <>

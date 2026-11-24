@@ -1,5 +1,5 @@
 ---
-source_sha: ed2800347644b7f29af5ff78967016d21d06afa3fd5b38856a393e93da5cb5bf
+source_sha: afbc7464f75fabbfac5fcb4804f737e9889ec38f19241b7f9688b5a9c07b01ca
 reviewed: true
 ---
 # Bibliotecas y metadatos { #libraries-and-metadata }
@@ -137,6 +137,21 @@ biblioteca:
 !!! note "Carpetas compartidas en red"
     En una carpeta compartida NFS o SMB, un archivo escrito por otra máquina
     no envía ninguna señal al servidor. Las lecturas regulares lo encuentran.
+
+## La carpeta papelera { #the-trash-folder }
+
+Una página de plugin con el permiso `media.trash` (el Librarian, para los
+duplicados) puede ofrecer mover archivos a la papelera. Evey pregunta antes,
+en su propia ventana, que nombra cada archivo con su ruta, tamaño y calidad.
+Si dices que sí, el archivo va, con sus subtítulos y su `.nfo`, a
+`.evey-trash` en la raíz de su biblioteca, bajo las mismas carpetas, y el
+título sale de Evey.
+
+No se borra nada del disco. Vacía `.evey-trash` tú mismo cuando estés
+seguro; para recuperar un archivo, usa **Undo** en la página del plugin justo
+después, o devuélvelo a su sitio y escanea la biblioteca. Evey nunca lee esa carpeta. Una biblioteca montada en solo
+lectura no puede usar la papelera: el movimiento se rechaza y el título se
+queda.
 
 ## Bibliotecas de música { #music-libraries }
 

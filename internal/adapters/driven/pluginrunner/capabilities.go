@@ -40,4 +40,13 @@ var KnownPermissions = map[string]bool{
 	// internal/pkg/auth.AllowedPluginScopes + rbac PluginMethodScopes).
 	"public": true,
 	"prefs":  true,
+	// media.files adds each media item's file path and size to what `public`
+	// returns, and only on an administrator's session (the token issuer
+	// drops the scope for anyone else).
+	"media.files": true,
+	// media.trash lets the interface of an admin.nav page ask the host to move
+	// media files to the library trash. The host, not the plugin, shows the
+	// confirmation and calls the admin endpoint on the administrator's own
+	// session; it is never a token scope (see plugin.HostPermissions).
+	"media.trash": true,
 }

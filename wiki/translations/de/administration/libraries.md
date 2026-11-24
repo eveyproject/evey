@@ -1,5 +1,5 @@
 ---
-source_sha: ed2800347644b7f29af5ff78967016d21d06afa3fd5b38856a393e93da5cb5bf
+source_sha: afbc7464f75fabbfac5fcb4804f737e9889ec38f19241b7f9688b5a9c07b01ca
 reviewed: true
 ---
 # Bibliotheken und Metadaten { #libraries-and-metadata }
@@ -142,6 +142,22 @@ nutzen Sie die Zeile der Bibliothek:
     Auf einer NFS- oder SMB-Freigabe schickt eine Datei, die ein anderer
     Rechner geschrieben hat, kein Signal an den Server. Die regelmäßigen
     Durchgänge finden sie.
+
+## Der Papierkorb-Ordner { #the-trash-folder }
+
+Eine Plugin-Seite mit der Berechtigung `media.trash` (der Librarian, für
+Duplikate) kann anbieten, Dateien in den Papierkorb zu verschieben. Evey
+fragt zuerst, in einem eigenen Fenster, das jede Datei mit Pfad, Größe und
+Qualität nennt. Bei Ja wandert die Datei, mit ihren Untertiteln und der
+`.nfo`, nach `.evey-trash` im Stammverzeichnis ihrer Bibliothek, unter
+denselben Ordnern, und der Titel verschwindet aus Evey.
+
+Nichts wird von der Festplatte gelöscht. Leeren Sie `.evey-trash` selbst,
+wenn Sie sicher sind; um eine Datei zurückzuholen, nutzen Sie gleich danach **Undo** auf
+der Plugin-Seite, oder verschieben Sie sie an ihren Platz und scannen die
+Bibliothek. Evey liest diesen Ordner nie. Eine
+schreibgeschützt eingebundene Bibliothek kann den Papierkorb nicht nutzen:
+das Verschieben wird abgelehnt und der Titel bleibt.
 
 ## Musikbibliotheken { #music-libraries }
 

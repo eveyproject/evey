@@ -438,7 +438,7 @@ describe("usePluginSlotEntries (TV)", () => {
     };
     const { result } = renderHook(() => usePluginSlotEntries("settings.user.appearance"));
     expect(result.current).toEqual([
-      { pluginId: "plg-weather", name: "Weather", entryPath: "settings.js", externalFetch: [] },
+      { pluginId: "plg-weather", name: "Weather", entryPath: "settings.js", externalFetch: [], hostPermissions: [] },
     ]);
   });
 

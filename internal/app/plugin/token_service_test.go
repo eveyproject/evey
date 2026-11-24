@@ -57,7 +57,7 @@ func TestIssueToken_FiltersForbiddenAndIntersects(t *testing.T) {
 		// Permissions use dot format (canonical) as they appear in the manifest.
 		Permissions: []string{"media.read", "library.read", "admin.users", "auth.login", "user.write"},
 	}))
-	res, err := svc.IssueToken(ctx, "user-1", "prf-1", "plg1")
+	res, err := svc.IssueToken(ctx, "user-1", "prf-1", "plg1", false)
 	require.NoError(t, err)
 	assert.NotEmpty(t, res.Token)
 	// Forbidden scopes must have been stripped; allowed scopes stay in dot format.
@@ -70,7 +70,7 @@ func TestIssueToken_FiltersForbiddenAndIntersects(t *testing.T) {
 
 func TestIssueToken_PluginNotFound(t *testing.T) {
 	svc, _, _ := newTokenSvc(t)
-	_, err := svc.IssueToken(context.Background(), "u", "", "nope")
+	_, err := svc.IssueToken(context.Background(), "u", "", "nope", false)
 	assert.ErrorIs(t, err, appplugin.ErrPluginNotFound)
 }
 
@@ -81,7 +81,7 @@ func TestIssueToken_PluginDisabled(t *testing.T) {
 		ID: "plgD", Name: "d", Enabled: false,
 		Permissions: []string{"media.read"},
 	}))
-	_, err := svc.IssueToken(ctx, "u", "", "plgD")
+	_, err := svc.IssueToken(ctx, "u", "", "plgD", false)
 	assert.ErrorIs(t, err, appplugin.ErrPluginNotEnabled)
 }
 
@@ -91,7 +91,7 @@ func TestIssueToken_RequiresUserID(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg1", Name: "p", Enabled: true, Permissions: []string{"media.read"},
 	}))
-	_, err := svc.IssueToken(ctx, "", "", "plg1")
+	_, err := svc.IssueToken(ctx, "", "", "plg1", false)
 	require.Error(t, err)
 }
 
@@ -102,7 +102,7 @@ func TestIssueToken_IssuerError(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg1", Name: "p", Enabled: true, Permissions: []string{"media.read"},
 	}))
-	_, err := svc.IssueToken(ctx, "u", "", "plg1")
+	_, err := svc.IssueToken(ctx, "u", "", "plg1", false)
 	require.Error(t, err)
 }
 
@@ -112,7 +112,7 @@ func TestIssueToken_NoApprovedPermissionsYieldsEmptyScopes(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg1", Name: "p", Enabled: true, Permissions: nil,
 	}))
-	res, err := svc.IssueToken(ctx, "u", "", "plg1")
+	res, err := svc.IssueToken(ctx, "u", "", "plg1", false)
 	require.NoError(t, err)
 	assert.Empty(t, res.Scopes)
 	assert.Empty(t, iss.lastScopes)
@@ -139,7 +139,7 @@ func TestScopeChain_DotFormat(t *testing.T) {
 	}))
 
 	svc := appplugin.NewTokenService(repo, gen)
-	issued, err := svc.IssueToken(ctx, "u1", "", "chain-plg")
+	issued, err := svc.IssueToken(ctx, "u1", "", "chain-plg", false)
 	require.NoError(t, err)
 	assert.NotEmpty(t, issued.Token)
 
@@ -161,4 +161,23 @@ func TestScopeChain_DotFormat(t *testing.T) {
 		"interceptor must grant access when plugin has the required permission")
 	assert.NoError(t, checker.CheckAnyPermission("chain-plg", "media.read"),
 		"media.read alone must be sufficient for read-only RPCs")
+}
+
+// media.files names the server's folders: it reaches the token only when the
+// viewer is an administrator, whatever the plugin was granted.
+func TestIssueToken_MediaFilesOnlyForAdmin(t *testing.T) {
+	svc, repo, iss := newTokenSvc(t)
+	ctx := context.Background()
+	require.NoError(t, repo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg1", Name: "p", Enabled: true,
+		Permissions: []string{"public", "media.files", "prefs"},
+	}))
+
+	_, err := svc.IssueToken(ctx, "u", "", "plg1", false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"public", "prefs"}, iss.lastScopes, "a non-admin viewer must not get media.files")
+
+	_, err = svc.IssueToken(ctx, "u", "", "plg1", true)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"public", "media.files", "prefs"}, iss.lastScopes)
 }

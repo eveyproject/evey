@@ -714,14 +714,25 @@ func (s *InstallerService) swapUpgradeIntoPlace(ctx context.Context, existing *p
 	// Move the live dir aside, retrying the transient busy-file window (bwrap
 	// unmount), then rename staging into place.
 	mvErr := s.fs.Rename(finalDir, backupDir)
-	for i := 0; mvErr != nil && i < len(uninstallRetryDelays); i++ {
+	for i := 0; mvErr != nil && !errors.Is(mvErr, os.ErrNotExist) && i < len(uninstallRetryDelays); i++ {
 		time.Sleep(uninstallRetryDelays[i])
 		mvErr = s.fs.Rename(finalDir, backupDir)
 	}
-	if mvErr != nil {
+	switch {
+	case errors.Is(mvErr, os.ErrNotExist):
+		// The live dir is already gone (a data volume restored without its
+		// plugin files): nothing to keep, and this upgrade is what repairs
+		// the plugin. No backup, so no rollback rename either.
+		slog.WarnContext(ctx, "plugin dir missing before upgrade, installing the new version in its place",
+			slog.String("pluginID", existing.ID), slog.String("dir", finalDir))
+		backupDir = ""
+	case mvErr != nil:
 		return "", fmt.Errorf("move old plugin dir aside: %w", mvErr)
 	}
 	if err := s.fs.Rename(stagingDir, finalDir); err != nil {
+		if backupDir == "" {
+			return "", fmt.Errorf("move upgraded plugin into place: %w", err)
+		}
 		if rbErr := s.fs.Rename(backupDir, finalDir); rbErr != nil {
 			slog.ErrorContext(ctx, "restore old plugin dir after failed swap",
 				slog.String("pluginID", existing.ID), slog.String("backup", backupDir), slog.Any("err", rbErr))
