@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -55,10 +56,10 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO play_sessions (id, profile_id, media_item_id, device_name, device_type, client_ip,
-		 play_method, video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+		 play_method, video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		s.ID, s.ProfileID, s.MediaItemID, s.DeviceName, s.DeviceType, s.ClientIP,
-		s.PlayMethod, s.VideoCodec, s.AudioCodec, s.Resolution, s.VideoDecision, s.AudioDecision, s.BandwidthBps,
+		s.PlayMethod, s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
 		s.StartedAt, s.EndedAt, durationMsArg(s.Duration), positionMsArg(s.Position),
 	)
 	if err != nil {
@@ -69,83 +70,94 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 	return nil
 }
 
-// SetSessionAudioDecision rewrites the live audio_decision of an ACTIVE
-// session - the cast receiver's audio_mode beacon feeds it. Same ended_at
-// guard as UpdateProgress: a finished session is never rewritten.
-func (r *PlaySessionRepository) SetSessionAudioDecision(ctx context.Context, sessionID, decision string) (bool, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetSessionAudioDecision")
+// SetServed records what the server sent on an ACTIVE session, with the
+// summary columns the history and the play-method counts read, in one
+// statement: the summary is derived from the served path, never written on
+// its own.
+func (r *PlaySessionRepository) SetServed(ctx context.Context, sessionID string, served playback.Served) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetServed")
 	defer span.End()
 	span.SetAttributes(attribute.String("session.id", sessionID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE play_sessions SET audio_decision = $2 WHERE id = $1 AND ended_at IS NULL`,
-		sessionID, decision)
+	raw, err := json.Marshal(served)
 	if err != nil {
-		span.RecordError(err)
-		return false, fmt.Errorf("PlaySessionRepo.SetSessionAudioDecision: %w", err)
+		return false, fmt.Errorf("PlaySessionRepo.SetServed: %w", err)
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
-}
-
-// SetSessionServing records the served path on an ACTIVE session (master
-// render time); same ended_at guard as SetSessionAudioDecision.
-func (r *PlaySessionRepository) SetSessionServing(ctx context.Context, sessionID string, p playback.ServingPath) (bool, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetSessionServing")
-	defer span.End()
-	span.SetAttributes(attribute.String("session.id", sessionID))
-	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
-	defer cancel()
+	method, videoCodec, audioCodec, resolution := served.Summary()
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		// audio_codec is only rewritten when the caller supplies one: every other
-		// serving record knows the engines but not the output codec, and an
-		// unconditional write would blank the label the session started with.
-		// play_method follows the served tracks (playback.MethodForTracks).
-		`UPDATE play_sessions SET video_decision = $2, audio_decision = $3, video_engine = $4, video_backend = $5, audio_engine = $6,
-		        audio_codec = COALESCE(NULLIF($7, ''), audio_codec),
-		        play_method = `+methodForTracksSQL("$2", "$3")+`
+		`UPDATE play_sessions SET served = $2, play_method = $3, video_codec = $4, audio_codec = $5, resolution = $6
 		 WHERE id = $1 AND ended_at IS NULL`,
-		sessionID, p.VideoDecision, p.AudioDecision, p.VideoEngine, p.VideoBackend, p.AudioEngine, p.AudioCodec)
+		sessionID, raw, method, videoCodec, audioCodec, resolution)
 	if err != nil {
 		span.RecordError(err)
-		return false, fmt.Errorf("PlaySessionRepo.SetSessionServing: %w", err)
+		return false, fmt.Errorf("PlaySessionRepo.SetServed: %w", err)
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
 }
 
-// methodForTracksSQL is playback.MethodForTracks over the row's play_method:
-// SET reads the row as it was, so an operand naming a column reads its
-// previous value.
-func methodForTracksSQL(video, audio string) string {
-	return `CASE WHEN play_method IN ('transcode', 'direct_stream') AND ` + video + ` <> '' AND ` + audio + ` <> ''
-		     THEN CASE WHEN ` + video + ` = 'transcode' OR ` + audio + ` = 'transcode' THEN 'transcode' ELSE 'direct_stream' END
-		     ELSE play_method END`
+// ResetWitness empties what an ACTIVE session was seen served and playing.
+func (r *PlaySessionRepository) ResetWitness(ctx context.Context, sessionID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.ResetWitness")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE play_sessions SET served = '{}'::jsonb, played = NULL, play_method = '', video_codec = '', audio_codec = '', resolution = ''
+		 WHERE id = $1 AND ended_at IS NULL`, sessionID); err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("PlaySessionRepo.ResetWitness: %w", err)
+	}
+	return nil
 }
 
-// SetSessionAudioPath rewrites the audio leg of an ACTIVE session and nothing
-// else: no video column appears in the statement, so no interleaving with a
-// master render can erase what that render recorded. audio_codec follows the
-// same keep-unless-given rule as SetSessionServing.
-func (r *PlaySessionRepository) SetSessionAudioPath(ctx context.Context, sessionID, decision, engine, audioCodec string) (bool, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetSessionAudioPath")
+// SetPlayed records what the player reports it decodes on an ACTIVE session.
+func (r *PlaySessionRepository) SetPlayed(ctx context.Context, sessionID string, played playback.Played) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetPlayed")
 	defer span.End()
 	span.SetAttributes(attribute.String("session.id", sessionID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	raw, err := json.Marshal(played)
+	if err != nil {
+		return false, fmt.Errorf("PlaySessionRepo.SetPlayed: %w", err)
+	}
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE play_sessions SET audio_decision = $2, audio_engine = $3,
-		        audio_codec = COALESCE(NULLIF($4, ''), audio_codec),
-		        play_method = `+methodForTracksSQL("video_decision", "$2")+`
-		 WHERE id = $1 AND ended_at IS NULL`,
-		sessionID, decision, engine, audioCodec)
+		`UPDATE play_sessions SET played = $2 WHERE id = $1 AND ended_at IS NULL`, sessionID, raw)
 	if err != nil {
 		span.RecordError(err)
-		return false, fmt.Errorf("PlaySessionRepo.SetSessionAudioPath: %w", err)
+		return false, fmt.Errorf("PlaySessionRepo.SetPlayed: %w", err)
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
+}
+
+// scanServed decodes the served column; a row that cannot be read shows no
+// served path rather than failing the whole listing.
+func scanServed(sessionID string, raw []byte) playback.Served {
+	var out playback.Served
+	if len(raw) == 0 {
+		return out
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		slog.Warn("invalid served in play_sessions row", slog.String("sessionID", sessionID), slog.Any("err", err))
+		return playback.Served{}
+	}
+	return out
+}
+
+// scanPlayed decodes the played column; nil when the player never reported.
+func scanPlayed(sessionID string, raw []byte) *playback.Played {
+	if len(raw) == 0 {
+		return nil
+	}
+	var out playback.Played
+	if err := json.Unmarshal(raw, &out); err != nil {
+		slog.Warn("invalid played in play_sessions row", slog.String("sessionID", sessionID), slog.Any("err", err))
+		return nil
+	}
+	return &out
 }
 
 // AcquireUserStreamLock takes a tx-scoped Postgres advisory lock keyed by
@@ -176,11 +188,11 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE play_sessions SET device_name=$1, device_type=$2, client_ip=$3, play_method=$4,
-		 video_codec=$5, audio_codec=$6, resolution=$7, video_decision=$8, audio_decision=$9, bandwidth_bps=$10, ended_at=$11, duration_ms=$12, position_ms=$13,
-		 is_paused=$14, cast_device_name=$15, updated_at=NOW()
-		 WHERE id=$16`,
+		 video_codec=$5, audio_codec=$6, resolution=$7, bandwidth_bps=$8, ended_at=$9, duration_ms=$10, position_ms=$11,
+		 is_paused=$12, cast_device_name=$13, updated_at=NOW()
+		 WHERE id=$14`,
 		s.DeviceName, s.DeviceType, s.ClientIP, s.PlayMethod,
-		s.VideoCodec, s.AudioCodec, s.Resolution, s.VideoDecision, s.AudioDecision, s.BandwidthBps,
+		s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
 		s.EndedAt, durationMsArg(s.Duration), positionMsArg(s.Position), s.IsPaused, s.CastDeviceName, s.ID,
 	)
 	if err != nil {
@@ -228,15 +240,16 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	s := &playback.PlaySession{}
 	var positionMs *int64
 	var durationMs *int64
+	var servedRaw, playedRaw []byte
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name,
-		 video_engine, video_backend, audio_engine
+		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name,
+		 served, played
 		 FROM play_sessions WHERE id = $1`, id,
 	).Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
-		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
+		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 		&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused, &s.CastDeviceName,
-		&s.Serving.VideoEngine, &s.Serving.VideoBackend, &s.Serving.AudioEngine)
+		&servedRaw, &playedRaw)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -244,7 +257,7 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	}
 	s.Duration = scanDurationMs(s.ID, durationMs)
 	s.Position = scanPositionMs(s.ID, positionMs)
-	s.Serving.VideoDecision, s.Serving.AudioDecision = s.VideoDecision, s.AudioDecision
+	s.Served, s.Played = scanServed(s.ID, servedRaw), scanPlayed(s.ID, playedRaw)
 	return s, nil
 }
 
@@ -263,9 +276,9 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		`SELECT ps.id, ps.profile_id, p.name, p.user_id, COALESCE(u.username, ''), ps.media_item_id, mi.title, mi.type,
 		        COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		        ps.started_at, ps.device_name, ps.device_type, ps.client_ip,
-		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.video_decision, ps.audio_decision, ps.bandwidth_bps,
+		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.bandwidth_bps,
 		        COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0),
-		        ps.is_paused, ps.cast_device_name, ps.video_engine, ps.video_backend, ps.audio_engine
+		        ps.is_paused, ps.cast_device_name, ps.served, ps.played
 		 FROM play_sessions ps
 		 INNER JOIN profiles p ON p.id = ps.profile_id
 		 LEFT JOIN users u ON u.id = p.user_id
@@ -287,14 +300,15 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 	for rows.Next() {
 		s := &playback.ActiveSessionInfo{}
 		var rawDurationMs, rawPositionMs int64
+		var servedRaw, playedRaw []byte
 		if err := rows.Scan(
 			&s.SessionID, &s.ProfileID, &s.ProfileName, &s.UserID, &s.Username,
 			&s.MediaItemID, &s.MediaTitle, &s.MediaType,
 			&rawDurationMs, &rawPositionMs,
 			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,
-			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
+			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 			&s.SeriesTitle, &s.SeasonNumber, &s.EpisodeNumber, &s.IsPaused, &s.CastDeviceName,
-			&s.VideoEngine, &s.VideoBackend, &s.AudioEngine,
+			&servedRaw, &playedRaw,
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -306,6 +320,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		if d, err := shared.NewDurationMs(rawPositionMs); err == nil {
 			s.Position = d
 		}
+		s.Served, s.Played = scanServed(s.SessionID, servedRaw), scanPlayed(s.SessionID, playedRaw)
 		result = append(result, s)
 	}
 	if err := rows.Err(); err != nil {
@@ -324,8 +339,8 @@ func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileI
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name,
-		 video_engine, video_backend, audio_engine
+		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name,
+		 served, played
 		 FROM play_sessions WHERE profile_id = $1 AND ended_at IS NULL
 		 ORDER BY started_at DESC`, profileID)
 	if err != nil {
@@ -544,15 +559,16 @@ func (r *PlaySessionRepository) scanPlaySessionRows(rows *sql.Rows) ([]*playback
 		s := &playback.PlaySession{}
 		var positionMs *int64
 		var durationMs *int64
+		var servedRaw, playedRaw []byte
 		if err := rows.Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
-			&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
+			&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 			&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused, &s.CastDeviceName,
-			&s.Serving.VideoEngine, &s.Serving.VideoBackend, &s.Serving.AudioEngine); err != nil {
+			&servedRaw, &playedRaw); err != nil {
 			return nil, fmt.Errorf("PlaySessionRepo.scanRows: %w", err)
 		}
 		s.Duration = scanDurationMs(s.ID, durationMs)
 		s.Position = scanPositionMs(s.ID, positionMs)
-		s.Serving.VideoDecision, s.Serving.AudioDecision = s.VideoDecision, s.AudioDecision
+		s.Served, s.Played = scanServed(s.ID, servedRaw), scanPlayed(s.ID, playedRaw)
 		result = append(result, s)
 	}
 	if err := rows.Err(); err != nil {

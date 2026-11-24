@@ -170,9 +170,14 @@ func TestPlaySessionRepo_GetActiveByProfile(t *testing.T) {
 
 	// The list reads must carry the SAME columns as GetByID: the StartStream
 	// dedup path copies a GetActiveByProfile row verbatim into the response,
-	// so a partial SELECT silently blanks decisions/pause/cast on retries.
-	session.VideoDecision = "copy"
-	session.AudioDecision = "transcode"
+	// and the served witness loads a session it first sees from it, so a
+	// partial SELECT silently blanks served/played/pause/cast.
+	served := playback.Served{Video: &playback.ServedLeg{Engine: playback.EngineMkvgo, Copy: true, Track: -1, Codec: "h264"}}
+	_, err := sessionRepo.SetServed(ctx, session.ID, served)
+	require.NoError(t, err)
+	_, err = sessionRepo.SetPlayed(ctx, session.ID, playback.Played{Source: playback.PlayedHLS, AudioTrack: 1, AudioCodec: "aac"})
+	require.NoError(t, err)
+	session.PlayMethod = string(playback.DirectStream)
 	session.IsPaused = true
 	session.CastDeviceName = "Living room TV"
 	require.NoError(t, sessionRepo.Update(ctx, session))
@@ -181,8 +186,10 @@ func TestPlaySessionRepo_GetActiveByProfile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, active, 1)
 	assert.Equal(t, session.ID, active[0].ID)
-	assert.Equal(t, "copy", active[0].VideoDecision)
-	assert.Equal(t, "transcode", active[0].AudioDecision)
+	require.NotNil(t, active[0].Served.Video)
+	assert.Equal(t, "h264", active[0].Served.Video.Codec)
+	require.NotNil(t, active[0].Played)
+	assert.Equal(t, 1, active[0].Played.AudioTrack)
 	assert.True(t, active[0].IsPaused)
 	assert.Equal(t, "Living room TV", active[0].CastDeviceName)
 }
@@ -411,91 +418,6 @@ func TestPlaySessionStatsReader_GetActiveSessionsBitrate(t *testing.T) {
 	bps, err = stats.GetActiveSessionsBitrate(ctx)
 	require.NoError(t, err)
 	assert.Zero(t, bps, "ended sessions no longer count")
-}
-
-// The cast receiver's audio_mode beacon rewrites the LIVE audio decision;
-// a session that has ended is never rewritten, and the caller learns which.
-func TestPlaySessionRepo_SetSessionAudioDecision_ActiveOnly(t *testing.T) {
-	db, cleanup := testhelpers.StartPostgres(t)
-	defer cleanup()
-	ctx := context.Background()
-	u := newTestUser("psu9")
-	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
-	p := newTestProfile("psp9", u.ID)
-	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
-	lib := newTestLibrary("pslib9")
-	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
-	item := newTestMediaItem("psmi9", lib.ID)
-	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
-	repo := postgres.NewPlaySessionRepository(db)
-
-	live := newTestPlaySession("ps9-live", string(p.ID), string(item.ID))
-	live.AudioDecision = "copy"
-	require.NoError(t, repo.Create(ctx, live))
-	done := newTestPlaySession("ps9-done", string(p.ID), string(item.ID))
-	done.AudioDecision = "copy"
-	ended := time.Now().UTC()
-	done.EndedAt = &ended
-	require.NoError(t, repo.Create(ctx, done))
-
-	ok, err := repo.SetSessionAudioDecision(ctx, live.ID, "transcode")
-	require.NoError(t, err)
-	assert.True(t, ok)
-	got, err := repo.GetByID(ctx, live.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "transcode", got.AudioDecision)
-
-	ok, err = repo.SetSessionAudioDecision(ctx, done.ID, "transcode")
-	require.NoError(t, err)
-	assert.False(t, ok, "an ended session is left as it was")
-	got, err = repo.GetByID(ctx, done.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "copy", got.AudioDecision)
-
-	ok, err = repo.SetSessionAudioDecision(ctx, "ps9-ghost", "transcode")
-	require.NoError(t, err)
-	assert.False(t, ok)
-}
-
-// SetSessionServing writes the audio codec label ONLY when the caller supplies
-// one: a master render knows the engines but not the output codec, and an
-// unconditional write would blank the label the session started with.
-func TestPlaySessionRepo_SetSessionServing_KeepsTheCodecLabelUnlessGiven(t *testing.T) {
-	db, cleanup := testhelpers.StartPostgres(t)
-	defer cleanup()
-	ctx := context.Background()
-	u := newTestUser("psu10")
-	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
-	p := newTestProfile("psp10", u.ID)
-	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
-	lib := newTestLibrary("pslib10")
-	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
-	item := newTestMediaItem("psmi10", lib.ID)
-	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
-	repo := postgres.NewPlaySessionRepository(db)
-
-	live := newTestPlaySession("ps10-live", string(p.ID), string(item.ID))
-	live.AudioCodec = "eac3"
-	require.NoError(t, repo.Create(ctx, live))
-
-	ok, err := repo.SetSessionServing(ctx, live.ID, playback.ServingPath{
-		VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "wasm", AudioEngine: "client",
-	})
-	require.NoError(t, err)
-	assert.True(t, ok)
-	got, err := repo.GetByID(ctx, live.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "eac3", got.AudioCodec, "no codec supplied: the label stands")
-
-	ok, err = repo.SetSessionServing(ctx, live.ID, playback.ServingPath{
-		VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg", AudioCodec: "eac3→aac",
-	})
-	require.NoError(t, err)
-	assert.True(t, ok)
-	got, err = repo.GetByID(ctx, live.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "eac3→aac", got.AudioCodec)
-	assert.Equal(t, "transcode", got.AudioDecision)
 }
 
 // A session ended by the previous process's shutdown comes back on its

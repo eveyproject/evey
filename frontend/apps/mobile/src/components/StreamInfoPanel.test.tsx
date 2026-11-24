@@ -58,8 +58,10 @@ describe("StreamInfoPanel - video bitrate estimate", () => {
   });
 });
 
-describe("StreamInfoPanel - served audio bitrate fallback", () => {
-  it("prefers the served streamInfo.audioBitrate over the source stream's own bitrate", () => {
+// The verdict's audioBitrate is a decision, not a measure: the panel shows
+// the source track's own rate, and none for an encode it did not measure.
+describe("StreamInfoPanel - audio bitrate is the source's", () => {
+  it("shows the source track's rate, never the verdict's", () => {
     render(
       <StreamInfoPanel
         visible
@@ -74,8 +76,8 @@ describe("StreamInfoPanel - served audio bitrate fallback", () => {
       />,
     );
 
-    expect(screen.getByText("128 Kbps")).toBeTruthy();
-    expect(screen.queryByText("1.5 Mbps")).toBeNull();
+    expect(screen.getByText("1.5 Mbps")).toBeTruthy();
+    expect(screen.queryByText("128 Kbps")).toBeNull();
   });
 });
 

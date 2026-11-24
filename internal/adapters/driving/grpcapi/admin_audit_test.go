@@ -127,10 +127,18 @@ func TestListActiveSessions_Seeded(t *testing.T) {
 		ID:          "sess-2",
 		ProfileID:   "profile-2",
 		MediaItemID: "mi-2",
-		PlayMethod:  string(playback.Transcode),
-		VideoCodec:  "hevc",
 		StartedAt:   time.Now(),
 	})
+	served := playback.Served{
+		Video: &playback.ServedLeg{Engine: playback.EngineMkvgo, Copy: true, Track: -1, Codec: "h264", Height: 1080},
+		Audio: &playback.ServedLeg{Engine: playback.EngineFFmpeg, Track: 1, Codec: "aac", SourceCodec: "mp3"},
+	}
+	if _, err = sessionRepo.SetServed(context.Background(), "sess-2", served); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = sessionRepo.SetPlayed(context.Background(), "sess-2", playback.Played{Source: playback.PlayedHLS, AudioTrack: 1, AudioCodec: "mp4a.40.2", AudioDecoder: playback.DecoderNative}); err != nil {
+		t.Fatal(err)
+	}
 
 	resp, err := h.ListActiveSessions(context.Background(), &eveyv1.ListActiveSessionsRequest{})
 	if err != nil {
@@ -146,8 +154,26 @@ func TestListActiveSessions_Seeded(t *testing.T) {
 	if seen["sess-1"] == nil || seen["sess-2"] == nil {
 		t.Fatalf("missing sessions in response: %v", seen)
 	}
-	if seen["sess-2"].TranscodeInfo == "" {
-		t.Errorf("expected transcode info for sess-2, got empty")
+	s2 := seen["sess-2"]
+	if s2.ServedAudio == nil || s2.ServedAudio.Track != 1 || s2.ServedAudio.SourceCodec != "mp3" || s2.ServedAudio.Copy {
+		t.Errorf("served audio = %+v, want track 1 mp3 encoded to aac", s2.ServedAudio)
+	}
+	if s2.ServedVideo == nil || s2.ServedVideo.Engine != "mkvgo" || !s2.ServedVideo.Copy {
+		t.Errorf("served video = %+v", s2.ServedVideo)
+	}
+	if s2.Played == nil || s2.Played.AudioTrack != 1 || s2.Played.AudioDecoder != "native" {
+		t.Errorf("played = %+v", s2.Played)
+	}
+	if s2.PlayMethod != "transcode" {
+		t.Errorf("play method = %q, want the served path's transcode", s2.PlayMethod)
+	}
+	// The deprecated fields older admin screens read are derived from it.
+	//nolint:staticcheck // SA1019: checking the deprecated fields is the point
+	if s2.VideoDecision != "copy" || s2.AudioDecision != "transcode" || s2.VideoEngine != "mkvgo" || s2.AudioEngine != "ffmpeg" {
+		t.Errorf("legacy fields = %q %q %q %q", s2.VideoDecision, s2.AudioDecision, s2.VideoEngine, s2.AudioEngine)
+	}
+	if s1 := seen["sess-1"]; s1.ServedVideo != nil || s1.Played != nil {
+		t.Errorf("a session nothing was served to reports nothing: %+v %+v", s1.ServedVideo, s1.Played)
 	}
 }
 

@@ -801,7 +801,6 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		id.New("ps-"),
 		shared.ProfileID(profileID),
 		shared.MediaItemID(req.MediaItemId),
-		playback.WithPlaySessionMethod(playback.PlayMethod(playMethodFromProto[req.PlayMethod])),
 		playback.WithPlaySessionDevice(req.DeviceName, req.ClientName),
 		playback.WithPlaySessionBandwidth(bandwidthBps),
 	)
@@ -813,15 +812,9 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	// Per-track serving detail the player copied from the StreamInfo it resolved.
-	// Purely descriptive (admin "Now Playing" panel); clamp to keep a spoofing
-	// client from stuffing the column.
-	session.VideoDecision = clampSessionField(req.VideoDecision)
-	session.AudioDecision = clampSessionField(req.AudioDecision)
-	session.VideoCodec = clampSessionField(req.VideoCodec)
-	session.AudioCodec = clampSessionField(req.AudioCodec)
-	session.Resolution = clampSessionField(req.Resolution)
-	session.PlayMethod = playback.MethodForTracks(session.PlayMethod, session.VideoDecision, session.AudioDecision)
+	// The start's method, decisions and codecs are the client's echo of a
+	// verdict: the session is told what is served by the bytes themselves
+	// (the served witness) and what is played by the player, never by them.
 	if err := h.cmd.StartStream(ctx, session, shared.UserID(claims.UserID)); err != nil {
 		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
@@ -976,7 +969,8 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 	if resp.RemoteCommand == "" && claims != nil {
 		resp.RemoteCommand = closingSoonMessage(ctx, h.hours, &h.closingWarns, h.translator, claims.ProfileID, req.SessionId, time.Now())
 	}
-	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs, req.IsPaused, req.CastDeviceName); err != nil {
+	served, err := h.cmd.Heartbeat(ctx, req.SessionId, req.PositionMs, req.IsPaused, req.CastDeviceName, playedFromProto(req.Played))
+	if err != nil {
 		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
 			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
@@ -986,7 +980,43 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "report progress", err)
 	}
+	resp.ServedVideo, resp.ServedAudio = servedLegToProto(served.Video), servedLegToProto(served.Audio)
 	return resp, nil
+}
+
+// playedFieldMax bounds the strings of a played report: codec names, never
+// prose.
+const playedFieldMax = 40
+
+// playedFromProto reads a player's report of what it decodes. A report
+// outside the vocabulary is dropped (nil): the tick still counts, the
+// session keeps what it last knew.
+func playedFromProto(p *eveyv1.PlayedState) *playback.Played {
+	if p == nil {
+		return nil
+	}
+	switch p.Source {
+	case playback.PlayedHLS, playback.PlayedFile:
+	default:
+		return nil
+	}
+	switch p.AudioDecoder {
+	case "", playback.DecoderNative, playback.DecoderWasm:
+	default:
+		return nil
+	}
+	if len(p.VideoCodec) > playedFieldMax || len(p.AudioCodec) > playedFieldMax ||
+		p.Width < 0 || p.Height < 0 || p.Width > 16384 || p.Height > 16384 {
+		return nil
+	}
+	track := int(p.AudioTrack)
+	if track < -1 || track >= 1000 {
+		track = -1
+	}
+	return &playback.Played{
+		Source: p.Source, VideoCodec: p.VideoCodec, Width: int(p.Width), Height: int(p.Height),
+		AudioTrack: track, AudioCodec: p.AudioCodec, AudioDecoder: p.AudioDecoder,
+	}
 }
 
 func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetWatchProgressRequest) (*eveyv1.WatchProgress, error) {

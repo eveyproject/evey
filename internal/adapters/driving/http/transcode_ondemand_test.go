@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
@@ -169,28 +168,6 @@ func TestTryServePlanMaster_ServesPlan(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "od_playlist.m3u8")
 	assert.Equal(t, 1, pkg.calls)
-}
-
-// The master render is where the served path is known for sure: the packager
-// copy master records mkvgo on both tracks, keyed to the token's profile so the
-// admin panel names the machinery instead of guessing it from the decision.
-func TestTryServePlanMaster_RecordsTheServedPath(t *testing.T) {
-	h := newCopyTestHandler(t)
-	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{
-		resources: map[string][]byte{"master.m3u8": []byte("#EXTM3U\n")},
-	}}
-	var gotProfile, gotMedia string
-	var gotPath domainplayback.ServingPath
-	h.servingRecord = func(_ context.Context, profileID, mediaID string, p domainplayback.ServingPath) {
-		gotProfile, gotMedia, gotPath = profileID, mediaID, p
-	}
-
-	served, _ := h.servePackagerMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV()), noopSpan())
-
-	assert.True(t, served)
-	assert.Equal(t, "p1", gotProfile)
-	assert.Equal(t, "m1", gotMedia)
-	assert.Equal(t, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}, gotPath)
 }
 
 // The wiring that closes the blind spot: serving from the packager must make
@@ -1375,8 +1352,6 @@ func TestServeMaster_PackagerUnbuildable_ExplicitFallbackKeepsThePlan(t *testing
 	streams := copyEligibleAV()
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
 	h.onDemand = &fakeOnDemandPackager{err: fmt.Errorf("no Cues index")}
-	var recorded domainplayback.ServingPath
-	h.servingRecord = func(_ context.Context, _, _ string, p domainplayback.ServingPath) { recorded = p }
 
 	// The plan the handler resolves for this request names the packager.
 	req := onDemandReq()
@@ -1398,7 +1373,7 @@ func TestServeMaster_PackagerUnbuildable_ExplicitFallbackKeepsThePlan(t *testing
 	assert.NotContains(t, w.Body.String(), "od_", "the ffmpeg path served the master")
 	assert.Equal(t, before+1, fallbacks(), "the fallback is counted by reason")
 	assert.Equal(t, beforeDis, disagreements(), "a declared fallback is not a disagreement")
-	assert.Equal(t, "ffmpeg", recorded.VideoEngine, "the admin sees what was really served")
+	assert.Equal(t, "ffmpeg", w.Header().Get("X-Evey-Served-By"), "the ffmpeg path wrote the master")
 	again, err := h.probePlan(req, "m1", item, streams)
 	require.NoError(t, err)
 	assert.Equal(t, rp.Plan.Delivery, again.Plan.Delivery, "the plan is not rewritten by the runtime outcome")
@@ -1418,8 +1393,6 @@ func TestServeMaster_LineFit_TheFFmpegPathServesTheFittedPlan(t *testing.T) {
 	streams := copyEligibleAV()
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
-	var recorded domainplayback.ServingPath
-	h.servingRecord = func(_ context.Context, _, _ string, p domainplayback.ServingPath) { recorded = p }
 
 	natural, err := h.probePlan(onDemandReq(), "m1", item, streams)
 	require.NoError(t, err)
@@ -1438,8 +1411,6 @@ func TestServeMaster_LineFit_TheFFmpegPathServesTheFittedPlan(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(body, "#EXT-X-STREAM-INF"), "mono-variant")
 	assert.Contains(t, body, "stream_0.m3u8")
 	assert.Contains(t, body, "abr=floor")
-	assert.Equal(t, "transcode", recorded.VideoDecision)
-	assert.Equal(t, "ffmpeg", recorded.VideoEngine)
 	assert.Equal(t, before, disagreements(), "the plan named ffmpeg and ffmpeg served: no disagreement")
 }
 
@@ -1451,7 +1422,7 @@ func TestCheckDelivery_UndeclaredDifferenceIsADisagreement(t *testing.T) {
 	rp := planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV())
 	require.Equal(t, apptranscoding.EngineMkvgo, rp.Plan.Delivery.Video)
 
-	served := domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "ffmpeg", AudioDecision: "copy", AudioEngine: "ffmpeg"}
+	served := apptranscoding.DeliveryPath{VideoCopy: true, VideoEngine: apptranscoding.EngineFFmpeg, AudioEngine: apptranscoding.EngineFFmpeg}
 	counter := metrics.HLSVODDeliveryDisagreements.WithLabelValues("copy/mkvgo+mkvgo", "copy/ffmpeg+ffmpeg")
 	before := int(testutil.ToFloat64(counter))
 	h.checkDelivery(onDemandReq(), "m1", rp, served, "")
@@ -1461,7 +1432,7 @@ func TestCheckDelivery_UndeclaredDifferenceIsADisagreement(t *testing.T) {
 	h.checkDelivery(onDemandReq(), "m1", rp, served, fallbackPackagerUnbuildable)
 	assert.Equal(t, before+1, int(testutil.ToFloat64(counter)))
 	// And a served path equal to the plan's is neither.
-	h.checkDelivery(onDemandReq(), "m1", rp, rp.Plan.Delivery.ServingPath(rp.Plan.Route, rp.FP), "")
+	h.checkDelivery(onDemandReq(), "m1", rp, rp.Plan.Delivery.Planned(rp.Plan.Route), "")
 	assert.Equal(t, before+1, int(testutil.ToFloat64(counter)))
 }
 

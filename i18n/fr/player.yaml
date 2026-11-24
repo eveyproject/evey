@@ -175,9 +175,21 @@ streamInfo:
   decisionCopy: copié
   decisionTranscode: transcodé
   decisionWasm: décodé client
+  waiting: "en attente des premiers octets"
+  track: "Piste"
+  engine: "Moteur"
+  player: "Lecteur"
+  decoderWasm: "décodé par ac3go (wasm)"
+  decoderNative: "décodeur natif"
+  fromFile: "fichier source"
+  allTracks: "toutes, le lecteur choisit"
+  mismatch: "Écart"
+  mismatchTrack: "le lecteur joue la piste {{played}}, le serveur envoie la piste {{served}}"
+  mismatchCodec: "le lecteur décode {{played}}, le serveur envoie {{served}}"
   reason:
     video_codec_unsupported: Codec vidéo non lisible par ce lecteur
     audio_codec_unsupported: Codec audio non lisible par ce lecteur
+    audio_decoded_in_browser: "Audio décodé dans le navigateur (flux segmenté nécessaire)"
     hdr_tonemapping_needed: HDR converti en SDR (tone-mapping)
     dovi_base_layer: "Couche de base Dolby Vision réencodée (HDR conservé)"
     hdr_copy_unavailable: "Copie indisponible, HDR conservé au réencodage"

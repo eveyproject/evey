@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { VideoView, isPictureInPictureSupported } from "expo-video";
 import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer";
+import { useNativePlayed, type NativePlayerLike } from "@evey/client/native/useNativePlayed";
 import { playerBufferOptions } from "@evey/client/native/playerBufferOptions";
 import { getDeviceProfile } from "@evey/media-caps";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -57,6 +58,8 @@ import {
   playbackServiceReportProgress,
   episodeLabel as sharedEpisodeLabel,
   type SubtitleCue,
+  type V1PlayedState,
+  type V1ServedLeg,
 } from "@evey/api";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
@@ -1331,11 +1334,39 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     } catch { return false; }
   }, [player, castPlaybackState]);
 
+  // The session's two witnesses for the stream panel: what the server sent
+  // (each progress tick's answer) and what this player reports it decodes -
+  // only what it knows for sure: whether it reads the file or a segmented
+  // presentation. Which native track maps to which source track is matched
+  // by language, a guess, so it is not reported as a fact.
+  const [witness, setWitness] = useState<{ played?: V1PlayedState; servedVideo?: V1ServedLeg; servedAudio?: V1ServedLeg }>({});
+  useEffect(() => setWitness({}), [mediaId]);
+  const { getPlayed: nativeGetPlayed, trackFor: nativeTrackFor, ready: nativeReady } = useNativePlayed(player as unknown as NativePlayerLike, streamUrl, audioStreams);
   const remoteCallbacks = useMemo(() => ({
     onRemotePause: () => { try { player?.pause(); } catch (err) { console.warn("released", err); } },
     onRemotePlay: () => { try { player?.play(); } catch (err) { console.warn("released", err); } },
     onRemoteStop: () => handleBack(),
-  }), [player, handleBack]);
+    getPlayed: nativeGetPlayed,
+    onWitness: setWitness,
+  }), [player, handleBack, nativeGetPlayed]);
+
+  // The track the viewer is on, selected in the player by the rendition that
+  // carries it, in whatever audio group: the native player starts on the
+  // DEFAULT rendition of the variant it picked, which a master grouped by
+  // codec does not tie to the track asked for (the web started on the last
+  // group's AAC whatever the pick, measured).
+  useEffect(() => {
+    if (!player || !nativeReady || selectedAudioIndex == null) return;
+    const ordinal = audioStreams.find((s) => s.index === selectedAudioIndex)?.trackIndex;
+    if (ordinal == null) return;
+    const want = nativeTrackFor(ordinal);
+    if (!want) return;
+    try {
+      const cur = (player as unknown as NativePlayerLike).audioTrack;
+      if (cur && (cur.id ? cur.id === want.id : cur.name === want.name)) return;
+      (player as unknown as { audioTrack: unknown }).audioTrack = want;
+    } catch { /* released */ }
+  }, [player, nativeReady, nativeTrackFor, nativeAudioTracks, selectedAudioIndex, audioStreams]);
 
   // Prewarm the next episode near the end so the hand-off does not wait on a
   // cold transcode start - the difference is very visible on a weak NAS.
@@ -1403,8 +1434,10 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       // the audio group is already in the manifest, so this is decoupled from
       // the DEFAULT flag and from any transcode restart. Fall back to a restart
       // only when the native tracks aren't parsed yet or don't line up.
+      // By the rendition that carries the track, in whatever audio group;
+      // the language match is for a master that names no track.
       const nativeTrack = stream
-        ? pickNativeAudioTrack(nativeAudioTracks, stream, audioStreams)
+        ? ((nativeTrackFor(stream.trackIndex) as typeof nativeAudioTracks[number] | undefined) ?? pickNativeAudioTrack(nativeAudioTracks, stream, audioStreams))
         : null;
       // A track this device cannot decode is never switched to in the player:
       // the restart asks the server, which re-encodes it.
@@ -1431,7 +1464,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(index, burnInSubtitleIndex, selectedQuality || undefined);
     },
-    [player, nativeAudioTracks, audioStreams, restartWithTracks, selectAudioStream, useLocalSource, burnInSubtitleIndex, selectedQuality, userPickedAudioRef, setSelectedAudioIndex],
+    [player, nativeAudioTracks, audioStreams, restartWithTracks, selectAudioStream, useLocalSource, burnInSubtitleIndex, selectedQuality, userPickedAudioRef, setSelectedAudioIndex, nativeTrackFor],
   );
 
   // The file itself (direct play, downloaded copy) opens on its own default
@@ -1959,6 +1992,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
         streamInfo={streamInfo}
         audioStreamIndex={selectedAudioIndex}
         served={servedVariant(streamInfo, playingTrack.playing, playingTrack.ladderBitrates)}
+        witness={witness}
       />
       )}
 

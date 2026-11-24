@@ -129,9 +129,8 @@ func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*pl
 				DeviceName:     s.DeviceName,
 				DeviceType:     s.DeviceType,
 				CastDeviceName: s.CastDeviceName,
-				VideoEngine:    s.Serving.VideoEngine,
-				VideoBackend:   s.Serving.VideoBackend,
-				AudioEngine:    s.Serving.AudioEngine,
+				Served:         s.Served,
+				Played:         s.Played,
 				ClientIP:       s.ClientIP,
 				PlayMethod:     s.PlayMethod,
 				VideoCodec:     s.VideoCodec,
@@ -141,10 +140,6 @@ func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*pl
 			}
 			if s.Position != nil {
 				info.Position = *s.Position
-			}
-			if s.PlayMethod == string(playback.Transcode) {
-				t := s.VideoCodec + " -> h264"
-				info.TranscodeInfo = &t
 			}
 			result = append(result, info)
 		}
@@ -245,7 +240,7 @@ func (r *FakePlaySessionRepository) PurgeEndedBefore(_ context.Context, cutoff t
 	return purged, nil
 }
 
-func (r *FakePlaySessionRepository) SetSessionAudioDecision(_ context.Context, sessionID, decision string) (bool, error) {
+func (r *FakePlaySessionRepository) SetServed(_ context.Context, sessionID string, served playback.Served) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.Err != nil {
@@ -255,29 +250,25 @@ func (r *FakePlaySessionRepository) SetSessionAudioDecision(_ context.Context, s
 	if !ok || s.EndedAt != nil {
 		return false, nil
 	}
-	s.AudioDecision = decision
+	s.Served = served
+	s.PlayMethod, s.VideoCodec, s.AudioCodec, s.Resolution = served.Summary()
 	return true, nil
 }
 
-func (r *FakePlaySessionRepository) SetSessionServing(_ context.Context, sessionID string, p playback.ServingPath) (bool, error) {
+func (r *FakePlaySessionRepository) ResetWitness(_ context.Context, sessionID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.Err != nil {
-		return false, r.Err
+		return r.Err
 	}
-	s, ok := r.items[sessionID]
-	if !ok || s.EndedAt != nil {
-		return false, nil
+	if s, ok := r.items[sessionID]; ok && s.EndedAt == nil {
+		s.Served, s.Played = playback.Served{}, nil
+		s.PlayMethod, s.VideoCodec, s.AudioCodec, s.Resolution = "", "", "", ""
 	}
-	s.VideoDecision, s.AudioDecision, s.Serving = p.VideoDecision, p.AudioDecision, p
-	s.PlayMethod = playback.MethodForTracks(s.PlayMethod, p.VideoDecision, p.AudioDecision)
-	if p.AudioCodec != "" { // same contract as the SQL: empty leaves the label alone
-		s.AudioCodec = p.AudioCodec
-	}
-	return true, nil
+	return nil
 }
 
-func (r *FakePlaySessionRepository) SetSessionAudioPath(_ context.Context, sessionID, decision, engine, audioCodec string) (bool, error) {
+func (r *FakePlaySessionRepository) SetPlayed(_ context.Context, sessionID string, played playback.Played) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.Err != nil {
@@ -287,11 +278,7 @@ func (r *FakePlaySessionRepository) SetSessionAudioPath(_ context.Context, sessi
 	if !ok || s.EndedAt != nil {
 		return false, nil
 	}
-	s.PlayMethod = playback.MethodForTracks(s.PlayMethod, s.VideoDecision, decision)
-	s.AudioDecision, s.Serving.AudioDecision, s.Serving.AudioEngine = decision, decision, engine
-	if audioCodec != "" {
-		s.AudioCodec = audioCodec
-	}
+	s.Played = &played
 	return true, nil
 }
 

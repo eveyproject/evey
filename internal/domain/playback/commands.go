@@ -60,21 +60,17 @@ type SessionCommandRepo interface {
 	// Returns whether a row was updated (false = the session already ended;
 	// the tick is a no-op for the live session, watch-progress still records).
 	UpdateProgress(ctx context.Context, sessionID string, positionMs int64, isPaused bool, castDeviceName string) (bool, error)
-	// SetSessionAudioDecision rewrites ONLY the live audio_decision of an
-	// ACTIVE session (ended_at IS NULL guard, like UpdateProgress). The cast
-	// receiver's audio_mode beacon drives it so the admin badge follows the
-	// REAL audio path (server AAC transcode vs TV-side wasm decode).
-	SetSessionAudioDecision(ctx context.Context, sessionID, decision string) (bool, error)
-	// SetSessionServing records what the server serves (per-track decision,
-	// engine, backend) on an ACTIVE session; same ended_at guard.
-	SetSessionServing(ctx context.Context, sessionID string, p ServingPath) (bool, error)
-	// SetSessionAudioPath rewrites ONLY the audio leg (decision, engine and, when
-	// audioCodec is non-empty, the codec label) of an ACTIVE session, in one
-	// statement. The audio_mode beacon owns that leg alone; going through
-	// SetSessionServing instead meant reading the whole path, swapping the audio
-	// and writing it all back, so a master recorded in between (or a read that
-	// missed a column) blanked video_engine. The video columns are never named.
-	SetSessionAudioPath(ctx context.Context, sessionID, decision, engine, audioCodec string) (bool, error)
+	// SetServed records what the server sent on an ACTIVE session (ended_at
+	// IS NULL guard, like UpdateProgress), with the summary columns derived
+	// from it (Served.Summary). The only writer of the served path.
+	SetServed(ctx context.Context, sessionID string, served Served) (bool, error)
+	// SetPlayed records what the player reports it decodes on an ACTIVE
+	// session; same guard. The only writer of the played state.
+	SetPlayed(ctx context.Context, sessionID string, played Played) (bool, error)
+	// ResetWitness empties the served path, the played state and the summary
+	// columns of an ACTIVE session: a new start reusing the row is another
+	// playback, whose bytes have not gone out yet.
+	ResetWitness(ctx context.Context, sessionID string) error
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
 	// CloseStaleReturning ends every session whose last heartbeat is older
 	// than olderThan and returns them, ended. The end is the last heartbeat,

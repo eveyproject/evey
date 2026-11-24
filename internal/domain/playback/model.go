@@ -23,24 +23,6 @@ func (m PlayMethod) IsValid() bool {
 	return false
 }
 
-// MethodForTracks is the method a session is recorded under once its track
-// verdicts are known. The verdict's method routes: a file that must go
-// through the segmented session is "transcode" even when nothing is encoded.
-// The admin pages and the play-method counts name what was done to the bytes:
-// both tracks copied (or decoded by the client) is a remux, either one encoded
-// is a transcode. Direct play, and a verdict missing either track, keep the
-// method as given. The play-session repository applies the same rule in SQL
-// whenever the served path is recorded.
-func MethodForTracks(method, videoDecision, audioDecision string) string {
-	if (method != string(Transcode) && method != string(DirectStream)) || videoDecision == "" || audioDecision == "" {
-		return method
-	}
-	if videoDecision == "transcode" || audioDecision == "transcode" {
-		return string(Transcode)
-	}
-	return string(DirectStream)
-}
-
 // MinResumeRailPosition is how far a title must have played before the home's
 // continue-watching rail offers it. Below it the position is still kept (the
 // title page resumes from it), but a play skipped early - a shuffle draw, a
@@ -72,19 +54,17 @@ type PlaySession struct {
 	DeviceName  string
 	DeviceType  string
 	ClientIP    string
-	PlayMethod  string
-	VideoCodec  string
-	AudioCodec  string
-	Resolution  string
-	// VideoDecision / AudioDecision are the per-track serving decisions
-	// ("copy"|"transcode"), copied from the StreamInfo the player resolved.
-	// They let the admin panel distinguish a copy rung from a real transcode.
-	VideoDecision string
-	AudioDecision string
-	BandwidthBps  int64
-	StartedAt     time.Time
-	EndedAt       *time.Time
-	Duration      *shared.Duration
+	// PlayMethod, VideoCodec, AudioCodec and Resolution summarize Served for
+	// the history and the play-method counts: written with it, never on their
+	// own. Empty until the first bytes were served.
+	PlayMethod   string
+	VideoCodec   string
+	AudioCodec   string
+	Resolution   string
+	BandwidthBps int64
+	StartedAt    time.Time
+	EndedAt      *time.Time
+	Duration     *shared.Duration
 	// Position is the last reported playback position. nil when no progress
 	// has been reported yet for this session.
 	Position *shared.Duration
@@ -95,27 +75,10 @@ type PlaySession struct {
 	// playing on the session's own device. Updated on every progress report,
 	// so a finished cast clears it.
 	CastDeviceName string
-	// Serving is what the server actually serves, recorded at master render;
-	// the engines are empty until then (direct play, or a session older than the
-	// column). Every read of a session fills it, because a writer that rewrites
-	// the whole path (SetCastAudioPath) starts from it: a read that dropped the
-	// engines made the next beacon blank video_engine.
-	Serving ServingPath
-}
-
-// ServingPath names the machinery behind each track of a session: the
-// client's start-time decision only says copy/transcode, this says by whom.
-type ServingPath struct {
-	VideoDecision string // "copy" | "transcode"
-	VideoEngine   string // "mkvgo" | "ffmpeg"
-	VideoBackend  string // transcode only: "software" | "qsv" | "vaapi" | "nvenc"
-	AudioDecision string // "copy" | "transcode" | "wasm"
-	AudioEngine   string // "mkvgo" | "ffmpeg" | "client"
-	// AudioCodec, when set, rewrites the session's audio codec label so it keeps
-	// naming what is SERVED: "eac3" while the track is carried untouched,
-	// "eac3→aac" once it is re-encoded. Empty leaves the label alone - only a
-	// caller that knows the output codec changed sets it.
-	AudioCodec string
+	// Served is what the server sent, Played what the player decodes: see
+	// served.go. Every read of a session fills both.
+	Served Served
+	Played *Played
 }
 
 func (s *PlaySession) Validate() error {
@@ -199,10 +162,7 @@ type ActiveSessionInfo struct {
 	VideoCodec    string
 	AudioCodec    string
 	Resolution    string
-	VideoDecision string
-	AudioDecision string
 	BandwidthBps  int64
-	TranscodeInfo *string
 	SeriesTitle   string
 	SeasonNumber  int
 	EpisodeNumber int
@@ -210,9 +170,8 @@ type ActiveSessionInfo struct {
 	// CastDeviceName: see PlaySession.CastDeviceName - the real playback
 	// target when the session's client relays to a cast device.
 	CastDeviceName string
-	VideoEngine    string
-	VideoBackend   string
-	AudioEngine    string
+	Served         Served
+	Played         *Played
 }
 
 func (a *ActiveSessionInfo) ProgressPercent() float64 {

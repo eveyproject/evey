@@ -638,9 +638,19 @@ sessions:
     audioCopied: kopiert
     audioTranscoded: transkodiert
     audioClientDecoded: vom Player dekodiert
+    trackN: "Spur {{n}}"
+    allTracks: "alle Spuren, der Player wählt"
+    fromFile: "Quelldatei"
+    player: "Player"
+    decoderNative: "nativer Decoder"
+    decoderWasm: "von ac3go dekodiert (wasm)"
+    waiting: "noch keine Bytes gesendet"
+    mismatchTrack: "Abweichung: der Player spielt Spur {{played}}, der Server sendet Spur {{served}}"
+    mismatchCodec: "Abweichung: der Player dekodiert {{played}}, der Server sendet {{served}}"
     engine:
       mkvgo: "mkvgo"
       ffmpeg: "ffmpeg"
+      file: "Datei"
       client: "ac3go im Player"
     backend:
       software: "Software (CPU)"

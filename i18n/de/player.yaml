@@ -175,9 +175,21 @@ streamInfo:
   decisionCopy: kopiert
   decisionTranscode: transkodiert
   decisionWasm: clientseitig dekodiert
+  waiting: "warte auf die ersten Bytes"
+  track: "Spur"
+  engine: "Engine"
+  player: "Player"
+  decoderWasm: "von ac3go dekodiert (wasm)"
+  decoderNative: "nativer Decoder"
+  fromFile: "Quelldatei"
+  allTracks: "alle, der Player wählt"
+  mismatch: "Abweichung"
+  mismatchTrack: "der Player spielt Spur {{played}}, der Server sendet Spur {{served}}"
+  mismatchCodec: "der Player dekodiert {{played}}, der Server sendet {{served}}"
   reason:
     video_codec_unsupported: Videocodec, den dieser Player nicht dekodieren kann
     audio_codec_unsupported: Audiocodec, den dieser Player nicht dekodieren kann
+    audio_decoded_in_browser: "Audio im Browser dekodiert (segmentierter Stream nötig)"
     hdr_tonemapping_needed: HDR nach SDR konvertiert (Tone-Mapping)
     dovi_base_layer: "Dolby-Vision-Basisschicht neu kodiert (HDR bleibt)"
     hdr_copy_unavailable: "Kopie nicht verfügbar, HDR beim Neukodieren erhalten"

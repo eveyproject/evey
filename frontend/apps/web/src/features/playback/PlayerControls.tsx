@@ -15,7 +15,7 @@ import type { ServedVariant } from "@evey/client";
 import { usePlayerContext, usePlayerTimeRef } from "./PlayerContext";
 import { LiveProgressBar, LiveTimeLabel, LiveChaptersPanel, useActiveChapterIndex } from "./PlayerLiveControls";
 import { useDocumentPiP } from "./hooks/useDocumentPiP";
-import { episodeLabel, type V1StreamInfo } from "@evey/api";
+import { episodeLabel, type V1PlayedState, type V1ServedLeg, type V1StreamInfo } from "@evey/api";
 import { ICON } from "@/constants/iconSizes";
 
 export type { EpisodeNavItem, SeasonNavItem };
@@ -65,14 +65,12 @@ interface PlayerControlsProps {
   streamInfo?: V1StreamInfo;
   /** True when the stream was negotiated for the client-side AC-3/E-AC-3 decode
    *  (video-only master + out-of-band rendition). Says nothing about which relay
-   *  leg is playing - see wasmAudioLeg. */
+   *  leg is playing. */
   wasmAudioActive?: boolean;
-  /** The relay leg actually feeding the speakers, when the host knows it:
-   *  "aac" (decoder booting), "wasm", "aac-latched". Passed to the info panel,
-   *  which must not announce a client decode over the AAC transcode. */
-  wasmAudioLeg?: string | null;
   /** The variant playing right now, so the info panel follows every quality change. */
   servedVariant?: ServedVariant | null;
+  /** The session's two witnesses (served path, played state) for the info panel. */
+  witness?: { servedVideo?: V1ServedLeg; servedAudio?: V1ServedLeg; played?: V1PlayedState };
   /** AUDIO-relative ordinal of the selected track, so the info panel reports IT. */
   audioTrackIndex?: number | null;
   /** True while the HLS pipeline is stalled waiting for segments. */
@@ -119,8 +117,8 @@ function PlayerControlsInner({
   onCastTrigger,
   streamInfo,
   wasmAudioActive,
-  wasmAudioLeg,
   servedVariant,
+  witness,
   audioTrackIndex,
   isBuffering,
   isPlaying,
@@ -764,8 +762,7 @@ function PlayerControlsInner({
           {streamInfo && (
             <StreamInfoPanel
               streamInfo={streamInfo}
-              wasmAudioActive={wasmAudioActive}
-              wasmAudioLeg={wasmAudioLeg}
+              witness={witness}
               served={servedVariant}
               audioTrackIndex={audioTrackIndex}
               open={openPanel === "streaminfo"}

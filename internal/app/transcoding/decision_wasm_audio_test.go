@@ -46,6 +46,28 @@ func TestWasmAudio_PlayMethodStaysTranscode(t *testing.T) {
 	assert.Equal(t, "transcode", d.PlayMethod)
 }
 
+// An MP4 whose other tracks the browser decodes has no container reason: the
+// wasm path alone must keep it off the raw file (the demo's Big Buck Bunny,
+// AC-3 picked beside MP3 and AAC, came out direct_play and the browser played
+// another track than the one picked - measured).
+func TestWasmAudio_NeverDirectPlaysTheFile(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), IsDefault: true},
+		{StreamType: "audio", Codec: "mp3", Channels: new(2), IsDefault: true},
+		{StreamType: "audio", Codec: "ac3", Channels: new(6), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2)},
+	}
+	prefs := wasmPrefs(true)
+	prefs.AudioTrack = 1
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mov,mp4,m4a,3gp,3g2,mj2",
+		transcoding.DefaultWebProfile, 0, prefs)
+
+	assert.Equal(t, "wasm", d.AudioDecision)
+	assert.NotEqual(t, "direct_play", d.PlayMethod)
+	assert.Contains(t, d.TranscodeReasons, "audio_decoded_in_browser")
+	assert.NotContains(t, d.TranscodeReasons, "audio_codec_unsupported")
+}
+
 func TestWasmAudio_WithoutTheFlagStillTranscodes(t *testing.T) {
 	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), wasmStreams("eac3", 6), "matroska",
 		transcoding.DefaultWebProfile, 0, wasmPrefs(false))

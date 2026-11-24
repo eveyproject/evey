@@ -11,6 +11,7 @@
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
 import { CAPS_NAMESPACE, absoluteWithToken, appendMaxKbps, bitrateTestUrl, bufferedStats, capsReport, createBeaconUrlResolver, createDecoderDistressWatch, createStartGate, createStartWatch, createStarvationWatch, describePlayerError, isCapsRequest, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
+import { masterTrackOrdinal } from "@evey/client";
 import { createAliveHeartbeat, createFrameDropTracker, formatFrameQuality, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 import { buildCastNextUrl, buildNextMasterUrl, parseCastNextResponse, shouldFetchNext, upNextLabel, type CastNextInfo } from "./castNext";
 import { buildSegmentsUrl, introSkippedLabel, parseSegments, planIntroSkip, type SkippableSegment } from "./introSkip";
@@ -835,7 +836,17 @@ async function startWasmEngine(): Promise<void> {
       aacPlaylistUrl: aacUri ? new URL(aacUri, url).toString() : undefined,
       // Every relay transition lands in the server logs: the next cast names
       // its audio path (aac -> wasm, or aac-latched) without a TV screenshot.
-      onModeChange: (mode) => reportEvent("cast_receiver_audio_mode", mode),
+      onModeChange: (mode) => {
+        reportEvent("cast_receiver_audio_mode", mode);
+        // The receiver's witness of the session (it sends no progress tick):
+        // the track its master was asked for, and which decoder carries the
+        // sound - the wasm one, or the TV's own on the relay's AAC leg.
+        reportEvent("played", JSON.stringify({
+          source: "hls",
+          audioTrack: masterTrackOrdinal(currentUrl),
+          audioDecoder: mode === "wasm" ? "wasm" : "native",
+        }));
+      },
       // WHY the relay latched: a refused hand-over and a starvation fallback
       // both read "aac-latched", and telling them apart from prod logs alone
       // cost hours on 2026-07-30.

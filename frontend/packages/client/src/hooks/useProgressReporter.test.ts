@@ -5,6 +5,7 @@ const reportProgressMock = vi.fn();
 const eveyFetchMock = vi.fn();
 vi.mock("@evey/api", () => ({
   playbackServiceReportProgress: (...args: unknown[]) => reportProgressMock(...args),
+  reportProgressWithWitness: (...args: unknown[]) => reportProgressMock(...args),
   eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
 }));
 

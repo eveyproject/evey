@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 )
 
 // transcode_concat.go - gapless multi-episode HLS (mkvgo's mp4.PlanConcat,
@@ -223,7 +225,34 @@ func (h *hlsVODServe) serveConcatResource(w http.ResponseWriter, r *http.Request
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
+	stampConcatResource(r, mediaID, plan, name, stamp)
 	h.serveConcatResourceData(w, r, plan, name, stamp, span)
+}
+
+// stampConcatResource declares a gapless chain's init or segment: the parts'
+// own samples, repackaged by mkvgo. The chain spans episodes whose tracks the
+// library numbers separately, so the audio track is left unnamed (-1) rather
+// than read off the first episode.
+func stampConcatResource(r *http.Request, mediaID string, plan apptranscoding.ConcatPlan, name, chainStamp string) {
+	st := deliveryStampOf(r)
+	if st == nil {
+		return
+	}
+	initName, isInit, ok := packagerInitOf(name)
+	if !ok {
+		return
+	}
+	st.stampVideo(mediaID, domainplayback.EngineMkvgo, true, "", "")
+	st.stampAudio(mediaID, domainplayback.EngineMkvgo, true, -1, "", true)
+	key := "mkvgo-concat:" + chainStamp + ":" + initName
+	if isInit {
+		st.stampInit(key)
+		return
+	}
+	st.stampMedia(key, func(ctx context.Context) ([]byte, error) {
+		b, _, err := plan.Resource(ctx, initName)
+		return b, err
+	})
 }
 
 // serveConcatResourceData writes one concat plan resource. Same cache-header
