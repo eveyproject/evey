@@ -13,7 +13,7 @@ on:
     inputs:
       image:
         description: "Evey image to photograph"
-        default: "ghcr.io/eveyproject/evey:master"
+        default: "docker.io/eveyproject/evey:master"
   schedule:
     - cron: "0 5 * * 1"
 
@@ -26,7 +26,8 @@ concurrency:
 
 jobs:
   shots:
-    runs-on: ubuntu-latest
+    # Playwright 1.55 has no Chromium build for Ubuntu 26.04 (ubuntu-latest).
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -47,7 +48,7 @@ jobs:
           pip install Pillow==11.3.0
       - name: screenshots
         env:
-          IMAGE: ${{ inputs.image || 'ghcr.io/eveyproject/evey:master' }}
+          IMAGE: ${{ inputs.image || 'docker.io/eveyproject/evey:master' }}
         run: scripts/docs-shots/run.sh "$RUNNER_TEMP/docs-shots"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
