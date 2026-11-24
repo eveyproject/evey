@@ -22,7 +22,7 @@ vi.mock("./Sidebar", () => ({
 }));
 
 vi.mock("./TopBar", () => ({
-  TopBar: () => <div data-testid="topbar">TopBar</div>,
+  TopBar: ({ leading }: { leading?: React.ReactNode }) => <div data-testid="topbar">{leading}TopBar</div>,
 }));
 
 vi.mock("./OfflineBanner", () => ({

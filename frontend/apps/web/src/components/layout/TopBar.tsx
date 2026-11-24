@@ -11,7 +11,9 @@ import { SearchDropdown } from "@/features/search/SearchDropdown";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
 
-export function TopBar() {
+// leading sits inside the bar, before the search: the phone's menu button
+// shares the bar's surface and border instead of floating beside it.
+export function TopBar({ leading }: { leading?: React.ReactNode } = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { location } = useRouterState();
@@ -113,7 +115,8 @@ export function TopBar() {
       data-scrolled="false"
       className="evey-app-header topbar-glass h-14 flex items-center justify-between px-3 sm:px-6 border-b shrink-0 transition-all duration-200"
     >
-      <div className="flex-1">
+      {leading}
+      <div className="flex-1 min-w-0">
         <div className="relative w-full max-w-[60vw] sm:max-w-80">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none z-raised" size={16} />
           <input
@@ -135,7 +138,7 @@ export function TopBar() {
               if (searchValue.trim().length > 1 || recents.length > 0) setDropdownOpen(true);
             }}
             onKeyDown={handleKeyDown}
-            className="w-full pl-9 pr-14 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-base sm:text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            className="w-full text-ellipsis pl-9 pr-3 sm:pr-14 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-base sm:text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
           />
           <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] pointer-events-none">
             {/Mac|iPhone|iPad/.test(navigator.userAgent) ? <><span className="text-xs">&#8984;</span>K</> : <><span className="text-xs">Ctrl+</span>K</>}
