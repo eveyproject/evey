@@ -155,11 +155,12 @@ describe("ProfileSwitcher", () => {
     Object.defineProperty(window, "location", { configurable: true, value: original });
   });
 
-  it("manage profiles button navigates to /profile/manage", async () => {
+  it("has no manage-profiles entry, which only repeated Settings", async () => {
     const user = userEvent.setup();
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
-    await user.click(screen.getByTestId("profile-switcher-manage"));
+    expect(screen.queryByTestId("profile-switcher-manage")).toBeNull();
+    await user.click(screen.getByTestId("topbar-user-menu-settings"));
     expect(mockNavigate).toHaveBeenCalledWith({ to: "/profile/settings" });
   });
 
