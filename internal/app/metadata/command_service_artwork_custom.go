@@ -45,7 +45,7 @@ var errArtworkStorageDisabled = errors.New("artwork storage is not configured (n
 // AddCustomArtwork stores an admin-supplied image and makes it the item's
 // current one.
 //
-// artType is a domain artwork type ("ARTWORK_TYPE_PRIMARY" / "..._BACKDROP").
+// artType is a domain artwork type (metadata.ArtworkTypePoster / ArtworkTypeBackdrop).
 // ext is the file extension to store under, already validated by the caller
 // against the image's real content type - this function does not sniff bytes,
 // because the HTTP layer has to do it anyway to reject non-images early.

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	appmetadata "github.com/eveyproject/evey/internal/app/metadata"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -34,9 +35,9 @@ const maxArtworkUpload = 13 << 20
 func artworkTypeFromForm(v string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "", "poster", "primary":
-		return "ARTWORK_TYPE_PRIMARY", true
+		return domainmetadata.ArtworkTypePoster, true
 	case "backdrop":
-		return "ARTWORK_TYPE_BACKDROP", true
+		return domainmetadata.ArtworkTypeBackdrop, true
 	default:
 		return "", false
 	}

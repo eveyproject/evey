@@ -10,6 +10,7 @@ import {
   getMetadataServiceListMetadataOverridesQueryKey,
   eveyFetch,
   niceNameFromPath,
+  apiErrorMessage,
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
@@ -76,8 +77,8 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
       await eveyFetch<void>({ url: `/api/v1/media/${mediaItemId}/artwork/${artworkId}/select`, method: "POST" });
       refreshArtwork();
       toast.success(t("media.detail.artworkUpdated"));
-    } catch {
-      toast.error(t("media.detail.artworkFailed"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err as Error, t, t("media.detail.artworkFailed")));
     } finally {
       setSelecting(null);
     }
@@ -180,8 +181,8 @@ function UploadArtworkButton({
       });
       toast.success(t("media.detail.artworkUpdated"));
       onDone();
-    } catch {
-      toast.error(t("media.detail.artworkFailed"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err as Error, t, t("media.detail.artworkFailed")));
     } finally {
       setBusy(false);
     }
