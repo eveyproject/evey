@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -111,7 +111,12 @@ export interface AdminNavProps {
   onNavigate?: () => void;
 }
 
-const PLUGIN_PAGES_KEY = "admin.nav.pluginPages";
+// The plugin pages section is titled "Plugins", the label of the plugin
+// management link it echoes.
+const PLUGIN_PAGES_KEY = "admin.nav.plugins";
+// The section the plugin pages follow: they sit between "Users and access"
+// and "Integrations".
+const PLUGIN_PAGES_AFTER = "admin.nav.usersAccess";
 
 export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
   const { t } = useTranslation();
@@ -131,6 +136,60 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
     setSectionCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
   }
 
+  // Plugin-contributed admin entries (slot admin.nav), between "Users and
+  // access" and "Integrations". Each granted plugin gets a link to its own
+  // full-page route (/admin/extensions/<id>), where its sandboxed iframe
+  // renders. No plugin page installed and enabled: no section at all.
+  const pluginPages =
+    pluginEntries.length > 0 ? (
+        <div className="mt-2" data-testid="admin-nav-plugin-pages">
+          {!collapsed && (
+            <button
+              type="button"
+              onClick={() => toggleSection(PLUGIN_PAGES_KEY)}
+              className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
+              aria-expanded={!pluginPagesCollapsed}
+              aria-label={t(PLUGIN_PAGES_KEY)}
+            >
+              <span className="text-xs font-semibold uppercase tracking-wider select-none">
+                {t(PLUGIN_PAGES_KEY)}
+              </span>
+              <ChevronDown
+                size={ICON.xs}
+                className="transition-transform-fast"
+                style={{ transform: pluginPagesCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+                aria-hidden="true"
+              />
+            </button>
+          )}
+          {(collapsed || !pluginPagesCollapsed) && (
+            <div className="flex flex-col gap-0.5 mt-0.5">
+              {pluginEntries.map((entry) => {
+                const href = `/admin/extensions/${entry.pluginId}`;
+                const active = isLinkActive(pathname, href);
+                return (
+                  <Link
+                    key={entry.pluginId}
+                    to="/admin/extensions/$pluginId"
+                    params={{ pluginId: entry.pluginId }}
+                    onClick={onNavigate}
+                    className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast overflow-hidden ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
+                    style={{
+                      backgroundColor: active ? "var(--accent)" : undefined,
+                      color: active ? "white" : "var(--text)",
+                    }}
+                    title={collapsed ? `${entry.name} - ${t(PLUGIN_PAGES_KEY)}` : undefined}
+                  >
+                    <Puzzle size={ICON.md} className="shrink-0" />
+                    {!collapsed && <span className="min-w-0 flex-1">{entry.name}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+    ) : null;
+
   return (
     <div className="flex flex-col gap-1">
       {sectionsDef.map((section, idx) => {
@@ -138,7 +197,8 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
         const isCollapsed = sectionCollapsed[section.titleKey] ?? false;
 
         return (
-          <div key={section.titleKey} className={idx > 0 ? "mt-2" : ""}>
+          <Fragment key={section.titleKey}>
+          <div className={idx > 0 ? "mt-2" : ""}>
             {!collapsed && (
               <button
                 type="button"
@@ -187,59 +247,10 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
               </div>
             )}
           </div>
+          {section.titleKey === PLUGIN_PAGES_AFTER && pluginPages}
+          </Fragment>
         );
       })}
-      {/* Plugin-contributed admin entries (slot admin.nav). Each granted plugin
-          gets a sidebar link to its own dedicated full-page route
-          (/admin/extensions/<id>), where its sandboxed iframe renders. */}
-      {pluginEntries.length > 0 && (
-        <div className="mt-2" data-testid="admin-nav-plugin-pages">
-          {!collapsed && (
-            <button
-              type="button"
-              onClick={() => toggleSection(PLUGIN_PAGES_KEY)}
-              className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
-              aria-expanded={!pluginPagesCollapsed}
-              aria-label={t(PLUGIN_PAGES_KEY)}
-            >
-              <span className="text-xs font-semibold uppercase tracking-wider select-none">
-                {t(PLUGIN_PAGES_KEY)}
-              </span>
-              <ChevronDown
-                size={ICON.xs}
-                className="transition-transform-fast"
-                style={{ transform: pluginPagesCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
-                aria-hidden="true"
-              />
-            </button>
-          )}
-          {(collapsed || !pluginPagesCollapsed) && (
-            <div className="flex flex-col gap-0.5 mt-0.5">
-              {pluginEntries.map((entry) => {
-                const href = `/admin/extensions/${entry.pluginId}`;
-                const active = isLinkActive(pathname, href);
-                return (
-                  <Link
-                    key={entry.pluginId}
-                    to="/admin/extensions/$pluginId"
-                    params={{ pluginId: entry.pluginId }}
-                    onClick={onNavigate}
-                    className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast overflow-hidden ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
-                    style={{
-                      backgroundColor: active ? "var(--accent)" : undefined,
-                      color: active ? "white" : "var(--text)",
-                    }}
-                    title={collapsed ? `${entry.name} - ${t(PLUGIN_PAGES_KEY)}` : undefined}
-                  >
-                    <Puzzle size={ICON.md} className="shrink-0" />
-                    {!collapsed && <span className="min-w-0 flex-1">{entry.name}</span>}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

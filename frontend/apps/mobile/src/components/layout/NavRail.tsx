@@ -14,6 +14,7 @@ import { usePluginSlotEntries } from "../../features/plugins/PluginSlot";
 import {
   NAV_ITEMS,
   ADMIN_SECTIONS,
+  PLUGIN_PAGES_AFTER,
   isAdminLinkActive,
   isMainLinkActive,
   type NavItem,
@@ -88,17 +89,22 @@ export function NavRail({ mode }: { mode: "main" | "admin" }) {
           <>
             {railIcon("back-to-app", "arrow-back-outline", t("common.nav.backToApp"), false, () =>
               router.push("/(auth)/(tabs)/" as never))}
-            {ADMIN_SECTIONS.flatMap((s) => s.items).map((item: NavItem) => {
-              const active = isAdminLinkActive(pathname, item.href);
-              return railIcon(item.href, active ? item.activeIcon : item.icon, t(item.labelKey), active, () =>
-                router.push(item.href as never));
-            })}
-            {pluginAdminEntries.map((entry) => {
-              const href = `/admin/extensions/${entry.pluginId}`;
-              const active = isAdminLinkActive(pathname, href);
-              return railIcon(href, active ? "extension-puzzle" : "extension-puzzle-outline", entry.name, active, () =>
-                router.push(href as never));
-            })}
+            {ADMIN_SECTIONS.flatMap((s) => [
+              ...s.items.map((item: NavItem) => {
+                const active = isAdminLinkActive(pathname, item.href);
+                return railIcon(item.href, active ? item.activeIcon : item.icon, t(item.labelKey), active, () =>
+                  router.push(item.href as never));
+              }),
+              // Plugin pages right after "Users and access", as in the drawer.
+              ...(s.titleKey === PLUGIN_PAGES_AFTER
+                ? pluginAdminEntries.map((entry) => {
+                    const href = `/admin/extensions/${entry.pluginId}`;
+                    const active = isAdminLinkActive(pathname, href);
+                    return railIcon(href, active ? "extension-puzzle" : "extension-puzzle-outline", entry.name, active, () =>
+                      router.push(href as never));
+                  })
+                : []),
+            ])}
           </>
         ) : (
           <>

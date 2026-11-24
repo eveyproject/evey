@@ -18,7 +18,6 @@ nav:
   mediaRequests: "媒体请求"
   shareLinks: "分享链接"
   integrations: "集成"
-  pluginPages: "插件页面"
   plugins: "插件"
   webhooks: Webhooks
   apiKeys: "API 密钥"
