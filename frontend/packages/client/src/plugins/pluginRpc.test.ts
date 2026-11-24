@@ -88,3 +88,44 @@ describe("createPluginRpc config.save", () => {
     expect(request).not.toHaveBeenCalled();
   });
 });
+
+describe("createPluginRpc media.trash", () => {
+  const transport = { issueToken: vi.fn(async () => "tok"), request: vi.fn(async () => okResponse({})) };
+
+  it("is refused where the host gave no trash handler", async () => {
+    const rpc = createPluginRpc("plg-1", transport);
+    await expect(rpc.call("media.trash", { ids: ["m1"] })).rejects.toThrow("method not permitted: media.trash");
+  });
+
+  it("hands the host the ids, once each, and never touches the network itself", async () => {
+    const trash = vi.fn(async () => ({ trashed: [], failed: [] }));
+    const request = vi.fn(async () => okResponse({}));
+    const rpc = createPluginRpc("plg-1", { issueToken: vi.fn(async () => "tok"), request }, { trash });
+    await rpc.call("media.trash", { ids: ["m1", "m2", "m1"] });
+    expect(trash).toHaveBeenCalledWith(["m1", "m2"]);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("refuses a malformed or oversized list before asking anyone", async () => {
+    const trash = vi.fn(async () => ({}));
+    const rpc = createPluginRpc("plg-1", transport, { trash });
+    await expect(rpc.call("media.trash", { ids: [] })).rejects.toThrow();
+    await expect(rpc.call("media.trash", { ids: "m1" })).rejects.toThrow();
+    await expect(rpc.call("media.trash", { ids: [42] })).rejects.toThrow();
+    await expect(rpc.call("media.trash", { ids: Array.from({ length: 51 }, (_, i) => `m${i}`) })).rejects.toThrow();
+    expect(trash).not.toHaveBeenCalled();
+  });
+});
+
+describe("createPluginRpc media.restore", () => {
+  it("is refused without a restore handler, and hands the host the paths once each", async () => {
+    const t = { issueToken: vi.fn(async () => "tok"), request: vi.fn(async () => okResponse({})) };
+    await expect(createPluginRpc("plg-1", t).call("media.restore", { paths: ["/m/.evey-trash/a.mkv"] })).rejects.toThrow("method not permitted: media.restore");
+    const restore = vi.fn(async () => ({ restored: [], failed: [] }));
+    const rpc = createPluginRpc("plg-1", t, { restore });
+    await rpc.call("media.restore", { paths: ["/m/.evey-trash/a.mkv", "/m/.evey-trash/a.mkv"] });
+    expect(restore).toHaveBeenCalledWith(["/m/.evey-trash/a.mkv"]);
+    await expect(rpc.call("media.restore", { paths: [] })).rejects.toThrow();
+    expect(t.request).not.toHaveBeenCalled();
+  });
+});

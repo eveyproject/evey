@@ -1,5 +1,5 @@
 ---
-source_sha: 13578526cc8b3dca869c39f2d16115b20a7b94c76284ec714952528d760503e8
+source_sha: c65f3c0022c382ccdcdeb528b421c080edcf8bde1382a04fde320dbe9fca3701
 reviewed: true
 ---
 # 权限与插槽 { #permissions-and-slots }
@@ -56,6 +56,8 @@ reviewed: true
 | `api.metadata` | 与 `media.write` 相同的 `UpdateMetadata` 调用，能力条件也相同。 |
 | `notification.sender` | 为 `SendNotification` 预留，目前还没有提供。 |
 | `public` | 插件界面可以读取媒体条目的一个安全投影（id、标题、类型、年份、简介、海报），永远读不到路径或流。请看 [`evey.media.*`](api-reference.md#eveymedia-permission-public)。 |
+| `media.files` | 在 `public` 返回的内容上，加上每个媒体条目的文件路径和大小。只有正在查看的人是管理员时，令牌才带有它；对其他任何人，签发令牌时就会去掉。路径会暴露服务器的文件夹名，所以管理员会在安装同意中看到它。 |
+| `media.trash` | 在自己的 `admin.nav` 页面上，插件界面可以请求 Evey 把媒体文件移到媒体库回收站。它从不是令牌作用域：宿主页面根据 Evey 的记录显示 Evey 自己的确认窗口，只有管理员在那里确认，才会以管理员的会话调用管理端点。文件被移到 `.evey-trash`，从不删除。 |
 | `prefs` | 插件界面可以在插件自己的命名空间里读写当前用户的偏好。请看 [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs)。 |
 | `hardware.gpu` | 进程会拿到宿主的 DRM 渲染节点（真实的 `renderD1xx`，绝不会是 card 节点）。这会暴露内核驱动的攻击面，而且显存的边界和转码器共用：GPU 一旦挂起，转码也可能停滞。没有这个权限时，GPU 节点完全不在 Landlock 允许列表里；有了它，启动器会添加一条只针对这一个文件的 `IOCTL_DEV` 规则（需要 Landlock ABI 5 或更高；在更旧的内核上，仅有读写权限就足以提交命令）。插件安装后，安全仪表板会显示一条严重警告。只把它授予那些您愿意在沙箱外运行的插件。 |
 

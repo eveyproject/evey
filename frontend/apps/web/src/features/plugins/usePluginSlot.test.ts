@@ -41,10 +41,10 @@ describe("usePluginSlotEntries", () => {
     const { result } = renderHook(() => usePluginSlotEntries("settings"), { wrapper: wrapper() });
     await waitFor(() => expect(result.current).toHaveLength(4));
     expect(result.current).toEqual([
-      { pluginId: "a", name: "Alpha", entryPath: "settings.js", externalFetch: ["api.example.test"] },
-      { pluginId: "b", name: "b", entryPath: "index.js", externalFetch: [] },
-      { pluginId: "d", name: "d", entryPath: "d.js", externalFetch: [] },
-      { pluginId: "e", name: "e", entryPath: "", externalFetch: [] },
+      { pluginId: "a", name: "Alpha", entryPath: "settings.js", externalFetch: ["api.example.test"], hostPermissions: [] },
+      { pluginId: "b", name: "b", entryPath: "index.js", externalFetch: [], hostPermissions: [] },
+      { pluginId: "d", name: "d", entryPath: "d.js", externalFetch: [], hostPermissions: [] },
+      { pluginId: "e", name: "e", entryPath: "", externalFetch: [], hostPermissions: [] },
     ]);
     expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/plugins", method: "GET" });
   });

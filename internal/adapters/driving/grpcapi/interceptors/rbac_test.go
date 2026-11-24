@@ -103,6 +103,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminMediaService/MatchOrphansInLibrary",
 		"/evey.v1.AdminMediaService/GenerateAllTrickplays",
 		"/evey.v1.AdminMediaService/DeleteMediaItem",
+		"/evey.v1.AdminMediaService/TrashMediaItem",
+		"/evey.v1.AdminMediaService/RestoreTrashedMedia",
 		"/evey.v1.AdminMediaService/ScanSeekIndex",
 		"/evey.v1.AdminMediaService/StartSeekIndexScan",
 		"/evey.v1.AdminMediaService/GetSeekIndexJob",

@@ -241,16 +241,65 @@ await evey.prefs.delete("units");
 ### `evey.media.*` (permission `public`)
 
 A safe projection of media items: id, title, type, year, overview, poster
-URL. Never a file path, a size, a provider id or a stream.
+URL. Never a provider id or a stream, and no file path or size unless the
+plugin also holds `media.files` (below).
 
 ```js
 const item  = await evey.media.get(id);
-const page  = await evey.media.list({ libraryId });
+const page  = await evey.media.list({ libraryId });  // { items, total }
 const data  = await evey.media.poster(id);  // the poster as a data: URL
 ```
 
+`list` returns one page of at most 500 items, every type mixed (series,
+seasons, episodes...) unless `type` narrows it. A plugin that needs the whole
+library asks for a type and walks the pages until it has `total` items:
+
+```js
+const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pageSize: 500 });
+```
+
+With the `media.files` permission, and only when the person looking is an
+administrator, each item also carries `filePath`, `fileSize` (a string, as
+every 64-bit number in the API) and `quality`: `width`, `height`,
+`videoCodec`, `hdrType` (empty for SDR), `bitDepth`, `bitrate` (bits per
+second), `durationMs`, `container`, `audioCodec` and `audioChannels`, from
+the first video track and the default audio track. For anyone else the token
+is minted without that permission and these fields stay empty, so a module
+shown to everyone must not rely on them; the `admin.nav` slot is where they
+belong.
+
 `poster` returns a `data:` URL because the frame's policy forbids loading an
 image from the server directly; use it as an `<img>` source or a texture.
+
+### `evey.media.trash(ids)` (permission `media.trash`, slot `admin.nav` only)
+
+Asks Evey to move media files to the trash of their library. The plugin only
+asks: Evey shows its own confirmation, built from its own record of each item
+(title, year, path, size, quality), never from what the plugin sent, and
+nothing moves until the administrator says yes there.
+
+```js
+const res = await evey.media.trash([id1, id2]);
+// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+```
+
+On yes, each file goes, with its subtitles and `.nfo`, to `.evey-trash` at
+the root of its library under the same relative path, and the item leaves
+Evey. Nothing is deleted from the disk: the administrator empties that folder,
+and a file moved back where it was comes back with the next scan. A movie or
+an episode only: a series is a folder. The promise is rejected with
+`cancelled` when the administrator says no, and with `method not permitted`
+anywhere but an `admin.nav` page of a plugin granted `media.trash` in the
+browser (the phone and TV apps do not offer it yet). A refusal per file (a
+read-only mount, a file already gone) comes back in `failed`.
+
+`evey.media.restore(paths)` undoes it, under the same rule: given the
+`trashedPath` values, Evey moves each file and its subtitles back where it
+was and scans the library, so the title comes back, as a new entry matched
+again from its name (the play state of the old entry is not restored). It
+resolves to `{ restored: [{ trashedPath, restoredPath }], failed: [...] }`;
+Evey refuses any path outside a library trash, and a place taken again.
+No confirmation: it destroys nothing.
 
 ### `evey.assets.read(path)`
 

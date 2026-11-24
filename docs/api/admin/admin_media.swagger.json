@@ -520,6 +520,39 @@
         ]
       }
     },
+    "/api/v1/admin/media/trash/restore": {
+      "post": {
+        "summary": "RestoreTrashedMedia undoes TrashMediaItem: it moves a file of a library's\n.evey-trash, with its subtitles and .nfo, back where it was and scans the\nlibrary, so the title comes back (as a new entry, matched again from its\nname). Refused for any path outside a library trash, and when the\noriginal place is taken again.",
+        "operationId": "AdminMediaService_RestoreTrashedMedia",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RestoreTrashedMediaResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RestoreTrashedMediaRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
     "/api/v1/admin/media/{id}": {
       "delete": {
         "operationId": "AdminMediaService_DeleteMediaItem",
@@ -528,6 +561,37 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/v1DeleteMediaItemResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/{id}/trash": {
+      "post": {
+        "summary": "TrashMediaItem moves a movie or episode file, with its subtitles and\n.nfo, to .evey-trash at the root of its library (same relative path),\nthen removes the item as DeleteMediaItem does. Nothing is deleted from\ndisk: emptying the trash is the administrator's own call.",
+        "operationId": "AdminMediaService_TrashMediaItem",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TrashMediaItemResponse"
             }
           },
           "default": {
@@ -1319,6 +1383,23 @@
         }
       }
     },
+    "v1RestoreTrashedMediaRequest": {
+      "type": "object",
+      "properties": {
+        "trashedPath": {
+          "type": "string",
+          "description": "The trashed_path TrashMediaItem returned."
+        }
+      }
+    },
+    "v1RestoreTrashedMediaResponse": {
+      "type": "object",
+      "properties": {
+        "restoredPath": {
+          "type": "string"
+        }
+      }
+    },
     "v1RollbackLibrarySeekIndexRequest": {
       "type": "object",
       "properties": {
@@ -1704,6 +1785,15 @@
     },
     "v1StartSeekIndexScanResponse": {
       "type": "object"
+    },
+    "v1TrashMediaItemResponse": {
+      "type": "object",
+      "properties": {
+        "trashedPath": {
+          "type": "string",
+          "description": "Where the file now is, inside the library's .evey-trash folder."
+        }
+      }
     },
     "v1UndoMediaRepairResponse": {
       "type": "object",

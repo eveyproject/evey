@@ -50,6 +50,28 @@ service AdminMediaService {
     };
   }
 
+  // TrashMediaItem moves a movie or episode file, with its subtitles and
+  // .nfo, to .evey-trash at the root of its library (same relative path),
+  // then removes the item as DeleteMediaItem does. Nothing is deleted from
+  // disk: emptying the trash is the administrator's own call.
+  rpc TrashMediaItem(TrashMediaItemRequest) returns (TrashMediaItemResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/{id}/trash"
+    };
+  }
+
+  // RestoreTrashedMedia undoes TrashMediaItem: it moves a file of a library's
+  // .evey-trash, with its subtitles and .nfo, back where it was and scans the
+  // library, so the title comes back (as a new entry, matched again from its
+  // name). Refused for any path outside a library trash, and when the
+  // original place is taken again.
+  rpc RestoreTrashedMedia(RestoreTrashedMediaRequest) returns (RestoreTrashedMediaResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/trash/restore"
+      body: "*"
+    };
+  }
+
   // ScanSeekIndex returns the cached result of the last completed scan for the
   // scope - instant, no disk I/O. scanned_at_ms is 0 when no scan has completed
   // yet; kick one with StartSeekIndexScan and poll GetSeekIndexJob. Files
@@ -785,6 +807,24 @@ message DeleteMediaItemRequest {
 }
 
 message DeleteMediaItemResponse {}
+
+message TrashMediaItemRequest {
+  string id = 1;
+}
+
+message RestoreTrashedMediaRequest {
+  // The trashed_path TrashMediaItem returned.
+  string trashed_path = 1;
+}
+
+message RestoreTrashedMediaResponse {
+  string restored_path = 1;
+}
+
+message TrashMediaItemResponse {
+  // Where the file now is, inside the library's .evey-trash folder.
+  string trashed_path = 1;
+}
 
 message RelinkCollectionsRequest {
   // Upper bound on titles examined in this sweep. 0 means the server default.
