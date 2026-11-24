@@ -395,6 +395,44 @@ music:
   addedToPlaylist: Added to playlist
   createPlaylistPrompt: Playlist name
   removeFromQueue: Remove from queue
+  addToQueue: "Add to queue"
+  addedToQueue_one: "{{count}} track added to the queue"
+  addedToQueue_other: "{{count}} tracks added to the queue"
+  alreadyInQueue: "Already in the queue"
+  addToQueueFailed: "Could not add to the queue"
+  queueDropHint: "Drag tracks, albums or playlists here, or use their queue button, to build a playlist of the moment."
+  moveInQueue: "Move {{title}}"
+  moveInQueueHint: "Drag to move, or use the up and down arrows"
+  playQueue: "Play"
+  saveQueueAsPlaylist: "Save as playlist"
+  queueSaved: "Queue saved as \"{{name}}\""
+  alreadyInPlaylist: "Already in the playlist"
+  addedToPlaylistCount_one: "{{count}} track added to the playlist"
+  addedToPlaylistCount_other: "{{count}} tracks added to the playlist"
+  reorderFailed: "Could not reorder the playlist"
+  addTracks: "Add tracks"
+  emptyPlaylistDropHint: "This playlist is empty. Drag tracks here, or use Add tracks."
+  fillHow: "How should it be filled?"
+  fillManual: "I pick the tracks"
+  fillManualHint: "An empty playlist, filled by dragging or adding tracks."
+  fillMix: "Automatic mix"
+  fillMixHint: "Evey picks tracks for you, from the styles you tick."
+  mixStyles: "Styles"
+  mixNoGenres: "Your tracks name no style: the mix will draw from the whole library."
+  mixMoreStyles: "+ {{count}} more"
+  mixAllStyles: "No style ticked: every style."
+  mixSomeStyles_one: "{{count}} style ticked."
+  mixSomeStyles_other: "{{count}} styles ticked."
+  mixLength: "Length"
+  mixFromHistory: "The mix leans on what you listen to most."
+  mixNoHistory: "Random for now: future mixes will follow what you listen to."
+  mixCreate: "Create the mix"
+  mixNameTaken: "You already have a playlist with that name."
+  mixNoTracks: "No track in those styles."
+  renamePlaylist: "Rename the playlist"
+  playlistRenamed: "Playlist renamed"
+  renameFailed: "Could not rename the playlist"
+  mixNamePlaceholder: "Mix name (optional)"
 photos:
   openPhoto: "Photo {{n}}"
   title: Photos
@@ -445,7 +483,7 @@ syncplay:
   moveUp: Move up
   moveDown: Move down
   clearQueue: Clear queue
-  queueEmpty: "Add albums, tracks or playlists to build the room's queue."
+  queueEmpty: "Drag or add albums, tracks or playlists to build the room's queue."
   noAlbums: No albums found
   noPlaylists: No playlists
   albumLoadFailed: "Could not load this album's tracks"

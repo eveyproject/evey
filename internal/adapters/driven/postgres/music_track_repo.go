@@ -698,6 +698,72 @@ func (r *MusicTrackRepository) SampleByLibrary(ctx context.Context, libraryID sh
 	return tracks, err
 }
 
+// genreSplitSQL splits a genre tag the way music.SplitGenres does, so the
+// counts and the filter below agree with the domain on what a genre is.
+const genreSplitSQL = `regexp_split_to_table(t.genre, '[/;,|]')`
+
+// GenreCounts lists the genres of a library, split out of multi-genre tags,
+// with how many tracks carry each, the most common first.
+func (r *MusicTrackRepository) GenreCounts(ctx context.Context, libraryID shared.LibraryID) ([]music.GenreCount, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.GenreCounts")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		SELECT MIN(s.g), COUNT(DISTINCT t.id)
+		FROM music_tracks t, LATERAL (SELECT btrim(x) AS g FROM `+genreSplitSQL+` AS x) s
+		WHERE t.library_id = $1 AND s.g <> ''
+		GROUP BY lower(s.g)
+		ORDER BY 2 DESC, lower(s.g)`, libraryID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("MusicTrackRepo.GenreCounts: %w", err)
+	}
+	defer rows.Close()
+	var out []music.GenreCount
+	for rows.Next() {
+		var gc music.GenreCount
+		if err := rows.Scan(&gc.Name, &gc.Count); err != nil {
+			return nil, fmt.Errorf("MusicTrackRepo.GenreCounts scan: %w", err)
+		}
+		out = append(out, gc)
+	}
+	return out, rows.Err()
+}
+
+// SampleByLibraryGenres is SampleByLibrary limited to the tracks carrying at
+// least one of genres (case-insensitive, multi-genre tags split).
+func (r *MusicTrackRepository) SampleByLibraryGenres(ctx context.Context, libraryID shared.LibraryID, genres []string, limit int) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.SampleByLibraryGenres")
+	defer span.End()
+	if limit <= 0 || len(genres) == 0 {
+		return nil, nil
+	}
+	lowered := make([]string, len(genres))
+	for i, g := range genres {
+		lowered[i] = strings.ToLower(strings.TrimSpace(g))
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		SELECT id, library_id, title, artist, album, album_artist,
+		       year, track_number, disk_number, duration, file_path,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
+		       genre, album_folder, cover_art_url, created_at, updated_at
+		FROM music_tracks t
+		WHERE library_id = $1
+		  AND EXISTS (SELECT 1 FROM `+genreSplitSQL+` AS x WHERE lower(btrim(x)) = ANY($2))
+		ORDER BY RANDOM() LIMIT $3`, libraryID, pq.Array(lowered), limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("MusicTrackRepo.SampleByLibraryGenres: %w", err)
+	}
+	defer rows.Close()
+	return scanTracks(rows)
+}
+
 // ListAlbumsMissingArt returns one AlbumKey per folder that has no
 // cover art on any of its tracks. The Album / Artist display strings
 // come from the folder's majority tags, so downstream fetchers (which

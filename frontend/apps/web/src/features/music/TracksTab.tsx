@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type HTMLAttributes } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
@@ -8,6 +8,9 @@ import type { Track } from "./musicQueries";
 import { TrackArt } from "./TrackArt";
 import { DownloadTrackButton } from "./DownloadTrackButton";
 import { AddToPlaylistButton } from "./AddToPlaylistButton";
+import { AddToQueueButton } from "./AddToQueueButton";
+import { useDraggable } from "@/lib/dnd";
+import type { MusicDragData } from "./musicDrag";
 
 const TRACKS_PAGE_SIZE = 50;
 
@@ -226,8 +229,9 @@ export function TracksTab({
           {pageTrack.map((track, i) => {
             const isActive = playing?.ID === track.ID;
             return (
-              <tr
+              <DraggableTrackRow
                 key={track.ID}
+                track={track}
                 onClick={() => onPlay(track, tracks)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
@@ -250,11 +254,12 @@ export function TracksTab({
                 <td className="px-3 py-2 text-[var(--text-muted)] text-right">
                   {track.Duration > 0 ? formatTime(track.Duration) : "-"}
                 </td>
-                <td className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                <td data-no-drag className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <DownloadTrackButton trackID={track.ID} />
+                  <AddToQueueButton data={{ kind: "music-tracks", tracks: [track] }} />
                   <AddToPlaylistButton trackID={track.ID} />
                 </td>
-              </tr>
+              </DraggableTrackRow>
             );
           })}
         </tbody>
@@ -284,5 +289,20 @@ export function TracksTab({
         </div>
       )}
     </div>
+  );
+}
+
+// A track row that drags onto the queue (or a playlist) as well as plays on
+// click.
+function DraggableTrackRow({ track, className = "", children, ...rest }: { track: Track } & HTMLAttributes<HTMLTableRowElement>) {
+  const drag = useDraggable(
+    `track:${track.ID}`,
+    (): MusicDragData => ({ kind: "music-tracks", tracks: [track] }),
+    track.Title || "-",
+  );
+  return (
+    <tr {...rest} {...drag.props} className={`${className} ${drag.dragging ? "opacity-40" : ""}`}>
+      {children}
+    </tr>
   );
 }

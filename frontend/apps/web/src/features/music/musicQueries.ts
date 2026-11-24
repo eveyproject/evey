@@ -3,6 +3,9 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
   musicServiceListTracks,
+  playlistServiceGetPlaylistItems,
+  collectAllPages,
+  EXPORT_PAGE_SIZE,
   useMusicServiceGetAlbums,
   useMusicServiceGetArtists,
   hasMoreFromCursor,
@@ -96,6 +99,57 @@ export const SHUFFLE_QUEUE_SIZE = 200;
 export async function fetchShuffledTracks(libraryID: string, limit = SHUFFLE_QUEUE_SIZE): Promise<Track[]> {
   const res = await musicServiceListTracks({ libraryId: libraryID, shuffle: true, limit });
   return (res.tracks ?? []).map(toTrack);
+}
+
+// fetchAlbumTracks pulls every track of one album, every page of it.
+export async function fetchAlbumTracks(libraryID: string, albumID: string): Promise<Track[]> {
+  const collected = await collectAllPages((pageIndex) =>
+    musicServiceListTracks({
+      libraryId: libraryID,
+      albumId: albumID,
+      limit: EXPORT_PAGE_SIZE,
+      offset: pageIndex * EXPORT_PAGE_SIZE,
+    }).then((r) => ({ rows: r.tracks ?? [] })),
+  );
+  return collected.rows.map(toTrack);
+}
+
+type PlaylistItemLite = {
+  mediaItemId?: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  coverArtUrl?: string;
+  duration?: number;
+  mediaType?: string;
+};
+
+// A playlist's music members as tracks. The server sends what a row and the
+// player need with each member, so a track shows whether or not the track
+// list of this screen happens to have loaded it.
+export function playlistItemsToTracks(items: PlaylistItemLite[]): Track[] {
+  return items
+    .filter((it) => !!it.mediaItemId && (!it.mediaType || it.mediaType === "music"))
+    .map((it) => ({
+      ID: it.mediaItemId ?? "",
+      Title: it.title ?? "",
+      Artist: it.artist ?? "",
+      Album: it.album ?? "",
+      AlbumArtist: "",
+      Year: 0,
+      TrackNumber: 0,
+      DiskNumber: 0,
+      Duration: it.duration ?? 0,
+      FilePath: "",
+      MimeType: "",
+      Genre: "",
+      CoverArtURL: it.coverArtUrl ?? "",
+    }));
+}
+
+export async function fetchPlaylistTracks(playlistID: string): Promise<Track[]> {
+  const res = await playlistServiceGetPlaylistItems(playlistID);
+  return playlistItemsToTracks(res.items ?? []);
 }
 
 export function useMusicTracks(libraryID: string | undefined, search: string, albumId?: string) {

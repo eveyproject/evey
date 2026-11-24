@@ -41,6 +41,11 @@ const (
 // full history), so the sample only needs to be a deep-enough reservoir to rank.
 type GenTrackLister interface {
 	SampleByLibrary(ctx context.Context, libraryID shared.LibraryID, limit int) ([]music.Track, error)
+	// SampleByLibraryGenres is the same draw among the tracks carrying one of
+	// genres, for a mix of chosen styles.
+	SampleByLibraryGenres(ctx context.Context, libraryID shared.LibraryID, genres []string, limit int) ([]music.Track, error)
+	// GenreCounts lists the library's genres, for the styles a mix offers.
+	GenreCounts(ctx context.Context, libraryID shared.LibraryID) ([]music.GenreCount, error)
 }
 
 // GenPlayCountGetter reads the profile's music taste signals (music tracks
@@ -90,6 +95,31 @@ func NewGeneratorService(tracks GenTrackLister, plays GenPlayCountGetter, playli
 // Generate creates and persists a taste-weighted playlist of up to size tracks
 // owned by the given profile. Taste signal and ownership are both per-profile.
 func (g *GeneratorService) Generate(ctx context.Context, profileID string, libraryID shared.LibraryID, size int, name string) (*playlist.Playlist, error) {
+	return g.GenerateFor(ctx, profileID, libraryID, size, name, nil)
+}
+
+// GenOptions is what a mix can be made of: the library's genres, and whether
+// the profile has listened to anything the mix could lean on.
+type GenOptions struct {
+	Genres     []music.GenreCount
+	HasHistory bool
+}
+
+// Options lists the genres of a library and tells whether the profile's
+// listening history will weigh on a mix.
+func (g *GeneratorService) Options(ctx context.Context, profileID string, libraryID shared.LibraryID) (GenOptions, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.GenOptions")
+	defer span.End()
+	genres, err := g.tracks.GenreCounts(ctx, libraryID)
+	if err != nil {
+		return GenOptions{}, fmt.Errorf("genre counts: %w", err)
+	}
+	return GenOptions{Genres: genres, HasHistory: len(g.playCounts(ctx, profileID)) > 0}, nil
+}
+
+// GenerateFor is Generate limited to the tracks of the given genres (none:
+// the whole library).
+func (g *GeneratorService) GenerateFor(ctx context.Context, profileID string, libraryID shared.LibraryID, size int, name string, genres []string) (*playlist.Playlist, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.Generate")
 	defer span.End()
 
@@ -108,7 +138,13 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 		size = maxGenSize
 	}
 
-	pool, err := g.tracks.SampleByLibrary(ctx, libraryID, maxCandidatePool)
+	var pool []music.Track
+	var err error
+	if len(genres) > 0 {
+		pool, err = g.tracks.SampleByLibraryGenres(ctx, libraryID, genres, maxCandidatePool)
+	} else {
+		pool, err = g.tracks.SampleByLibrary(ctx, libraryID, maxCandidatePool)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("sample tracks: %w", err)
 	}
@@ -127,8 +163,8 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 	candidates := make([]scored, 0, len(pool))
 	for _, t := range pool {
 		score := 1.0
-		if t.Genre != "" {
-			score += genrePlays[strings.ToLower(t.Genre)] * wGenreAffinity
+		for _, genre := range music.SplitGenres(t.Genre) {
+			score += genrePlays[strings.ToLower(genre)] * wGenreAffinity
 		}
 		score += float64(playCounts[t.ID]) * wPlayCount
 		if inPlaylist[t.ID] {
@@ -215,13 +251,23 @@ func (g *GeneratorService) alreadyInPlaylists(ctx context.Context, profileID str
 // genres it actually listens to. Computed from the full play history in the repo
 // (independent of the sampled candidate pool). Best-effort: a lookup failure
 // degrades the mix to play-count + jitter rather than failing the generation.
+//
+// The history is kept per genre TAG ("alternative/rock"); it is spread over the
+// genres of each tag, so listening to "Alternative/Rock" also counts for a
+// track tagged plain "Rock".
 func (g *GeneratorService) genreAffinity(ctx context.Context, profileID string) map[string]float64 {
 	aff, err := g.plays.GenreAffinityForProfile(ctx, profileID)
 	if err != nil {
 		slog.WarnContext(ctx, "generate playlist: genre affinity", slog.Any("err", err))
 		return nil
 	}
-	return aff
+	split := make(map[string]float64, len(aff))
+	for tag, w := range aff {
+		for _, genre := range music.SplitGenres(tag) {
+			split[strings.ToLower(genre)] += w
+		}
+	}
+	return split
 }
 
 // DefaultGeneratedName is what a generated playlist is called when the person

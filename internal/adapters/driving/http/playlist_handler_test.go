@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	appplaylist "github.com/eveyproject/evey/internal/app/playlist"
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainmusic "github.com/eveyproject/evey/internal/domain/music"
 	"github.com/eveyproject/evey/internal/domain/playlist"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	domainuser "github.com/eveyproject/evey/internal/domain/user"
@@ -20,12 +22,19 @@ import (
 // --- stubs for generatePlaylist tests ---
 
 type stubPlaylistGenerator struct {
-	pl  *playlist.Playlist
-	err error
+	pl     *playlist.Playlist
+	err    error
+	genres []string
+	opts   appplaylist.GenOptions
 }
 
-func (s *stubPlaylistGenerator) Generate(_ context.Context, _ string, _ shared.LibraryID, _ int, _ string) (*playlist.Playlist, error) {
+func (s *stubPlaylistGenerator) GenerateFor(_ context.Context, _ string, _ shared.LibraryID, _ int, _ string, genres []string) (*playlist.Playlist, error) {
+	s.genres = genres
 	return s.pl, s.err
+}
+
+func (s *stubPlaylistGenerator) Options(_ context.Context, _ string, _ shared.LibraryID) (appplaylist.GenOptions, error) {
+	return s.opts, s.err
 }
 
 // stubPlaylistArchiveSource satisfies playlistArchiveSource with no-op behaviour;
@@ -62,6 +71,7 @@ func buildPlaylistMux(t *testing.T, gen playlistGenerator, checker LibraryAccess
 
 	authMw := httpAuthMiddleware(jwtGen)
 	mux.HandleFunc("POST /api/v1/playlists/generate", ratelimit.MiddlewareFunc(rl, authMw(h.generatePlaylist)))
+	mux.HandleFunc("GET /api/v1/playlists/generate/options", authMw(h.generateOptions))
 	return mux, userTok
 }
 
@@ -138,8 +148,12 @@ type capturingPlaylistGenerator struct {
 	fn func(name string) (*playlist.Playlist, error)
 }
 
-func (c *capturingPlaylistGenerator) Generate(_ context.Context, _ string, _ shared.LibraryID, _ int, name string) (*playlist.Playlist, error) {
+func (c *capturingPlaylistGenerator) GenerateFor(_ context.Context, _ string, _ shared.LibraryID, _ int, name string, _ []string) (*playlist.Playlist, error) {
 	return c.fn(name)
+}
+
+func (c *capturingPlaylistGenerator) Options(_ context.Context, _ string, _ shared.LibraryID) (appplaylist.GenOptions, error) {
+	return appplaylist.GenOptions{}, nil
 }
 
 // TestGeneratePlaylist_Unauthenticated verifies that a request without a valid
@@ -391,5 +405,68 @@ func TestReorderPlaylistItems_RouteMissingOnLegacyMux(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 (route not registered), got %d", w.Code)
+	}
+}
+
+// The styles a mix is limited to reach the generator, blanks dropped.
+func TestGeneratePlaylist_ForwardsGenres(t *testing.T) {
+	gen := &stubPlaylistGenerator{pl: &playlist.Playlist{ID: "pl-1", Name: "Rock"}}
+	mux, userTok := buildPlaylistMux(t, gen, allowAll())
+	body, _ := json.Marshal(map[string]any{"libraryId": "lib-1", "genres": []string{"Rock", "  ", " Blues "}})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/playlists/generate", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if fmt.Sprint(gen.genres) != "[Rock Blues]" {
+		t.Fatalf("genres forwarded = %v", gen.genres)
+	}
+}
+
+func TestGenerateOptions_ListsGenresAndHistory(t *testing.T) {
+	gen := &stubPlaylistGenerator{opts: appplaylist.GenOptions{
+		Genres:     []domainmusic.GenreCount{{Name: "Rock", Count: 12}, {Name: "Blues", Count: 3}},
+		HasHistory: true,
+	}}
+	mux, userTok := buildPlaylistMux(t, gen, allowAll())
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/playlists/generate/options?libraryId=lib-1", nil)
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var got struct {
+		Genres []struct {
+			Name  string `json:"name"`
+			Count int    `json:"count"`
+		} `json:"genres"`
+		HasHistory bool `json:"hasHistory"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Genres) != 2 || got.Genres[0].Name != "Rock" || got.Genres[0].Count != 12 || !got.HasHistory {
+		t.Fatalf("answer = %+v", got)
+	}
+}
+
+func TestGenerateOptions_GuardsTheLibrary(t *testing.T) {
+	mux, userTok := buildPlaylistMux(t, &stubPlaylistGenerator{}, denyAll())
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/playlists/generate/options?libraryId=lib-restricted", nil)
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/playlists/generate/options", nil)
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("missing libraryId: expected 400, got %d", w.Code)
 	}
 }
