@@ -82,11 +82,12 @@ describe("effectivePlayMethod", () => {
     expect(effectivePlayMethod({})).toBe("");
   });
 
-  // Sessions started before the per-track fields existed have nothing to
-  // correct with, so the server's verdict stands.
-  it("falls back to the declared method when no track decision is known", () => {
-    expect(effectivePlayMethod({ playMethod: "transcode" })).toBe("transcode");
-    expect(effectivePlayMethod({ playMethod: "transcode", videoDecision: "", audioDecision: "" })).toBe("transcode");
+  // A routing "transcode" with no track known claims an encode nobody
+  // measured: unlabelled. A declared remux needs no correction.
+  it("names no transcode when no track decision is known", () => {
+    expect(effectivePlayMethod({ playMethod: "transcode" })).toBe("");
+    expect(effectivePlayMethod({ playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "", audioDecision: "" })).toBe("");
+    expect(effectivePlayMethod({ playMethod: "direct_stream" })).toBe("direct_stream");
   });
 
   it("decides on the tracks it does know when only one is reported", () => {

@@ -183,11 +183,19 @@ describe("SessionsPage", () => {
   });
 
   it("shows Transcode badge for transcode method", async () => {
-    const transcodeSession = { ...mockSession, playMethod: "transcode" };
+    const transcodeSession = { ...mockSession, playMethod: "transcode", videoDecision: "transcode", audioDecision: "copy" };
     mockUseQuery.mockReturnValue({ data: [transcodeSession], isLoading: false, isError: false });
     const SessionsPage = await getSessionsPage();
     render(React.createElement(SessionsPage), { wrapper: createWrapper() });
     expect(screen.getByText("Transcode")).toBeInTheDocument();
+  });
+
+  // A routing "transcode" whose tracks are not known yet claims no encode.
+  it("names no method while a segmented session's tracks are unknown", async () => {
+    mockUseQuery.mockReturnValue({ data: [{ ...mockSession, playMethod: "transcode", videoDecision: "", audioDecision: "" }], isLoading: false, isError: false });
+    const SessionsPage = await getSessionsPage();
+    render(React.createElement(SessionsPage), { wrapper: createWrapper() });
+    expect(screen.queryByText("Transcode")).not.toBeInTheDocument();
   });
 
   it("clicking stop button shows confirm/cancel", async () => {
