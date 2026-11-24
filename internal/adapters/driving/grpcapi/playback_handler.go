@@ -727,6 +727,21 @@ func clampSessionField(s string) string {
 	return s
 }
 
+// recordedPlayMethod is the method a play session is recorded under. The
+// verdict's method routes (a file that must go through the segmented session
+// is "transcode" even when nothing is encoded); what the admin pages and the
+// play-method counts name is what was done to the bytes. Both tracks copied
+// (or decoded by the client) is a remux.
+func recordedPlayMethod(method, videoDecision, audioDecision string) string {
+	if method != string(playback.Transcode) || videoDecision == "" || audioDecision == "" {
+		return method
+	}
+	if strings.EqualFold(videoDecision, "transcode") || strings.EqualFold(audioDecision, "transcode") {
+		return method
+	}
+	return string(playback.DirectStream)
+}
+
 // servedResolution names the served frame the way every client does
 // (library.ResolutionLabel): the source, scaled down to the transcode's height
 // cap when there is one. A 1920x818 source is "1080p", not "818p".
@@ -821,6 +836,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	session.VideoCodec = clampSessionField(req.VideoCodec)
 	session.AudioCodec = clampSessionField(req.AudioCodec)
 	session.Resolution = clampSessionField(req.Resolution)
+	session.PlayMethod = recordedPlayMethod(session.PlayMethod, session.VideoDecision, session.AudioDecision)
 	if err := h.cmd.StartStream(ctx, session, shared.UserID(claims.UserID)); err != nil {
 		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
@@ -965,7 +981,7 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 	// row). NOT while casting: the TV consumes its own commands via the alive
 	// beacon poll, and the phone's 3s tick used to win that race and apply
 	// "pause" to its muted LOCAL player - the admin's button then visibly did
-	// nothing on the TV (live repro 2026-07-29).
+	// nothing on the TV.
 	resp := &eveyv1.ReportProgressResponse{}
 	if req.CastDeviceName == "" {
 		if cmd, cmdErr := h.cmd.ConsumeRemoteCommand(ctx, req.SessionId); cmdErr == nil && cmd != "" {

@@ -16,7 +16,7 @@ import { getDeviceAudioCodecs, getDeviceMaxH264Level, getDeviceVideoLimits, getF
 import { decoderMaxHeight, decoderMaxWidth, devicePixelFormats, tighterOf } from "./videoLimits";
 
 // The play session of the two native players (phone and television). They
-// kept a copy each until 2026-09-24, and the copies had drifted apart: the TV
+// once kept a copy each, and the copies had drifted apart: the TV
 // probed the unseekable /transcode pipe without aborting it and let the slower
 // of two track switches win, the phone showed an expired session as a stream
 // failure. What differs between the devices is passed in as PlaySessionDevice.
@@ -25,7 +25,7 @@ export const VIDEO_CODECS = ["h264", "hevc", "vp9"];
 // Android's player (ExoPlayer/AndroidXMedia3) demuxes Matroska/WebM natively, so
 // a compatible-codec .mkv (the bulk of a self-hosted library) DIRECT-PLAYS
 // instead of being transcoded for nothing - which is what breaks in-timeline
-// seeking and shifts colors. Measured 2026-09-19 on the living-room box: with
+// seeking and shifts colors. Measured on an Android TV box: with
 // mp4 alone, a 1.1 Mbps H.264 + AAC stereo film went through ffmpeg, audio
 // drifting off the picture. AVPlayer (iPhone, Apple TV) reads neither
 // container, so Apple keeps mp4/hls and lets the server remux.
@@ -499,6 +499,12 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           startPositionMs: startPosMs,
           audioStreamIndex,
           subtitleStreamIndex,
+          // The per-track verdicts name the method on the admin surfaces: a
+          // segmented session whose tracks both copy is a remux, not a transcode.
+          servedBitrateBps: info.bitrate ?? "0",
+          videoDecision: info.videoDecision ?? "",
+          audioDecision: info.audioDecision ?? "",
+          resolution: info.resolution ?? "",
         });
 
         if (!stoppedRef.current && !superseded()) {
