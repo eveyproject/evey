@@ -41,8 +41,9 @@ type IssuedToken struct {
 // IssueToken returns a scoped JWT for (userID, pluginID). Scopes are the
 // intersection of the plugin's admin-approved permissions (Plugin.Permissions)
 // with the auth-level allow-list. Forbidden scopes (admin.*, auth.*, system.*,
-// user.write, library.write) are stripped unconditionally.
-func (s *TokenService) IssueToken(ctx context.Context, userID, profileID, pluginID string) (*IssuedToken, error) {
+// user.write, library.write) are stripped unconditionally, and media.files
+// unless the viewer is an administrator: file paths are the server's own.
+func (s *TokenService) IssueToken(ctx context.Context, userID, profileID, pluginID string, isAdmin bool) (*IssuedToken, error) {
 	if userID == "" {
 		return nil, errors.New("userID required")
 	}
@@ -55,6 +56,15 @@ func (s *TokenService) IssueToken(ctx context.Context, userID, profileID, plugin
 	}
 
 	scopes := auth.FilterPluginScopes(p.Permissions)
+	if !isAdmin {
+		kept := scopes[:0]
+		for _, sc := range scopes {
+			if sc != auth.MediaFilesScope {
+				kept = append(kept, sc)
+			}
+		}
+		scopes = kept
+	}
 
 	tok, exp, final, err := s.issuer.GeneratePluginToken(userID, pluginID, profileID, scopes, s.ttl)
 	if err != nil {

@@ -143,6 +143,22 @@ nutzen Sie die Zeile der Bibliothek:
     Rechner geschrieben hat, kein Signal an den Server. Die regelmäßigen
     Durchgänge finden sie.
 
+## Der Papierkorb-Ordner { #the-trash-folder }
+
+Eine Plugin-Seite mit der Berechtigung `media.trash` (der Librarian, für
+Duplikate) kann anbieten, Dateien in den Papierkorb zu verschieben. Evey
+fragt zuerst, in einem eigenen Fenster, das jede Datei mit Pfad, Größe und
+Qualität nennt. Bei Ja wandert die Datei, mit ihren Untertiteln und der
+`.nfo`, nach `.evey-trash` im Stammverzeichnis ihrer Bibliothek, unter
+denselben Ordnern, und der Titel verschwindet aus Evey.
+
+Nichts wird von der Festplatte gelöscht. Leeren Sie `.evey-trash` selbst,
+wenn Sie sicher sind; um eine Datei zurückzuholen, nutzen Sie gleich danach **Undo** auf
+der Plugin-Seite, oder verschieben Sie sie an ihren Platz und scannen die
+Bibliothek. Evey liest diesen Ordner nie. Eine
+schreibgeschützt eingebundene Bibliothek kann den Papierkorb nicht nutzen:
+das Verschieben wird abgelehnt und der Titel bleibt.
+
 ## Musikbibliotheken { #music-libraries }
 
 Der Scanner liest MP3-, FLAC-, M4A-, OGG-, Opus-, WAV- und AAC-Dateien und

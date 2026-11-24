@@ -291,6 +291,12 @@ plugins:
   installedTitle: Installed plugins
   pageBadge: "Plugin"
   pageProvidedBy: "This page is drawn by a plugin, not by Evey."
+  trash:
+    title_one: "Move {{count}} file to the trash?"
+    title_other: "Move {{count}} files to the trash?"
+    explain: "A plugin asks to remove these files from the library. Evey moves each one, with its subtitles, to the .evey-trash folder at the root of its library and removes it from Evey. Nothing is deleted from the disk: empty that folder yourself when you are sure."
+    confirm_one: "Move to the trash"
+    confirm_other: "Move {{count}} to the trash"
   uploadFile: Upload File
   fromUrl: From URL
   installFromUrl: Install from URL

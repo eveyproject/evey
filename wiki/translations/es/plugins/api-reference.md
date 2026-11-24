@@ -252,18 +252,67 @@ await evey.prefs.delete("units");
 ### `evey.media.*` (permiso `public`) { #eveymedia-permission-public }
 
 Una versión segura de los elementos multimedia: id, título, tipo, año,
-resumen, URL del póster. Nunca una ruta de archivo, un tamaño, un id de
-proveedor ni un flujo.
+resumen, URL del póster. Nunca un id de proveedor ni un flujo, y ni ruta ni
+tamaño de archivo salvo que el plugin tenga también `media.files` (abajo).
 
 ```js
 const item  = await evey.media.get(id);
-const page  = await evey.media.list({ libraryId });
+const page  = await evey.media.list({ libraryId });  // { items, total }
 const data  = await evey.media.poster(id);  // el póster como URL data:
 ```
+
+`list` devuelve una página de 500 elementos como máximo, todos los tipos
+mezclados (series, temporadas, episodios...) salvo que `type` la limite. Un
+plugin que necesita toda la biblioteca pide un tipo y recorre las páginas
+hasta tener `total` elementos:
+
+```js
+const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pageSize: 500 });
+```
+
+Con el permiso `media.files`, y solo cuando quien mira es administrador, cada
+elemento lleva también `filePath`, `fileSize` (una cadena, como todo número
+de 64 bits de la API) y `quality`: `width`, `height`, `videoCodec`, `hdrType`
+(vacío en SDR), `bitDepth`, `bitrate` (bits por segundo), `durationMs`,
+`container`, `audioCodec` y `audioChannels`, de la primera pista de vídeo y
+de la pista de audio por defecto. Para cualquier otra persona el token se emite sin ese
+permiso y los dos campos quedan vacíos: un módulo que ve todo el mundo no
+debe contar con ellos, su sitio es el slot `admin.nav`.
 
 `poster` devuelve una URL `data:` porque la política del marco prohíbe cargar
 una imagen directamente desde el servidor; úsala como fuente de un `<img>` o
 como textura.
+
+### `evey.media.trash(ids)` (permiso `media.trash`, solo en el slot `admin.nav`) { #eveymediatrashids }
+
+Pide a Evey que mueva archivos a la papelera de su biblioteca. El plugin solo
+pide: Evey muestra su propia confirmación, hecha con su propio registro de
+cada elemento (título, año, ruta, tamaño, calidad), nunca con lo que envió el
+plugin, y nada se mueve hasta que el administrador dice que sí ahí.
+
+```js
+const res = await evey.media.trash([id1, id2]);
+// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+```
+
+Si dice que sí, cada archivo va, con sus subtítulos y su `.nfo`, a
+`.evey-trash` en la raíz de su biblioteca, bajo la misma ruta relativa, y el
+elemento sale de Evey. No se borra nada del disco: el administrador vacía esa
+carpeta, y un archivo devuelto a su sitio vuelve con el siguiente escaneo.
+Solo películas y episodios: una serie es una carpeta. La promesa se rechaza
+con `cancelled` cuando el administrador dice que no, y con `method not
+permitted` en cualquier sitio que no sea una página `admin.nav` de un plugin
+con `media.trash` en el navegador (las apps de teléfono y TV aún no lo
+ofrecen). Un rechazo por archivo (montaje de solo lectura, archivo ya
+desaparecido) vuelve en `failed`.
+
+`evey.media.restore(paths)` lo deshace, con la misma regla: a partir de los
+valores `trashedPath`, Evey devuelve cada archivo y sus subtítulos a su sitio
+y escanea la biblioteca, así que el título vuelve, como una entrada nueva
+reconocida otra vez por su nombre (el estado de reproducción de la entrada
+anterior no se recupera). Devuelve `{ restored: [{ trashedPath, restoredPath
+}], failed: [...] }`; Evey rechaza cualquier ruta fuera de una papelera de
+biblioteca, y un sitio ocupado de nuevo. Sin confirmación: no destruye nada.
 
 ### `evey.assets.read(path)` { #eveyassetsreadpath }
 

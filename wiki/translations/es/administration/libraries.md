@@ -138,6 +138,21 @@ biblioteca:
     En una carpeta compartida NFS o SMB, un archivo escrito por otra máquina
     no envía ninguna señal al servidor. Las lecturas regulares lo encuentran.
 
+## La carpeta papelera { #the-trash-folder }
+
+Una página de plugin con el permiso `media.trash` (el Librarian, para los
+duplicados) puede ofrecer mover archivos a la papelera. Evey pregunta antes,
+en su propia ventana, que nombra cada archivo con su ruta, tamaño y calidad.
+Si dices que sí, el archivo va, con sus subtítulos y su `.nfo`, a
+`.evey-trash` en la raíz de su biblioteca, bajo las mismas carpetas, y el
+título sale de Evey.
+
+No se borra nada del disco. Vacía `.evey-trash` tú mismo cuando estés
+seguro; para recuperar un archivo, usa **Undo** en la página del plugin justo
+después, o devuélvelo a su sitio y escanea la biblioteca. Evey nunca lee esa carpeta. Una biblioteca montada en solo
+lectura no puede usar la papelera: el movimiento se rechaza y el título se
+queda.
+
 ## Bibliotecas de música { #music-libraries }
 
 El escáner lee archivos MP3, FLAC, M4A, OGG, Opus, WAV y AAC, y toma los

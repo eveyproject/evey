@@ -302,6 +302,12 @@ plugins:
   installedTitle: "已安装的插件"
   pageBadge: "插件"
   pageProvidedBy: "此页面由插件呈现，而非 Evey。"
+  trash:
+    title_one: "将 {{count}} 个文件移到回收站？"
+    title_other: "将 {{count}} 个文件移到回收站？"
+    explain: "一个插件请求把这些文件移出媒体库。Evey 会把每个文件连同字幕移到其媒体库根目录下的 .evey-trash 文件夹，并从 Evey 中移除。磁盘上不会删除任何内容：确认无误后请自行清空该文件夹。"
+    confirm_one: "移到回收站"
+    confirm_other: "将这 {{count}} 个移到回收站"
   uploadFile: "上传文件"
   fromUrl: "从 URL 安装"
   installFromUrl: "从 URL 安装"

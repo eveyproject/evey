@@ -301,6 +301,12 @@ plugins:
   installedTitle: "Plugins installés"
   pageBadge: "Plugin"
   pageProvidedBy: "Cette page est affichée par un plugin, pas par Evey."
+  trash:
+    title_one: "Mettre {{count}} fichier à la corbeille ?"
+    title_other: "Mettre {{count}} fichiers à la corbeille ?"
+    explain: "Un plugin demande de retirer ces fichiers de la bibliothèque. Evey déplace chacun, avec ses sous-titres, dans le dossier .evey-trash à la racine de sa bibliothèque et le retire d'Evey. Rien n'est effacé du disque : videz ce dossier vous-même quand vous êtes sûr."
+    confirm_one: "Mettre à la corbeille"
+    confirm_other: "Mettre les {{count}} à la corbeille"
   uploadFile: "Téléverser un fichier"
   fromUrl: "Depuis une URL"
   installFromUrl: Installer depuis une URL

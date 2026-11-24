@@ -24,6 +24,8 @@ export interface PluginInfo {
   webRoot?: string;
   external_fetch?: string[];
   externalFetch?: string[];
+  /** Granted permissions the host enforces itself (media.trash). */
+  hostPermissions?: string[];
 }
 
 export interface ListPluginsResponse {
@@ -37,6 +39,8 @@ export interface SlotEntry {
   /** Asset path relative to the plugin's web_root, ready for the host's src. */
   entryPath: string;
   externalFetch: string[];
+  /** Granted permissions the host enforces itself: media.trash offers evey.media.trash. */
+  hostPermissions: string[];
 }
 
 export interface SlotFilter {
@@ -142,7 +146,7 @@ export function resolveSlotEntries(plugins: PluginInfo[] | undefined, slot: stri
     const externalFetch = p.externalFetch ?? p.external_fetch ?? [];
     for (const mod of p.frontend ?? []) {
       if (mod.slot !== slot) continue;
-      entries.push({ pluginId: p.id, name: p.name || p.id, entryPath: entryPathFor(mod.src, webRoot), externalFetch });
+      entries.push({ pluginId: p.id, name: p.name || p.id, entryPath: entryPathFor(mod.src, webRoot), externalFetch, hostPermissions: p.hostPermissions ?? [] });
     }
   }
   return entries;

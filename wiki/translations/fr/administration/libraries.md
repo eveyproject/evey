@@ -144,6 +144,21 @@ la ligne de la bibliothèque :
     n'envoie aucun signal au serveur. C'est la lecture régulière des
     dossiers qui le trouve.
 
+## Le dossier corbeille { #the-trash-folder }
+
+Une page de plugin qui a la permission `media.trash` (le Bibliothécaire,
+pour les doublons) peut proposer de mettre des fichiers à la corbeille. Evey
+demande d'abord, dans sa propre fenêtre qui nomme chaque fichier, son chemin,
+sa taille et sa qualité. Sur un oui, le fichier part, avec ses sous-titres et
+son `.nfo`, dans `.evey-trash` à la racine de sa bibliothèque, sous les mêmes
+dossiers, et le titre quitte Evey.
+
+Rien n'est effacé du disque. Videz `.evey-trash` vous-même une fois sûr ;
+pour récupérer un fichier, utilisez **Annuler** sur la page du plugin juste
+après, ou remettez-le à sa place et scannez la bibliothèque.
+Evey ne lit jamais ce dossier. Une bibliothèque montée en lecture seule ne
+peut pas utiliser la corbeille : le déplacement est refusé et le titre reste.
+
 ## Bibliothèques de musique { #music-libraries }
 
 Le scanner lit les fichiers MP3, FLAC, M4A, OGG, Opus, WAV et AAC, et prend

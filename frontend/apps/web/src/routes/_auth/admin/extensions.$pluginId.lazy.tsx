@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PluginIframe } from "@/features/plugins/PluginIframe";
 import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
+import { restoreTrashed, useTrashConfirm } from "@/features/plugins/useTrashConfirm";
 
 export const Route = createLazyFileRoute("/_auth/admin/extensions/$pluginId")({
   component: PluginExtensionPage,
@@ -20,6 +21,10 @@ function PluginExtensionPage() {
   const { t } = useTranslation();
   const { pluginId } = Route.useParams();
   const entry = usePluginSlotEntries("admin.nav").find((e) => e.pluginId === pluginId);
+  // evey.media.trash is answered only for a plugin granted media.trash, and
+  // always through Evey's own confirmation.
+  const trash = useTrashConfirm();
+  const canTrash = !!entry?.hostPermissions?.includes("media.trash");
 
   return (
     <div className="p-6">
@@ -46,8 +51,11 @@ function PluginExtensionPage() {
               slot="admin.nav"
               src={entry.entryPath}
               externalFetch={entry.externalFetch}
+              onTrashRequest={canTrash ? trash.request : undefined}
+              onRestoreRequest={canTrash ? restoreTrashed : undefined}
             />
           </div>
+          {trash.dialog}
         </>
       ) : (
         <p className="text-[var(--text-muted)]">
