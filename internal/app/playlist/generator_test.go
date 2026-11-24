@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/eveyproject/evey/internal/domain/music"
@@ -14,6 +16,34 @@ import (
 type genFakeTracks struct {
 	tracks []music.Track
 	err    error
+	// genresAsked records the genres a genre-limited draw was asked for.
+	genresAsked []string
+	counts      []music.GenreCount
+}
+
+// SampleByLibraryGenres keeps the tracks of which one split genre matches.
+func (f *genFakeTracks) SampleByLibraryGenres(_ context.Context, _ shared.LibraryID, genres []string, limit int) ([]music.Track, error) {
+	f.genresAsked = genres
+	if f.err != nil {
+		return nil, f.err
+	}
+	var out []music.Track
+	for _, t := range f.tracks {
+		for _, g := range music.SplitGenres(t.Genre) {
+			if slices.ContainsFunc(genres, func(want string) bool { return strings.EqualFold(want, g) }) {
+				out = append(out, t)
+				break
+			}
+		}
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (f *genFakeTracks) GenreCounts(_ context.Context, _ shared.LibraryID) ([]music.GenreCount, error) {
+	return f.counts, f.err
 }
 
 func (f *genFakeTracks) SampleByLibrary(_ context.Context, _ shared.LibraryID, limit int) ([]music.Track, error) {
@@ -324,4 +354,78 @@ func TestGenerate_ClampsTheRequestedSize(t *testing.T) {
 			t.Errorf("a request of exactly the cap produced %d items, want %d", len(items.added), maxGenSize)
 		}
 	})
+}
+
+// A mix of chosen styles draws only among their tracks, a multi-genre tag
+// counting for each of its genres.
+func TestGenerateFor_LimitsToChosenGenres(t *testing.T) {
+	tracks := &genFakeTracks{tracks: []music.Track{
+		track("a", "Alternative/Rock"), track("b", "Jazz"), track("c", "rock; Blues"), track("d", "Electro"),
+	}}
+	items := &genFakeItems{byPlist: map[string][]*playlist.PlaylistItem{}}
+	g := newGen(tracks, &genFakePlays{}, &genFakePlaylists{}, items)
+
+	if _, err := g.GenerateFor(context.Background(), "p1", "lib1", 10, "Rock", []string{"Rock"}); err != nil {
+		t.Fatalf("GenerateFor: %v", err)
+	}
+	if fmt.Sprint(tracks.genresAsked) != "[Rock]" {
+		t.Fatalf("draw asked for %v, want [Rock]", tracks.genresAsked)
+	}
+	got := addedIDs(items)
+	if len(got) != 2 || !got["a"] || !got["c"] {
+		t.Fatalf("mix holds %v, want exactly a and c", got)
+	}
+}
+
+// No track of the chosen styles is the same "nothing to generate from" as an
+// empty library, not an empty playlist.
+func TestGenerateFor_NoTrackOfThoseGenres(t *testing.T) {
+	tracks := &genFakeTracks{tracks: []music.Track{track("a", "Jazz")}}
+	pls := &genFakePlaylists{}
+	g := newGen(tracks, &genFakePlays{}, pls, &genFakeItems{})
+	_, err := g.GenerateFor(context.Background(), "p1", "lib1", 10, "", []string{"Metal"})
+	if !errors.Is(err, ErrNoTracks) {
+		t.Fatalf("err = %v, want ErrNoTracks", err)
+	}
+	if len(pls.created) != 0 {
+		t.Fatal("no playlist may be created")
+	}
+}
+
+// Listening history kept per tag ("alternative/rock") counts for each of its
+// genres: a profile that played it favours a plain "Rock" track over Jazz.
+func TestGenerate_AffinitySpreadsOverSplitGenres(t *testing.T) {
+	tracks := &genFakeTracks{tracks: []music.Track{track("rock", "Rock"), track("jazz", "Jazz")}}
+	plays := &genFakePlays{affinity: map[string]float64{"alternative/rock": 1000}}
+	picked := map[string]int{}
+	for range 40 {
+		items := &genFakeItems{byPlist: map[string][]*playlist.PlaylistItem{}}
+		g := newGen(tracks, plays, &genFakePlaylists{}, items)
+		if _, err := g.Generate(context.Background(), "p1", "lib1", 1, ""); err != nil {
+			t.Fatalf("Generate: %v", err)
+		}
+		for id := range addedIDs(items) {
+			picked[id]++
+		}
+	}
+	if picked["rock"] != 40 {
+		t.Fatalf("a 1-track mix must always pick the favoured Rock track, picked %v", picked)
+	}
+}
+
+func TestOptions_ListsGenresAndHistory(t *testing.T) {
+	tracks := &genFakeTracks{counts: []music.GenreCount{{Name: "Rock", Count: 3}}}
+	g := newGen(tracks, &genFakePlays{counts: map[string]int{"a": 2}}, &genFakePlaylists{}, &genFakeItems{})
+	opts, err := g.Options(context.Background(), "p1", "lib1")
+	if err != nil {
+		t.Fatalf("Options: %v", err)
+	}
+	if len(opts.Genres) != 1 || opts.Genres[0].Name != "Rock" || !opts.HasHistory {
+		t.Fatalf("options = %+v", opts)
+	}
+	g = newGen(tracks, &genFakePlays{}, &genFakePlaylists{}, &genFakeItems{})
+	opts, _ = g.Options(context.Background(), "p1", "lib1")
+	if opts.HasHistory {
+		t.Fatal("no plays means no history")
+	}
 }

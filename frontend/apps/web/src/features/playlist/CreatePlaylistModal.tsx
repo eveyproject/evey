@@ -12,6 +12,9 @@ import { useCreatePlaylist, type PlaylistRule } from "./api";
 interface Props {
   open: boolean;
   onClose: () => void;
+  // Told the new playlist's id, so the screen that opened the modal can open
+  // the playlist.
+  onCreated?: (id: string) => void;
 }
 
 const RULE_FIELDS = [
@@ -30,7 +33,7 @@ const RULE_OPERATORS = [
   { value: "lte", label: "<=" },
 ];
 
-export function CreatePlaylistModal({ open, onClose }: Props) {
+export function CreatePlaylistModal({ open, onClose, onCreated }: Props) {
   const { t } = useTranslation();
     const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -68,7 +71,7 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
     e.preventDefault();
     if (!name.trim()) return;
     try {
-      await create.mutateAsync({
+      const created = await create.mutateAsync({
         name: name.trim(),
         description: description.trim(),
         type,
@@ -77,6 +80,7 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
       toast.success(t("media.playlist.createSuccess", { name }));
       reset();
       onClose();
+      if (created?.id) onCreated?.(created.id);
     } catch {
       toast.error(t("media.playlist.createError"));
     }

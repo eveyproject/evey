@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   usePlaylistServiceListPlaylists,
   usePlaylistServiceGetPlaylist,
@@ -197,9 +197,33 @@ export function useUpdatePlaylist(opts: { ownErrorToast?: boolean } = {}) {
 export function useGeneratePlaylist() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (data: { libraryId: string; name?: string; size?: number }) =>
+    // genres limits the mix to the tracks of those styles; absent, the whole
+    // library.
+    mutationFn: (data: { libraryId: string; name?: string; size?: number; genres?: string[] }) =>
       eveyFetch<{ id: string; name: string }>({ url: "/api/v1/playlists/generate", method: "POST", data }),
     onSuccess: () => invalidate.list(),
+  });
+}
+
+export interface MixOptions {
+  // The library's styles, split out of multi-genre tags, most common first.
+  genres: { name: string; count: number }[];
+  // Whether the profile has listened to anything a mix could lean on.
+  hasHistory: boolean;
+}
+
+// What a generated mix can be made of, for the form that builds one.
+export function useMixOptions(libraryId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["playlist-mix-options", libraryId ?? ""],
+    enabled: !!libraryId && enabled,
+    staleTime: 5 * 60_000,
+    queryFn: ({ signal }) =>
+      eveyFetch<MixOptions>({
+        url: `/api/v1/playlists/generate/options?libraryId=${encodeURIComponent(libraryId ?? "")}`,
+        method: "GET",
+        signal,
+      }),
   });
 }
 

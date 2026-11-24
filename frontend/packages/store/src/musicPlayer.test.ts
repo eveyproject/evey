@@ -272,3 +272,99 @@ describe("close", () => {
     expect(useMusicPlayerStore.getState().shuffle).toBe(true);
   });
 });
+
+// ─── hand-edited queue ────────────────────────────────────────────────────────
+
+describe("addToQueue", () => {
+  it("appends to an empty queue without starting playback", () => {
+    const added = useMusicPlayerStore.getState().addToQueue([makeTrack("a"), makeTrack("b")]);
+    expect(added).toBe(2);
+    expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["a", "b"]);
+    expect(useMusicPlayerStore.getState().playing).toBeNull();
+  });
+
+  it("skips tracks already queued and repeats within the batch", () => {
+    useMusicPlayerStore.getState().setQueue([makeTrack("a")]);
+    const added = useMusicPlayerStore.getState().addToQueue([makeTrack("a"), makeTrack("b"), makeTrack("b")]);
+    expect(added).toBe(1);
+    expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["a", "b"]);
+  });
+
+  it("inserts at a position", () => {
+    useMusicPlayerStore.getState().setQueue([makeTrack("a"), makeTrack("c")]);
+    useMusicPlayerStore.getState().addToQueue([makeTrack("b")], 1);
+    expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["a", "b", "c"]);
+  });
+
+  it("keeps the playing track and the source", () => {
+    const q = [makeTrack("a"), makeTrack("b")];
+    useMusicPlayerStore.getState().play(q[0], q, SOURCE_ALBUM);
+    useMusicPlayerStore.getState().addToQueue([makeTrack("c")]);
+    expect(useMusicPlayerStore.getState().playing?.ID).toBe("a");
+    expect(useMusicPlayerStore.getState().source).toEqual(SOURCE_ALBUM);
+  });
+});
+
+describe("moveInQueue", () => {
+  it("moves an entry to its new index", () => {
+    useMusicPlayerStore.getState().setQueue(["a", "b", "c", "d"].map((id) => makeTrack(id)));
+    useMusicPlayerStore.getState().moveInQueue(0, 2);
+    expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["b", "c", "a", "d"]);
+    useMusicPlayerStore.getState().moveInQueue(3, 0);
+    expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["d", "b", "c", "a"]);
+  });
+
+  it("ignores out-of-range moves", () => {
+    useMusicPlayerStore.getState().setQueue(["a", "b"].map((id) => makeTrack(id)));
+    useMusicPlayerStore.getState().moveInQueue(0, 5);
+    expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["a", "b"]);
+  });
+
+  it("next follows the new order", () => {
+    const q = ["a", "b", "c"].map((id) => makeTrack(id));
+    useMusicPlayerStore.getState().play(q[0], q);
+    useMusicPlayerStore.getState().moveInQueue(2, 1);
+    useMusicPlayerStore.getState().next();
+    expect(useMusicPlayerStore.getState().playing?.ID).toBe("c");
+  });
+});
+
+describe("removeFromQueue", () => {
+  it("drops a track that is not playing", () => {
+    const q = ["a", "b", "c"].map((id) => makeTrack(id));
+    useMusicPlayerStore.getState().play(q[0], q);
+    useMusicPlayerStore.getState().removeFromQueue("b");
+    expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["a", "c"]);
+    expect(useMusicPlayerStore.getState().playing?.ID).toBe("a");
+  });
+
+  it("moves on to the neighbour when the playing track is removed", () => {
+    const q = ["a", "b", "c"].map((id) => makeTrack(id));
+    useMusicPlayerStore.getState().play(q[2], q);
+    useMusicPlayerStore.getState().removeFromQueue("c");
+    expect(useMusicPlayerStore.getState().playing?.ID).toBe("b");
+  });
+
+  it("stops when the last track is removed", () => {
+    const q = [makeTrack("a")];
+    useMusicPlayerStore.getState().play(q[0], q);
+    useMusicPlayerStore.getState().removeFromQueue("a");
+    expect(useMusicPlayerStore.getState().playing).toBeNull();
+    expect(useMusicPlayerStore.getState().queue).toHaveLength(0);
+  });
+});
+
+describe("clearQueue", () => {
+  it("keeps only the playing track", () => {
+    const q = ["a", "b", "c"].map((id) => makeTrack(id));
+    useMusicPlayerStore.getState().play(q[1], q);
+    useMusicPlayerStore.getState().clearQueue();
+    expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["b"]);
+  });
+
+  it("empties a queue with nothing playing", () => {
+    useMusicPlayerStore.getState().addToQueue(["a", "b"].map((id) => makeTrack(id)));
+    useMusicPlayerStore.getState().clearQueue();
+    expect(useMusicPlayerStore.getState().queue).toHaveLength(0);
+  });
+});

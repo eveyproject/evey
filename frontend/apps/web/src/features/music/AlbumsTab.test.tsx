@@ -12,6 +12,7 @@ vi.mock("@evey/store", () => ({
 }));
 const toastError = vi.hoisted(() => vi.fn());
 const startTokenDownload = vi.hoisted(() => vi.fn());
+vi.mock("./AddToQueueButton", () => ({ AddToQueueButton: () => null }));
 vi.mock("@/utils/downloadToken", () => ({ startTokenDownload: (...a: unknown[]) => startTokenDownload(...a) }));
 vi.mock("@/components/ui/FetchErrorState", () => ({ FetchErrorState: ({ onRetry }: any) => React.createElement("button", { onClick: onRetry }, "retry") }));
 vi.mock("@/features/library/MediaGrid", () => ({

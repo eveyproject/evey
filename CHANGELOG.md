@@ -7,6 +7,29 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+### Added
+- Music (web): tracks, albums and playlists drag onto a queue beside the
+  music page, to build a playlist of the moment without playing a whole
+  album. The queue reorders by dragging, plays as it stands and saves as a
+  playlist; the mini player's queue edits the same way. Touch screens start
+  a drag with a long press.
+- Music (web): a playlist is created by hand from the music page, renamed in
+  place, reordered by dragging and filled from a track search.
+- Music: an automatic mix can be limited to chosen styles and given a
+  length. A track tagged with several genres counts for each of them.
+- Shared listening (web): albums, tracks and playlists drag onto the room's
+  queue, which reorders by dragging.
+
+### Changed
+- The web profile menu no longer lists "Manage profiles", which opened the
+  same page as Settings, and its entries no longer wrap.
+
+### Fixed
+- An open music playlist showed only the tracks the page had already
+  loaded; it now shows all of them.
+- Listening history weighs on a mix genre by genre: plays of a track tagged
+  "Alternative/Rock" now also favour a track tagged "Rock".
+
 ## [0.1.8] - 2026-11-15
 
 Server image `eveyproject/evey:0.1.8` (also `0.1` and `latest`). The app

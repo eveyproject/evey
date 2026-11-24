@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -767,6 +768,60 @@ func TestMusicTrackRepo_SampleByLibrary(t *testing.T) {
 	none, err := repo.SampleByLibrary(ctx, lib.ID, 0)
 	require.NoError(t, err)
 	assert.Empty(t, none)
+}
+
+func TestMusicTrackRepo_Genres(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("gen-lib")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+	tags := map[string]string{
+		"g1": "Alternative/Pop/Rock/Metal",
+		"g2": "Rock",
+		"g3": "rock; Blues",
+		"g4": "Electro",
+		"g5": "",
+	}
+	for id, genre := range tags {
+		tr := newTestTrack(id, lib.ID, "T"+id, "A", "B")
+		tr.Genre = genre
+		_, err := repo.Upsert(ctx, tr)
+		require.NoError(t, err)
+	}
+
+	counts, err := repo.GenreCounts(ctx, lib.ID)
+	require.NoError(t, err)
+	byName := map[string]int{}
+	for _, gc := range counts {
+		byName[strings.ToLower(gc.Name)] = gc.Count
+	}
+	assert.Equal(t, map[string]int{"rock": 3, "alternative": 1, "pop": 1, "metal": 1, "blues": 1, "electro": 1}, byName)
+	assert.Equal(t, "rock", strings.ToLower(counts[0].Name), "the most common genre comes first")
+
+	rock, err := repo.SampleByLibraryGenres(ctx, lib.ID, []string{"ROCK"}, 100)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"g1", "g2", "g3"}, trackIDs(rock))
+
+	mixed, err := repo.SampleByLibraryGenres(ctx, lib.ID, []string{"blues", "electro"}, 100)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"g3", "g4"}, trackIDs(mixed))
+
+	none, err := repo.SampleByLibraryGenres(ctx, lib.ID, nil, 100)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
+
+func trackIDs(ts []music.Track) []string {
+	out := make([]string, len(ts))
+	for i, tr := range ts {
+		out[i] = tr.ID
+	}
+	return out
 }
 
 func TestMusicTrackRepo_ListAllByLibrary(t *testing.T) {

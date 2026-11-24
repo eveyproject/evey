@@ -395,6 +395,44 @@ music:
   addedToPlaylist: 已添加到播放列表
   createPlaylistPrompt: 播放列表名称
   removeFromQueue: "从队列移除"
+  addToQueue: "添加到队列"
+  addedToQueue_one: "已将 {{count}} 首曲目添加到队列"
+  addedToQueue_other: "已将 {{count}} 首曲目添加到队列"
+  alreadyInQueue: "已在队列中"
+  addToQueueFailed: "无法添加到队列"
+  queueDropHint: "将曲目、专辑或播放列表拖到这里，或使用它们的队列按钮，组成此刻的播放列表。"
+  moveInQueue: "移动 {{title}}"
+  moveInQueueHint: "拖动以移动，或使用上下方向键"
+  playQueue: "播放"
+  saveQueueAsPlaylist: "保存为播放列表"
+  queueSaved: "队列已保存为“{{name}}”"
+  alreadyInPlaylist: "已在播放列表中"
+  addedToPlaylistCount_one: "已将 {{count}} 首曲目添加到播放列表"
+  addedToPlaylistCount_other: "已将 {{count}} 首曲目添加到播放列表"
+  reorderFailed: "无法重新排序播放列表"
+  addTracks: "添加曲目"
+  emptyPlaylistDropHint: "此播放列表为空。将曲目拖到这里，或使用添加曲目。"
+  fillHow: "如何填充？"
+  fillManual: "我自己选曲目"
+  fillManualHint: "一个空播放列表，通过拖动或添加曲目来填充。"
+  fillMix: "自动混音"
+  fillMixHint: "Evey 会从你勾选的风格中为你挑选曲目。"
+  mixStyles: "风格"
+  mixNoGenres: "你的曲目没有标注风格：混音将从整个媒体库中选取。"
+  mixMoreStyles: "+ 另外 {{count}} 个"
+  mixAllStyles: "未勾选风格：所有风格。"
+  mixSomeStyles_one: "已勾选 {{count}} 个风格。"
+  mixSomeStyles_other: "已勾选 {{count}} 个风格。"
+  mixLength: "长度"
+  mixFromHistory: "混音会优先选择你最常听的内容。"
+  mixNoHistory: "目前为随机：之后的混音会参考你的收听记录。"
+  mixCreate: "创建混音"
+  mixNameTaken: "你已有同名播放列表。"
+  mixNoTracks: "这些风格下没有曲目。"
+  renamePlaylist: "重命名播放列表"
+  playlistRenamed: "播放列表已重命名"
+  renameFailed: "无法重命名播放列表"
+  mixNamePlaceholder: "混音名称（可选）"
 photos:
   openPhoto: "照片 {{n}}"
   title: 照片
@@ -445,7 +483,7 @@ syncplay:
   moveUp: 上移
   moveDown: 下移
   clearQueue: 清空队列
-  queueEmpty: 添加专辑、曲目或播放列表来构建房间队列。
+  queueEmpty: "拖动或添加专辑、曲目或播放列表来构建房间队列。"
   noAlbums: 未找到专辑
   noPlaylists: 暂无播放列表
   albumLoadFailed: "无法加载此专辑的曲目"
