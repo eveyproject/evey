@@ -32,7 +32,7 @@ func (r *FakeLibraryQueryRepo) GetByID(_ context.Context, id shared.LibraryID) (
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return lib, nil
+	return copyLibrary(lib), nil
 }
 
 func (r *FakeLibraryQueryRepo) List(_ context.Context, filter library.ListLibrariesFilter) ([]*library.Library, error) {
@@ -46,15 +46,24 @@ func (r *FakeLibraryQueryRepo) List(_ context.Context, filter library.ListLibrar
 	}
 	result := make([]*library.Library, 0, len(r.items))
 	for _, lib := range r.items {
-		result = append(result, lib)
+		result = append(result, copyLibrary(lib))
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return applyLibrariesFilter(result, filter), nil
+}
+
+// copyLibrary is what a database read or write gives: a library of its own,
+// so a caller that edits it (an update) never writes under one still reading
+// it (a scan started by the create), and the command fake's in-place edits
+// never reach this store behind its lock.
+func copyLibrary(lib *library.Library) *library.Library {
+	c := *lib
+	return &c
 }
 
 // Seed adds a library for testing (write-side helper, not part of the interface).
 func (r *FakeLibraryQueryRepo) Seed(lib *library.Library) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.items[string(lib.ID)] = lib
+	r.items[string(lib.ID)] = copyLibrary(lib)
 }
