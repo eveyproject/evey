@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
-	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 )
 
 // ladderWithAC3 has the SHAPE of the living-room case of 2026-09-19: a 4K HEVC
@@ -30,55 +29,55 @@ func ladderWithAC3(t *testing.T) (*hlsVODServe, []*domainlibrary.MediaStream) {
 		{StreamType: domainlibrary.StreamTypeVideo, Codec: "hevc", Width: &w, Height: &hgt, Profile: "Main 10"},
 		{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: new(6), IsDefault: true, Language: "fre"},
 	}
-	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: testMediaItemWith1Minute(), streams: streams}, allowAll(), testFakeParentalChecker{block: false})
+	h := buildVODHandlerWithAudio(t, &testFakeStreamsGetter{item: testMediaItemWith1Minute(), streams: streams}, allowAll(), testFakeParentalChecker{block: false}, &fakeAudioEnsurer{})
 	h.audioRenditionEnabled = true
 	h.frameRateProbe = func(context.Context, string) float64 { return 24 }
 	h.encoderReorderProbe = func(context.Context, string, string, string, []string) (int, bool) { return 2, true }
 	return h, streams
 }
 
-// The report the admin panel and the stream sheet read. It said "transcode"
-// over an ffmpeg running `-c:a copy`, because it only ever asked the muxed
-// gate - which a multi-rung ladder can never satisfy.
-func TestHLSVOD_ServingPath_ReportsARenditionCopyAsCopy(t *testing.T) {
-	h, _ := ladderWithAC3(t)
-	var got domainplayback.ServingPath
-	h.servingRecord = func(_ context.Context, _, _ string, p domainplayback.ServingPath) { got = p }
-
-	tv := "videoCodecs=h264&audioCodecs=aac,ac3,eac3&maxAudioChannels=6"
-	rec := doVODRequestQ(h, "m1", "master.m3u8", tv)
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	// The premise of the case: the video really is re-encoded on a ladder of
-	// more than one rung, so this is NOT the single-rung muxed copy.
-	assert.Equal(t, "transcode", got.VideoDecision)
-	assert.Contains(t, rec.Body.String(), "#EXT-X-MEDIA:TYPE=AUDIO", "the audio must ride its own rendition here")
-	assert.Equal(t, "copy", got.AudioDecision, "the rendition carries the AC-3 verbatim - saying transcode is a lie about the bytes")
-	assert.Equal(t, "ffmpeg", got.AudioEngine, "ffmpeg still segments it, it just does not re-encode it")
+// renditionStamp is what the served witness is told an audio rendition
+// response carries, for a client declaring caps: the same fingerprint the
+// rendition's ffmpeg runs under.
+func renditionStamp(t *testing.T, h *hlsVODServe, streams []*domainlibrary.MediaStream, caps string) *deliveryStamp {
+	t.Helper()
+	item := testMediaItemWith1Minute()
+	st := &deliveryStamp{}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/audio_0_init.mp4?"+caps, nil)
+	req = withHTTPClaims(req, testClaims(false))
+	req = req.WithContext(context.WithValue(req.Context(), deliveryStampKey{}, st))
+	fp := h.audio.buildAudioFingerprint(req, "m1", item, 0, 0, h.audioRenditionCopyCodec(req, item, streams, 0))
+	h.audio.stampRendition(req, "m1", 0, fp, "/nonexistent/init.mp4")
+	require.True(t, st.audio.set)
+	return st
 }
 
-// The other direction, so the fix cannot degrade into "always copy": a client
-// that cannot take AC-3 gets a real AAC re-encode, and the report says so.
-func TestHLSVOD_ServingPath_ReportsARealReencodeAsTranscode(t *testing.T) {
-	h, _ := ladderWithAC3(t)
-	var got domainplayback.ServingPath
-	h.servingRecord = func(_ context.Context, _, _ string, p domainplayback.ServingPath) { got = p }
-
-	web := "videoCodecs=h264&audioCodecs=aac,mp3&maxAudioChannels=6"
-	require.Equal(t, http.StatusOK, doVODRequestQ(h, "m1", "master.m3u8", web).Code)
-	assert.Equal(t, "transcode", got.AudioDecision)
+// A rendition of a multi-rung ladder carries the AC-3 verbatim for a TV that
+// decodes it: it said "transcode" when the report asked the muxed gate, which
+// a multi-rung ladder never satisfies. The served leg now comes from the
+// fingerprint ffmpeg runs under.
+func TestAudioRendition_StampsACopyAsCopy(t *testing.T) {
+	h, streams := ladderWithAC3(t)
+	st := renditionStamp(t, h, streams, "videoCodecs=h264&audioCodecs=aac,ac3,eac3&maxAudioChannels=6")
+	assert.True(t, st.audio.copy, "the rendition carries the AC-3 verbatim")
+	assert.Equal(t, "ffmpeg", st.audio.engine, "ffmpeg still segments it, it just does not re-encode it")
+	assert.Equal(t, 0, st.audio.track)
 }
 
-// A resync offset filters the samples, so the rendition must re-encode even
-// for a client that decodes the source codec - and the report follows.
-func TestHLSVOD_ServingPath_AResyncOffsetIsNotACopy(t *testing.T) {
-	h, _ := ladderWithAC3(t)
-	var got domainplayback.ServingPath
-	h.servingRecord = func(_ context.Context, _, _ string, p domainplayback.ServingPath) { got = p }
+// The other direction, so it cannot degrade into "always copy": a client that
+// cannot take AC-3 gets a real AAC re-encode.
+func TestAudioRendition_StampsAReencodeAsEncoded(t *testing.T) {
+	h, streams := ladderWithAC3(t)
+	st := renditionStamp(t, h, streams, "videoCodecs=h264&audioCodecs=aac,mp3&maxAudioChannels=6")
+	assert.False(t, st.audio.copy)
+}
 
-	tv := "videoCodecs=h264&audioCodecs=aac,ac3,eac3&maxAudioChannels=6&audioOffsetMs=200"
-	require.Equal(t, http.StatusOK, doVODRequestQ(h, "m1", "master.m3u8", tv).Code)
-	assert.Equal(t, "transcode", got.AudioDecision)
+// A resync offset filters the samples, so the rendition re-encodes even for a
+// client that decodes the source codec.
+func TestAudioRendition_AResyncOffsetIsNotACopy(t *testing.T) {
+	h, streams := ladderWithAC3(t)
+	st := renditionStamp(t, h, streams, "videoCodecs=h264&audioCodecs=aac,ac3,eac3&maxAudioChannels=6&audioOffsetMs=200")
+	assert.False(t, st.audio.copy)
 }
 
 // The ad= pin is minted from the SELECTED track and rides every child URL,
@@ -108,26 +107,4 @@ func TestHLSVOD_AudioPin_DoesNotJudgeAnotherTrack(t *testing.T) {
 	assert.Empty(t, h.audioRenditionCopyCodec(req, item, streams, 0), "TrueHD is never carried in fMP4")
 	assert.Equal(t, "ac3", h.audioRenditionCopyCodec(req, item, streams, 1),
 		"the AC-3 rendition is carriable on its own merits - the other track's pin must not re-encode it")
-}
-
-// Unit view of the same rule, including the muxed short-circuit and the
-// no-rendition case - the two branches the master requests above cannot reach
-// on their own.
-func TestAudioServedAsCopy_EachBranch(t *testing.T) {
-	h, streams := ladderWithAC3(t)
-	item := testMediaItemWith1Minute()
-	req := func(q string) *http.Request {
-		r := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?"+q, nil)
-		return withHTTPClaims(r, testClaims(false))
-	}
-	tv := req("videoCodecs=h264&audioCodecs=aac,ac3,eac3&maxAudioChannels=6")
-
-	assert.True(t, h.audioServedAsCopy(tv, item, streams, true, false, 0),
-		"the muxed single-rung copy still reports copy, untouched")
-	assert.False(t, h.audioServedAsCopy(tv, item, streams, false, false, 0),
-		"no rendition and no muxed copy: the audio really is re-encoded")
-	assert.True(t, h.audioServedAsCopy(tv, item, streams, false, true, 0),
-		"rendition path, carriable codec: copy")
-	assert.False(t, h.audioServedAsCopy(req("videoCodecs=h264&audioCodecs=aac"), item, streams, false, true, 0),
-		"rendition path, codec the client cannot take: re-encode")
 }

@@ -119,6 +119,33 @@ var stillImageCodecs = map[string]bool{
 	"png": true, "mjpeg": true, "bmp": true, "webp": true, "tiff": true,
 }
 
+// IsCommentary reports whether s is a commentary track: the container's flag
+// (Matroska FlagCommentary, MP4 "comment" kind), or, when a file sets none,
+// a title that says so. A commentary is never the automatic pick while a main
+// track exists, and a file whose only English track is "Commentary" beside an
+// unlabelled main one made it the default (Matroska's test5, measured on the
+// demo).
+func (s *MediaStream) IsCommentary() bool {
+	if s == nil {
+		return false
+	}
+	return s.Commentary || commentaryTitle(s.Title)
+}
+
+// commentaryTitles are the words a track title names a commentary with, in
+// the languages the interface speaks.
+var commentaryTitles = []string{"commentary", "commentaire", "kommentar", "comentario", "commento", "टिप्पणी", "评论", "解说"}
+
+func commentaryTitle(title string) bool {
+	t := strings.ToLower(title)
+	for _, w := range commentaryTitles {
+		if strings.Contains(t, w) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsStillImageCodec reports whether codec is a still-image codec (png, mjpeg,
 // bmp, webp, tiff) - cover art when it sits next to a real video stream.
 func IsStillImageCodec(codec string) bool {

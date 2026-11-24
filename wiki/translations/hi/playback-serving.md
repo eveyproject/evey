@@ -1,5 +1,5 @@
 ---
-source_sha: d18575178717c35ca8643b0eead448a6b422a10bbfee57b8fcc255d843d35d40
+source_sha: 76e62ba7606ac1dbe99a998e701b752d3ef30113a36706962dc7c44a3918598f
 reviewed: true
 ---
 # एक वीडियो भेजना - HLS प्लेबैक का रास्ता
@@ -153,6 +153,42 @@ Safari wasm रास्ते से क्षमता के आधार प
 लौटाता है जब ब्राउज़र बताता है कि वह AC-3 खुद *नहीं* चला सकता, और Safari बताता है कि
 वह चला सकता है।
 
+## एक session क्या दिखाता है: दो गवाह
+
+हर player का stream panel और admin के session card यह दिखाते हैं कि एक playback
+असल में क्या **है**, यह कभी नहीं कि क्या तय किया गया था। फ़ैसला, योजना की delivery
+strategy और किसी फ़ैसले की player की ओर से लौटाई गई गूँज, serving के इनपुट हैं;
+runtime पर होने वाला fallback (ऐसा packager जो स्रोत को नहीं बना पाता, ऐसा wasm
+decoder जो वापस AAC पर लौट आया, ऐसा direct play जिसे ब्राउज़र मना कर देता है) उनका
+खंडन करता है। एक session को दो गवाह भरते हैं, और कोई और उसे नहीं लिखता:
+
+| गवाह | वह क्या दर्ज करता है | कहाँ |
+| --- | --- | --- |
+| server | हर leg (वीडियो, ऑडियो) के लिए, bytes लेकर गया आख़िरी response: उन्हें लिखने वाला इंजन (`mkvgo`, `ffmpeg`, `file`), कोई encoder चला या नहीं, स्रोत ट्रैक, और बाहर गए init segment से पढ़े गए codec, picture और channel (या direct play पर फ़ाइल की अपनी streams) | `http/served_witness.go` (media routes पर एक middleware, handlers जो लिखते हैं उस पर मुहर लगाते हैं) |
+| player | वह क्या decode करता है: फ़ाइल या segment में बँटी presentation, उसने जो audio rendition लोड की है (उस ट्रैक नंबर से जो rendition साथ रखती है), वह codec जिसके लिए उसके buffer सेट किए गए, native या wasm decoder | progress tick का `played` field (cast receiver पर: एक `played` player event) |
+
+दोनों `CommandService.RecordServed` और `RecordPlayed` के ज़रिए `play_sessions.served` / `played`
+में पहुँचते हैं, जो हर चालू session का आख़िरी observation मेमोरी में रखते हैं और सिर्फ़
+बदलाव लिखते हैं। history जो method और summary columns पढ़ती है, वे served रास्ते से
+निकाले जाते हैं। progress tick का जवाब served रास्ता player को लौटा देता है, ताकि
+उसका panel और admin card एक ही तथ्य पढ़ें; `@evey/api` का `describeSession` उन्हें
+एक view में बदल देता है, और जब दोनों गवाह असहमत हों तो यह बता देता है (player भेजे
+गए ट्रैक से अलग ट्रैक चलाता है, या भेजे गए codec से अलग codec decode करता है)।
+
+गवाहों को ईमानदार रखने वाले नियम:
+
+- सिर्फ़ वही response सबूत है जो bytes लेकर गया हो (body के साथ 200/206); media
+  response उसके पहले bytes पर दर्ज होता है (direct play पूरी फ़िल्म एक ही request
+  से पढ़ता है), init पूरा होने पर (उसके bytes पढ़े जाते हैं);
+- observation की तारीख़ response की शुरुआत से तय होती है, और पुराना observation
+  कभी नए की जगह नहीं लेता, चाहे वे किसी भी क्रम में पूरे हुए हों;
+- जिन bytes का init पढ़ा नहीं जा सकता, वे अंदाज़ा लगाने की जगह कुछ भी दर्ज नहीं करते;
+- packager की rendition अपने स्रोत ट्रैक को उस नंबर से बताती है जो फ़ाइल उसे देती है
+  (master में `X-MKVGO-TRACK`, init का track id): जो master renditions को codec के
+  हिसाब से समूहों में रखता है, वह `hls.audioTracks` में सिर्फ़ मौजूदा समूह की renditions
+  दिखाता है, इसलिए player rendition को उस ट्रैक से चुनता है जो वह साथ रखती है, हर
+  समूह में (`hls.setAudioOption`), कभी किसी सूची में उसकी जगह से नहीं।
+
 ## पैक करना: CMAF, HLS, DASH
 
 container हमेशा **CMAF** (fMP4) होता है: हर variant का एक `init.mp4` और `.m4s`
@@ -197,4 +233,5 @@ ladder, admission, fingerprint: internal/app/transcoding/admission_shaper.go - S
 engines: internal/adapters/driven/prober/dispatcher.go ; internal/adapters/driven/prober/keyframe_dispatcher.go ; internal/app/transcoding/ondemand.go - OnDemandPackager ; internal/adapters/driven/mkvgo/ondemand.go ; internal/adapters/driven/ffmpeg/hls_transcoder.go - BuildFFmpegArgs, needsFMP4Segments ; internal/adapters/driven/ffmpeg/trickplay.go, complexity_classifier.go, audio_delay.go
 packaging: internal/app/transcoding/manifest_generator.go - querySuffix, EVEY-AUDIO-URI ; internal/app/transcoding/manifest_generator_dash.go ; internal/domain/transcoding/segment_grid.go - SegmentTargetSeconds, gridFor ; internal/pkg/cmafparity ; internal/adapters/driven/ffmpeg/dash_grid_integration_test.go - TestDASHGridIntegration
 wasm: frontend/packages/client/src/web/codec.ts - canWasmDecodeAC3
+witnesses: internal/domain/playback/served.go - Served, ServedLeg, Played ; internal/adapters/driving/http/served_witness.go - servedWitness, deliveryStamp ; internal/app/playback/served_witness.go - RecordServed, RecordPlayed, Heartbeat ; frontend/packages/api/src/servedReality.ts - describeSession ; frontend/packages/client/src/lib/playedState.ts - playedState, trackRendition ; frontend/packages/client/src/lib/masterRenditions.ts ; frontend/packages/client/src/native/useNativePlayed.ts
 -->

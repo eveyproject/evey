@@ -92,7 +92,7 @@ func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request
 		// Full packager presentation (video + audio + subtitles). When the plan
 		// trimmed the audio to the SELECTED track, buildPlan packaged that one
 		// track, so what we serve holds exactly the tracks the packager carries.
-		h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo", AudioCodec: packagedAudioCodec(rp, streams)}, "")
+		h.checkDelivery(r, mediaID, rp, apptranscoding.DeliveryPath{VideoCopy: true, VideoEngine: apptranscoding.EngineMkvgo, AudioEngine: apptranscoding.EngineMkvgo}, "")
 		h.servePlanResourceData(w, r, mediaID, plan, planKeep(rp, streams), "master.m3u8", span)
 		return true, ""
 	}
@@ -118,15 +118,7 @@ func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request
 	// from the logs (the copy fallback rung logs its own outcome just before).
 	slog.Info("hls-vod: hybrid on-demand master served",
 		slog.String("media_id", mediaID))
-	// The hybrid's audio rides Evey's rendition pipeline, which COPIES a
-	// carriable track instead of re-encoding it - so "hybrid" does not mean
-	// "audio transcoded", and saying so unconditionally is the same lie the
-	// ffmpeg master told (see audioServedAsCopy).
-	ap := domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}
-	if h.audioServedAsCopy(r, item, streams, rp.FP.AudioCopy, true, rp.AudioTrack) {
-		ap.AudioDecision = "copy"
-	}
-	h.recordServing(r, mediaID, rp, ap, "")
+	h.checkDelivery(r, mediaID, rp, apptranscoding.DeliveryPath{VideoCopy: true, VideoEngine: apptranscoding.EngineMkvgo, AudioEngine: apptranscoding.EngineFFmpeg}, "")
 	return true, ""
 }
 
@@ -469,15 +461,11 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 		slog.Int("audio_track", audioTrack),
 		slog.Bool("mkvgo_video", useMkvgoVideo),
 		slog.Bool("mkvgo_audio", useMkvgoAudio))
-	p := domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "wasm", AudioEngine: "client"}
+	p := apptranscoding.DeliveryPath{VideoCopy: true, VideoEngine: apptranscoding.EngineMkvgo, AudioEngine: apptranscoding.EngineClient}
 	if !useMkvgoVideo {
-		p.VideoEngine = "ffmpeg"
-		if !videoCopy {
-			p.VideoDecision = "transcode"
-			p.VideoBackend = videoBackendLabel(rp.Plan.HWAccel)
-		}
+		p.VideoEngine, p.VideoCopy = apptranscoding.EngineFFmpeg, videoCopy
 	}
-	h.recordServing(r, mediaID, rp, p, fallback)
+	h.checkDelivery(r, mediaID, rp, p, fallback)
 	return true, ""
 }
 
@@ -637,7 +625,74 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 	if item != nil && item.File != nil {
 		observeCastFetch(r, h.castProgress, onDemandSegEndMs(name, plan.NumSegments(), item.File.Duration.Milliseconds()))
 	}
+	stampPackagerResource(r, mediaID, plan, keep, name, streams)
 	h.servePlanResourceData(w, r, mediaID, plan, keep, name, span)
+}
+
+// stampPackagerResource declares what a packager init or segment carries: the
+// source's own samples, repackaged by mkvgo, nothing encoded. Which track is
+// read from the rendition's init: the packager publishes the source's track
+// number on each rendition (FileTrackID), the library knows it for every
+// stream (SourceTrackID). Playlists, subtitles and keys carry no media leg.
+func stampPackagerResource(r *http.Request, mediaID string, plan apptranscoding.OnDemandPlan, keep *int, name string, streams []*domainlibrary.MediaStream) {
+	st := deliveryStampOf(r)
+	if st == nil {
+		return
+	}
+	initName, isInit, ok := packagerInitOf(name)
+	if !ok {
+		return
+	}
+	st.stampVideo(mediaID, domainplayback.EngineMkvgo, true, "", "")
+	st.stampAudio(mediaID, domainplayback.EngineMkvgo, true, -1, "", true)
+	st.audioOrdinal = func(fileTrackID int) (int, bool) { return audioOrdinalOfSourceTrack(streams, fileTrackID) }
+	key := "mkvgo:" + planStamp(plan.SourceID(), keep) + ":" + initName
+	if isInit {
+		st.stampInit(key)
+		return
+	}
+	st.stampMedia(key, func(ctx context.Context) ([]byte, error) {
+		b, _, err := plan.Resource(ctx, initName)
+		return b, err
+	})
+}
+
+// packagerInitOf names the init a packager resource decodes with: init.mp4 and
+// seg00001.m4s belong to the primary rendition, init_a2.mp4 and
+// seg_a2_00001.m4s to audio rendition 2. ok is false for anything else.
+func packagerInitOf(name string) (initName string, isInit, ok bool) {
+	switch {
+	case name == "init.mp4":
+		return name, true, true
+	case strings.HasPrefix(name, "init_a") && strings.HasSuffix(name, ".mp4"):
+		return name, true, true
+	case strings.HasPrefix(name, "seg_a") && strings.HasSuffix(name, ".m4s"):
+		rest := strings.TrimPrefix(name, "seg_a")
+		n, _, found := strings.Cut(rest, "_")
+		if !found || n == "" {
+			return "", false, false
+		}
+		return "init_a" + n + ".mp4", false, true
+	case strings.HasPrefix(name, "seg") && strings.HasSuffix(name, ".m4s"):
+		return "init.mp4", false, true
+	}
+	return "", false, false
+}
+
+// audioOrdinalOfSourceTrack is the 0-based audio ordinal of the source track
+// the file numbers fileTrackID.
+func audioOrdinalOfSourceTrack(streams []*domainlibrary.MediaStream, fileTrackID int) (int, bool) {
+	ord := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != domainlibrary.Audio {
+			continue
+		}
+		if s.SourceTrackID != nil && *s.SourceTrackID == fileTrackID {
+			return ord, true
+		}
+		ord++
+	}
+	return 0, false
 }
 
 // isIFramePlaylist reports a request for the I-frame playlist, which the
@@ -960,18 +1015,6 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 // The plan's own track (resolved once with it, the same the ffmpeg pipeline
 // maps), so both backends agree on which track a request gets. Best-effort:
 // no streams in hand serves every audio track rather than failing the plan.
-// packagedAudioCodec names the one audio track a trimmed packager
-// presentation carries, so the session's label is the track served and not
-// whatever the client guessed at start. A presentation that carries every
-// track leaves the choice to the player: "" keeps the label as it was.
-func packagedAudioCodec(rp *requestPlan, streams []*domainlibrary.MediaStream) string {
-	keep := planKeep(rp, streams)
-	if keep == nil {
-		return ""
-	}
-	return sourceAudioCodec(streams, *keep)
-}
-
 func planKeep(rp *requestPlan, streams []*domainlibrary.MediaStream) *int {
 	if rp == nil || !rp.Plan.Delivery.AudioTrimmed || len(streams) == 0 {
 		return nil
@@ -1214,9 +1257,5 @@ func (h *hlsVODServe) serveHybridMPD(w http.ResponseWriter, r *http.Request, med
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write([]byte(mpd))
 	slog.InfoContext(r.Context(), "hls-vod: hybrid dash manifest served", slog.String("media_id", mediaID))
-	ap := domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}
-	if h.audioServedAsCopy(r, item, streams, rp.FP.AudioCopy, true, rp.AudioTrack) {
-		ap.AudioDecision = "copy"
-	}
-	h.recordServing(r, mediaID, rp, ap, "")
+	h.checkDelivery(r, mediaID, rp, apptranscoding.DeliveryPath{VideoCopy: true, VideoEngine: apptranscoding.EngineMkvgo, AudioEngine: apptranscoding.EngineFFmpeg}, "")
 }

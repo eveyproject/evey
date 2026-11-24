@@ -14,6 +14,8 @@ import {
   clientSubtitleTrack,
   createPlayerEventReporter,
   type V1MediaStream,
+  type V1PlayedState,
+  type V1ServedLeg,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import {
@@ -30,6 +32,10 @@ import {
   isTitleGone,
   playingFromHlsLevel,
   servedVariant,
+  playedState,
+  fileTrackOrdinal,
+  trackRendition,
+  splitCodecs,
   noteViewerActivity,
   type PlayingVariant,
 } from "@evey/client";
@@ -172,12 +178,17 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const userPickedAudio = useRef(audio !== undefined);
   const userPickedSubtitle = useRef(subtitle !== undefined);
 
-  // Profile preference first, then the file's default, then the first track,
-  // never a commentary track while a main one exists.
+  // The track the server judged first (it weighs the profile's languages and,
+  // on the demo, the codec the browser plays as is), then the profile
+  // preference, the file's default, the first track - never a commentary
+  // track while a main one exists. A restart (quality, retry) replays this
+  // track, so it must be the one the verdict was made on.
+  const judgedAudio = streamInfo?.audioStreamIndex;
   useEffect(() => {
     if (userPickedAudio.current || audioStreams.length === 0) return;
-    setSelectedAudio(pickDefaultAudioIndex(audioStreams, profileAudioLangs) ?? audioStreams[0].index);
-  }, [audioStreams, profileAudioLangs]);
+    const judged = judgedAudio != null && audioStreams.some((s) => s.index === judgedAudio) ? judgedAudio : null;
+    setSelectedAudio(judged ?? pickDefaultAudioIndex(audioStreams, profileAudioLangs) ?? audioStreams[0].index);
+  }, [audioStreams, profileAudioLangs, judgedAudio]);
   // The subtitle auto-pick never restarts the stream by itself: a text or
   // PGS track is drawn here, and a default bitmap track the viewer did not
   // ask for must not turn a copy into a burn-in transcode.
@@ -196,6 +207,11 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   }, [restartWithTracks]);
 
   // --- stream ---------------------------------------------------------------
+  // The session's two witnesses for the stream panel.
+  const [witness, setWitness] = useState<{ played?: V1PlayedState; servedVideo?: V1ServedLeg; servedAudio?: V1ServedLeg }>({});
+  // The codecs hls.js set its buffers up with (BUFFER_CODECS), for the report.
+  const bufferCodecsRef = useRef<{ video?: string; audio?: string }>({});
+  useEffect(() => setWitness({}), [mediaId]);
   useProgressReporter(
     sessionId,
     () => (videoRef.current?.currentTime ?? 0) * 1000,
@@ -206,6 +222,29 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       onRemotePause: () => videoRef.current?.pause(),
       onRemotePlay: () => void videoRef.current?.play(),
       onRemoteStop: () => goBack(),
+      // The player's witness: what it reads (the file or a segmented
+      // presentation); every track pick restarts the stream, so the track is
+      // the server's to name.
+      // The player's witness, the web player's facts read off hls.js: the
+      // rendition it plays (by the track it carries) and the codecs its
+      // buffers were set up with; on the file, the track the element enabled.
+      getPlayed: (): V1PlayedState | undefined => {
+        if (!streamUrl) return undefined;
+        const hls = hlsRef.current;
+        const video = videoRef.current;
+        const active = hls && hls.audioTrack >= 0 ? hls.audioTracks[hls.audioTrack] : undefined;
+        return playedState({
+          hls: streamUrl.includes("/hls/"),
+          bufferCodecs: bufferCodecsRef.current,
+          hasRenditions: (hls?.audioTracks.length ?? 0) > 0,
+          activeRendition: active ? { url: active.url, attrs: active.attrs as unknown as Record<string, string | undefined> } : undefined,
+          masterUrl: hls?.url ?? undefined,
+          fileTrack: fileTrackOrdinal(video, audioStreams),
+          height: video?.videoHeight || undefined,
+          audioStreams,
+        });
+      },
+      onWitness: setWitness,
     },
   );
 
@@ -337,7 +376,32 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         console.info("[player] manifest parsed", data.levels.map((l) => `${l.width}x${l.height}@${l.bitrate}`).join(" "), "audio tracks", data.audioTracks.length);
         setLadderBitrates(data.levels.map((l) => l.bitrate));
+        // The track asked for, by the rendition that carries it: a master
+        // grouped by codec lists one group per variant, and hls.js would play
+        // the DEFAULT of whichever variant its ABR picked (the web did).
+        // No pick: the track the server judged the default, as the web does
+        // (a master grouped by codec otherwise left the start on no audio at
+        // all: one video segment and a still picture, measured on 0.1.13 too).
+        const pick = selectedAudio ?? streamInfo?.audioStreamIndex ?? null;
+        const ordinal = audioStreams.find((s) => s.index === pick)?.trackIndex;
+        const wanted = ordinal != null ? trackRendition(hls.allAudioTracks, ordinal, audioStreams) : undefined;
+        if (wanted) {
+          // Start on a variant of the wanted rendition's group: from another
+          // group's variant hls.js loaded one video segment and never an
+          // audio playlist (measured on the demo, 0.1.13 included).
+          const start = hls.levels.findIndex((l) => !!l.audioGroups?.includes(wanted.groupId));
+          if (start >= 0) hls.startLevel = start;
+          hls.setAudioOption(wanted);
+        }
         seekToStart();
+      });
+      bufferCodecsRef.current = {};
+      hls.on(Hls.Events.BUFFER_CODECS, (_e, data) => {
+        const av = splitCodecs(data.audiovideo?.codec);
+        bufferCodecsRef.current = {
+          video: data.video?.codec ?? av.video ?? bufferCodecsRef.current.video,
+          audio: data.audio?.codec ?? av.audio ?? bufferCodecsRef.current.audio,
+        };
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => setPlayingVariant(playingFromHlsLevel(hls.levels[data.level])));
       hls.on(Hls.Events.ERROR, (_e, data) => {
@@ -868,7 +932,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       {nextEp.visible ? <NextEpisodeCard nextEp={nextEp} /> : null}
       {panel ? <SettingsPanel sections={sections} onClose={() => { setPanel(false); showOsd(); }} /> : null}
       {streamInfoOpen ? (
-        <StreamInfoPanel streamInfo={streamInfo} served={servedVariant(streamInfo, playingVariant, ladderBitrates)} audioStreamIndex={selectedAudio} onClose={() => { setStreamInfoOpen(false); showOsd(); }} />
+        <StreamInfoPanel streamInfo={streamInfo} witness={witness} served={servedVariant(streamInfo, playingVariant, ladderBitrates)} audioStreamIndex={selectedAudio} onClose={() => { setStreamInfoOpen(false); showOsd(); }} />
       ) : null}
     </div>
   );

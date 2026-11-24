@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/eveyproject/evey/internal/domain/library"
-	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
@@ -52,9 +51,18 @@ type DeliveryStrategy struct {
 	AudioTrimmed bool
 }
 
-// ServingPath is the strategy as the admin dashboard reads it, with the
-// route's verdicts (copy / transcode, backend) and the fingerprint's audio
-// copy folded in. The one place a ServingPath is built from a plan.
+// DeliveryPath is the machinery behind each track of a presentation: the
+// plan's strategy (Planned), or what the adapter served. checkDelivery holds
+// the adapter to the plan with it. It is an invariant check, not a report:
+// what a session shows is witnessed on the bytes (domain/playback/served.go).
+type DeliveryPath struct {
+	VideoCopy   bool
+	VideoEngine Engine
+	AudioEngine Engine
+}
+
+// Planned is the strategy as a DeliveryPath, the route's copy verdict folded
+// in.
 //
 // The packager never transcodes: video on it IS a copy, whatever the route
 // says. Route.Copy is ffmpeg's copy-rung verdict (a wired copy producer, cache
@@ -64,36 +72,8 @@ type DeliveryStrategy struct {
 // Read from the route alone, the planned path came out as transcode/mkvgo,
 // disagreed with the copy/mkvgo the adapter served, and tripped the
 // invariant counter that must stay at zero (measured 2026-09-26).
-func (d DeliveryStrategy) ServingPath(route ResolvedRoute, fp DecisionFingerprint) domainplayback.ServingPath {
-	p := domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: string(d.Video), AudioEngine: string(d.Audio)}
-	if route.Copy || d.Video == EngineMkvgo {
-		p.VideoDecision = "copy"
-	} else {
-		p.VideoBackend = "software"
-		if route.Backend.Name != "" {
-			p.VideoBackend = route.Backend.Name
-		}
-	}
-	switch d.Audio {
-	case EngineClient:
-		p.AudioDecision = "wasm"
-	case EngineMkvgo:
-		p.AudioDecision = "copy"
-	default:
-		// The MUXED gate only. An ffmpeg audio RENDITION also copies a
-		// carriable track, on a ladder of any height, but whether it does
-		// depends on the request's own client declaration - which this
-		// projection does not carry. checkDelivery compares engines and the
-		// VIDEO decision, never this field, so the gap is inert here; the
-		// session is told the truth by audioServedAsCopy on the serving side.
-		// Do not "simplify" the two into this one without bringing the client
-		// profile along, or the report goes back to calling a copy a transcode.
-		p.AudioDecision = "transcode"
-		if fp.AudioCopy {
-			p.AudioDecision = "copy"
-		}
-	}
-	return p
+func (d DeliveryStrategy) Planned(route ResolvedRoute) DeliveryPath {
+	return DeliveryPath{VideoCopy: route.Copy || d.Video == EngineMkvgo, VideoEngine: d.Video, AudioEngine: d.Audio}
 }
 
 // resolveDelivery is the one derivation of the delivery strategy.

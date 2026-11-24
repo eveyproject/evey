@@ -6,12 +6,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	"github.com/eveyproject/evey/internal/config"
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
@@ -251,6 +253,13 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 		http.Error(w, `{"message":"audio init segment not yet ready, retry"}`, http.StatusServiceUnavailable)
 		return
 	}
+	h.stampRendition(r, mediaID, trackIdx, fp, path)
+	if st := deliveryStampOf(r); st != nil {
+		st.stampInit(renditionInitKey(fp, trackIdx))
+		// Read once per init, not per segment: the memo keeps it with the
+		// init's tracks for the segments that follow.
+		st.audio.sourceCodec = h.sourceAudioCodecForTrack(r.Context(), mediaID, trackIdx)
+	}
 
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "video/mp4")
@@ -317,11 +326,35 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 		http.Error(w, `{"message":"audio segment not yet ready, retry"}`, http.StatusServiceUnavailable)
 		return
 	}
+	initPath := h.cache.Path(apptranscoding.SegmentKey{DecisionHash: fp.Hash(), VariantIdx: trackIdx, IsInit: true, Kind: apptranscoding.KindAudio}, true)
+	h.stampRendition(r, mediaID, trackIdx, fp, initPath)
 
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "video/iso.segment")
 	w.Header().Set("Cache-Control", "no-cache")
 	serveSegmentFile(w, r, path)
+}
+
+// stampRendition declares what an audio rendition response carries: source
+// audio track trackIdx, by ffmpeg, stream-copied when the fingerprint ffmpeg
+// ran under says "copy". initPath is the rendition's init, read when the
+// witness has not seen it go out.
+func (h *audioServe) stampRendition(r *http.Request, mediaID string, trackIdx int, fp apptranscoding.AudioFingerprint, initPath string) {
+	st := deliveryStampOf(r)
+	if st == nil {
+		return
+	}
+	copied := fp.AudioCodec == "copy"
+	st.stampAudio(mediaID, domainplayback.EngineFFmpeg, copied, trackIdx, "", false)
+	st.stampMedia(renditionInitKey(fp, trackIdx), func(context.Context) ([]byte, error) { return os.ReadFile(initPath) })
+	st.sourceCodecs = func(ctx context.Context) map[string]string {
+		return map[string]string{"audio": h.sourceAudioCodecForTrack(ctx, mediaID, trackIdx)}
+	}
+}
+
+// renditionInitKey names an audio rendition's init for the served witness.
+func renditionInitKey(fp apptranscoding.AudioFingerprint, trackIdx int) string {
+	return "ffmpeg-audio:" + fp.Hash() + ":" + strconv.Itoa(trackIdx)
 }
 
 // buildAudioFingerprint constructs the AudioFingerprint for an HTTP request.

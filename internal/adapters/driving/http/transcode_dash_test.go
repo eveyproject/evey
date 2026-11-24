@@ -14,7 +14,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
-	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
@@ -165,8 +164,6 @@ func TestServeManifestMPD_RecordsWhatItServed(t *testing.T) {
 	streams[0].Framerate = &fps
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
 	withAudioRenditions(h)
-	var recorded []domainplayback.ServingPath
-	h.servingRecord = func(_ context.Context, _, _ string, p domainplayback.ServingPath) { recorded = append(recorded, p) }
 
 	// The packager's presentation: built once, recorded as the packager's.
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{dash: true, resources: map[string][]byte{"manifest.mpd": []byte("<MPD/>")}}}
@@ -174,9 +171,6 @@ func TestServeManifestMPD_RecordsWhatItServed(t *testing.T) {
 	w := doVODRequestQ(h, "m1", "manifest.mpd", "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4")
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, 1, pkg.calls, "one plan, built once")
-	require.Len(t, recorded, 1)
-	assert.Equal(t, "mkvgo", recorded[0].VideoEngine)
-	assert.Equal(t, "mkvgo", recorded[0].AudioEngine)
 
 	// Unbuildable: the ffmpeg path serves it, the fallback is counted.
 	fallbacks := func() int {
@@ -187,8 +181,6 @@ func TestServeManifestMPD_RecordsWhatItServed(t *testing.T) {
 	w = doVODRequestQ(h, "m1", "manifest.mpd", "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4")
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, "ffmpeg", w.Header().Get("X-Evey-Served-By"))
-	require.Len(t, recorded, 2)
-	assert.Equal(t, "ffmpeg", recorded[1].VideoEngine)
 	assert.Equal(t, before+1, fallbacks())
 }
 

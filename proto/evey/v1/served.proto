@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
+
+// What a play session shows is what happened, never what was decided. The
+// server is the witness of what it sent (ServedLeg, observed on the responses
+// that carried the bytes), the player of what it decodes (PlayedState).
+
+// ServedLeg is what the server sent for one leg of a playback.
+message ServedLeg {
+  // "mkvgo" (the packager: the source's samples, repackaged) | "ffmpeg" |
+  // "file" (byte ranges of the source file itself: a direct play).
+  string engine = 1;
+  // The bytes are the source's own samples: no encoder ran.
+  bool copy = 2;
+  // Audio: the source's audio track (0-based, in container order). -1 when
+  // the bytes carry every track (a direct play) or the server cannot tell.
+  int32 track = 3;
+  // The codec of the bytes, read from the init segment that went out (or the
+  // file's stream on a direct play). Empty when the bytes carry every audio
+  // track (a direct play).
+  string codec = 4;
+  // The source track's codec, when the bytes were encoded from it.
+  string source_codec = 5;
+  int32 width = 6;
+  int32 height = 7;
+  int32 channels = 8;
+  // Encoder machinery of an ffmpeg video encode: "software" | "qsv" |
+  // "vaapi" | "nvenc". Empty on a copy.
+  string backend = 9;
+  google.protobuf.Timestamp at = 10;
+}
+
+// PlayedState is what a player reports it decodes.
+message PlayedState {
+  // "hls" (a segmented presentation) | "file" (the source file itself).
+  string source = 1;
+  string video_codec = 2;
+  int32 width = 3;
+  int32 height = 4;
+  // The source's audio track the player plays (0-based); -1 when unknown.
+  int32 audio_track = 5;
+  // The codec its audio decoder was set up for.
+  string audio_codec = 6;
+  // "native" (the platform's decoder) | "wasm" (Evey's AC-3/E-AC-3 decoder).
+  string audio_decoder = 7;
+  google.protobuf.Timestamp at = 8;
+}

@@ -149,7 +149,7 @@ export function planRendererLoad(
 }
 
 // --- Cast button contract -------------------------------------------------
-// The cast button broke silently twice (2026-07-22 and 2026-07-24 in prod).
+// The cast button broke silently twice in prod.
 // These two functions ARE the button's behavior, extracted pure so the tests
 // in hlsPlayerUtils.test.ts lock it. Do not reroute the tap or change the
 // preload without a red test first and a device validation.
@@ -195,7 +195,7 @@ export function pickPlayOnFallback<D>(devices: readonly D[] | undefined | null):
 // wants: every rung is a separate ffmpeg server-side, so one ABR probe is a
 // second concurrent 4K decode. It only works if the pin lands BEFORE hls.js
 // loads its first fragment: left to a React effect (so one re-render late),
-// hls.js starts on free ABR and fetches level 0. Seen in prod on 2026-07-25: a
+// hls.js starts on free ABR and fetches level 0. Seen in prod: a
 // 480p and a 1080p spawned 43 ms apart on a host calibrated for ONE encode,
 // segment 0 still missing 9.5 s later.
 //
@@ -204,12 +204,29 @@ export function pickPlayOnFallback<D>(devices: readonly D[] | undefined | null):
 // from the ladder (trimmed by admission since) falls back to the top rather
 // than pinning nothing: pinning nothing hands control back to free ABR, which
 // is exactly what this avoids.
-export function pickPinnedLevel(s: { levelHeights: readonly number[]; desiredHeight: number }): number {
+//
+// prefer: a master whose audio renditions are grouped by codec lists one
+// variant per group at the same height. The variant playing names the audio
+// group, so a pin that lands on its height keeps it: re-pinning "the top"
+// switched the viewer back to the last group's audio (the AAC one) after
+// they had picked another track.
+export function pickPinnedLevel(s: { levelHeights: readonly number[]; desiredHeight: number; prefer?: number }): number {
   if (s.levelHeights.length === 0) return -1;
   const top = s.levelHeights.length - 1;
-  if (s.desiredHeight <= 0) return top;
-  const idx = s.levelHeights.indexOf(s.desiredHeight);
-  return idx >= 0 ? idx : top;
+  const idx = s.desiredHeight <= 0 ? top : s.levelHeights.indexOf(s.desiredHeight);
+  const pinned = idx >= 0 ? idx : top;
+  const prefer = s.prefer ?? -1;
+  if (prefer >= 0 && prefer < s.levelHeights.length && s.levelHeights[prefer] === s.levelHeights[pinned]) return prefer;
+  return pinned;
+}
+
+// levelInAudioGroup is the variant at the same height as `index` that plays
+// the audio group `groupId`; `index` itself when none does.
+export function levelInAudioGroup(levels: readonly { height: number; audioGroups?: readonly (string | undefined)[] }[], index: number, groupId: string | undefined): number {
+  if (!groupId || index < 0 || index >= levels.length) return index;
+  if (levels[index].audioGroups?.includes(groupId)) return index;
+  const same = levels.findIndex((l) => l.height === levels[index].height && !!l.audioGroups?.includes(groupId));
+  return same >= 0 ? same : index;
 }
 
 // Recovers from a mute the BROWSER imposed, not the viewer: lift it on the next
@@ -273,27 +290,27 @@ export type TranscodeAudioSwitchPath = "hls-rendition" | "wasm-engine" | "restar
 //   - native HLS (Safari): no hls.js instance to drive;
 //   - wasm audio involved (current OR target): the AC-3 engine is wired per
 //     session (video-only master + dedicated rendition);
-//   - rendition absent from the parsed manifest.
+//   - no rendition of the parsed manifest carries the target track (found by
+//     the track it carries, across every audio group: trackRendition).
 export function pickTranscodeAudioSwitchPath(s: {
   hasHls: boolean;
   wasmActiveNow: boolean;
   wasmActiveForTarget: boolean;
-  audioRenditionCount: number;
-  targetTrackIndex: number;
+  targetRenditionFound: boolean;
 }): TranscodeAudioSwitchPath {
   if (!s.hasHls) return "restart";
   // wasm to wasm: the video is out of band and keeps playing; only the audio
   // engine is rebuilt on the new track (a restart cost seconds of silence).
   if (s.wasmActiveNow && s.wasmActiveForTarget) return "wasm-engine";
   if (s.wasmActiveNow || s.wasmActiveForTarget) return "restart";
-  if (s.targetTrackIndex < 0 || s.targetTrackIndex >= s.audioRenditionCount) return "restart";
+  if (!s.targetRenditionFound) return "restart";
   return "hls-rendition";
 }
 
 // Chromium only ever opens the Remote Playback picker for an element whose
 // duration is KNOWN: remote_playback.cc drops every availability URL while
 // duration is NaN, and prompt() then rejects instantly with NotAllowedError
-// ("The prompt was dismissed") - no picker, 18ms, measured in prod 2026-07-24.
+// ("The prompt was dismissed") - no picker, 18ms, measured in prod.
 // preload="none" guaranteed duration stayed NaN forever, so the fling was
 // structurally dead. The fling element must load metadata where the fling is
 // the tap's path (Android); elsewhere it stays lazy - the SDK path doesn't
@@ -374,6 +391,13 @@ function matchLang(
 //   4. isDefault flag
 //   5. First available stream
 //
+// judgedIndex is the track the server judged (StreamInfo.audioStreamIndex). The
+// server runs steps 2 and 4 itself and may weigh them further (the demo picks,
+// among the tracks of a language, the one a browser plays without an encode),
+// so where the player would land on the same language - or on no language at
+// all - it takes the server's track: a player that picked the file's flag
+// instead asked for a second verdict and got a track the server encodes.
+//
 // Every step runs among defaultAudioCandidates: a commentary track is never
 // the automatic pick while a main track exists, as on the server.
 //
@@ -383,7 +407,7 @@ function matchLang(
 // The device-local pick sits BELOW the profile on purpose: it is written on
 // every manual track change, so with it above the profile a one-off VO
 // viewing turned into a permanent device override - an account set to French
-// then started every next film on the English track (2026-09-03). Per-series
+// then started every next film on the English track. Per-series
 // memory keeps its priority: that one is scoped to what the user picked it on.
 export function resolveDefaultAudio(
   allAudioStreams: { index: number; trackIndex: number; language?: string; title?: string; isDefault?: boolean; isCommentary?: boolean }[],
@@ -391,8 +415,10 @@ export function resolveDefaultAudio(
   getSeriesTrackPrefs: (id: string) => { audioLang?: string } | null,
   getPreferredAudioLang: () => string | null,
   profileAudioLangs?: string[],
+  judgedIndex?: number,
 ) {
   const audioStreams = defaultAudioCandidates(allAudioStreams);
+  const judged = judgedIndex == null ? undefined : audioStreams.find((s) => s.index === judgedIndex);
   // 1. Per-series override wins unconditionally.
   const seriesPrefs = seriesId ? getSeriesTrackPrefs(seriesId) : null;
   if (seriesPrefs?.audioLang) {
@@ -405,7 +431,7 @@ export function resolveDefaultAudio(
     for (const lang of profileAudioLangs) {
       if (!lang) continue;
       const match = audioStreams.find((s) => matchLang(s.language, s.title, lang));
-      if (match) return match;
+      if (match) return judged && matchLang(judged.language, judged.title, lang) ? judged : match;
     }
   }
 
@@ -418,8 +444,8 @@ export function resolveDefaultAudio(
     if (match) return match;
   }
 
-  // 4. isDefault flag, then first stream.
-  return audioStreams.find((s) => s.isDefault) ?? audioStreams[0];
+  // 4. The server's track, else the isDefault flag, then first stream.
+  return judged ?? audioStreams.find((s) => s.isDefault) ?? audioStreams[0];
 }
 
 // resolveDefaultSubtitle picks the best matching subtitle track. Resolution order:
@@ -482,8 +508,7 @@ export function resolveDefaultSubtitle(
   // it wants played, exactly as it names the default audio track, and whoever
   // mastered the release knew which one belongs with which audio. Missing here,
   // a film whose forced French track is flagged default opened with its
-  // foreign-language lines untranslated whenever the audio was not French
-  // (prod, 2026-09-05).
+  // foreign-language lines untranslated whenever the audio was not French.
   const fileDefault = subtitleStreams.find(
     (s) => (s as SubtitleStream & { isDefault?: boolean }).isDefault === true,
   );
@@ -550,7 +575,7 @@ export async function startPlayback(video: HTMLVideoElement, silentElement = fal
 }
 
 /** Bytes of forward buffer a browser's MSE quota comfortably holds for one
- *  video SourceBuffer. Firefox threw bufferFullError at ~150 MB (prod 2026-09-10). */
+ *  video SourceBuffer. Firefox threw bufferFullError at ~150 MB in prod. */
 const FORWARD_BUFFER_BYTES = 48_000_000;
 export const MIN_FORWARD_BUFFER_SEC = 6;
 export const MAX_FORWARD_BUFFER_SEC = 30;

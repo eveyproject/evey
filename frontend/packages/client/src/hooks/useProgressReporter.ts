@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef } from "react";
 import { QueryClientContext } from "@tanstack/react-query";
-import { playbackServiceReportProgress, eveyFetch } from "@evey/api";
+import { playbackServiceReportProgress, reportProgressWithWitness, eveyFetch, type V1PlayedState, type V1ServedLeg } from "@evey/api";
 import { toast } from "@evey/store";
 import { clientLogger } from "../log";
 import { refreshProgressViews } from "../lib/progressRefresh";
@@ -18,6 +18,12 @@ interface ProgressReporterCallbacks {
   onRemotePause?: () => void;
   onRemotePlay?: () => void;
   onRemoteStop?: () => void;
+  // What the player decodes, read at each tick and sent with it (the player's
+  // witness of the session). Only what the player knows for sure.
+  getPlayed?: () => V1PlayedState | undefined;
+  // Each answered tick: what the server says it sent the session, the served
+  // path the admin pages read, for the player's own stream panel.
+  onWitness?: (w: { played?: V1PlayedState; servedVideo?: V1ServedLeg; servedAudio?: V1ServedLeg }) => void;
 }
 
 // 0.85 = trigger at ~85% of duration - same threshold and route as the web
@@ -121,15 +127,19 @@ export function useProgressReporter(
       try {
         const tickPositionMs = getPositionRef.current();
         if (tickPositionMs > 0) lastPositionRef.current = tickPositionMs;
-        const res = await playbackServiceReportProgress({
+        // While casting the receiver is the player, and reports its own.
+        const played = getCastDeviceNameRef.current?.() ? undefined : cbRef.current?.getPlayed?.();
+        const res = await reportProgressWithWitness({
           sessionId,
           positionMs: String(Math.round(tickPositionMs)),
           isPaused: getIsPausedRef.current?.() ?? false,
           isMuted: getIsMutedRef.current?.() ?? false,
           volumeLevel: Math.round((getVolumeRef.current?.() ?? 1) * 100),
           castDeviceName: getCastDeviceNameRef.current?.() ?? "",
+          played,
         });
         errorCountRef.current = 0;
+        cbRef.current?.onWitness?.({ played, servedVideo: res?.servedVideo, servedAudio: res?.servedAudio });
 
         const pn = prewarmRef.current;
         if (pn?.mediaId) {

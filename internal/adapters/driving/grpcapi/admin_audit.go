@@ -158,8 +158,6 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 			VideoCodec:     s.VideoCodec,
 			AudioCodec:     s.AudioCodec,
 			Resolution:     s.Resolution,
-			VideoDecision:  s.VideoDecision,
-			AudioDecision:  s.AudioDecision,
 			BandwidthBps:   s.BandwidthBps,
 			SeriesTitle:    s.SeriesTitle,
 			SeasonNumber:   int32(s.SeasonNumber),
@@ -168,17 +166,64 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 			CastDeviceName: s.CastDeviceName,
 			UserId:         string(s.UserID),
 			Username:       s.Username,
-			VideoEngine:    s.VideoEngine,
-			VideoBackend:   s.VideoBackend,
-			AudioEngine:    s.AudioEngine,
+			ServedVideo:    servedLegToProto(s.Served.Video),
+			ServedAudio:    servedLegToProto(s.Served.Audio),
+			Played:         playedToProto(s.Played),
 		}
-		if s.TranscodeInfo != nil {
-			as.TranscodeInfo = *s.TranscodeInfo
-		}
+		fillLegacyServingFields(as, s.Served)
 		resp.Sessions = append(resp.Sessions, as)
 	}
 	d.appendMusicSessions(ctx, resp)
 	return resp, nil
+}
+
+func servedLegToProto(l *playback.ServedLeg) *eveyv1.ServedLeg {
+	if l == nil {
+		return nil
+	}
+	return &eveyv1.ServedLeg{
+		Engine: l.Engine, Copy: l.Copy, Track: int32(l.Track), //nolint:gosec // a track ordinal
+		Codec: l.Codec, SourceCodec: l.SourceCodec,
+		Width: int32(l.Width), Height: int32(l.Height), Channels: int32(l.Channels), //nolint:gosec // picture and channel counts
+		Backend: l.Backend, At: timestamppb.New(l.At),
+	}
+}
+
+func playedToProto(p *playback.Played) *eveyv1.PlayedState {
+	if p == nil {
+		return nil
+	}
+	return &eveyv1.PlayedState{
+		Source: p.Source, VideoCodec: p.VideoCodec,
+		Width: int32(p.Width), Height: int32(p.Height), //nolint:gosec // picture size
+		AudioTrack: int32(p.AudioTrack), AudioCodec: p.AudioCodec, AudioDecoder: p.AudioDecoder, //nolint:gosec // a track ordinal
+		At: timestamppb.New(p.At),
+	}
+}
+
+// fillLegacyServingFields fills the deprecated per-track decision and engine
+// fields from the served path, for the admin screens of app versions built
+// before served_video/served_audio. Derived here, never stored.
+func fillLegacyServingFields(as *eveyv1.ActiveSession, served playback.Served) {
+	decision := func(l *playback.ServedLeg) string {
+		if l.Copy {
+			return "copy"
+		}
+		return "transcode"
+	}
+	engine := func(l *playback.ServedLeg) string {
+		if l.Engine == playback.EngineFile {
+			return ""
+		}
+		return l.Engine
+	}
+	//nolint:staticcheck // SA1019: filling the deprecated fields is the point
+	if v := served.Video; v != nil {
+		as.VideoDecision, as.VideoEngine, as.VideoBackend = decision(v), engine(v), v.Backend
+	}
+	if a := served.Audio; a != nil {
+		as.AudioDecision, as.AudioEngine = decision(a), engine(a)
+	}
 }
 
 // appendMusicSessions folds the live in-memory music sessions into the response,

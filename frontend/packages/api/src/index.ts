@@ -109,7 +109,7 @@ export type {
   LibraryServiceSearchMediaType, LibraryServiceSearchMediaSortField, LibraryServiceSearchMediaSortOrder,
 } from "./generated/library.schemas";
 export { V1LibraryType } from "./generated/library.schemas";
-export type { V1StreamInfo, V1WatchProgress, V1GetWatchHistoryResponse } from "./generated/playback.schemas";
+export type { V1StreamInfo, V1WatchProgress, V1GetWatchHistoryResponse, V1PlayedState, V1ServedLeg } from "./generated/playback.schemas";
 export type { V1Notification } from "./generated/notification.schemas";
 export type { V1WebhookConfig } from "./generated/webhook.schemas";
 export type { V1TranscodeProfile } from "./generated/transcoding.schemas";
@@ -126,5 +126,6 @@ export type { V1CollectionProto, V1CollectionItemProto } from "./generated/colle
 export * from "./trackPick";
 export * from "./profileSchedule";
 export * from "./configDefaults";
-export * from "./sessionTrackLines";
 export type { V1ServerMetric, V1ListServerMetricsResponse } from "./generated/activity.schemas";
+export * from "./servedReality";
+export * from "./reportProgressWitness";

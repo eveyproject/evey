@@ -10,7 +10,6 @@ type PlaybackStarted struct {
 	SessionID   string
 	ProfileID   shared.ProfileID
 	MediaItemID shared.MediaItemID
-	PlayMethod  string
 	OccurredAt  time.Time
 }
 

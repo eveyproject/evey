@@ -13,6 +13,15 @@ const H = vi.hoisted(() => {
     config: Record<string, unknown>;
     levels: { width?: number; height: number; bitrate: number }[] = [{ width: 854, height: 480, bitrate: 1e6 }, { width: 1920, height: 1080, bitrate: 8e6 }];
     audioTracks: { name?: string; lang?: string }[] = [{ name: "French", lang: "fr" }, { name: "English", lang: "en" }];
+    // Every rendition of the master, each naming the file's track it carries.
+    allAudioTracks = [
+      { name: "French", lang: "fr", groupId: "aud", attrs: { "X-MKVGO-TRACK": "2" } },
+      { name: "English", lang: "en", groupId: "aud", attrs: { "X-MKVGO-TRACK": "3" } },
+    ];
+    setAudioOption = vi.fn((t: { attrs: Record<string, string> }) => {
+      this.audioTrack = this.allAudioTracks.findIndex((x) => x === t);
+      return t;
+    });
     audioTrack = -1;
     currentLevel = -1;
     startLevel = -1;
@@ -50,6 +59,7 @@ vi.mock("./hlsPlayerUtils", () => ({
   liftForcedMuteOnNextGesture: (...a: unknown[]) => utils.liftMute(...(a as [])),
   pickPinnedLevel: ({ levelHeights, desiredHeight }: { levelHeights: number[]; desiredHeight: number }) =>
     desiredHeight ? levelHeights.indexOf(desiredHeight) : levelHeights.length - 1,
+  levelInAudioGroup: (_levels: unknown, index: number) => index,
   pickTranscodeResumeSec: (pos: number, start: number) => (pos > 0 ? pos : start),
   forwardBufferSeconds: () => 12,
   MAX_FORWARD_BUFFER_SEC: 30,
@@ -87,6 +97,10 @@ function setup(over: Record<string, unknown> = {}) {
   const args = {
     ...refs, ...spies,
     transcodeMode: true, mediaId: "m1", currentTrackIndex: 0, selectedBurnInTrack: null, startPositionMs: 0,
+    audioStreams: [
+      { index: 1, trackIndex: 0, codec: "aac", sourceTrackId: 2 },
+      { index: 2, trackIndex: 1, codec: "aac", sourceTrackId: 3 },
+    ],
     ...over,
   };
   const hook = renderHook((p: any) => useTranscodePlayback(p), { initialProps: args });
@@ -142,6 +156,8 @@ describe("useTranscodePlayback - start", () => {
     refs.wasPausedRef.current = true;
     await act(async () => hls().emit("MANIFEST_PARSED"));
     expect(hls().currentLevel).toBe(0);
+    // Selected by the track the rendition carries, not by its place in a list.
+    expect(hls().setAudioOption).toHaveBeenCalledWith(hls().allAudioTracks[1]);
     expect(hls().audioTrack).toBe(1);
     expect(utils.startPlayback).not.toHaveBeenCalled();
   });

@@ -1,5 +1,5 @@
 ---
-source_sha: d18575178717c35ca8643b0eead448a6b422a10bbfee57b8fcc255d843d35d40
+source_sha: 76e62ba7606ac1dbe99a998e701b752d3ef30113a36706962dc7c44a3918598f
 reviewed: true
 ---
 # Servir une vidéo : le chemin de lecture HLS
@@ -167,6 +167,48 @@ Safari est exclu de la voie wasm par capacité, pas par nom :
 vrai que si le navigateur déclare qu'il *ne peut pas* lire l'AC-3
 nativement, et Safari déclare qu'il le peut.
 
+## Ce que montre une session : deux témoins
+
+Le panneau de flux de chaque lecteur et les cartes de session de l'admin
+montrent ce qu'une lecture EST, jamais ce qui a été décidé. La décision, la
+stratégie de livraison du plan et l'écho d'un verdict renvoyé par le lecteur
+sont des entrées du service ; un repli à l'exécution (un empaqueteur qui ne
+sait pas construire la source, un décodeur wasm revenu à l'AAC, une lecture
+directe que le navigateur refuse) les contredit. Deux témoins remplissent une
+session, et rien d'autre ne l'écrit :
+
+| Témoin | Ce qu'il enregistre | Où |
+| --- | --- | --- |
+| Le serveur | par branche (vidéo, audio), la dernière réponse qui a porté des octets : le moteur qui les a écrits (`mkvgo`, `ffmpeg`, `file`), si un encodeur a tourné, la piste source, et le codec, l'image et les canaux lus dans le segment d'init envoyé (ou les flux du fichier lui-même en lecture directe) | `http/served_witness.go` (un middleware sur les routes média, les handlers estampillent ce qu'ils écrivent) |
+| Le lecteur | ce qu'il décode : le fichier ou une présentation segmentée, la rendition audio qu'il a chargée (par le numéro de piste que porte la rendition), le codec pour lequel ses tampons ont été configurés, le décodeur natif ou wasm | le champ `played` du tick de progression (un récepteur cast : un événement de lecteur `played`) |
+
+Les deux aboutissent dans `play_sessions.served` / `played` via `CommandService.RecordServed`
+et `RecordPlayed`, qui gardent en mémoire la dernière observation de chaque
+session en cours et n'écrivent qu'un changement. La méthode et les colonnes de
+résumé que lit l'historique sont dérivées du chemin servi. La réponse au tick
+de progression rend le chemin servi au lecteur, si bien que son panneau et la
+carte de l'admin lisent les mêmes faits ; `describeSession` de `@evey/api` en
+fait une seule vue, et le signale quand les deux témoins divergent (le lecteur
+joue une autre piste, ou décode un autre codec, que celle envoyée).
+
+Les règles qui gardent les témoins honnêtes :
+
+- seule une réponse qui a porté des octets (200/206 avec un corps) fait
+  preuve ; une réponse média est observée à ses premiers octets (une lecture
+  directe lit tout le film par une seule requête), une init une fois entière
+  (ses octets sont lus) ;
+- une observation est datée par le début de la réponse, et une plus ancienne
+  ne remplace jamais une plus récente, quel que soit l'ordre dans lequel elles
+  se sont terminées ;
+- des octets dont l'init ne peut pas être lue n'enregistrent rien plutôt
+  qu'une supposition ;
+- une rendition de l'empaqueteur nomme sa piste source par le numéro que lui
+  donne le fichier (`X-MKVGO-TRACK` dans le master, l'id de piste de l'init) :
+  un master qui groupe les renditions par codec ne liste dans `hls.audioTracks`
+  que celles du groupe courant, donc le lecteur choisit une rendition par la
+  piste qu'elle porte, à travers tous les groupes (`hls.setAudioOption`),
+  jamais par sa place dans une liste.
+
 ## Empaquetage : CMAF, HLS, DASH
 
 Le conteneur est toujours **CMAF** (fMP4) : un `init.mp4` par variante plus
@@ -214,4 +256,5 @@ ladder, admission, fingerprint: internal/app/transcoding/admission_shaper.go - S
 engines: internal/adapters/driven/prober/dispatcher.go ; internal/adapters/driven/prober/keyframe_dispatcher.go ; internal/app/transcoding/ondemand.go - OnDemandPackager ; internal/adapters/driven/mkvgo/ondemand.go ; internal/adapters/driven/ffmpeg/hls_transcoder.go - BuildFFmpegArgs, needsFMP4Segments ; internal/adapters/driven/ffmpeg/trickplay.go, complexity_classifier.go, audio_delay.go
 packaging: internal/app/transcoding/manifest_generator.go - querySuffix, EVEY-AUDIO-URI ; internal/app/transcoding/manifest_generator_dash.go ; internal/domain/transcoding/segment_grid.go - SegmentTargetSeconds, gridFor ; internal/pkg/cmafparity ; internal/adapters/driven/ffmpeg/dash_grid_integration_test.go - TestDASHGridIntegration
 wasm: frontend/packages/client/src/web/codec.ts - canWasmDecodeAC3
+witnesses: internal/domain/playback/served.go - Served, ServedLeg, Played ; internal/adapters/driving/http/served_witness.go - servedWitness, deliveryStamp ; internal/app/playback/served_witness.go - RecordServed, RecordPlayed, Heartbeat ; frontend/packages/api/src/servedReality.ts - describeSession ; frontend/packages/client/src/lib/playedState.ts - playedState, trackRendition ; frontend/packages/client/src/lib/masterRenditions.ts ; frontend/packages/client/src/native/useNativePlayed.ts
 -->

@@ -67,3 +67,22 @@ func TestDefaultAudioTrack_DemoPrefersATrackPlayedWithoutAnEncode(t *testing.T) 
 	assert.Equal(t, 0, DefaultAudioTrack(otherLanguage, []string{"fr"}), "the language still comes first")
 	assert.Equal(t, 1, DefaultAudioTrack(otherLanguage, []string{"de"}), "no language match: ranked over every track")
 }
+
+// Matroska's test5 as the demo served it (measured): an unlabelled main
+// stereo track, then an English mono track titled "Commentary" without the
+// container's commentary flag. An English profile was given the commentary.
+func TestDefaultAudioTrack_ATitledCommentaryIsNeverTheImplicitPick(t *testing.T) {
+	two, one := 2, 1
+	streams := []*library.MediaStream{
+		{StreamType: library.Video, Codec: "h264"},
+		{StreamType: library.Audio, Codec: "aac", Language: "und", Channels: &two, IsDefault: true},
+		{StreamType: library.Audio, Codec: "aac", Language: "eng", Channels: &one, Title: "Commentary"},
+	}
+	for _, demo := range []bool{false, true} {
+		SetDemoAudioDefault(demo)
+		if got := DefaultAudioTrack(streams, []string{"en"}); got != 0 {
+			t.Errorf("demo=%v: default = audio %d, want the main track 0", demo, got)
+		}
+	}
+	SetDemoAudioDefault(false)
+}

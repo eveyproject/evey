@@ -1,5 +1,5 @@
 ---
-source_sha: d18575178717c35ca8643b0eead448a6b422a10bbfee57b8fcc255d843d35d40
+source_sha: 76e62ba7606ac1dbe99a998e701b752d3ef30113a36706962dc7c44a3918598f
 reviewed: true
 ---
 # 提供视频：HLS 播放路径
@@ -114,6 +114,32 @@ ffprobe 是最终的后备，从不被绕过。另一个完全相同的分派器
 Safari 被排除在 wasm 路径之外，依据的是能力，而不是名称：`canWasmDecodeAC3()`（`frontend/packages/client/src/web/codec.ts`）
 只有在浏览器报告自己*不能*原生播放 AC-3 时才返回 true，而 Safari 报告的是能。
 
+## 会话显示什么：两个见证者
+
+每个播放器的流信息面板和管理后台的会话卡片显示的是一次播放实际**是**什么，而不是当初决定了什么。决定、计划的交付策略、以及播放器回传的判定，
+都只是提供服务的输入；运行时的后备（打包器无法构建该源、wasm 解码器退回到 AAC、浏览器拒绝的直接播放）会与它们相矛盾。
+一个会话由两个见证者填写，其他任何东西都不写它：
+
+| 见证者 | 记录什么 | 在哪里 |
+| --- | --- | --- |
+| 服务器 | 按路（视频、音频）记录最近一个带有字节的响应：写出这些字节的引擎（`mkvgo`、`ffmpeg`、`file`）、是否运行了编码器、源轨道，以及从发出的初始化段读出的 codec、画面和声道（直接播放时则为文件本身的流） | `http/served_witness.go`（挂在媒体路由上的中间件，处理器给自己写出的内容盖章） |
+| 播放器 | 它解码的内容：文件或分段的呈现、已加载的音频 rendition（按 rendition 所带的轨道编号）、其缓冲区所配置的 codec、原生或 wasm 解码器 | 进度 tick 中的 `played` 字段（cast 接收器上：一个 `played` 播放器事件） |
+
+两者都通过 `CommandService.RecordServed` 和 `RecordPlayed` 写入 `play_sessions.served` / `played`，它们在内存中保存每个活动会话的最新观测，
+只在发生变化时才写入。历史记录读取的方法和汇总列由服务端路径推导而来。进度 tick 的响应会把服务端路径交回给播放器，
+这样它的面板和管理卡片读取的是同一组事实；`@evey/api` 的 `describeSession` 把它们合成一个视图，并在两个见证者不一致时指出来
+（播放器播放的轨道或解码的 codec 与发送的不同）。
+
+让见证者保持诚实的规则：
+
+- 只有带了字节的响应（带响应体的 200/206）才算证据；媒体响应在其最初的字节到达时就被观测（直接播放通过一个请求读取整部影片），
+  初始化段则在完整之后才被观测（其字节会被读取）；
+- 观测以响应开始的时间为准，较旧的观测永远不会取代较新的，无论它们按什么顺序结束；
+- 初始化段无法读取的字节什么都不记录，而不是去猜；
+- 打包器的 rendition 用文件赋予它的编号来指明源轨道（master 中的 `X-MKVGO-TRACK`、初始化段的 track id）：
+  按 codec 分组 rendition 的 master 只在 `hls.audioTracks` 中列出当前组的 rendition，所以播放器按 rendition 所带的轨道、
+  跨所有组选择 rendition（`hls.setAudioOption`），而不是按它在列表中的位置。
+
 ## 打包：CMAF、HLS、DASH
 
 容器始终是 **CMAF**（fMP4）：每个变体一个 `init.mp4`，加上一串 `.m4s` 分段（`hls_transcoder.go` 里的 MPEG-TS 分支已经不会走到：
@@ -149,4 +175,5 @@ ladder, admission, fingerprint: internal/app/transcoding/admission_shaper.go - S
 engines: internal/adapters/driven/prober/dispatcher.go ; internal/adapters/driven/prober/keyframe_dispatcher.go ; internal/app/transcoding/ondemand.go - OnDemandPackager ; internal/adapters/driven/mkvgo/ondemand.go ; internal/adapters/driven/ffmpeg/hls_transcoder.go - BuildFFmpegArgs, needsFMP4Segments ; internal/adapters/driven/ffmpeg/trickplay.go, complexity_classifier.go, audio_delay.go
 packaging: internal/app/transcoding/manifest_generator.go - querySuffix, EVEY-AUDIO-URI ; internal/app/transcoding/manifest_generator_dash.go ; internal/domain/transcoding/segment_grid.go - SegmentTargetSeconds, gridFor ; internal/pkg/cmafparity ; internal/adapters/driven/ffmpeg/dash_grid_integration_test.go - TestDASHGridIntegration
 wasm: frontend/packages/client/src/web/codec.ts - canWasmDecodeAC3
+witnesses: internal/domain/playback/served.go - Served, ServedLeg, Played ; internal/adapters/driving/http/served_witness.go - servedWitness, deliveryStamp ; internal/app/playback/served_witness.go - RecordServed, RecordPlayed, Heartbeat ; frontend/packages/api/src/servedReality.ts - describeSession ; frontend/packages/client/src/lib/playedState.ts - playedState, trackRendition ; frontend/packages/client/src/lib/masterRenditions.ts ; frontend/packages/client/src/native/useNativePlayed.ts
 -->

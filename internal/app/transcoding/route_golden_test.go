@@ -393,7 +393,7 @@ func TestResolvedRoute_ProjectionsAgree(t *testing.T) {
 		// video on the packager.
 		if plan.Delivery.Video == EngineMkvgo {
 			require.True(t, VideoCopyEligible(plan.Decision, req.Streams), "%s: the packager carries a copy only", sc.name)
-			require.Equal(t, "copy", plan.Delivery.ServingPath(plan.Route, fp).VideoDecision, "%s: the planned path says copy", sc.name)
+			require.True(t, plan.Delivery.Planned(plan.Route).VideoCopy, "%s: the planned path says copy", sc.name)
 		}
 		if plan.Delivery.Audio == EngineMkvgo {
 			require.Equal(t, EngineMkvgo, plan.Delivery.Video, "%s: packager audio rides packager video", sc.name)

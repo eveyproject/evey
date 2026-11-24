@@ -323,13 +323,11 @@ type HTTPServer struct {
 	// rather than waiting for a silence the alive beat prevents.
 	CastSessionTerminate CastSessionEnd
 	CastCommandConsume   CastCommandConsumer
-	CastAudioModeTouch   CastAudioModeTouch
-	// SessionServingRecord tells the play session what a master playlist just
-	// handed its player (packager/encoder per track), for the admin panel.
-	SessionServingRecord SessionServingRecord
-	// SessionAudioLegRecord follows an in-place audio track switch, which
-	// fetches a rendition playlist and never re-renders the master.
-	SessionAudioLegRecord SessionAudioLegRecord
+	// ServedRecord and PlayedRecord are a play session's two witnesses: what
+	// the media routes sent (served_witness.go) and what the player reports
+	// it decodes (the "played" player event).
+	ServedRecord ServedRecorder
+	PlayedRecord PlayedRecorder
 
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
@@ -539,7 +537,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}
 	mh := mediaHandler(s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), hlsAccessCache, mhOpts...)
-	mux.HandleFunc("GET /api/v1/media/{id}/stream", streamAuth(s.StreamMeter.Middleware(mh)))
+	// One witness for every route that sends a playback its media bytes: what
+	// it sees going out is what the play session shows (served_witness.go).
+	served := &servedWitness{record: s.ServedRecord}
+	mux.HandleFunc("GET /api/v1/media/{id}/stream", streamAuth(s.StreamMeter.Middleware(served.wrap(mh))))
 	// Progressive fast-start MP4 remux of a browser-incompatible EBML source
 	// (copy, no re-encode), cached once and served with Range support. Same auth
 	// + parental + stream metering as /stream.
@@ -572,7 +573,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			WithPlayerEventCastPresence(s.CastPresence, s.CastResolveUsername),
 			WithPlayerEventCastSession(s.CastSessionKeepalive),
 			WithPlayerEventCastSessionEnd(s.CastSessionTerminate),
-			WithPlayerEventCastAudioMode(s.CastAudioModeTouch),
+			WithPlayerEventPlayed(s.PlayedRecord),
 			WithPlayerEventCastCommand(s.CastCommandConsume),
 			// And as the native players' QoE feed: ExoPlayer/AVPlayer send no
 			// CMCD of their own, the app posts qoe_sample beacons instead.
@@ -713,7 +714,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// few seconds per stream) - the DoS vector the GlobalRL was wrong for
 			// (its per-IP 429 would 1) false-positive a multi-profile household
 			// and 2) stall hls.js).
-			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, s.LoadTestActive, s.Cfg.Server.Demo, s.StreamMeter.Middleware(vodHandler.serveHTTP))))
+			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, s.LoadTestActive, s.Cfg.Server.Demo, s.StreamMeter.Middleware(served.wrap(vodHandler.serveHTTP)))))
 			// Predictive warm-up: the player POSTs at ~85% progress of an
 			// episode so the next ep's transcode is pre-spawned and the
 			// autoplay handoff feels instant. Auth-required (logged-in user

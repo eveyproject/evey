@@ -292,21 +292,12 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
 			}
 		},
-		CastAudioModeTouch: func(ctx context.Context, profileID, mediaItemID, mode string) {
-			if err := deps.media.playbackSvc.CommandService().SetCastAudioPath(ctx, profileID, mediaItemID, mode); err != nil {
-				slog.WarnContext(ctx, "cast audio path update failed",
-					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
-			}
+		ServedRecord: func(ctx context.Context, profileID, mediaItemID string, leg domainplayback.Leg, l domainplayback.ServedLeg) error {
+			return deps.media.playbackSvc.CommandService().RecordServed(ctx, profileID, mediaItemID, leg, l)
 		},
-		SessionServingRecord: func(ctx context.Context, profileID, mediaItemID string, p domainplayback.ServingPath) {
-			if err := deps.media.playbackSvc.CommandService().SetSessionServing(ctx, profileID, mediaItemID, p); err != nil {
-				slog.WarnContext(ctx, "session serving record failed",
-					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
-			}
-		},
-		SessionAudioLegRecord: func(ctx context.Context, profileID, mediaItemID, decision, engine, codecLabel string) {
-			if err := deps.media.playbackSvc.CommandService().SetSessionAudioLeg(ctx, profileID, mediaItemID, decision, engine, codecLabel); err != nil {
-				slog.WarnContext(ctx, "session audio leg record failed",
+		PlayedRecord: func(ctx context.Context, profileID, mediaItemID string, p domainplayback.Played) {
+			if err := deps.media.playbackSvc.CommandService().RecordPlayed(ctx, profileID, mediaItemID, p); err != nil {
+				slog.WarnContext(ctx, "played record failed",
 					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
 			}
 		},

@@ -57,9 +57,9 @@ func TestResolve_PackagerVideoOnATranscodeRoute(t *testing.T) {
 			plan, _, priced := build(t, tc.wire)
 			require.Equal(t, EngineMkvgo, plan.Delivery.Video, "the packager carries the video")
 			require.False(t, plan.Route.Copy, "ffmpeg's copy rung is not available")
-			path := plan.Delivery.ServingPath(plan.Route, plan.Fingerprint)
-			require.Equal(t, "copy", path.VideoDecision, "what the packager serves is a copy")
-			require.Equal(t, "mkvgo", path.VideoEngine)
+			path := plan.Delivery.Planned(plan.Route)
+			require.True(t, path.VideoCopy, "what the packager serves is a copy")
+			require.Equal(t, EngineMkvgo, path.VideoEngine)
 			// The ffmpeg path behind the packager transcodes: its ladder is
 			// shaped and admitted with the plan, the insurance for a source the
 			// packager cannot build. That reservation is deliberate.
@@ -75,7 +75,7 @@ func TestResolve_PackagerVideoOnATranscodeRoute(t *testing.T) {
 		plan, _, priced := build(t, func(*PlanResolver) {})
 		require.Equal(t, EngineMkvgo, plan.Delivery.Video)
 		require.True(t, plan.Route.Copy)
-		require.Equal(t, "copy", plan.Delivery.ServingPath(plan.Route, plan.Fingerprint).VideoDecision)
+		require.True(t, plan.Delivery.Planned(plan.Route).VideoCopy)
 		require.Len(t, plan.Ladder, 1)
 		require.True(t, plan.Ladder[0].Copy)
 		require.Equal(t, 0, *priced, "a copy rung takes no admission")

@@ -7,6 +7,7 @@ const mockReportProgress = vi.fn().mockResolvedValue({});
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
   playbackServiceReportProgress: (...args: unknown[]) => mockReportProgress(...args),
+  reportProgressWithWitness: (...args: unknown[]) => mockReportProgress(...args),
 }));
 
 vi.mock("@evey/store", () => ({

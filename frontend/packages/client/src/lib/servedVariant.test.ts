@@ -59,19 +59,22 @@ describe("servedVariant", () => {
 
 describe("buildStreamInfoModel follows the playing variant", () => {
   it("shows the transcoded rung ABR dropped to, then the copy again", () => {
-    const down = buildStreamInfoModel(TRANSCODE_PLAN, { served: servedVariant(TRANSCODE_PLAN, { width: 1280, height: 720, bitrate: 3_000_000 }, LADDER) });
+    // The decision is the served witness's (an ffmpeg encode); the rung the
+    // player decodes gives the picture's shape.
+    const encoded = { servedVideo: { engine: "ffmpeg", copy: false, codec: "h264", sourceCodec: "h264" } };
+    const down = buildStreamInfoModel(TRANSCODE_PLAN, { served: servedVariant(TRANSCODE_PLAN, { width: 1280, height: 720, bitrate: 3_000_000 }, LADDER), witness: encoded });
     expect(video(down).decision).toBe("transcode");
     expect(video(down).rows["player.streamInfo.resolution"]).toBe("1280×720");
     expect(video(down).rows["player.streamInfo.codec"]).toBe("H264");
     expect(video(down).rows["player.streamInfo.bitrate"]).toBe("3.0 Mbps");
 
-    const fallback = buildStreamInfoModel(COPY_PLAN, { served: servedVariant(COPY_PLAN, { width: 1920, height: 1080, bitrate: 3_000_000 }, LADDER) });
+    const fallback = buildStreamInfoModel(COPY_PLAN, { served: servedVariant(COPY_PLAN, { width: 1920, height: 1080, bitrate: 3_000_000 }, LADDER), witness: encoded });
     expect(video(fallback).decision).toBe("transcode");
     expect(video(fallback).rows["player.streamInfo.profile"]).toBeUndefined();
     const method = fallback?.sections.find((s) => s.kind === "playback")?.rows.find((r) => r.labelKey === "player.streamInfo.method");
     expect(method?.valueKey).toBe("player.streamInfo.methodTranscode");
 
-    const top = buildStreamInfoModel(COPY_PLAN, { served: servedVariant(COPY_PLAN, { width: 1920, height: 1080, bitrate: 8_000_000 }, LADDER) });
+    const top = buildStreamInfoModel(COPY_PLAN, { served: servedVariant(COPY_PLAN, { width: 1920, height: 1080, bitrate: 8_000_000 }, LADDER), witness: { servedVideo: { engine: "mkvgo", copy: true, codec: "h264" } } });
     expect(video(top).decision).toBe("copy");
     expect(video(top).rows["player.streamInfo.profile"]).toBe("High");
   });
