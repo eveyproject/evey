@@ -67,6 +67,12 @@ describe("SessionCard", () => {
     expect(screen.getByText("admin.sessions.castingTo")).toBeTruthy();
   });
 
+  it("names a segmented session whose tracks both copy a remux, not a transcode", () => {
+    render(<SessionCard session={{ ...session, videoDecision: "copy", audioDecision: "copy" }} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
+    expect(screen.getByText("admin.sessions.directStream")).toBeTruthy();
+    expect(screen.queryByText("admin.sessions.transcode")).toBeNull();
+  });
+
   it("drives play/pause, stop and a trimmed message through the parent's callbacks", () => {
     const onKill = vi.fn();
     const onCommand = vi.fn();

@@ -144,6 +144,37 @@ func TestPlaybackHandler_StartStream_StampsServedBitrate(t *testing.T) {
 	assert.Equal(t, int64(4_192_000), stored.BandwidthBps, "the client-reported served bitrate is stamped, not the 20 Mbps source")
 }
 
+// A file routed through the segmented session with both tracks copied (the
+// demo's Sintel on Chrome: container_incompatible + sibling_audio_undecodable)
+// is recorded as the remux it is; the admin pages and the play-method counts
+// read this column.
+func TestPlaybackHandler_StartStream_RecordsACopiedSegmentedSessionAsRemux(t *testing.T) {
+	cases := []struct {
+		video, audio string
+		want         eveyv1.PlayMethod
+	}{
+		{"copy", "copy", eveyv1.PlayMethod_PLAY_METHOD_DIRECT_STREAM},
+		{"copy", "wasm", eveyv1.PlayMethod_PLAY_METHOD_DIRECT_STREAM},
+		{"transcode", "copy", eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE},
+		{"copy", "transcode", eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE},
+		{"", "", eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE}, // an older client reports nothing
+	}
+	for _, c := range cases {
+		h, sessionRepo, _, _, _, _ := newTestPlaybackHandler()
+		resp, err := h.StartStream(pbAdminCtx(), &eveyv1.StartStreamRequest{
+			MediaItemId:   "mi-1",
+			PlayMethod:    eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE,
+			VideoDecision: c.video,
+			AudioDecision: c.audio,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, c.want, resp.PlayMethod, "%s/%s", c.video, c.audio)
+		stored, err := sessionRepo.GetByID(context.Background(), resp.Id)
+		require.NoError(t, err)
+		assert.Equal(t, playMethodFromProto[c.want], stored.PlayMethod, "%s/%s", c.video, c.audio)
+	}
+}
+
 func TestPlaybackHandler_StartStream_FallsBackToSourceBitrate(t *testing.T) {
 	h, sessionRepo, _, mediaQuery, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
@@ -880,7 +911,7 @@ func TestPlaybackHandler_GetWatchHistory_EnrichesEpisodeLabel(t *testing.T) {
 // A progress row stores where the viewer stopped; how long the film is only
 // the media item knows - and no handler ever filled duration_ms or
 // percent_complete, so every client's history line and progress bar sat on
-// zero (found on mobile 2026-08-03, true of web and TV too).
+// zero (found on mobile, true of web and TV too).
 func TestPlaybackHandler_GetWatchHistory_FillsDurationAndPercent(t *testing.T) {
 	h, _, progressRepo, mediaRepo, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
@@ -1438,7 +1469,7 @@ func TestServedAudioBitrateBps(t *testing.T) {
 		},
 		{
 			// Derived from the constant: the panel must quote whatever the encoder
-			// is handed, and that base moved once already (128 -> 192 on 2026-09-04,
+			// is handed, and that base moved once already (128 -> 192,
 			// see domain/transcoding/audio_bitrate.go). A literal here would let the
 			// panel drift from the argv, which is the one thing this test exists for.
 			name:        "hybrid rung, stereo: the rendition base, unscaled",
@@ -1506,7 +1537,7 @@ func TestServedAudioBitrate_UsesTheChosenTrack(t *testing.T) {
 // During a cast the TV consumes admin commands itself (its alive beacon polls
 // them); the phone's 3s progress tick must NOT win that race - it used to eat
 // "pause" and apply it to its own muted local player, so the admin's button
-// visibly did nothing on the TV (live repro 2026-07-29).
+// visibly did nothing on the TV.
 func TestPlaybackHandler_ReportProgress_CastSessionDoesNotConsumeCommand(t *testing.T) {
 	h, _, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()

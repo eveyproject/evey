@@ -166,6 +166,26 @@ describe("usePlaySession resume", () => {
     expect(result.current.progress).toEqual({ positionMs: "42000", played: false });
   });
 
+  // The admin pages name the method from these: a segmented session whose
+  // tracks both copy is recorded as the remux it is.
+  it("reports the per-track verdicts with the session", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "copy", audioDecision: "copy", resolution: "1080p", bitrate: "10562035" });
+    eveyFetchMock
+      .mockResolvedValueOnce({ positionMs: "0", played: false })
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(startStreamMock).toHaveBeenCalledWith(
+      expect.objectContaining({ videoDecision: "copy", audioDecision: "copy", resolution: "1080p", servedBitrateBps: "10562035" }),
+    );
+  });
+
   it("falls back to position 0 when the item is already fully watched", async () => {
     const { renderHook, waitFor } = await import("@testing-library/react");
     const { usePlaySession } = await import("./usePlaySession");
@@ -307,7 +327,7 @@ describe("buildStreamUrl", () => {
   });
 
   // The TV declared no HDR capability at all, so the server saw an SDR client
-  // on every title: measured 2026-09-19, a 2160p HDR10 HEVC that direct-plays
+  // on every title: measured, a 2160p HDR10 HEVC that direct-plays
   // with hdr=1 was going out re-encoded for want of this one param. Absent
   // rather than hdr=0 when the panel is SDR, so an SDR box's URL - and the
   // cache key behind it - stays byte-identical to before.
@@ -519,7 +539,7 @@ describe("usePlaySession stream token", () => {
 });
 
 // Fixes the phone had and the television's copy lacked, until both players
-// shared one play session (2026-09-24).
+// shared one play session.
 describe("usePlaySession: what the phone's copy already guarded", () => {
   const realFetch = global.fetch;
   const fetchMock = vi.fn();
