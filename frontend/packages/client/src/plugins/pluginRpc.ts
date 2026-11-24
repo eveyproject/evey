@@ -42,17 +42,56 @@ export interface PluginRpcTransport {
   posterToDataUrl?: (blob: Blob) => Promise<string>;
 }
 
+/** The slot a plugin draws a whole admin page in. */
+export const ADMIN_NAV_SLOT = "admin.nav";
+
+/** The host permission that lets an admin.nav page ask for media files to go to the trash. */
+export const MEDIA_TRASH_PERMISSION = "media.trash";
+
+/** At most this many items in one trash request: one confirmation, a readable list. */
+export const MAX_TRASH_IDS = 50;
+
 export interface PluginRpcOptions {
   /** Allows `config.save`: true only in the admin.plugin.config slot. */
   configWrite?: boolean;
   /** Called after `config.save` went through, so the host refreshes what shows the config. */
   onConfigSaved?: () => void;
+  /**
+   * Answers `media.trash`: the host shows ITS OWN confirmation (from the
+   * server's record of each item, never from what the plugin says) and, on
+   * yes, calls the admin trash endpoint on the viewer's session. Absent, the
+   * call is refused like an unknown method. A host sets it only on an
+   * admin.nav page of a plugin granted media.trash.
+   */
+  trash?: (ids: string[]) => Promise<unknown>;
+  /**
+   * Answers `media.restore`: moves files the trash call returned back where
+   * they were. Set together with `trash`, never without it.
+   */
+  restore?: (paths: string[]) => Promise<unknown>;
 }
 
 // Strict path guard for a plugin's OWN web_root assets (the server also
 // rejects traversal, this is defense in depth).
 export function isValidAssetPath(p: string): boolean {
   return !!p && p.length <= 256 && !p.includes("..") && !p.startsWith("/") && !p.includes("\\") && /^[a-zA-Z0-9._/-]+$/.test(p);
+}
+
+/**
+ * The query of `media.list`: a library, a type (`MEDIA_ITEM_TYPE_MOVIE`...) and
+ * a page (`page` from 1, `pageSize` up to the server's 500). A server page is
+ * 500 items when none is asked, so a plugin that needs a whole library pages
+ * through it with `total`. Anything malformed is dropped, not forwarded.
+ */
+function mediaListQuery(args: Record<string, unknown>): string {
+  const q = new URLSearchParams();
+  if (args.libraryId) q.set("libraryId", String(args.libraryId));
+  if (typeof args.type === "string" && /^MEDIA_ITEM_TYPE_[A-Z_]+$/.test(args.type)) q.set("type", args.type);
+  const int = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v > 0 ? v : 0);
+  if (int(args.page)) q.set("pagination.page", String(int(args.page)));
+  if (int(args.pageSize)) q.set("pagination.pageSize", String(Math.min(int(args.pageSize), 500)));
+  const s = q.toString();
+  return s ? `?${s}` : "";
 }
 
 /** Maps a bridge method to its request. Null for a method outside the allowlist. */
@@ -76,11 +115,7 @@ export function pluginRequestFor(pluginId: string, method: string, args: Record<
     case "media.get":
       return { path: `/api/v1/public/media/${enc(String(args.id ?? ""))}`, method: "GET", authToken: token };
     case "media.list":
-      return {
-        path: `/api/v1/public/media${args.libraryId ? `?libraryId=${enc(String(args.libraryId))}` : ""}`,
-        method: "GET",
-        authToken: token,
-      };
+      return { path: `/api/v1/public/media${mediaListQuery(args)}`, method: "GET", authToken: token };
     case "media.poster":
       return { path: `/api/v1/media/${enc(String(args.id ?? ""))}/artwork/poster`, method: "GET" };
     case "assets.read": {
@@ -179,6 +214,22 @@ export function createPluginRpc(pluginId: string, transport: PluginRpcTransport,
 
   async function call(method: string, args: Record<string, unknown>): Promise<unknown> {
     if (method === "config.save") return saveConfig(args);
+    if (method === "media.trash") {
+      if (!options.trash) throw new Error("method not permitted: media.trash");
+      const ids = args.ids;
+      if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_TRASH_IDS || !ids.every((x) => typeof x === "string" && x.length > 0 && x.length <= 64)) {
+        throw new Error(`media.trash needs 1 to ${MAX_TRASH_IDS} media ids`);
+      }
+      return options.trash([...new Set(ids as string[])]);
+    }
+    if (method === "media.restore") {
+      if (!options.restore) throw new Error("method not permitted: media.restore");
+      const paths = args.paths;
+      if (!Array.isArray(paths) || paths.length === 0 || paths.length > MAX_TRASH_IDS || !paths.every((x) => typeof x === "string" && x.length > 0 && x.length <= 4096)) {
+        throw new Error(`media.restore needs 1 to ${MAX_TRASH_IDS} trashed paths`);
+      }
+      return options.restore([...new Set(paths as string[])]);
+    }
     let tok = await ensureToken();
     if (!tok) throw new Error("plugin token unavailable");
     let res = await send(method, args, tok);

@@ -120,6 +120,26 @@ describe("SideDrawer - main vs admin tray", () => {
     fireEvent.click(screen.getByText("Librarian").closest("button")!);
     return waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin/extensions/plg-librarian"));
   });
+
+  it("puts the plugin pages, titled Plugins, between Users & Access and Integrations", () => {
+    mockPathname = "/admin";
+    mockPluginEntries = [{ pluginId: "plg-librarian", name: "Librarian", entryPath: "", externalFetch: [] }];
+    render(<SideDrawer />);
+    const order = (txt: string) => screen.getByText(txt);
+    const users = order("ADMIN.NAV.USERSACCESS");
+    const plugins = order("ADMIN.NAV.PLUGINS");
+    const integrations = order("ADMIN.NAV.INTEGRATIONS");
+    expect(users.compareDocumentPosition(plugins) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(plugins.compareDocumentPosition(integrations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    mockPluginEntries = [];
+  });
+
+  it("shows no plugin section while no plugin page is installed", () => {
+    mockPathname = "/admin";
+    mockPluginEntries = [];
+    render(<SideDrawer />);
+    expect(screen.queryByText("ADMIN.NAV.PLUGINS")).toBeNull();
+  });
 });
 
 // The drawer is a modal: the screen reader stays inside it, and every way out

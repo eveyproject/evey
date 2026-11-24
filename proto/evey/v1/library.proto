@@ -59,9 +59,9 @@ service LibraryService {
   }
 
   // Public, non-sensitive projection of media items (id/title/type/year/poster/
-  // overview only - never file paths or provider ids). This is the read surface
-  // a plugin may be granted via the `public` permission; regular users may call
-  // it too. Distinct from GetMediaItem/ListMediaItems, which return sensitive
+  // overview, never provider ids). This is the read surface a plugin may be
+  // granted via the `public` permission; regular users may call it too. The
+  // file path and size are added only for a plugin token with `media.files`. Distinct from GetMediaItem/ListMediaItems, which return sensitive
   // server-side detail and are never exposed to plugin tokens.
   rpc GetPublicMediaItem(GetPublicMediaItemRequest) returns (PublicMediaItem) {
     option (google.api.http) = {
@@ -447,8 +447,7 @@ message GetMediaItemRequest {
 }
 
 // PublicMediaItem is the non-sensitive projection exposed via the `public`
-// permission. It deliberately omits file_path, file_size, provider_ids,
-// streams and any server-side detail.
+// permission. It omits provider_ids, streams and any server-side detail.
 message PublicMediaItem {
   string id = 1;
   MediaItemType type = 2;
@@ -456,6 +455,31 @@ message PublicMediaItem {
   int32 year = 4;
   string overview = 5;
   string poster_url = 6;
+  // file_path and file_size are set only for a plugin token that carries the
+  // `media.files` scope, which is minted only on an administrator's session.
+  // Everyone else, a user session included, gets them empty.
+  string file_path = 7;
+  int64 file_size = 8;
+  // quality describes the file, under the same rule as file_path.
+  PublicMediaQuality quality = 9;
+}
+
+// PublicMediaQuality is enough to tell two copies of a film apart: the first
+// video track and the default (else first) audio track.
+message PublicMediaQuality {
+  int32 width = 1;
+  int32 height = 2;
+  string video_codec = 3;
+  // hdr_type is the server's reading of the video (HDR10, HLG, Dolby Vision...),
+  // empty for SDR or unknown.
+  string hdr_type = 4;
+  int32 bit_depth = 5;
+  // bitrate is the container's overall bitrate, bits per second.
+  int64 bitrate = 6;
+  int64 duration_ms = 7;
+  string container = 8;
+  string audio_codec = 9;
+  int32 audio_channels = 10;
 }
 
 message GetPublicMediaItemRequest {

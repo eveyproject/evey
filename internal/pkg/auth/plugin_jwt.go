@@ -34,7 +34,15 @@ var AllowedPluginScopes = map[string]bool{
 	// prefs: read/write the CURRENT user's preferences in the plugin's own
 	// namespace (never identity/security fields).
 	"prefs": true,
+	// media.files: the file path and size of each media item, on top of the
+	// public projection. Kept on the token only when the viewer is an
+	// administrator (TokenService.IssueToken strips it otherwise).
+	MediaFilesScope: true,
 }
+
+// MediaFilesScope lets a plugin's interface read where each media item lives
+// on disk. Administrator sessions only: a path names the server's folders.
+const MediaFilesScope = "media.files"
 
 // ForbiddenPluginScopePrefixes: scopes starting with any of these are rejected even
 // if they slip into the manifest. admin.*/auth.*/system.*/user.write/library.write.

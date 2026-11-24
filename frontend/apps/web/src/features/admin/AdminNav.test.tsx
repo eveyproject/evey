@@ -5,6 +5,11 @@ import { useDemoStore } from "@evey/store";
 import { AdminNav } from "./AdminNav";
 
 let mockPathname = "/admin";
+let mockPluginPages: { pluginId: string; name: string }[] = [];
+
+vi.mock("@/features/plugins/usePluginSlot", () => ({
+  usePluginSlotEntries: () => mockPluginPages,
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, style, ...rest }: { children: React.ReactNode; to: string; style?: React.CSSProperties; [k: string]: unknown }) => (
@@ -46,6 +51,26 @@ vi.mock("lucide-react", () => {
 });
 
 describe("AdminNav", () => {
+  it("shows no plugin pages section while no plugin page is installed", () => {
+    mockPathname = "/admin";
+    mockPluginPages = [];
+    renderWithQueryClient(<AdminNav />);
+    expect(screen.queryByTestId("admin-nav-plugin-pages")).toBeNull();
+  });
+
+  it("puts the plugin pages between Users & Access and Integrations", () => {
+    mockPathname = "/admin";
+    mockPluginPages = [{ pluginId: "plg-0123456789abcdef01234567", name: "Librarian" }];
+    renderWithQueryClient(<AdminNav />);
+    const pages = screen.getByTestId("admin-nav-plugin-pages");
+    expect(pages).toHaveTextContent("Librarian");
+    const before = screen.getByText("Users & Access");
+    const after = screen.getByText("Integrations");
+    expect(before.compareDocumentPosition(pages) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(pages.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    mockPluginPages = [];
+  });
+
   it("renders all nav sections", () => {
     mockPathname = "/admin";
     renderWithQueryClient(<AdminNav />);

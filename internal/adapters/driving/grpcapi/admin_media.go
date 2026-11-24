@@ -21,6 +21,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // libraryGetter is the narrow slice of applibrary.QueryService the type guard
@@ -239,6 +240,54 @@ func (d *adminMediaHandler) DeleteMediaItem(ctx context.Context, req *eveyv1.Del
 	}
 	d.audit(ctx, "delete_media_item", "media", req.Id, nil)
 	return &eveyv1.DeleteMediaItemResponse{}, nil
+}
+
+// TrashMediaItem moves the file to its library's .evey-trash and removes the
+// item. The refusals an administrator can act on (a folder item, a file
+// outside the library, a read-only mount, a file already gone) come back as
+// FailedPrecondition with the reason; anything else is internal.
+func (d *adminMediaHandler) TrashMediaItem(ctx context.Context, req *eveyv1.TrashMediaItemRequest) (*eveyv1.TrashMediaItemResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.TrashMediaItem")
+	defer span.End()
+	if d.libCmd == nil {
+		span.SetStatus(otelcodes.Error, "service not configured")
+		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
+	}
+	dest, err := d.libCmd.TrashMediaItem(ctx, req.Id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, shared.ErrNotFound):
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
+		case applibrary.IsTrashError(err) && dest == "":
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		}
+		return nil, internalError(ctx, "trash media item", err)
+	}
+	d.audit(ctx, "trash_media_item", "media", req.Id, map[string]any{"trashed_path": dest})
+	return &eveyv1.TrashMediaItemResponse{TrashedPath: dest}, nil
+}
+
+// RestoreTrashedMedia moves a trashed file back and scans its library.
+func (d *adminMediaHandler) RestoreTrashedMedia(ctx context.Context, req *eveyv1.RestoreTrashedMediaRequest) (*eveyv1.RestoreTrashedMediaResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RestoreTrashedMedia")
+	defer span.End()
+	if d.libCmd == nil {
+		span.SetStatus(otelcodes.Error, "service not configured")
+		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
+	}
+	dest, _, err := d.libCmd.RestoreTrashedFile(ctx, req.TrashedPath)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		if applibrary.IsTrashError(err) {
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		}
+		return nil, internalError(ctx, "restore trashed media", err)
+	}
+	d.audit(ctx, "restore_trashed_media", "media", "", map[string]any{"from": req.TrashedPath, "to": dest})
+	return &eveyv1.RestoreTrashedMediaResponse{RestoredPath: dest}, nil
 }
 
 func (d *adminMediaHandler) seekIndexConfigured(ctx context.Context, span trace.Span) error {

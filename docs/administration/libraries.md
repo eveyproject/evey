@@ -123,6 +123,20 @@ To force it, or to add a regular full scan, use the library's row:
     On an NFS or SMB share, a file written by another machine sends no
     signal to the server. The regular reads find it.
 
+## The trash folder
+
+A plugin page granted `media.trash` (the Librarian, for duplicates) can
+offer to move files to the trash. Evey asks first, in its own window that
+names each file, its path, size and quality. On yes, the file goes, with its
+subtitles and `.nfo`, to `.evey-trash` at the root of its library, under the
+same folders, and the title leaves Evey.
+
+Nothing is deleted from the disk. Empty `.evey-trash` yourself once you are
+sure. To bring a file back, use **Undo** on the plugin page right after, or
+move it to where it was and scan the library.
+Evey never reads that folder. A library on a read-only mount cannot use the
+trash: the move is refused and the title stays.
+
 ## Music libraries
 
 The scanner reads MP3, FLAC, M4A, OGG, Opus, WAV and AAC files, and takes each

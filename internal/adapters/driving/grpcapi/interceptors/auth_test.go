@@ -682,6 +682,8 @@ func TestAPIKey_AdminMethodsDenyByDefault(t *testing.T) {
 		"/evey.v1.MKVService/ListAttachments",
 		"/evey.v1.AdminSessionService/KillSession",
 		"/evey.v1.AdminMediaService/DeleteMediaItem",
+		"/evey.v1.AdminMediaService/TrashMediaItem",
+		"/evey.v1.AdminMediaService/RestoreTrashedMedia",
 		"/evey.v1.WebhookService/CreateWebhook",
 		"/evey.v1.AdminMediaService/RemuxAudioLibrary",
 	}

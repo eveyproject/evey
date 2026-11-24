@@ -161,3 +161,20 @@ func TestCleanupOrphans_RestoresInterruptedUpgrade(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []string{"plg-crashed", "plg-done"}, left)
 }
+
+// The live dir is already gone (a data volume restored without its plugin
+// files, a hand cleanup): there is nothing to move aside, and the upgrade is
+// exactly what repairs the plugin. It must land, not fail on the rename.
+func TestUpgradeSwap_LiveDirMissing_InstallsTheNewVersion(t *testing.T) {
+	f := newSwapFixture(t)
+	f.fs.RenameErrFor = map[string]error{f.finalDir: &os.LinkError{Op: "rename", Old: f.finalDir, New: f.backup, Err: os.ErrNotExist}}
+
+	_, err := f.svc.InstallPlugin(context.Background(), tmpZip(t, "v2"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "2.0.0", f.storedVersion(t))
+	assert.Contains(t, f.fs.Renamed, [2]string{f.staging, f.finalDir}, "the staged version must be put in place")
+	for _, r := range f.fs.Renamed {
+		assert.NotEqual(t, f.backup, r[0], "no backup exists, nothing may be renamed back from it")
+	}
+}

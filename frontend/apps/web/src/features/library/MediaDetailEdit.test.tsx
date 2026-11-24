@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MetadataEditPanel } from "./MediaDetailEdit";
 import type { V1MediaItem } from "@evey/api";
+import { toast } from "@evey/store";
 
 const mockSetOverride = { mutateAsync: vi.fn().mockResolvedValue({}), isError: false };
 const mockRemoveOverride = { mutateAsync: vi.fn().mockResolvedValue({}) };
@@ -181,6 +182,19 @@ describe("MetadataEditPanel", () => {
     const input = screen.getByTestId("upload-poster") as HTMLInputElement;
     expect(input.accept).toBe("image/jpeg,image/png,image/webp");
     expect(input.accept).not.toContain("svg");
+  });
+
+  // The toast used to drop the server's answer and say only "failed".
+  it("shows the server's reason when an upload is refused", async () => {
+    mockEveyFetch.mockRejectedValueOnce(Object.assign(new Error("file must be a JPEG, PNG or WebP image"), { httpStatus: 400 }));
+    render(<MetadataEditPanel {...defaultProps} item={baseItem} />, { wrapper: Wrapper });
+
+    const input = screen.getByTestId("upload-poster") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["x"], "p.jpg", { type: "image/jpeg" })] } });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("file must be a JPEG, PNG or WebP image"));
+    const [req] = mockEveyFetch.mock.calls.at(-1) as [{ data: unknown }];
+    expect(req.data).toBeInstanceOf(FormData);
   });
 
   it("handles missing optional fields", () => {

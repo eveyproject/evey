@@ -1,5 +1,5 @@
 ---
-source_sha: 3b4318e6bc6ae273dc5806dac61bebaa3c65f30d724c824dac69762f571c5c52
+source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -208,15 +208,47 @@ await evey.prefs.delete("units");
 
 ### `evey.media.*`（权限 `public`） { #eveymedia-permission-public }
 
-媒体条目的一个安全投影：id、标题、类型、年份、简介、海报 URL。永远不会有文件路径、文件大小、提供方 id 或流。
+媒体条目的一个安全投影：id、标题、类型、年份、简介、海报 URL。永远不会有提供方 id 或流；除非插件还持有 `media.files`（见下文），也不会有文件路径和文件大小。
 
 ```js
 const item  = await evey.media.get(id);
-const page  = await evey.media.list({ libraryId });
+const page  = await evey.media.list({ libraryId });  // { items, total }
 const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 ```
 
+`list` 返回一页，最多 500 个条目，所有类型混在一起（剧集、季、单集……），除非用 `type` 加以限定。
+需要整个媒体库的插件，应指定类型并逐页读取，直到拿到 `total` 个条目：
+
+```js
+const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pageSize: 500 });
+```
+
+有 `media.files` 权限，并且只有当正在查看的人是管理员时，每个条目才会额外带上 `filePath`、`fileSize`
+（一个字符串，和 API 里所有 64 位数字一样）和 `quality`：`width`、`height`、`videoCodec`、`hdrType`（SDR 时为空）、
+`bitDepth`、`bitrate`（每秒比特数）、`durationMs`、`container`、`audioCodec` 和 `audioChannels`，取自第一条视频轨和默认音轨。对其他任何人，令牌在签发时就不带这个权限，两个字段都是空的：
+展示给所有人的模块不能依赖它们，它们该出现在 `admin.nav` 插槽里。
+
 `poster` 返回 `data:` URL，是因为框架的策略禁止直接从服务器加载图片；可以把它用作 `<img>` 的来源，或者当作纹理。
+
+### `evey.media.trash(ids)`（权限 `media.trash`，仅限插槽 `admin.nav`） { #eveymediatrashids }
+
+请求 Evey 把媒体文件移到其媒体库的回收站。插件只是请求：Evey 会显示自己的确认窗口，内容来自 Evey 自己对每个条目的记录
+（标题、年份、路径、大小、画质），绝不采用插件发来的内容；管理员在那里点确认之前，什么都不会移动。
+
+```js
+const res = await evey.media.trash([id1, id2]);
+// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+```
+
+确认后，每个文件连同字幕和 `.nfo` 会移到其媒体库根目录下的 `.evey-trash`，保持相同的相对路径，该条目随之从 Evey 中移除。
+磁盘上不会删除任何内容：由管理员清空该文件夹，移回原处的文件会在下次扫描时回来。只适用于电影或单集：剧集是一个文件夹。
+管理员拒绝时 Promise 以 `cancelled` 拒绝；在浏览器中，除了拥有 `media.trash` 的插件的 `admin.nav` 页面之外，
+任何地方都会以 `method not permitted` 拒绝（手机和电视应用暂不提供）。单个文件被拒（只读挂载、文件已不在）会出现在 `failed` 中。
+
+`evey.media.restore(paths)` 按同样的规则撤销：根据 `trashedPath` 值，Evey 把每个文件连同字幕移回原处并扫描媒体库，
+标题随之回来，作为按文件名重新识别的新条目（旧条目的播放进度不会恢复）。结果为
+`{ restored: [{ trashedPath, restoredPath }], failed: [...] }`；Evey 拒绝媒体库回收站之外的任何路径，以及已被重新占用的位置。
+无需确认：它不会销毁任何内容。
 
 ### `evey.assets.read(path)` { #eveyassetsreadpath }
 

@@ -31,6 +31,10 @@ type publicPlugin struct {
 	WebRoot       string              `json:"webRoot"`
 	Frontend      []publicFrontModule `json:"frontend"`
 	ExternalFetch []string            `json:"externalFetch"`
+	// HostPermissions are the granted permissions the host page enforces
+	// itself (media.trash): a host offers such a bridge call only to a plugin
+	// listed with it.
+	HostPermissions []string `json:"hostPermissions"`
 }
 
 func toPublicPlugin(p *domainplugin.Plugin) publicPlugin {
@@ -43,13 +47,14 @@ func toPublicPlugin(p *domainplugin.Plugin) publicPlugin {
 		ef = []string{}
 	}
 	return publicPlugin{
-		ID:            p.ID,
-		Name:          p.Name,
-		Version:       p.Version,
-		Kind:          string(p.Kind),
-		WebRoot:       p.WebRoot,
-		Frontend:      mods,
-		ExternalFetch: ef,
+		HostPermissions: domainplugin.GrantedHostPermissions(p.Permissions),
+		ID:              p.ID,
+		Name:            p.Name,
+		Version:         p.Version,
+		Kind:            string(p.Kind),
+		WebRoot:         p.WebRoot,
+		Frontend:        mods,
+		ExternalFetch:   ef,
 	}
 }
 

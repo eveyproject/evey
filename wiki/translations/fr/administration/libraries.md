@@ -1,5 +1,5 @@
 ---
-source_sha: ed2800347644b7f29af5ff78967016d21d06afa3fd5b38856a393e93da5cb5bf
+source_sha: afbc7464f75fabbfac5fcb4804f737e9889ec38f19241b7f9688b5a9c07b01ca
 reviewed: true
 ---
 # Bibliothèques et métadonnées { #libraries-and-metadata }
@@ -143,6 +143,21 @@ la ligne de la bibliothèque :
     Sur un partage NFS ou SMB, un fichier écrit par une autre machine
     n'envoie aucun signal au serveur. C'est la lecture régulière des
     dossiers qui le trouve.
+
+## Le dossier corbeille { #the-trash-folder }
+
+Une page de plugin qui a la permission `media.trash` (le Bibliothécaire,
+pour les doublons) peut proposer de mettre des fichiers à la corbeille. Evey
+demande d'abord, dans sa propre fenêtre qui nomme chaque fichier, son chemin,
+sa taille et sa qualité. Sur un oui, le fichier part, avec ses sous-titres et
+son `.nfo`, dans `.evey-trash` à la racine de sa bibliothèque, sous les mêmes
+dossiers, et le titre quitte Evey.
+
+Rien n'est effacé du disque. Videz `.evey-trash` vous-même une fois sûr ;
+pour récupérer un fichier, utilisez **Annuler** sur la page du plugin juste
+après, ou remettez-le à sa place et scannez la bibliothèque.
+Evey ne lit jamais ce dossier. Une bibliothèque montée en lecture seule ne
+peut pas utiliser la corbeille : le déplacement est refusé et le titre reste.
 
 ## Bibliothèques de musique { #music-libraries }
 

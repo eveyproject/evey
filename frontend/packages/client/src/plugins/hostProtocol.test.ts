@@ -139,13 +139,13 @@ describe("slot entries", () => {
   it("lists the enabled plugins mounting the slot, both casings of the manifest fields, with the filters", () => {
     const plugins = [
       { id: "plg-a", name: "A", frontend: [{ slot: "home.section", src: "dist/a.js" }], web_root: "dist", external_fetch: ["x.io"] },
-      { id: "plg-b", frontend: [{ slot: "home.section", src: "b.js" }, { slot: "admin.nav", src: "n.js" }], webRoot: ".", externalFetch: [] },
+      { id: "plg-b", frontend: [{ slot: "home.section", src: "b.js" }, { slot: "admin.nav", src: "n.js" }], webRoot: ".", externalFetch: [], hostPermissions: ["media.trash"] },
       { id: "plg-c", enabled: false, frontend: [{ slot: "home.section", src: "c.js" }] },
       { id: "", frontend: [{ slot: "home.section", src: "z.js" }] },
     ];
     expect(resolveSlotEntries(plugins, "home.section")).toEqual([
-      { pluginId: "plg-a", name: "A", entryPath: "a.js", externalFetch: ["x.io"] },
-      { pluginId: "plg-b", name: "plg-b", entryPath: "b.js", externalFetch: [] },
+      { pluginId: "plg-a", name: "A", entryPath: "a.js", externalFetch: ["x.io"], hostPermissions: [] },
+      { pluginId: "plg-b", name: "plg-b", entryPath: "b.js", externalFetch: [], hostPermissions: ["media.trash"] },
     ]);
     expect(resolveSlotEntries(plugins, "home.section", { pluginId: "plg-b" }).map((e) => e.pluginId)).toEqual(["plg-b"]);
     expect(resolveSlotEntries(plugins, "home.section", { excludeRegistered: new Set(["plg-b"]) }).map((e) => e.pluginId)).toEqual(["plg-a"]);
@@ -158,6 +158,14 @@ describe("pluginRequestFor", () => {
     expect(pluginRequestFor("plg-a", "prefs.get", { key: "a b" }, "T")).toEqual({ path: "/api/v1/plugin-prefs/a%20b", method: "GET", authToken: "T" });
     expect(pluginRequestFor("plg-a", "prefs.set", { key: "k", value: 1 }, "T")).toMatchObject({ method: "PUT", body: JSON.stringify({ value: "1" }) });
     expect(pluginRequestFor("plg-a", "media.list", { libraryId: "L" }, "T")).toMatchObject({ path: "/api/v1/public/media?libraryId=L" });
+    expect(pluginRequestFor("plg-a", "media.list", {}, "T")).toMatchObject({ path: "/api/v1/public/media" });
+    expect(pluginRequestFor("plg-a", "media.list", { type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pageSize: 9999 }, "T")).toMatchObject({
+      path: "/api/v1/public/media?type=MEDIA_ITEM_TYPE_MOVIE&pagination.page=2&pagination.pageSize=500",
+    });
+    // A malformed type or page is dropped, never forwarded as is.
+    expect(pluginRequestFor("plg-a", "media.list", { type: "movie&x=1", page: -1, pageSize: "50" }, "T")).toMatchObject({
+      path: "/api/v1/public/media",
+    });
     // The poster goes out on the USER's session: the artwork handler applies
     // this user's library ACL and parental filter.
     expect(pluginRequestFor("plg-a", "media.poster", { id: "m1" }, "T")).toEqual({ path: "/api/v1/media/m1/artwork/poster", method: "GET" });

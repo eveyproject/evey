@@ -7,6 +7,23 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+### Added
+- Plugins: a `media.files` permission adds each media item's file path and
+  size to what `evey.media.list` and `evey.media.get` return. The plugin
+  token carries it only when the person looking is an administrator.
+- Plugins: with `media.files`, each item also carries its quality
+  (resolution, codecs, HDR, bit depth, bitrate, audio channels).
+- Plugins: a `media.trash` permission lets an `admin.nav` page ask to move
+  media files to the library trash. Evey shows its own confirmation from its
+  own records; the admin endpoint `POST /api/v1/admin/media/{id}/trash`
+  moves the file, its subtitles and `.nfo` to `.evey-trash` at the root of
+  the library and removes the item. Nothing is deleted from the disk.
+  `evey.media.restore` and `POST /api/v1/admin/media/trash/restore` undo it:
+  the file goes back and the library is scanned.
+- Plugins: `evey.media.list` takes a `type` and a page (`page`, `pageSize`,
+  up to 500), so a plugin can read a whole library. Without them it still
+  returns the first 500 items, every type mixed.
+
 ## [0.1.8] - 2026-11-15
 
 Server image `eveyproject/evey:0.1.8` (also `0.1` and `latest`). The app
