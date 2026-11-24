@@ -1,5 +1,5 @@
 ---
-source_sha: 13578526cc8b3dca869c39f2d16115b20a7b94c76284ec714952528d760503e8
+source_sha: c65f3c0022c382ccdcdeb528b421c080edcf8bde1382a04fde320dbe9fca3701
 reviewed: true
 ---
 # Berechtigungen und Slots { #permissions-and-slots }

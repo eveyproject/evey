@@ -1,5 +1,5 @@
 ---
-source_sha: 3b4318e6bc6ae273dc5806dac61bebaa3c65f30d724c824dac69762f571c5c52
+source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }

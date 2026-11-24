@@ -1,5 +1,5 @@
 ---
-source_sha: ed2800347644b7f29af5ff78967016d21d06afa3fd5b38856a393e93da5cb5bf
+source_sha: afbc7464f75fabbfac5fcb4804f737e9889ec38f19241b7f9688b5a9c07b01ca
 reviewed: true
 ---
 # Bibliotheken und Metadaten { #libraries-and-metadata }
