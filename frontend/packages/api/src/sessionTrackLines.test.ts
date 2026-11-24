@@ -27,6 +27,14 @@ describe("sessionTrackLines", () => {
     expect(sessionTrackLines({ videoDecision: "copy" } as V1ActiveSession)[0].engine).toBe("mkvgo");
   });
 
+  it("names no engine for a direct play: the player reads the file itself", () => {
+    const session = { playMethod: "direct_play", videoDecision: "copy", audioDecision: "wasm" } as V1ActiveSession;
+    const [video, audio] = sessionTrackLines(session);
+    expect(video.engine).toBe("");
+    expect(audio.engine).toBe("client");
+    expect(sessionTrackLines({ playMethod: "direct_play", videoDecision: "copy", audioDecision: "copy" } as V1ActiveSession)[1].engine).toBe("");
+  });
+
   it("is empty for a session with no decision recorded", () => {
     expect(sessionTrackLines({ videoDecision: " " } as V1ActiveSession)).toEqual([]);
   });

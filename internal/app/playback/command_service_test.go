@@ -90,6 +90,57 @@ func TestStartStream_Idempotent_DedupsDoubleClick(t *testing.T) {
 	assert.Equal(t, 1, started, "PlaybackStarted must not be re-emitted on the dedup")
 }
 
+// The same title replayed on the same device with another track, while the
+// first session is still live: the reused row takes the new stream's method,
+// decisions and codecs, and drops the engines the earlier stream recorded.
+func TestStartStream_ReusedSessionTakesTheNewStream(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1", DeviceName: "Web Browser",
+		PlayMethod: string(playback.DirectStream), VideoDecision: "copy", AudioDecision: "copy", VideoCodec: "h264", AudioCodec: "aac"}, "u1"))
+	_, err := sr.SetSessionServing(ctx, "s1", playback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"})
+	require.NoError(t, err)
+
+	replay := &playback.PlaySession{ID: "s2", ProfileID: "p1", MediaItemID: "m1", DeviceName: "Web Browser",
+		PlayMethod: string(playback.DirectPlay), VideoDecision: "copy", AudioDecision: "wasm", VideoCodec: "h264", AudioCodec: "ac3"}
+	require.NoError(t, cmd.StartStream(ctx, replay, "u1"))
+
+	got, err := sr.GetByID(ctx, "s1")
+	require.NoError(t, err)
+	assert.Equal(t, string(playback.DirectPlay), got.PlayMethod)
+	assert.Equal(t, "wasm", got.AudioDecision)
+	assert.Equal(t, "ac3", got.AudioCodec)
+	assert.Empty(t, got.Serving.VideoEngine, "a direct play is not served by the previous stream's engine")
+	assert.Empty(t, got.Serving.AudioEngine)
+	assert.Equal(t, "s1", replay.ID)
+	assert.Equal(t, string(playback.DirectPlay), replay.PlayMethod, "the caller gets the rewritten session")
+}
+
+// A retry that describes the same stream keeps what the master render recorded.
+func TestStartStream_RetryOfTheSameStreamKeepsTheEngines(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	start := func(id string) *playback.PlaySession {
+		return &playback.PlaySession{ID: id, ProfileID: "p1", MediaItemID: "m1", DeviceName: "tab",
+			PlayMethod: string(playback.DirectStream), VideoDecision: "copy", AudioDecision: "copy", VideoCodec: "h264", AudioCodec: "aac"}
+	}
+	require.NoError(t, cmd.StartStream(ctx, start("s1"), "u1"))
+	_, err := sr.SetSessionServing(ctx, "s1", playback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"})
+	require.NoError(t, err)
+	require.NoError(t, cmd.StartStream(ctx, start("s2"), "u1"))
+
+	got, err := sr.GetByID(ctx, "s1")
+	require.NoError(t, err)
+	assert.Equal(t, "mkvgo", got.Serving.VideoEngine)
+	assert.Equal(t, "mkvgo", got.Serving.AudioEngine)
+}
+
 func TestStartStream_DifferentDevice_NotDeduped(t *testing.T) {
 	t.Parallel()
 	cmd, _, sr, ur, pfr, _ := setupCmd()
@@ -1033,7 +1084,7 @@ func TestReportProgressAfterStop_DoesNotResurrectSession(t *testing.T) {
 
 // A player that never gets its picture going still ticks, at position 0, and
 // the freshest write wins: a failed start (codec refused, network gone) erased
-// the resume point. Measured in prod on 2026-09-23 - a start that stayed at
+// the resume point. Measured in prod - a start that stayed at
 // readyState 0 sent five ticks at 0 and an 8-minute resume point became 0.
 // Until a session has reported a positive position, a 0 is not a position.
 func TestReportProgressBySession_ZeroBeforeAnyPositionKeepsTheResumePoint(t *testing.T) {

@@ -172,12 +172,17 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const userPickedAudio = useRef(audio !== undefined);
   const userPickedSubtitle = useRef(subtitle !== undefined);
 
-  // Profile preference first, then the file's default, then the first track,
-  // never a commentary track while a main one exists.
+  // The track the server judged first (it weighs the profile's languages and,
+  // on the demo, the codec the browser plays as is), then the profile
+  // preference, the file's default, the first track - never a commentary
+  // track while a main one exists. A restart (quality, retry) replays this
+  // track, so it must be the one the verdict was made on.
+  const judgedAudio = streamInfo?.audioStreamIndex;
   useEffect(() => {
     if (userPickedAudio.current || audioStreams.length === 0) return;
-    setSelectedAudio(pickDefaultAudioIndex(audioStreams, profileAudioLangs) ?? audioStreams[0].index);
-  }, [audioStreams, profileAudioLangs]);
+    const judged = judgedAudio != null && audioStreams.some((s) => s.index === judgedAudio) ? judgedAudio : null;
+    setSelectedAudio(judged ?? pickDefaultAudioIndex(audioStreams, profileAudioLangs) ?? audioStreams[0].index);
+  }, [audioStreams, profileAudioLangs, judgedAudio]);
   // The subtitle auto-pick never restarts the stream by itself: a text or
   // PGS track is drawn here, and a default bitmap track the viewer did not
   // ask for must not turn a copy into a burn-in transcode.

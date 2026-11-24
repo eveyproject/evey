@@ -233,6 +233,7 @@ export function HLSPlayer({
     getSeriesTrackPrefs,
     getPreferredAudioLang,
     profileAudioLangs.length > 0 ? profileAudioLangs : undefined,
+    streamInfo.audioStreamIndex,
   );
   const [currentAudioIndex, setCurrentAudioIndex] = useState(defaultAudio?.index ?? 0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(defaultAudio?.trackIndex ?? 0);
@@ -355,6 +356,7 @@ export function HLSPlayer({
         getSeriesTrackPrefs,
         getPreferredAudioLang,
         profileAudioLangs.length > 0 ? profileAudioLangs : undefined,
+        streamInfo.audioStreamIndex,
       );
       if (best && best.index !== currentAudioIndex) {
         setCurrentAudioIndex(best.index);

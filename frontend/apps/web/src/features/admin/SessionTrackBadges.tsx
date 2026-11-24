@@ -39,13 +39,14 @@ export function SessionTrackBadges({ session }: { session: V1ActiveSession }) {
         const detail = [l.codec, l.res].filter(Boolean).join(", ");
         const engine = ENGINE_KEYS[l.engine] ? t(ENGINE_KEYS[l.engine]) : l.engine;
         const backend = l.backend ? (BACKEND_KEYS[l.backend] ? t(BACKEND_KEYS[l.backend]) : l.backend) : "";
+        const servedBy = [engine, backend].filter(Boolean).join(" ");
         return (
           <div key={l.id} className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] min-w-0">
             <span className="text-[var(--text-muted)]">{icon}</span>
             <span className="text-[var(--text)]">{t(`admin.sessions.track.${l.id}`)}:</span>
             <Badge variant={isTranscode ? "warning" : l.decision === "wasm" ? "info" : "success"}>{decLabel}</Badge>
             {detail && <span className="font-mono truncate">({detail})</span>}
-            <span className="opacity-70 truncate">· {[engine, backend].filter(Boolean).join(" ")}</span>
+            {servedBy && <span className="opacity-70 truncate">· {servedBy}</span>}
           </div>
         );
       })}

@@ -57,9 +57,12 @@ function TrackBadges({ session, theme, t }: { session: V1ActiveSession; theme: R
     <View style={{ gap: 2, marginTop: 2 }}>
       {lines.map((line) => {
         const isTranscode = line.decision === "transcode";
-        const decLabel = t(`admin.sessions.track.${line.id}${isTranscode ? "Transcoded" : "Copied"}`);
+        // Same labels as the web card: a track the player decodes is not "copied".
+        const decLabel = line.decision === "wasm"
+          ? t("admin.sessions.track.audioClientDecoded")
+          : t(`admin.sessions.track.${line.id}${isTranscode ? "Transcoded" : "Copied"}`);
         const detail = [line.codec, line.res].filter(Boolean).join(", ");
-        const engine = named(`admin.sessions.track.engine.${line.engine}`, line.engine);
+        const engine = line.engine ? named(`admin.sessions.track.engine.${line.engine}`, line.engine) : "";
         const backend = line.backend ? named(`admin.sessions.track.backend.${line.backend}`, line.backend) : "";
         return (
           <View key={line.id} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
@@ -71,9 +74,11 @@ function TrackBadges({ session, theme, t }: { session: V1ActiveSession; theme: R
               </Text>
             </View>
             {detail ? <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>({detail})</Text> : null}
-            <Text style={{ color: theme.colors.textMuted, fontSize: 10, opacity: 0.7 }}>
-              · {engine}{backend ? ` (${backend})` : ""}
-            </Text>
+            {engine ? (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 10, opacity: 0.7 }}>
+                · {engine}{backend ? ` (${backend})` : ""}
+              </Text>
+            ) : null}
           </View>
         );
       })}

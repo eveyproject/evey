@@ -196,6 +196,32 @@ func (s *CommandService) classifyProgress(ctx context.Context, mediaItemID strin
 	}
 }
 
+// restartReusedSession rewrites a live session that a new start reuses when
+// that start describes another stream: the same title replayed on the same
+// device with another track (the previous player left without a stop) is a
+// new verdict. Without it the reused row kept the earlier stream's method and
+// engines - an audio encode listed as "Direct Play", a direct play credited to
+// mkvgo. The engines are cleared: the next master render records its own, and
+// a direct play has none. A start that describes the same stream (a retry, a
+// double click) leaves the row as it is.
+func (s *CommandService) restartReusedSession(ctx context.Context, live, start *playback.PlaySession) error {
+	if live.PlayMethod == start.PlayMethod && live.VideoDecision == start.VideoDecision && live.AudioDecision == start.AudioDecision &&
+		live.VideoCodec == start.VideoCodec && live.AudioCodec == start.AudioCodec {
+		return nil
+	}
+	live.PlayMethod, live.VideoCodec, live.AudioCodec = start.PlayMethod, start.VideoCodec, start.AudioCodec
+	live.Resolution, live.BandwidthBps = start.Resolution, start.BandwidthBps
+	live.VideoDecision, live.AudioDecision = start.VideoDecision, start.AudioDecision
+	live.Serving = playback.ServingPath{VideoDecision: start.VideoDecision, AudioDecision: start.AudioDecision}
+	if err := s.sessions.Update(ctx, live); err != nil {
+		return fmt.Errorf("restart reused session: %w", err)
+	}
+	if _, err := s.sessions.SetSessionServing(ctx, live.ID, live.Serving); err != nil {
+		return fmt.Errorf("restart reused session serving: %w", err)
+	}
+	return nil
+}
+
 func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID shared.UserID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.StartStream")
 	defer span.End()
@@ -238,6 +264,9 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		// return it verbatim to the caller instead of creating a duplicate.
 		for _, a := range active {
 			if a.MediaItemID == session.MediaItemID && a.DeviceName == session.DeviceName {
+				if err := s.restartReusedSession(ctx, a, session); err != nil {
+					return err
+				}
 				*session = *a
 				deduped = true
 				return nil
@@ -335,7 +364,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// A session that has never reported a positive position has not played
 	// yet: a player stuck before its first frame (codec refused, network gone)
 	// ticks at 0, and the freshest write wins, so that 0 erased the resume
-	// point. Measured in prod on 2026-09-23. The tick still updates the
+	// point. Measured in prod. The tick still updates the
 	// session below; only the watch-progress write waits for a real position.
 	neverPlayed := session.Position == nil || session.Position.Milliseconds() <= 0
 	pos, dErr := shared.NewDurationMs(positionMs)
@@ -358,7 +387,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	}
 	// A restart ends every open session, but a web player keeps streaming and
 	// ticking on the same id without ever starting a new one: it vanished from
-	// now-playing for the rest of the film (prod 2026-10-05).
+	// now-playing for the rest of the film (prod).
 	if !updated {
 		reopened, err := s.sessions.ReopenEndedBefore(ctx, sessionID, s.startedAt, safePositionMs, isPaused, castDeviceName)
 		if err != nil {
@@ -596,7 +625,7 @@ func castBeaconIsAlive(stored *shared.Duration, beaconMs int64) bool {
 //
 // Because UpdateProgress writes updated_at=NOW() whether or not the position
 // moved, one beat every 30s made the 2-minute stale reaper structurally
-// unreachable. Measured on prod 2026-09-04: a session held open 3h26, playhead
+// unreachable. Measured on prod: a session held open 3h26, playhead
 // frozen at 19min16 across every sample, is_paused false, videoSessions.active
 // 0 - no encode, no viewer, an immortal row claiming to be playing.
 //
@@ -648,7 +677,7 @@ func (s *CommandService) TouchCastSession(ctx context.Context, b CastBeacon) (bo
 	// Resurrection: a positioned beacon with NO active session is a real
 	// playback the panel cannot see - the phone re-cast from an already
 	// mounted player (no new StartStream) after its previous session was
-	// reaped (prod 2026-07-29). The beacon's token pins (profile, media), so
+	// reaped (prod). The beacon's token pins (profile, media), so
 	// a minimal row makes the cast visible and pilotable again; the stale
 	// reaper ends it when the beacons stop.
 	pos, dErr := shared.NewDurationMs(b.PositionMs)
@@ -747,7 +776,7 @@ func (s *CommandService) SetCastAudioPath(ctx context.Context, profileID, mediaI
 // the viewer is actually fed when the relay changes leg. The label is written
 // once at start-up from the client's own decision ("eac3" while the track is
 // carried untouched), and SetCastAudioPath used to flip the DECISION without
-// touching it: prod, 2026-09-20, a starved wasm leg left the dashboard reading
+// touching it: in prod, a starved wasm leg left the dashboard reading
 // "transcodé (eac3)" - a transcode whose output codec is its input.
 //
 // The relay's native leg is always Evey's AAC rendition, so the target is known

@@ -73,6 +73,13 @@ describe("SessionCard", () => {
     expect(screen.queryByText("admin.sessions.transcode")).toBeNull();
   });
 
+  it("labels a direct play as the web card does: no engine, audio decoded by the player", () => {
+    render(<SessionCard session={{ ...session, playMethod: "direct_play", videoDecision: "copy", audioDecision: "wasm", videoEngine: "", audioEngine: "" }} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
+    expect(screen.getByText("admin.sessions.track.audioClientDecoded")).toBeTruthy();
+    expect(screen.queryByText("admin.sessions.track.audioCopied")).toBeNull();
+    expect(screen.queryByText(/admin\.sessions\.track\.engine\.mkvgo/)).toBeNull();
+  });
+
   it("shows no method while a segmented session's tracks are unknown", () => {
     render(<SessionCard session={{ ...session, videoDecision: "", audioDecision: "" }} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
     expect(screen.queryByText("admin.sessions.transcode")).toBeNull();
