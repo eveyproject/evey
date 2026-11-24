@@ -2,7 +2,7 @@ import { Text, Modal, Pressable, View, ScrollView, StyleSheet } from "react-nati
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
-import type { V1StreamInfo } from "@evey/api";
+import type { V1PlayedState, V1ServedLeg, V1StreamInfo } from "@evey/api";
 import { buildStreamInfoModel, decisionBadgeKey, type ServedVariant } from "@evey/client";
 import { FONT_SIZE } from "@evey/theme";
 
@@ -14,6 +14,9 @@ interface StreamInfoPanelProps {
   audioStreamIndex?: number | null;
   /** The variant playing right now: the panel follows every quality change. */
   served?: ServedVariant | null;
+  // The session's two witnesses: what the server sent (the progress tick's
+  // answer) and what this player decodes.
+  witness?: { servedVideo?: V1ServedLeg; servedAudio?: V1ServedLeg; played?: V1PlayedState } | null;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -59,11 +62,11 @@ function SectionHeader({ title, decision }: { title: string; decision?: string }
   );
 }
 
-export function StreamInfoPanel({ visible, onClose, streamInfo, audioStreamIndex, served }: StreamInfoPanelProps) {
+export function StreamInfoPanel({ visible, onClose, streamInfo, audioStreamIndex, served, witness }: StreamInfoPanelProps) {
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const model = buildStreamInfoModel(streamInfo, { audio: { absolute: audioStreamIndex }, served });
+  const model = buildStreamInfoModel(streamInfo, { audio: { absolute: audioStreamIndex }, served, witness });
 
   // A hidden RN Modal keeps its children mounted, so this picker re-rendered
   // on every ~2/s currentTime tick of the player while closed. Render nothing
@@ -88,9 +91,9 @@ export function StreamInfoPanel({ visible, onClose, streamInfo, audioStreamIndex
                   <SectionHeader title={t(section.titleKey, section.title)} decision={section.decision} />
                   {section.rows.map((row) => (
                     <InfoRow
-                      key={row.labelKey}
+                      key={`${row.labelKey}:${row.valueKey ?? ""}`}
                       label={t(row.labelKey, row.label)}
-                      value={row.valueKey ? t(row.valueKey) : (row.value ?? "")}
+                      value={row.valueKey ? t(row.valueKey, row.valueParams) : (row.value ?? "")}
                     />
                   ))}
                 </View>

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { V1StreamInfo } from "@evey/api";
+import type { V1PlayedState, V1ServedLeg, V1StreamInfo } from "@evey/api";
 import { buildStreamInfoModel, decisionBadgeKey, type ServedVariant } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Button } from "../components/ui";
@@ -9,15 +9,17 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /** What is actually being served: the method, the codecs, and why it is transcoding. */
-export function StreamInfoPanel({ streamInfo, served, audioStreamIndex, onClose }: {
+export function StreamInfoPanel({ streamInfo, served, witness, audioStreamIndex, onClose }: {
   streamInfo: V1StreamInfo | null;
   // The variant playing right now: the panel follows every quality change.
   served?: ServedVariant | null;
+  // The session's two witnesses: what the server sent and what this player decodes.
+  witness?: { servedVideo?: V1ServedLeg; servedAudio?: V1ServedLeg; played?: V1PlayedState } | null;
   audioStreamIndex: number | null;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const model = buildStreamInfoModel(streamInfo, { audio: { absolute: audioStreamIndex }, served });
+  const model = buildStreamInfoModel(streamInfo, { audio: { absolute: audioStreamIndex }, served, witness });
   return (
     <div className="modal-backdrop">
       <FocusRoot autoFocus className="modal-sheet">
@@ -30,7 +32,7 @@ export function StreamInfoPanel({ streamInfo, served, audioStreamIndex, onClose 
                 <h3 className="row-title">{t(section.titleKey, section.title)}{badge ? ` · ${t(badge.key, badge.defaultValue)}` : ""}</h3>
               ) : null}
               {section.rows.map((row) => (
-                <Row key={row.labelKey} label={t(row.labelKey, row.label)} value={row.valueKey ? t(row.valueKey) : (row.value ?? "")} />
+                <Row key={`${row.labelKey}:${row.valueKey ?? ""}`} label={t(row.labelKey, row.label)} value={row.valueKey ? t(row.valueKey, row.valueParams) : (row.value ?? "")} />
               ))}
             </div>
           );

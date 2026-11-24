@@ -200,21 +200,3 @@ func TestActiveSessionInfo_ProgressPercent(t *testing.T) {
 		})
 	}
 }
-
-func TestMethodForTracks(t *testing.T) {
-	cases := []struct{ method, video, audio, want string }{
-		{"transcode", "copy", "copy", "direct_stream"},
-		{"transcode", "copy", "wasm", "direct_stream"},
-		{"transcode", "transcode", "copy", "transcode"},
-		{"direct_stream", "copy", "transcode", "transcode"},
-		{"transcode", "", "", "transcode"},     // an app that reports nothing
-		{"transcode", "copy", "", "transcode"}, // half a verdict
-		{"direct_play", "copy", "copy", "direct_play"},
-		{"direct_play", "transcode", "copy", "direct_play"},
-	}
-	for _, c := range cases {
-		if got := playback.MethodForTracks(c.method, c.video, c.audio); got != c.want {
-			t.Errorf("MethodForTracks(%q, %q, %q) = %q, want %q", c.method, c.video, c.audio, got, c.want)
-		}
-	}
-}

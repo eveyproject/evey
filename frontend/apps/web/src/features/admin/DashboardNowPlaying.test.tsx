@@ -99,6 +99,8 @@ const SESSION_MOVIE = {
   deviceName: "Chrome",
   playMethod: "direct_play",
   resolution: "1080p",
+  servedVideo: { engine: "file", copy: true, track: -1, codec: "h264", height: 1080 },
+  servedAudio: { engine: "file", copy: true, track: -1 },
   progress: 42,
   positionMs: "3600000",    // 1h
   durationMs: "7200000",    // 2h
@@ -118,6 +120,8 @@ const SESSION_EPISODE = {
   deviceName: "Firefox",
   playMethod: "transcode",
   resolution: "720p",
+  servedVideo: { engine: "ffmpeg", codec: "h264", sourceCodec: "hevc", height: 720, backend: "software" },
+  servedAudio: { engine: "ffmpeg", copy: true, codec: "aac" },
   progress: 10,
   positionMs: "600000",    // 10m
   durationMs: "3600000",   // 1h
@@ -220,40 +224,44 @@ describe("NowPlaying", () => {
     expect(screen.getByText("1080p")).toBeInTheDocument();
   });
 
-  it("renders the play-method badge for a session that declared one", () => {
+  it("renders the play-method badge for a session bytes were served to", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
     expect(screen.getByTestId("play-method-badge")).toBeInTheDocument();
   });
 
-  it("renders no play-method badge for a session without a play method", () => {
-    // Cast-resurrected and music sessions carry no play_method - rendering
-    // the badge anyway produced an empty green pill.
-    mockSessions = [{ ...SESSION_MOVIE, playMethod: "" }];
+  it("renders no play-method badge before any byte was served", () => {
+    // A session a start just created, a cast-resurrected or a music session:
+    // nothing served names no method, not an empty green pill.
+    mockSessions = [{ ...SESSION_MOVIE, servedVideo: undefined, servedAudio: undefined }];
     renderNowPlaying();
     expect(screen.queryByTestId("play-method-badge")).toBeNull();
+    expect(screen.getByText("no bytes sent yet")).toBeInTheDocument();
   });
 
-  // The dashboard card used to say only "Transcode": it now names what serves
-  // each track, from what the server recorded when it rendered the master.
-  it("renders the per-track serving lines (engine + backend, player-side decode)", () => {
+  // The card names what serves each track, as the served witness saw it, and
+  // what the player says it decodes.
+  it("renders the served tracks (engine + backend) and the player's decoder", () => {
     mockSessions = [{
       ...SESSION_MOVIE,
-      playMethod: "transcode",
-      videoDecision: "transcode", videoEngine: "ffmpeg", videoBackend: "qsv", videoCodec: "hevc→h264",
-      audioDecision: "wasm", audioEngine: "client", audioCodec: "eac3",
+      servedVideo: { engine: "ffmpeg", codec: "h264", sourceCodec: "hevc", height: 1080, backend: "qsv" },
+      servedAudio: { engine: "ffmpeg", copy: true, codec: "eac3", track: 1 },
+      played: { source: "hls", audioTrack: 1, audioCodec: "ec-3", audioDecoder: "wasm" },
     }];
     renderNowPlaying();
     expect(screen.getByTestId("session-track-badges")).toBeInTheDocument();
     expect(screen.getByText("· ffmpeg Quick Sync")).toBeInTheDocument();
-    expect(screen.getByText("· ac3go in the player")).toBeInTheDocument();
     expect(screen.getByText("(hevc→h264, 1080p)")).toBeInTheDocument();
+    expect(screen.getByTestId("played")).toHaveTextContent("decoded by ac3go (wasm)");
+    expect(screen.queryByTestId("mismatch-track")).toBeNull();
+    expect(screen.getByTestId("play-method-badge")).toHaveTextContent("Transcode");
   });
 
-  it("renders no serving lines for a direct play (no per-track decision)", () => {
-    mockSessions = [{ ...SESSION_MOVIE, videoDecision: "", audioDecision: "" }];
+  it("names a direct play by the source file and no engine", () => {
+    mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
-    expect(screen.queryByTestId("session-track-badges")).toBeNull();
+    expect(screen.getByTestId("served-video")).toHaveTextContent("source file");
+    expect(screen.getByTestId("served-audio")).toHaveTextContent("every track, the player picks");
   });
 
   // ── Progress / time formatting ────────────────────────────────────────────────

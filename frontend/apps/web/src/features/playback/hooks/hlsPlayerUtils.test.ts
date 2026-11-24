@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { resetOutputChannelsProbe } from "@/utils/outputChannels";
 import { castProfileFor, pickCastProfile } from "@evey/media-caps/cast";
-import { startPlayback, planCastLoad, planRendererLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
+import { startPlayback, planCastLoad, planRendererLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, levelInAudioGroup, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
 import { forwardBufferSeconds, pickTranscodeResumeSec } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
@@ -670,8 +670,7 @@ describe("pickTranscodeAudioSwitchPath (audio switch = client-side rendition sel
     hasHls: true,
     wasmActiveNow: false,
     wasmActiveForTarget: false,
-    audioRenditionCount: 2,
-    targetTrackIndex: 1,
+    targetRenditionFound: true,
   };
 
   it("switches client-side when hls.js already has the target rendition", () => {
@@ -694,10 +693,31 @@ describe("pickTranscodeAudioSwitchPath (audio switch = client-side rendition sel
     expect(pickTranscodeAudioSwitchPath({ ...base, wasmActiveNow: true, wasmActiveForTarget: true })).toBe("wasm-engine");
   });
 
-  it("restarts when the rendition is missing from the parsed manifest", () => {
-    expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: 2 })).toBe("restart");
-    expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: -1 })).toBe("restart");
-    expect(pickTranscodeAudioSwitchPath({ ...base, audioRenditionCount: 0 })).toBe("restart");
+  it("restarts when no rendition of the parsed manifest carries the target track", () => {
+    expect(pickTranscodeAudioSwitchPath({ ...base, targetRenditionFound: false })).toBe("restart");
+  });
+});
+
+// The demo's packager master (measured): one 2160p variant per audio
+// group, MP3 first, AC-3, then AAC.
+const GROUPED = [
+  { height: 2160, audioGroups: ["aud-mp4a.40.34"] },
+  { height: 2160, audioGroups: ["aud-ac-3"] },
+  { height: 2160, audioGroups: ["aud-mp4a.40.2"] },
+];
+
+describe("pinning a master grouped by audio codec", () => {
+  it("keeps the variant playing when the pin lands on its height", () => {
+    // The viewer moved to the MP3 group (variant 0): re-pinning "the top"
+    // took them back to the AAC group.
+    expect(pickPinnedLevel({ levelHeights: GROUPED.map((l) => l.height), desiredHeight: 0, prefer: 0 })).toBe(0);
+    expect(pickPinnedLevel({ levelHeights: [720, 1080], desiredHeight: 720, prefer: 1 })).toBe(0);
+  });
+  it("starts on the variant of the wanted track's group", () => {
+    expect(levelInAudioGroup(GROUPED, 2, "aud-mp4a.40.34")).toBe(0);
+    expect(levelInAudioGroup(GROUPED, 2, "aud-mp4a.40.2")).toBe(2);
+    expect(levelInAudioGroup(GROUPED, 2, undefined)).toBe(2);
+    expect(levelInAudioGroup(GROUPED, 2, "nowhere")).toBe(2);
   });
 });
 

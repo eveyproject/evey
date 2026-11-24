@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef } from "react";
 import { QueryClientContext } from "@tanstack/react-query";
-import { playbackServiceReportProgress, eveyFetch } from "@evey/api";
+import { playbackServiceReportProgress, reportProgressWithWitness, eveyFetch, type V1PlayedState, type V1ServedLeg } from "@evey/api";
 import { toast } from "@evey/store";
 import { PREWARM_PROGRESS_THRESHOLD, refreshProgressViews } from "@evey/client";
 
@@ -46,6 +46,12 @@ interface ProgressReporterProps {
    *  state feed (a Remote Playback fling carries none). An admin "play" must
    *  not wake the local element in that state. */
   remoteActive?: boolean;
+  /** What the player decodes right now (playedState.ts), read at each tick
+   *  and sent with it: the player's witness of the session. */
+  getPlayed?: () => V1PlayedState | undefined;
+  /** Each answered tick: what was reported played, and what the server says it
+   *  sent the session (the same served path the admin pages read). */
+  onWitness?: (w: { played?: V1PlayedState; servedVideo?: V1ServedLeg; servedAudio?: V1ServedLeg }) => void;
 }
 
 // 0.85 = trigger at ~85 % of duration. Sweet spot per streaming-service
@@ -57,7 +63,7 @@ interface ProgressReporterProps {
 // carries the constant (happy-dom does not).
 const HAVE_METADATA = 1;
 
-export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, onRemoteMessage, cast, remoteActive = false }: ProgressReporterProps) {
+export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, onRemoteMessage, cast, remoteActive = false, getPlayed, onWitness }: ProgressReporterProps) {
   const pendingRef = useRef(false);
   const errorCountRef = useRef(0);
   // See refreshProgressViews: the media page re-reads its Resume button once
@@ -79,6 +85,10 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
   castRef.current = cast;
   const remoteActiveRef = useRef(remoteActive);
   remoteActiveRef.current = remoteActive;
+  const getPlayedRef = useRef(getPlayed);
+  getPlayedRef.current = getPlayed;
+  const onWitnessRef = useRef(onWitness);
+  onWitnessRef.current = onWitness;
 
   useEffect(() => {
     // The last local state seen while the element still held this session's
@@ -111,10 +121,12 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
         return;
       }
       pendingRef.current = true;
+      // The local player's witness; a cast receiver reports its own.
+      const played = casting ? undefined : getPlayedRef.current?.();
       try {
         // While casting, the report describes the REMOTE playback; the empty
         // castDeviceName of a local report clears a finished relay server-side.
-        const res = await playbackServiceReportProgress(
+        const res = await reportProgressWithWitness(
           casting
             ? {
                 sessionId,
@@ -131,9 +143,11 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
                 isMuted: video.muted,
                 volumeLevel: Math.round(video.volume * 100),
                 castDeviceName: "",
+                played,
               },
         );
         errorCountRef.current = 0;
+        onWitnessRef.current?.({ played, servedVideo: res?.servedVideo, servedAudio: res?.servedAudio });
         // Predictive next-episode warm-up. Only for series episodes, only
         // once per (mount, mediaId), only past the threshold, and only for
         // LOCAL playback (a cast reload swaps the whole receiver media -

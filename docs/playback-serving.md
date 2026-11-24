@@ -152,6 +152,43 @@ Safari is excluded from the wasm path by capability, not by name:
 true only when the browser reports it *cannot* play AC-3 natively, and Safari
 reports it can.
 
+## What a session shows: two witnesses
+
+The stream panel of every player and the admin session cards show what a
+playback IS, never what was decided. The decision, the plan's delivery
+strategy and the player's echo of a verdict are inputs to serving; a runtime
+fallback (a packager that cannot build the source, a wasm decoder that
+latched back to AAC, a direct play the browser refuses) contradicts them. Two
+witnesses fill a session, and nothing else writes it:
+
+| Witness | What it records | Where |
+| --- | --- | --- |
+| The server | per leg (video, audio), the latest response that carried bytes: the engine that wrote them (`mkvgo`, `ffmpeg`, `file`), whether an encoder ran, the source track, and the codec, picture and channels read from the init segment that went out (or the file's own streams on a direct play) | `http/served_witness.go` (a middleware on the media routes, the handlers stamp what they write) |
+| The player | what it decodes: the file or a segmented presentation, the audio rendition it has loaded (by the track number the rendition carries), the codec its buffers were set up for, the native or wasm decoder | the `played` field of the progress tick (a cast receiver: a `played` player event) |
+
+Both land in `play_sessions.served` / `played` through `CommandService.RecordServed`
+and `RecordPlayed`, which keep the last observation of each live session in
+memory and write only a change. The method and the summary columns the
+history reads are derived from the served path. The progress tick's answer
+hands the served path back to the player, so its panel and the admin card
+read the same facts; `@evey/api` `describeSession` turns them into one view,
+and says so when the two witnesses disagree (the player plays another track,
+or decodes another codec, than the one sent).
+
+Rules that keep the witnesses honest:
+
+- only a response that carried bytes (200/206 with a body) is evidence; a
+  media response is observed at its first bytes (a direct play reads the
+  whole film through one request), an init once whole (its bytes are read);
+- an observation is dated by the response's start, and an older one never
+  replaces a newer one, whatever order they finished in;
+- bytes whose init cannot be read record nothing rather than a guess;
+- a packager rendition names its source track by the number the file gives it
+  (`X-MKVGO-TRACK` in the master, the init's track id): a master that groups
+  renditions by codec lists in `hls.audioTracks` the current group's only, so
+  the player selects a rendition by the track it carries, across every group
+  (`hls.setAudioOption`), never by its place in a list.
+
 ## Packaging: CMAF, HLS, DASH
 
 The container is always **CMAF** (fMP4): a per-variant `init.mp4` plus `.m4s`
@@ -197,4 +234,5 @@ ladder, admission, fingerprint: internal/app/transcoding/admission_shaper.go - S
 engines: internal/adapters/driven/prober/dispatcher.go ; internal/adapters/driven/prober/keyframe_dispatcher.go ; internal/app/transcoding/ondemand.go - OnDemandPackager ; internal/adapters/driven/mkvgo/ondemand.go ; internal/adapters/driven/ffmpeg/hls_transcoder.go - BuildFFmpegArgs, needsFMP4Segments ; internal/adapters/driven/ffmpeg/trickplay.go, complexity_classifier.go, audio_delay.go
 packaging: internal/app/transcoding/manifest_generator.go - querySuffix, EVEY-AUDIO-URI ; internal/app/transcoding/manifest_generator_dash.go ; internal/domain/transcoding/segment_grid.go - SegmentTargetSeconds, gridFor ; internal/pkg/cmafparity ; internal/adapters/driven/ffmpeg/dash_grid_integration_test.go - TestDASHGridIntegration
 wasm: frontend/packages/client/src/web/codec.ts - canWasmDecodeAC3
+witnesses: internal/domain/playback/served.go - Served, ServedLeg, Played ; internal/adapters/driving/http/served_witness.go - servedWitness, deliveryStamp ; internal/app/playback/served_witness.go - RecordServed, RecordPlayed, Heartbeat ; frontend/packages/api/src/servedReality.ts - describeSession ; frontend/packages/client/src/lib/playedState.ts - playedState, trackRendition ; frontend/packages/client/src/lib/masterRenditions.ts ; frontend/packages/client/src/native/useNativePlayed.ts
 -->

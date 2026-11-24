@@ -31,7 +31,9 @@ const t = (k: string, d?: string | Record<string, unknown>) => (typeof d === "st
 
 const session = {
   sessionId: "s1", mediaItemId: "m1", mediaTitle: "Some Movie", profileName: "alice", deviceName: "Firefox", deviceType: "web",
-  playMethod: "transcode", videoDecision: "transcode", audioDecision: "copy", resolution: "1080p", videoCodec: "hevc", audioCodec: "aac", bandwidthBps: "8000000",
+  playMethod: "transcode", resolution: "1080p", videoCodec: "h264", audioCodec: "aac", bandwidthBps: "8000000",
+  servedVideo: { engine: "ffmpeg", copy: false, codec: "h264", sourceCodec: "hevc", height: 1080, backend: "qsv" },
+  servedAudio: { engine: "ffmpeg", copy: true, codec: "aac", track: 1 },
   durationMs: "6000000", positionMs: "1500000", progress: 25, isPaused: false,
   mediaType: "episode", seriesTitle: "Show", seasonNumber: 1, episodeNumber: 7, castDeviceName: "Salon TV",
 } as any;
@@ -44,7 +46,7 @@ describe("SessionCard helpers", () => {
     expect(playMethodLabel("transcode", t)).toBe("admin.sessions.transcode");
     expect(playMethodLabel("direct_play", t)).toBe("admin.sessions.directPlay");
     expect(playMethodLabel("", t)).toBe("");
-    expect(playMethodLabel("wasm", t)).toBe("wasm");
+    expect(playMethodLabel("wasm", t)).toBe("");
   });
 });
 
@@ -67,23 +69,39 @@ describe("SessionCard", () => {
     expect(screen.getByText("admin.sessions.castingTo")).toBeTruthy();
   });
 
-  it("names a segmented session whose tracks both copy a remux, not a transcode", () => {
-    render(<SessionCard session={{ ...session, videoDecision: "copy", audioDecision: "copy" }} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
+  it("names what the bytes were: copied samples are a remux, not a transcode", () => {
+    const copied = { ...session, servedVideo: { engine: "mkvgo", copy: true, codec: "h264" }, servedAudio: { engine: "mkvgo", copy: true, codec: "aac" } };
+    render(<SessionCard session={copied} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
     expect(screen.getByText("admin.sessions.directStream")).toBeTruthy();
     expect(screen.queryByText("admin.sessions.transcode")).toBeNull();
   });
 
-  it("labels a direct play as the web card does: no engine, audio decoded by the player", () => {
-    render(<SessionCard session={{ ...session, playMethod: "direct_play", videoDecision: "copy", audioDecision: "wasm", videoEngine: "", audioEngine: "" }} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
-    expect(screen.getByText("admin.sessions.track.audioClientDecoded")).toBeTruthy();
-    expect(screen.queryByText("admin.sessions.track.audioCopied")).toBeNull();
-    expect(screen.queryByText(/admin\.sessions\.track\.engine\.mkvgo/)).toBeNull();
+  it("shows the encoded video's source codec and the audio track served", () => {
+    render(<SessionCard session={session} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
+    expect(screen.getByText("admin.sessions.track.videoTranscoded")).toBeTruthy();
+    expect(screen.getByText("(hevc→h264, 1080p)")).toBeTruthy();
+    expect(screen.getByText("admin.sessions.track.audioCopied")).toBeTruthy();
   });
 
-  it("shows no method while a segmented session's tracks are unknown", () => {
-    render(<SessionCard session={{ ...session, videoDecision: "", audioDecision: "" }} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
+  it("names a direct play by the file, no engine", () => {
+    const direct = { ...session, servedVideo: { engine: "file", copy: true, codec: "h264", track: -1 }, servedAudio: { engine: "file", copy: true, track: -1 } };
+    render(<SessionCard session={direct} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
+    expect(screen.getByText("admin.sessions.directPlay")).toBeTruthy();
+    expect(screen.getAllByText("admin.sessions.track.fromFile").length).toBe(2);
+    expect(screen.queryByText(/admin\.sessions\.track\.engine\./)).toBeNull();
+  });
+
+  it("says so when the player plays another track than the one sent", () => {
+    const off = { ...session, played: { source: "hls", audioTrack: 0, audioCodec: "mp4a.40.2", audioDecoder: "native" } };
+    render(<SessionCard session={off} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
+    expect(screen.getByText("admin.sessions.track.mismatchTrack")).toBeTruthy();
+  });
+
+  it("shows no method before any byte was served", () => {
+    const fresh = { ...session, servedVideo: undefined, servedAudio: undefined };
+    render(<SessionCard session={fresh} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
     expect(screen.queryByText("admin.sessions.transcode")).toBeNull();
-    expect(screen.queryByText("Direct")).toBeNull();
+    expect(screen.getByText("admin.sessions.track.waiting")).toBeTruthy();
   });
 
   it("drives play/pause, stop and a trimmed message through the parent's callbacks", () => {

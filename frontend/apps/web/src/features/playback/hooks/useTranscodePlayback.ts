@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
-import { createPlayerEventReporter, notifyProfileClosed, type RungSize } from "@evey/api";
-import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, pickTranscodeResumeSec, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
+import { createPlayerEventReporter, notifyProfileClosed, type PlayerAudioStream, type RungSize } from "@evey/api";
+import { buildTranscodeHlsUrl, levelInAudioGroup, liftForcedMuteOnNextGesture, pickPinnedLevel, pickTranscodeResumeSec, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
 import { playbackSnapshot } from "../playbackSnapshot";
+import { splitCodecs, trackRendition } from "@evey/client";
 import { dashUrlFor, devDashEnabled, retireDevDash, startDevDash } from "./devDash";
 import { isShedCode, playingFromHlsLevel, type PlayingVariant, type ShedReason } from "@evey/client";
 
@@ -69,6 +70,9 @@ interface UseTranscodePlaybackArgs {
    * destroyed. Natural rebuilds (token refresh, subtitles, offset) read it back
    * for the URL and re-select the rendition after MANIFEST_PARSED. */
   audioTrackOverrideRef?: React.MutableRefObject<number | null>;
+  /** The file's audio tracks: which rendition carries the wanted track is
+   * read off the rendition (playedState.trackRendition). */
+  audioStreams?: PlayerAudioStream[];
   /** Height of the wanted rung (0 = Auto -> the top rung). Read INSIDE
    * MANIFEST_PARSED to pin the level before hls.js loads its first fragment. A
    * ref, not a prop: the value must be readable without a re-render, and the
@@ -108,6 +112,7 @@ export function useTranscodePlayback({
   mediaId,
   currentTrackIndex,
   audioTrackOverrideRef,
+  audioStreams,
   pinnedQualityRef,
   onFragStatsRef,
   onBufferStallRef,
@@ -174,6 +179,11 @@ export function useTranscodePlayback({
   // The variant decoded right now and every variant's BANDWIDTH: the stream
   // info panel describes that rung, not the plan negotiated at start.
   const [playingVariant, setPlayingVariant] = useState<PlayingVariant | null>(null);
+  // What the player decodes (playedState.ts): the codecs hls.js set its
+  // buffers up with, parsed from the inits it received.
+  const [bufferCodecs, setBufferCodecs] = useState<{ video?: string; audio?: string }>({});
+  const audioStreamsRef = useRef(audioStreams ?? []);
+  audioStreamsRef.current = audioStreams ?? [];
   const [ladderBitrates, setLadderBitrates] = useState<number[]>([]);
 
   useEffect(() => {
@@ -403,9 +413,17 @@ export function useTranscodePlayback({
       },
     });
     hlsRef.current = hls;
+    setBufferCodecs({});
 
     hls.loadSource(hlsUrl);
     hls.attachMedia(video);
+    hls.on(Hls.Events.BUFFER_CODECS, (_evt, data) => {
+      const av = splitCodecs(data.audiovideo?.codec);
+      setBufferCodecs((prev) => ({
+        video: data.video?.codec ?? av.video ?? prev.video,
+        audio: data.audio?.codec ?? av.audio ?? prev.audio,
+      }));
+    });
 
     // The forward buffer follows the rung's bitrate: hls.js reads these on
     // every buffer check, so a 70 Mb/s rung stays under the MSE byte quota.
@@ -432,10 +450,16 @@ export function useTranscodePlayback({
       // below, so it lands one re-render too late, and in that window hls.js
       // starts on free ABR at level 0 - a SECOND ffmpeg on the same hash, on a
       // host that only sustains one encode (see pickPinnedLevel).
-      const pinned = pickPinnedLevel({
+      // The wanted audio track's rendition, found by the track it carries.
+      // A master that groups renditions by codec has one variant per group at
+      // each height: the pin takes the one that plays the wanted group, not
+      // whichever came last (which played the last group's audio whatever the
+      // track asked for - measured on the demo).
+      const wantedRendition = trackRendition(hls.allAudioTracks, audioTrackOverrideRef?.current ?? currentTrackIndex, audioStreamsRef.current);
+      const pinned = levelInAudioGroup(hls.levels, pickPinnedLevel({
         levelHeights: hls.levels.map((l) => l.height),
         desiredHeight: pinnedQualityRef?.current ?? 0,
-      });
+      }), wantedRendition?.groupId);
       // startLevel too: startLoad reads it to pick the FIRST playlist, and
       // currentLevel alone still sent it to level 0.
       if (pinned >= 0) hls.startLevel = pinned;
@@ -443,6 +467,7 @@ export function useTranscodePlayback({
         hls.currentLevel = pinned;
       }
       if (pinned >= 0) fitBufferToLevel(pinned);
+      if (wantedRendition) hls.setAudioOption(wantedRendition);
       setHlsLevels(hls.levels.map((l) => l.height));
       setHlsLevelSizes(hls.levels.map((l) => ({ width: l.width ?? 0, height: l.height })));
       setLadderBitrates(hls.levels.map((l) => l.bitrate));
@@ -455,10 +480,7 @@ export function useTranscodePlayback({
       // (token refresh, subtitles, offset) did not go through
       // currentTrackIndex, and the master's DEFAULT is not enough to re-aim the
       // rendition when the URL carried the previous track.
-      const override = audioTrackOverrideRef?.current;
-      if (override != null && override >= 0 && override < hls.audioTracks.length && hls.audioTrack !== override) {
-        hls.audioTrack = override;
-      }
+      // (The rendition itself is selected above, by the track it carries.)
       // NB: hls.js ABR is intentionally NOT used on this transcode path - the
       // level-sync effect in HLSPlayer PINS a single rung (top for Auto, the chosen
       // one for manual) because free ABR loads several rungs at once on a transcode
@@ -700,5 +722,5 @@ export function useTranscodePlayback({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef/onEndedRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
   }, [transcodeMode, mediaId, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless, wasmAudio, handoffGen]);
 
-  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, hlsLevelSizes, autoLevelHeight, autoLevelWidth, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode };
+  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, hlsLevelSizes, autoLevelHeight, autoLevelWidth, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode, bufferCodecs };
 }

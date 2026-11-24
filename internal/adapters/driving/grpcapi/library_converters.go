@@ -214,7 +214,7 @@ func mediaStreamToProto(s *library.MediaStream, includePaths bool) *eveyv1.Media
 		IsExternal:    s.IsExternal,
 		Profile:       s.Profile,
 
-		IsCommentary:      s.Commentary,
+		IsCommentary:      s.IsCommentary(),
 		IsHearingImpaired: s.HearingImpaired,
 		IsVisualImpaired:  s.VisualImpaired,
 		IsOriginal:        s.Original,

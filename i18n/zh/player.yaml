@@ -175,9 +175,21 @@ streamInfo:
   decisionCopy: 直接复制
   decisionTranscode: 已转码
   decisionWasm: 客户端解码
+  waiting: "等待首批字节"
+  track: "音轨"
+  engine: "引擎"
+  player: "播放器"
+  decoderWasm: "由 ac3go (wasm) 解码"
+  decoderNative: "原生解码器"
+  fromFile: "源文件"
+  allTracks: "全部，由播放器选择"
+  mismatch: "不一致"
+  mismatchTrack: "播放器播放音轨 {{played}}，服务器发送音轨 {{served}}"
+  mismatchCodec: "播放器解码 {{played}}，服务器发送 {{served}}"
   reason:
     video_codec_unsupported: 此播放器无法解码的视频编码
     audio_codec_unsupported: 此播放器无法解码的音频编码
+    audio_decoded_in_browser: "音频在浏览器中解码（需要分段流）"
     hdr_tonemapping_needed: HDR 已转换为 SDR（色调映射）
     dovi_base_layer: "Dolby Vision 基础层已重新编码（保留 HDR）"
     hdr_copy_unavailable: "无法直接复制，重新编码时保留 HDR"

@@ -204,12 +204,29 @@ export function pickPlayOnFallback<D>(devices: readonly D[] | undefined | null):
 // from the ladder (trimmed by admission since) falls back to the top rather
 // than pinning nothing: pinning nothing hands control back to free ABR, which
 // is exactly what this avoids.
-export function pickPinnedLevel(s: { levelHeights: readonly number[]; desiredHeight: number }): number {
+//
+// prefer: a master whose audio renditions are grouped by codec lists one
+// variant per group at the same height. The variant playing names the audio
+// group, so a pin that lands on its height keeps it: re-pinning "the top"
+// switched the viewer back to the last group's audio (the AAC one) after
+// they had picked another track.
+export function pickPinnedLevel(s: { levelHeights: readonly number[]; desiredHeight: number; prefer?: number }): number {
   if (s.levelHeights.length === 0) return -1;
   const top = s.levelHeights.length - 1;
-  if (s.desiredHeight <= 0) return top;
-  const idx = s.levelHeights.indexOf(s.desiredHeight);
-  return idx >= 0 ? idx : top;
+  const idx = s.desiredHeight <= 0 ? top : s.levelHeights.indexOf(s.desiredHeight);
+  const pinned = idx >= 0 ? idx : top;
+  const prefer = s.prefer ?? -1;
+  if (prefer >= 0 && prefer < s.levelHeights.length && s.levelHeights[prefer] === s.levelHeights[pinned]) return prefer;
+  return pinned;
+}
+
+// levelInAudioGroup is the variant at the same height as `index` that plays
+// the audio group `groupId`; `index` itself when none does.
+export function levelInAudioGroup(levels: readonly { height: number; audioGroups?: readonly (string | undefined)[] }[], index: number, groupId: string | undefined): number {
+  if (!groupId || index < 0 || index >= levels.length) return index;
+  if (levels[index].audioGroups?.includes(groupId)) return index;
+  const same = levels.findIndex((l) => l.height === levels[index].height && !!l.audioGroups?.includes(groupId));
+  return same >= 0 ? same : index;
 }
 
 // Recovers from a mute the BROWSER imposed, not the viewer: lift it on the next
@@ -273,20 +290,20 @@ export type TranscodeAudioSwitchPath = "hls-rendition" | "wasm-engine" | "restar
 //   - native HLS (Safari): no hls.js instance to drive;
 //   - wasm audio involved (current OR target): the AC-3 engine is wired per
 //     session (video-only master + dedicated rendition);
-//   - rendition absent from the parsed manifest.
+//   - no rendition of the parsed manifest carries the target track (found by
+//     the track it carries, across every audio group: trackRendition).
 export function pickTranscodeAudioSwitchPath(s: {
   hasHls: boolean;
   wasmActiveNow: boolean;
   wasmActiveForTarget: boolean;
-  audioRenditionCount: number;
-  targetTrackIndex: number;
+  targetRenditionFound: boolean;
 }): TranscodeAudioSwitchPath {
   if (!s.hasHls) return "restart";
   // wasm to wasm: the video is out of band and keeps playing; only the audio
   // engine is rebuilt on the new track (a restart cost seconds of silence).
   if (s.wasmActiveNow && s.wasmActiveForTarget) return "wasm-engine";
   if (s.wasmActiveNow || s.wasmActiveForTarget) return "restart";
-  if (s.targetTrackIndex < 0 || s.targetTrackIndex >= s.audioRenditionCount) return "restart";
+  if (!s.targetRenditionFound) return "restart";
   return "hls-rendition";
 }
 

@@ -38,6 +38,8 @@ class MockHls {
   startLoad = vi.fn();
   audioTrack = 0;
   audioTracks: unknown[] = [];
+  allAudioTracks: unknown[] = [];
+  setAudioOption = vi.fn();
   subtitleTrack = -1;
   subtitleDisplay = false;
   subtitleTracks: unknown[] = [];
@@ -709,11 +711,14 @@ describe("HLSPlayer: audio track verdict", () => {
   it("stays on the HLS master when the direct-play verdict is for a track the file does not open on", () => {
     const { rerender } = mount(HLS);
     const hls = lastHlsInstance!;
-    // Both tracks are renditions of the master: the switch is hls.audioTrack.
+    // Both tracks are renditions of the master, each naming its track: the
+    // switch selects the rendition, the instance stays.
     hls.audioTracks = [{}, {}];
+    hls.allAudioTracks = [{ url: "audio_0.m3u8" }, { url: "audio_1.m3u8" }];
     act(() => { lastControlsProps?.onAudioChange?.(2); });
     act(() => { rerender({ ...DIRECT }); });
     expect(hls.destroy).not.toHaveBeenCalled();
+    expect(hls.setAudioOption).toHaveBeenCalledWith({ url: "audio_1.m3u8" });
     expect(lastHlsInstance).toBe(hls);
   });
 });

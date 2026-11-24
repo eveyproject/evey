@@ -21,7 +21,8 @@ import * as hlsRungs from "./hlsRungs";
 import * as imageSubtitles from "./imageSubtitles";
 import * as externalTitleUrl from "./externalTitleUrl";
 import * as requestFacts from "./requestFacts";
-import * as sessionTrackLines from "./sessionTrackLines";
+import * as servedReality from "./servedReality";
+import * as reportProgressWitness from "./reportProgressWitness";
 import * as defaultSubtitle from "./defaultSubtitle";
 import * as pgsCues from "./pgsCues";
 import * as subtitleCues from "./subtitleCues";
@@ -100,7 +101,8 @@ const SHARED_MODULES = {
   langCodes,
   regionDefaults,
   requestFacts,
-  sessionTrackLines,
+  servedReality,
+  reportProgressWitness,
   libraryRules,
   playerEventReporter,
   roomCode,

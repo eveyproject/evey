@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/playback"
@@ -74,6 +73,9 @@ type CommandService struct {
 	// previous process's shutdown, and a tick from its still-playing client
 	// reopens it (see ReportProgressBySession).
 	startedAt time.Time
+	// witness holds what each live session was last seen served and playing,
+	// so only a change reaches the database (served_witness.go).
+	witness witness
 }
 
 type CommandServiceOption func(*CommandService)
@@ -196,32 +198,6 @@ func (s *CommandService) classifyProgress(ctx context.Context, mediaItemID strin
 	}
 }
 
-// restartReusedSession rewrites a live session that a new start reuses when
-// that start describes another stream: the same title replayed on the same
-// device with another track (the previous player left without a stop) is a
-// new verdict. Without it the reused row kept the earlier stream's method and
-// engines - an audio encode listed as "Direct Play", a direct play credited to
-// mkvgo. The engines are cleared: the next master render records its own, and
-// a direct play has none. A start that describes the same stream (a retry, a
-// double click) leaves the row as it is.
-func (s *CommandService) restartReusedSession(ctx context.Context, live, start *playback.PlaySession) error {
-	if live.PlayMethod == start.PlayMethod && live.VideoDecision == start.VideoDecision && live.AudioDecision == start.AudioDecision &&
-		live.VideoCodec == start.VideoCodec && live.AudioCodec == start.AudioCodec {
-		return nil
-	}
-	live.PlayMethod, live.VideoCodec, live.AudioCodec = start.PlayMethod, start.VideoCodec, start.AudioCodec
-	live.Resolution, live.BandwidthBps = start.Resolution, start.BandwidthBps
-	live.VideoDecision, live.AudioDecision = start.VideoDecision, start.AudioDecision
-	live.Serving = playback.ServingPath{VideoDecision: start.VideoDecision, AudioDecision: start.AudioDecision}
-	if err := s.sessions.Update(ctx, live); err != nil {
-		return fmt.Errorf("restart reused session: %w", err)
-	}
-	if _, err := s.sessions.SetSessionServing(ctx, live.ID, live.Serving); err != nil {
-		return fmt.Errorf("restart reused session serving: %w", err)
-	}
-	return nil
-}
-
 func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID shared.UserID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.StartStream")
 	defer span.End()
@@ -262,11 +238,16 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		// retry or a double-click would otherwise spawn a phantom session that
 		// inflates analytics and the device count. Reuse the live session and
 		// return it verbatim to the caller instead of creating a duplicate.
+		// The reused row is another playback from here on: what it was seen
+		// served and playing belonged to the previous one (an audio leg the new
+		// start never fetched stayed on the card, measured).
 		for _, a := range active {
 			if a.MediaItemID == session.MediaItemID && a.DeviceName == session.DeviceName {
-				if err := s.restartReusedSession(ctx, a, session); err != nil {
-					return err
+				if err := s.sessions.ResetWitness(ctx, a.ID); err != nil {
+					return fmt.Errorf("reset reused session: %w", err)
 				}
+				a.Served, a.Played = playback.Served{}, nil
+				a.PlayMethod, a.VideoCodec, a.AudioCodec, a.Resolution = "", "", "", ""
 				*session = *a
 				deduped = true
 				return nil
@@ -300,6 +281,9 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		}
 	}
 
+	// Whatever the witness held for this (profile, media) belongs to the
+	// previous playback: the bytes it sees from now on are this start's.
+	s.witness.forget(string(session.ProfileID), string(session.MediaItemID))
 	// A deduped start replays an already-running session; PlaybackStarted was
 	// already published when it was first created, so don't emit it twice.
 	if deduped {
@@ -310,7 +294,6 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		SessionID:   session.ID,
 		ProfileID:   session.ProfileID,
 		MediaItemID: session.MediaItemID,
-		PlayMethod:  session.PlayMethod,
 		OccurredAt:  time.Now(),
 	}
 	if err := s.events.Publish(ctx, evtStarted); err != nil {
@@ -352,11 +335,18 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 // cast relay (web sender → Chromecast); empty = local playback (and clears a
 // previous relay). The position/isPaused then describe that remote playback.
 func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64, isPaused bool, castDeviceName string) error {
+	_, err := s.reportProgress(ctx, sessionID, positionMs, isPaused, castDeviceName)
+	return err
+}
+
+// reportProgress is ReportProgressBySession, handing back the session the
+// tick was recorded on (as read before the tick).
+func (s *CommandService) reportProgress(ctx context.Context, sessionID string, positionMs int64, isPaused bool, castDeviceName string) (*playback.PlaySession, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.ReportProgressBySession")
 	defer span.End()
 	session, err := s.sessionQueries.GetByID(ctx, sessionID)
 	if err != nil {
-		return ErrSessionNotFound
+		return nil, ErrSessionNotFound
 	}
 	// Negative positions from a misbehaving client get logged and dropped;
 	// IsPaused still gets recorded so pause UI doesn't desync. shared.Duration
@@ -383,7 +373,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// no-op here (session already ended) still records watch-progress below.
 	updated, err := s.sessions.UpdateProgress(ctx, sessionID, safePositionMs, isPaused, castDeviceName)
 	if err != nil {
-		return fmt.Errorf("update session position: %w", err)
+		return nil, fmt.Errorf("update session position: %w", err)
 	}
 	// A restart ends every open session, but a web player keeps streaming and
 	// ticking on the same id without ever starting a new one: it vanished from
@@ -391,7 +381,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	if !updated {
 		reopened, err := s.sessions.ReopenEndedBefore(ctx, sessionID, s.startedAt, safePositionMs, isPaused, castDeviceName)
 		if err != nil {
-			return fmt.Errorf("reopen session: %w", err)
+			return nil, fmt.Errorf("reopen session: %w", err)
 		}
 		if reopened {
 			slog.InfoContext(ctx, "reopened play session ended by a restart", slog.String("sessionID", sessionID))
@@ -409,7 +399,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// already updated above so the live UI still gets its tick; we just
 	// don't materialise a watch_progress row until completion.
 	if decision.skipPersist || (neverPlayed && safePositionMs <= 0) {
-		return nil
+		return session, nil
 	}
 	// First-time completion seeds play_count=1. On INSERT (no prior row)
 	// the value is used directly; on ON CONFLICT the SQL's transition
@@ -437,12 +427,12 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// old behaviour for tests and any caller that opts out of buffering.
 	if s.progressBuffer != nil {
 		s.progressBuffer.Enqueue(wp)
-		return nil
+		return session, nil
 	}
 	if err := s.progress.Upsert(ctx, wp); err != nil {
-		return fmt.Errorf("CommandService.ReportProgressBySession: %w", err)
+		return nil, fmt.Errorf("CommandService.ReportProgressBySession: %w", err)
 	}
-	return nil
+	return session, nil
 }
 
 func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaItemID string, positionMs int64, completed bool) error {
@@ -743,86 +733,6 @@ func (s *CommandService) EndCastSession(ctx context.Context, profileID, mediaIte
 		return nil
 	}
 	return nil
-}
-
-// SetCastAudioPath mirrors a player's audio_mode beacon (cast receiver or web
-// wasm player) onto the active session so the admin badge follows the REAL
-// audio path: "aac" (and the aac-latched fallback) IS a server transcode;
-// "wasm" means the player decodes and the server's ffmpeg dies at idle seconds
-// later. Unknown modes are ignored - a future string must not corrupt the column.
-func (s *CommandService) SetCastAudioPath(ctx context.Context, profileID, mediaItemID, mode string) error {
-	ctx, span := tracing.StartSpan(ctx, "app.playback.SetCastAudioPath")
-	defer span.End()
-	var decision, engine string
-	switch mode {
-	case "aac", "aac-latched":
-		decision, engine = "transcode", "ffmpeg"
-	case "wasm":
-		decision, engine = "wasm", "client"
-	default:
-		return nil
-	}
-	sess, err := s.activeSessionFor(ctx, profileID, mediaItemID)
-	if err != nil || sess == nil {
-		return err
-	}
-	// The audio leg only: the video columns are the master render's, and a
-	// read-modify-write of the whole path let this beacon blank video_engine.
-	_, err = s.sessions.SetSessionAudioPath(ctx, sess.ID, decision, engine, relayAudioCodecLabel(sess.AudioCodec, decision))
-	return err
-}
-
-// relayAudioCodecLabel keeps the session's audio codec label pointed at what
-// the viewer is actually fed when the relay changes leg. The label is written
-// once at start-up from the client's own decision ("eac3" while the track is
-// carried untouched), and SetCastAudioPath used to flip the DECISION without
-// touching it: in prod, a starved wasm leg left the dashboard reading
-// "transcodé (eac3)" - a transcode whose output codec is its input.
-//
-// The relay's native leg is always Evey's AAC rendition, so the target is known
-// here and nowhere else; returning "" means "leave the label alone".
-func relayAudioCodecLabel(current, decision string) string {
-	source, _, _ := strings.Cut(current, "→")
-	if source == "" || source == relayNativeAudioCodec {
-		return ""
-	}
-	if decision == "transcode" {
-		return source + "→" + relayNativeAudioCodec
-	}
-	return source // back on the untouched track: the source IS what is served
-}
-
-// relayNativeAudioCodec is the codec of the relay's native leg (Evey's audio
-// rendition re-encodes to AAC).
-const relayNativeAudioCodec = "aac"
-
-// SetSessionServing records what the master playlist just handed the
-// (profile, media) session: which packager/encoder serves each track. Called
-// on every master render, so a mid-session reshape (fallback rung, wasm
-// latch-off) keeps the admin panel truthful.
-func (s *CommandService) SetSessionServing(ctx context.Context, profileID, mediaItemID string, p playback.ServingPath) error {
-	ctx, span := tracing.StartSpan(ctx, "app.playback.SetSessionServing")
-	defer span.End()
-	sess, err := s.activeSessionFor(ctx, profileID, mediaItemID)
-	if err != nil || sess == nil {
-		return err
-	}
-	_, err = s.sessions.SetSessionServing(ctx, sess.ID, p)
-	return err
-}
-
-// SetSessionAudioLeg records the audio leg of the (profile, media) session
-// alone, as a rendition playlist serves it: a track switched in place on the
-// player never re-renders the master, whose record named the starting track.
-func (s *CommandService) SetSessionAudioLeg(ctx context.Context, profileID, mediaItemID, decision, engine, codecLabel string) error {
-	ctx, span := tracing.StartSpan(ctx, "app.playback.SetSessionAudioLeg")
-	defer span.End()
-	sess, err := s.activeSessionFor(ctx, profileID, mediaItemID)
-	if err != nil || sess == nil {
-		return err
-	}
-	_, err = s.sessions.SetSessionAudioPath(ctx, sess.ID, decision, engine, codecLabel)
-	return err
 }
 
 // activeSessionFor is the (profile, media) → live session lookup the beacon

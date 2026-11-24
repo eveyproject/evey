@@ -95,7 +95,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			SampleRate:  s.SampleRate,
 			Bitrate:     s.Bitrate,
 			IsDefault:   s.IsDefault,
-			Commentary:  s.Commentary,
+			Commentary:  s.IsCommentary(),
 			BitDepth:    s.BitDepth,
 			PixelFormat: s.PixelFormat,
 			DoViProfile: s.DoViProfile,
@@ -553,6 +553,12 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	// channel count is a reason to re-encode anything.
 	if wasmAudioApplies(s, prefs) {
 		d.AudioDecision = "wasm"
+		// The wasm decoder reads an out-of-band rendition beside a video-only
+		// master: the segmented session, never the raw file. Without a reason
+		// an MP4 whose other tracks the browser decodes came out direct_play,
+		// the player read the file, and the browser played its own default
+		// track instead of the one picked (measured on the demo).
+		addReasonOnce(d, reasonAudioDecodedInBrowser)
 		return
 	}
 	if !audioCodecSupported(client.AudioCodecs, s.Codec) {
@@ -611,6 +617,10 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		}
 	}
 }
+
+// reasonAudioDecodedInBrowser: the selected track is decoded by the
+// browser's wasm decoder, which only the segmented session feeds.
+const reasonAudioDecodedInBrowser = "audio_decoded_in_browser"
 
 // maxCopiedAudioSampleRate is the highest rate an audio track is copied at.
 const maxCopiedAudioSampleRate = 48000

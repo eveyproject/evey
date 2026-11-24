@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { effectivePlayMethod, episodeLabel, formatTimeMs, sessionTrackLines, type V1ActiveSession } from "@evey/api";
+import { describeSession, episodeLabel, formatTimeMs, type ServedView, type V1ActiveSession } from "@evey/api";
 import { router } from "expo-router";
 import { useTheme } from "../../providers/ThemeProvider";
 import { TrickplayPreview } from "../TrickplayPreview";
@@ -35,53 +35,80 @@ export function playMethodLabel(method: string, t: (k: string) => string): strin
     case "direct_play": return t("admin.sessions.directPlay");
     case "direct_stream": return t("admin.sessions.directStream");
     case "transcode": return t("admin.sessions.transcode");
-    default: return method;
+    default: return "";
   }
 }
 
-// TrackBadges renders the per-track serving detail (copy vs transcode, served
-// codec, engine and backend) so an operator can tell a copy rung from a real
-// transcode. The lines come from @evey/api's sessionTrackLines, the same
-// helper the web card uses: the phone used to guess the engine from the
-// decision alone and could name mkvgo for a track ffmpeg was serving.
+// TrackBadges renders what the session IS: the bytes the server sent per
+// track and what the player says it decodes (@evey/api describeSession, the
+// same view as the web card and the player's own panel), and says so when
+// the two disagree.
 function TrackBadges({ session, theme, t }: { session: V1ActiveSession; theme: ReturnType<typeof useTheme>; t: Tr }) {
-  const lines = sessionTrackLines(session);
-  if (lines.length === 0) return null;
+  const r = describeSession(session);
   // A key the catalogue does not carry shows the raw server word, never the key.
   const named = (key: string, raw: string) => {
     const label = t(key);
     return label === key ? raw : label;
   };
+  if (!r.video && !r.audio && !r.played) {
+    return <Text style={{ color: theme.colors.textMuted, fontSize: 10, marginTop: 2 }}>{t("admin.sessions.track.waiting")}</Text>;
+  }
+
+  const served = (id: "video" | "audio", l: ServedView) => {
+    const file = l.engine === "file";
+    const label = file ? t("admin.sessions.track.fromFile") : t(`admin.sessions.track.${id}${l.copy ? "Copied" : "Transcoded"}`);
+    const track = id === "audio" ? (l.track >= 0 ? t("admin.sessions.track.trackN", { n: l.track + 1 }) : file ? t("admin.sessions.track.allTracks") : "") : "";
+    const codec = l.sourceCodec ? `${l.sourceCodec}→${l.codec}` : l.codec;
+    const detail = [codec, l.height > 0 ? `${l.height}p` : ""].filter(Boolean).join(", ");
+    const engine = file ? "" : named(`admin.sessions.track.engine.${l.engine}`, l.engine);
+    const backend = l.backend ? named(`admin.sessions.track.backend.${l.backend}`, l.backend) : "";
+    const color = l.copy ? theme.colors.success : theme.colors.warning;
+    return (
+      <View key={id} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+        <Ionicons name={id === "video" ? "film-outline" : "volume-high-outline"} size={11} color={theme.colors.textMuted} />
+        <Text style={{ color: theme.colors.text, fontSize: 10 }}>{t(`admin.sessions.track.${id}`)}:</Text>
+        {track ? <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{track} ·</Text> : null}
+        <View style={[styles.badge, { backgroundColor: `${color}20` }]}>
+          <Text style={{ fontSize: 9, fontWeight: "600", color }}>{label}</Text>
+        </View>
+        {detail ? <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>({detail})</Text> : null}
+        {engine ? (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 10, opacity: 0.7 }}>
+            · {engine}{backend ? ` (${backend})` : ""}
+          </Text>
+        ) : null}
+      </View>
+    );
+  };
+
+  const p = r.played;
+  const playedParts = p
+    ? [
+        p.audioTrack >= 0 ? t("admin.sessions.track.trackN", { n: p.audioTrack + 1 }) : "",
+        p.audioCodec,
+        p.decoder === "wasm" ? t("admin.sessions.track.decoderWasm") : p.decoder === "native" ? t("admin.sessions.track.decoderNative") : "",
+      ].filter(Boolean)
+    : [];
+  const warn = (text: string) => (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+      <Ionicons name="warning-outline" size={11} color={theme.colors.warning} />
+      <Text style={{ color: theme.colors.warning, fontSize: 10, flexShrink: 1 }}>{text}</Text>
+    </View>
+  );
 
   return (
     <View style={{ gap: 2, marginTop: 2 }}>
-      {lines.map((line) => {
-        const isTranscode = line.decision === "transcode";
-        // Same labels as the web card: a track the player decodes is not "copied".
-        const decLabel = line.decision === "wasm"
-          ? t("admin.sessions.track.audioClientDecoded")
-          : t(`admin.sessions.track.${line.id}${isTranscode ? "Transcoded" : "Copied"}`);
-        const detail = [line.codec, line.res].filter(Boolean).join(", ");
-        const engine = line.engine ? named(`admin.sessions.track.engine.${line.engine}`, line.engine) : "";
-        const backend = line.backend ? named(`admin.sessions.track.backend.${line.backend}`, line.backend) : "";
-        return (
-          <View key={line.id} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-            <Ionicons name={line.id === "video" ? "film-outline" : "volume-high-outline"} size={11} color={theme.colors.textMuted} />
-            <Text style={{ color: theme.colors.text, fontSize: 10 }}>{t(`admin.sessions.track.${line.id}`)}:</Text>
-            <View style={[styles.badge, { backgroundColor: isTranscode ? `${theme.colors.warning}20` : `${theme.colors.success}20` }]}>
-              <Text style={{ fontSize: 9, fontWeight: "600", color: isTranscode ? theme.colors.warning : theme.colors.success }}>
-                {decLabel}
-              </Text>
-            </View>
-            {detail ? <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>({detail})</Text> : null}
-            {engine ? (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 10, opacity: 0.7 }}>
-                · {engine}{backend ? ` (${backend})` : ""}
-              </Text>
-            ) : null}
-          </View>
-        );
-      })}
+      {r.video ? served("video", r.video) : null}
+      {r.audio ? served("audio", r.audio) : null}
+      {playedParts.length > 0 ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+          <Ionicons name="play-circle-outline" size={11} color={theme.colors.textMuted} />
+          <Text style={{ color: theme.colors.text, fontSize: 10 }}>{t("admin.sessions.track.player")}:</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{playedParts.join(" · ")}</Text>
+        </View>
+      ) : null}
+      {r.trackMismatch ? warn(t("admin.sessions.track.mismatchTrack", { played: r.trackMismatch.played + 1, served: r.trackMismatch.served + 1 })) : null}
+      {r.codecMismatch ? warn(t("admin.sessions.track.mismatchCodec", r.codecMismatch)) : null}
     </View>
   );
 }
@@ -97,9 +124,8 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
   const [message, setMessage] = useState("");
 
   const sessionId = session.sessionId ?? "";
-  // What was done to the bytes, not the route: a segmented session whose
-  // tracks both copy is a remux.
-  const method = effectivePlayMethod(session);
+  // What the bytes were (the served path), not the route the client asked for.
+  const method = describeSession(session).method;
   const progress = Math.min(100, Math.max(0, session.progress ?? 0));
   const durationMs = parseInt(session.durationMs ?? "0");
   const positionMs = parseInt(session.positionMs ?? "0");
@@ -172,7 +198,6 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
         {session.videoCodec ? <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{session.videoCodec}</Text> : null}
         {session.audioCodec ? <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{session.audioCodec}</Text> : null}
         {bandwidthBps > 0 ? <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{formatBandwidth(bandwidthBps)}</Text> : null}
-        {session.transcodeInfo ? <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{session.transcodeInfo}</Text> : null}
       </View>
 
       <TrackBadges session={session} theme={theme} t={t} />
