@@ -130,6 +130,8 @@ notifications:
   mediaRequest: "New media request: {{name}}"
   pluginUpdateHeld: "Plugin update awaiting your approval: {{name}}"
   pluginUpdateRefused: "Plugin update refused: {{name}}"
+  mediaTrashed: "Moved to the trash: {{name}}"
+  mediaTrashFailed: "Could not move to the trash: {{name}}"
   requestAnswered: "Your media request was updated: {{name}}"
   clearConfirm: Delete all notifications?
   clearTitle: Clear notifications

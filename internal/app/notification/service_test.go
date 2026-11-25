@@ -1751,3 +1751,43 @@ func TestNotificationService_DerivedCacheFull_RoutesAdminOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, userNotifs, "a full cache is the operator's problem, not the viewer's")
 }
+
+// A move to the trash that copied across disks ends minutes later: the admins
+// learn it worked (where the file is now) or failed (why it stayed).
+func TestNotificationService_MediaTrashFinished_PagesAdmins(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		ev      libevent.MediaTrashFinished
+		typ     notifdom.Type
+		message string
+	}{
+		"done":   {libevent.MediaTrashFinished{MediaItemID: "m1", Title: "No Time to Die", TrashedPath: "/media/films/.evey-trash/x.mkv"}, notifdom.TypeMediaTrashed, "/media/films/.evey-trash/x.mkv"},
+		"failed": {libevent.MediaTrashFinished{MediaItemID: "m1", Title: "No Time to Die", Err: "copy across disks: no space left on device"}, notifdom.TypeMediaTrashFailed, "copy across disks: no space left on device"},
+	} {
+		repo := notiffakes.NewFakeNotificationRepository()
+		profileRepo := userfakes.NewFakeProfileRepository()
+		bus := sharedfakes.NewFakeEventBus()
+		ctx := context.Background()
+		adminProfile := &user.Profile{ID: "p-admin", UserID: "u-admin", Name: "Root"}
+		_ = profileRepo.Create(ctx, adminProfile)
+		_ = profileRepo.Create(ctx, &user.Profile{ID: "p-user", UserID: "u-user", Name: "Bob"})
+		svc := appnotification.NewCommandService(repo, notiffakes.NewFakeSettingsRepository(),
+			notiffakes.NewFakeWatchHistoryAnalyzer(), profileRepo, bus,
+			appnotification.WithAdminLister(&fakeAdminLister{profiles: []*user.Profile{adminProfile}}))
+		svc.Register()
+
+		tc.ev.OccurredAt = time.Now()
+		bus.Publish(ctx, tc.ev)
+
+		got, err := repo.ListByProfile(ctx, "p-admin", false, 0, 0)
+		require.NoError(t, err)
+		require.Len(t, got, 1, name)
+		assert.Equal(t, tc.typ, got[0].Type, name)
+		assert.Equal(t, "No Time to Die", got[0].Subject, name)
+		assert.Equal(t, tc.message, got[0].Message, name)
+		assert.True(t, tc.typ.IsAdminOnly())
+		others, err := repo.ListByProfile(ctx, "p-user", false, 0, 0)
+		require.NoError(t, err)
+		assert.Empty(t, others, "only the admins are told")
+	}
+}

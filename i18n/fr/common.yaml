@@ -132,6 +132,8 @@ notifications:
   mediaRequest: "Nouvelle demande de média : {{name}}"
   pluginUpdateHeld: "Mise à jour de plugin en attente de votre accord : {{name}}"
   pluginUpdateRefused: "Mise à jour de plugin refusée : {{name}}"
+  mediaTrashed: "Mis à la corbeille : {{name}}"
+  mediaTrashFailed: "Mise à la corbeille impossible : {{name}}"
   requestAnswered: "Votre demande de média a été mise à jour : {{name}}"
   clearConfirm: Supprimer toutes les notifications ?
   clearTitle: Effacer les notifications

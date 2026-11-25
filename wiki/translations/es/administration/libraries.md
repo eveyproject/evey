@@ -1,5 +1,5 @@
 ---
-source_sha: a25e43948fb1b1ca28d3c5960a75173e6c08ac3b031384c3720d73f2a4734cc8
+source_sha: b55b50c66f5aacddf2d5e3a77ae2d21f5342d7b0463df662a937014e6c87a998
 reviewed: true
 ---
 # Bibliotecas y metadatos { #libraries-and-metadata }
@@ -158,6 +158,10 @@ disco que el archivo. El archivo llega entonces como lo hace `mv`: copiado,
 comprobado y después retirado de su sitio anterior. Con una película grande
 tarda lo que una copia, unos minutos en discos mecánicos; el original no se
 toca hasta que la copia está completa.
+Esa copia se hace en segundo plano: la confirmación se cierra al momento, la
+página del plugin muestra el movimiento en curso y una notificación de Evey
+avisa a los administradores cuando termina, o dice por qué el archivo se
+quedó.
 
 ## Bibliotecas de música { #music-libraries }
 

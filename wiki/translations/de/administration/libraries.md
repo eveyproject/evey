@@ -1,5 +1,5 @@
 ---
-source_sha: a25e43948fb1b1ca28d3c5960a75173e6c08ac3b031384c3720d73f2a4734cc8
+source_sha: b55b50c66f5aacddf2d5e3a77ae2d21f5342d7b0463df662a937014e6c87a998
 reviewed: true
 ---
 # Bibliotheken und Metadaten { #libraries-and-metadata }
@@ -164,6 +164,9 @@ anderen Platte liegen als die Datei. Die Datei kommt dann so dorthin, wie `mv`
 es macht: kopiert, geprüft und danach an ihrem alten Platz entfernt. Bei einem
 großen Film dauert das so lange wie eine Kopie, auf drehenden Platten einige
 Minuten; das Original bleibt unangetastet, bis die Kopie vollständig ist.
+Diese Kopie läuft im Hintergrund: Die Bestätigung schließt sofort, die
+Plugin-Seite zeigt den Vorgang als laufend, und eine Evey-Benachrichtigung
+sagt den Administratoren, wann er fertig ist oder warum die Datei blieb.
 
 ## Musikbibliotheken { #music-libraries }
 

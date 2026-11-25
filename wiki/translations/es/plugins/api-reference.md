@@ -1,5 +1,5 @@
 ---
-source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
+source_sha: 27a961b5b1dd852456317390eed14d854994fa8913a49d3698c3343bf7a21430
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -292,7 +292,7 @@ plugin, y nada se mueve hasta que el administrador dice que sí ahí.
 
 ```js
 const res = await evey.media.trash([id1, id2]);
-// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+// { trashed: [{ id, trashedPath, pending }], failed: [{ id, message }] }
 ```
 
 Si dice que sí, cada archivo va, con sus subtítulos y su `.nfo`, a
@@ -304,7 +304,10 @@ con `cancelled` cuando el administrador dice que no, y con `method not
 permitted` en cualquier sitio que no sea una página `admin.nav` de un plugin
 con `media.trash` en el navegador (las apps de teléfono y TV aún no lo
 ofrecen). Un rechazo por archivo (montaje de solo lectura, archivo ya
-desaparecido) vuelve en `failed`.
+desaparecido) vuelve en `failed`. `pending` es verdadero cuando el archivo
+se copia en segundo plano a una papelera en otro disco: el elemento sigue en
+`evey.media.list` hasta que la copia está completa, y los administradores
+reciben una notificación en cualquier caso.
 
 `evey.media.restore(paths)` lo deshace, con la misma regla: a partir de los
 valores `trashedPath`, Evey devuelve cada archivo y sus subtítulos a su sitio

@@ -1,5 +1,5 @@
 ---
-source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
+source_sha: 27a961b5b1dd852456317390eed14d854994fa8913a49d3698c3343bf7a21430
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -293,7 +293,7 @@ l'administrateur n'a pas dit oui.
 
 ```js
 const res = await evey.media.trash([id1, id2]);
-// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+// { trashed: [{ id, trashedPath, pending }], failed: [{ id, message }] }
 ```
 
 Sur un oui, chaque fichier part, avec ses sous-titres et son `.nfo`, dans
@@ -305,6 +305,10 @@ dossier, et un fichier remis à sa place revient au scan suivant. Un film ou un
 ailleurs que sur une page `admin.nav` d'un plugin qui a `media.trash`, dans le
 navigateur (les apps téléphone et TV ne la proposent pas encore). Un refus par
 fichier (montage en lecture seule, fichier déjà parti) revient dans `failed`.
+`pending` vaut vrai quand le fichier est copié en arrière-plan vers un dossier
+corbeille situé sur un autre disque : l'élément reste dans `evey.media.list`
+jusqu'à ce que la copie soit complète, et les administrateurs reçoivent une
+notification dans tous les cas.
 
 `evey.media.restore(paths)` l'annule, sous la même règle : à partir des
 valeurs `trashedPath`, Evey remet chaque fichier et ses sous-titres à leur

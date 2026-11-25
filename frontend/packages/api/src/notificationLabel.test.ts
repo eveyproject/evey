@@ -15,6 +15,10 @@ const t = (key: string, opts?: Record<string, unknown>): string => {
       return `Mise à jour de plugin en attente de votre accord : ${opts?.name}`;
     case "common.notifications.pluginUpdateRefused":
       return `Mise à jour de plugin refusée : ${opts?.name}`;
+    case "common.notifications.mediaTrashed":
+      return `Mis à la corbeille : ${opts?.name}`;
+    case "common.notifications.mediaTrashFailed":
+      return `Mise à la corbeille impossible : ${opts?.name}`;
     case "common.notifications.seasonCount":
       return count === 1 ? `${count} saison` : `${count} saisons`;
     case "common.notifications.episodeCount":
@@ -31,6 +35,13 @@ describe("notificationLabel", () => {
       .toBe("Mise à jour de plugin en attente de votre accord : weather 1.1.0");
     expect(notificationLabel(t, { type: "plugin_update_refused", title: "Plugin update refused: weather 1.0.2", subject: "weather 1.0.2" }))
       .toBe("Mise à jour de plugin refusée : weather 1.0.2");
+  });
+
+  it("words how a move to the trash across disks ended", () => {
+    expect(notificationLabel(t, { type: "media_trashed", title: "Moved to the trash: No Time to Die", subject: "No Time to Die" }))
+      .toBe("Mis à la corbeille : No Time to Die");
+    expect(notificationLabel(t, { type: "media_trash_failed", title: "Could not move to the trash: No Time to Die", subject: "No Time to Die" }))
+      .toBe("Mise à la corbeille impossible : No Time to Die");
   });
 
   // Seen on the TV on 2026-08-02, in a French UI:

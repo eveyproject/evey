@@ -1,5 +1,5 @@
 ---
-source_sha: a25e43948fb1b1ca28d3c5960a75173e6c08ac3b031384c3720d73f2a4734cc8
+source_sha: b55b50c66f5aacddf2d5e3a77ae2d21f5342d7b0463df662a937014e6c87a998
 reviewed: true
 ---
 # Bibliothèques et métadonnées { #libraries-and-metadata }
@@ -164,6 +164,10 @@ trouver sur un autre disque que le fichier. Le fichier y va alors comme avec
 `mv` : copié, vérifié, puis retiré de son ancienne place. Pour un gros film
 cela prend le temps d'une copie, quelques minutes sur des disques mécaniques ;
 l'original reste intact tant que la copie n'est pas complète.
+Cette copie se fait en arrière-plan : la confirmation se ferme tout de suite,
+la page du plugin montre le déplacement en cours, et une notification Evey
+prévient les administrateurs quand c'est fini, ou dit pourquoi le fichier est
+resté.
 
 ## Bibliothèques de musique { #music-libraries }
 
