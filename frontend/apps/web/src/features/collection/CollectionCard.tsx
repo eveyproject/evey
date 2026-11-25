@@ -16,7 +16,9 @@ export function CollectionCard({ collection }: CollectionCardProps) {
     <Link
       to="/collections/$collectionId"
       params={{ collectionId: collection.id }}
-      className="group block flex-shrink-0 w-32 sm:w-40"
+      // The width of a title card (MediaCard): a home row of collections read
+      // as a row of smaller posters next to the others.
+      className="group block flex-shrink-0 w-40 sm:w-48"
       data-testid="collection-card"
     >
       <div
