@@ -109,7 +109,7 @@ describe("history screen (mobile)", () => {
     expect(api.lastArgs["pagination.page"]).toBe(2);
   });
 
-  it("opens a title, removes one through its own action, and confirms before clearing everything", () => {
+  it("opens a title, removes one through its own action, and confirms before clearing everything", async () => {
     api.pages = { 1: rows("a", 2) };
     render(<HistoryScreen />);
     fireEvent.click(screen.getByRole("button", { name: "Title a1" }));
@@ -117,7 +117,8 @@ describe("history screen (mobile)", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Remove from history" })[0]);
     expect(api.unwatch).toHaveBeenCalledWith({ mediaItemId: "m-a0" });
     api.unwatchOpts.onSuccess();
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["/api/v1/playback/history"] });
+    // One coalesced refresh of every query on screen (see invalidateWatchedState).
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ predicate: expect.any(Function) }), { cancelRefetch: false }));
     api.unwatchOpts.onError();
     expect(toast.error).toHaveBeenCalledWith("Failed to remove from history");
 

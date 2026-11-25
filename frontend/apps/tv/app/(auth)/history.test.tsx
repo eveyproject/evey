@@ -94,7 +94,8 @@ describe("tv history screen", () => {
     expect(api.unwatch).toHaveBeenCalledWith({ mediaItemId: "m-b" });
     const spy = vi.spyOn(qc, "invalidateQueries");
     api.unwatchOpts.onSuccess();
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["/api/v1/playback/history"] });
+    // One coalesced refresh of every query on screen (see invalidateWatchedState).
+    await vi.waitFor(() => expect(spy).toHaveBeenCalledWith(expect.objectContaining({ predicate: expect.any(Function) }), { cancelRefetch: false }));
     api.unwatchOpts.onError();
     expect(toast.error).toHaveBeenCalledWith("Could not remove from history");
   });

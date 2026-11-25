@@ -12,7 +12,7 @@ import {
   usePhotoServiceListPhotoAlbums,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { feedItemToCard } from "@evey/client";
+import { feedItemToCard, filterUnwatched } from "@evey/client";
 import { useTranslation } from "react-i18next";
 import { MediaSlider } from "../../features/home/MediaSlider";
 import { MediaCardWithModals as MediaCard } from "../../features/library/MediaCardWithModals";
@@ -116,12 +116,16 @@ const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryI
     "pagination.pageSize": fetchPageSize,
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
     sortOrder: "SORT_ORDER_DESC",
+    // The server leaves out what this profile has watched, by its one rule.
+    unwatchedOnly: true,
   });
 
+  // A server too old to know unwatchedOnly sends everything and no user_data:
+  // the overlay filters for it.
   const watchedMap = useWatchedMap();
   const items = useMemo(() => {
     const all = data?.items ?? [];
-    return all.filter((it) => !it.id || !watchedMap.get(it.id)).slice(0, visibleTarget);
+    return filterUnwatched(all, watchedMap).slice(0, visibleTarget);
   }, [data, watchedMap, visibleTarget]);
   if (!isLoading && items.length === 0) return null;
 

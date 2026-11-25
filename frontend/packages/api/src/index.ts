@@ -102,7 +102,7 @@ export type {
   V1MediaRepairEntry,
 } from "./generated/admin_media.schemas";
 export type {
-  V1Artwork, V1MediaItem, V1MediaPerson, V1Trailer, V1MediaStream,
+  V1Artwork, V1MediaItem, V1MediaUserData, V1MediaPerson, V1Trailer, V1MediaStream,
   V1Library,
   LibraryServiceListMediaItemsType, LibraryServiceListMediaItemsSortField, LibraryServiceListMediaItemsSortOrder,
   LibraryServiceListMediaItemsParams, V1ListMediaItemsResponse,

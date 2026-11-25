@@ -15,7 +15,7 @@ import { toast, useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { formatDurationMs, isPositive, seasonLabel } from "@evey/api";
 import { artworkUrl } from "./artworkUrl";
-import { sortEpisodesByIndex, useSeriesPlayTarget, useWatchProgressMaps } from "@evey/client";
+import { itemPercent, itemShowsWatched, sortEpisodesByIndex, useSeriesPlayTarget, useWatchProgressMaps } from "@evey/client";
 import { DownloadButton } from "@/features/playback/DownloadButton";
 import { useStreamToken } from "@/hooks/useStreamToken";
 import { useDemoLock } from "@/hooks/useDemoMode";
@@ -352,7 +352,7 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
           as one object. */}
       <div className="grid xl:grid-cols-2 gap-x-6 [&>*]:border-b [&>*]:border-[var(--border)] border-t border-[var(--border)]">
         {episodes.map((ep) => (ep.id ? (
-          <EpisodeRow key={ep.id} ep={ep} percent={percentMap.get(ep.id) ?? 0} watched={watchedMap.get(ep.id) === true} />
+          <EpisodeRow key={ep.id} ep={ep} percent={itemPercent(ep, percentMap)} watched={itemShowsWatched(ep, watchedMap)} />
         ) : null))}
       </div>
     </div>

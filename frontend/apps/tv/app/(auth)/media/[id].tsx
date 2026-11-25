@@ -24,7 +24,7 @@ import { useAuthStore, useDemoStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
-import { RESUME_PROGRESS_QUERY, buildWatchProgressMaps, feedItemsToCards, resumableMs, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, buildWatchProgressMaps, itemShowsWatched, feedItemsToCards, resumableMs, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
@@ -280,10 +280,22 @@ const SeasonShelf = memo(function SeasonShelf({
   );
 });
 
+// A mark made from a row wins until the lists refetch; otherwise the episode's
+// own userData, the overlay only for a server that sends none.
+function episodeShowsWatched(
+  ep: V1MediaItem,
+  overlay: ReadonlyMap<string, boolean>,
+  marks: ReadonlyMap<string, boolean>,
+): boolean {
+  if (ep.id && marks.has(ep.id)) return marks.get(ep.id) === true;
+  return itemShowsWatched(ep, overlay);
+}
+
 const EpisodeList = memo(function EpisodeList({
   episodes,
   visibleCount,
   episodeWatched,
+  episodeMarks,
   demo,
   markPending,
   onToggleWatched,
@@ -294,6 +306,7 @@ const EpisodeList = memo(function EpisodeList({
   episodes: V1MediaItem[];
   visibleCount: number;
   episodeWatched: ReadonlyMap<string, boolean>;
+  episodeMarks: ReadonlyMap<string, boolean>;
   demo: boolean;
   markPending: boolean;
   onToggleWatched: (ep: V1MediaItem) => void;
@@ -315,7 +328,7 @@ const EpisodeList = memo(function EpisodeList({
         </Text>
       </View>
       {episodes.slice(0, visibleCount).map((ep) => {
-        const watched = ep.id ? episodeWatched.get(ep.id) === true : false;
+        const watched = episodeShowsWatched(ep, episodeWatched, episodeMarks);
         return (
         <View key={ep.id} style={{ flexDirection: "row", alignItems: "center" }}>
         <FocusableCard
@@ -671,7 +684,7 @@ export default function MediaDetailScreen() {
     setVisibleEpisodeCount(EPISODE_PAGE_SIZE);
   }, [id]);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
-  const watched = watchedOverride ?? (watchProgress?.played === true);
+  const watched = watchedOverride ?? media?.userData?.played ?? (watchProgress?.played === true);
 
   const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -756,11 +769,10 @@ export default function MediaDetailScreen() {
   const [episodeMarks, setEpisodeMarks] = useState<ReadonlyMap<string, boolean>>(new Map());
   // Same map back when there is nothing to drop, so a re-render is not one.
   useEffect(() => setEpisodeMarks((m) => (m.size === 0 ? m : new Map())), [episodeHistory]);
-  const episodeWatched = useMemo(() => {
-    const { watchedMap } = buildWatchProgressMaps(episodeHistory?.items ?? []);
-    for (const [epId, played] of episodeMarks) watchedMap.set(epId, played);
-    return watchedMap;
-  }, [episodeHistory, episodeMarks]);
+  const episodeWatched = useMemo(
+    () => buildWatchProgressMaps(episodeHistory?.items ?? []).watchedMap,
+    [episodeHistory],
+  );
   const onEpisodeMarked = useCallback((epId: string, played: boolean) => {
     setEpisodeMarks((m) => new Map(m).set(epId, played));
     invalidateWatchedState(qc, epId);
@@ -783,9 +795,9 @@ export default function MediaDetailScreen() {
   const toggleEpisodeWatched = useCallback((ep: V1MediaItem) => {
     if (!ep.id || !profileId) return;
     const vars = { mediaItemId: ep.id, params: { profileId } };
-    if (episodeWatched.get(ep.id)) mutateEpisodeUnwatched(vars);
+    if (episodeShowsWatched(ep, episodeWatched, episodeMarks)) mutateEpisodeUnwatched(vars);
     else mutateEpisodeWatched(vars);
-  }, [profileId, episodeWatched, mutateEpisodeWatched, mutateEpisodeUnwatched]);
+  }, [profileId, episodeWatched, episodeMarks, mutateEpisodeWatched, mutateEpisodeUnwatched]);
   const showMoreEpisodes = useCallback(() => setVisibleEpisodeCount((c) => c + EPISODE_PAGE_SIZE), []);
   const seasons = useMemo(() => (isSeries ? sortByIndexNumber(children) : []), [isSeries, children]);
 
@@ -1132,6 +1144,7 @@ export default function MediaDetailScreen() {
           episodes={episodes}
           visibleCount={visibleEpisodeCount}
           episodeWatched={episodeWatched}
+          episodeMarks={episodeMarks}
           demo={demo}
           markPending={episodeMarkPending}
           onToggleWatched={toggleEpisodeWatched}

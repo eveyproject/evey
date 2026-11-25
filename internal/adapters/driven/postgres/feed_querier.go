@@ -272,32 +272,8 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysW
 			) ep_max ON m.type = 'series' AND ep_max.series_id = m.id
 			WHERE m.type IN ('movie', 'series', 'album')
 		) sub
-		LEFT JOIN LATERAL (
-			SELECT CASE
-				WHEN $3 = '' THEN FALSE
-				WHEN sub.type = 'movie' THEN
-					COALESCE((SELECT completed FROM watch_progress wp WHERE wp.media_item_id = sub.id AND wp.profile_id = $3 LIMIT 1), FALSE)
-				WHEN sub.type = 'series' THEN
-					-- A series is "fully watched" only when EVERY current episode
-					-- has a completed wp row. A newly-added episode without any
-					-- wp row makes the series re-surface on the home page.
-					NOT EXISTS (
-						SELECT 1
-						FROM media_items se
-						JOIN media_items ep ON ep.parent_id = se.id
-						WHERE se.parent_id = sub.id
-						  AND ep.type = 'episode'
-						  AND NOT EXISTS (
-							SELECT 1 FROM watch_progress wp
-							WHERE wp.media_item_id = ep.id
-							  AND wp.profile_id = $3
-							  AND wp.completed = TRUE
-						  )
-					)
-				ELSE FALSE END AS completed
-		) w ON TRUE
 		WHERE sub.effective_added > NOW() - ($1 || ' days')::interval
-		  AND w.completed = FALSE
+		  AND ($3 = '' OR NOT media_watched($3, sub.id))
 		ORDER BY sub.effective_added DESC
 		LIMIT $2
 	`, daysWindow, limit, profileID)
@@ -342,38 +318,13 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 	args = append(args, pq.Array(genres))
 	genresArrIdx := len(args)
 
-	// Filter out items the profile has fully watched. For series, "completed"
-	// means every episode has wp.completed=TRUE; for movies it's the item's
-	// own wp row being completed. Movies/series with NO wp row for the profile
-	// are unwatched (COALESCE FALSE).
+	// Filter out items the profile has watched, by media_watched (migration
+	// 000200): the one rule every list reads.
 	q2 := fmt.Sprintf(`
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '', (%s) AS score
 		FROM media_items mi
 		LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
 		LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id
-		LEFT JOIN LATERAL (
-			SELECT CASE
-				WHEN mi.type = 'movie' THEN
-					COALESCE((SELECT completed FROM watch_progress wp WHERE wp.media_item_id = mi.id AND wp.profile_id = $1 LIMIT 1), FALSE)
-				WHEN mi.type = 'series' THEN
-					-- A series is "fully watched" only when EVERY current episode
-					-- has a completed wp row. A newly-added episode without any
-					-- wp row makes the series re-appear in recommendations.
-					NOT EXISTS (
-						SELECT 1
-						FROM media_items se
-						JOIN media_items ep ON ep.parent_id = se.id
-						WHERE se.parent_id = mi.id
-						  AND ep.type = 'episode'
-						  AND NOT EXISTS (
-							SELECT 1 FROM watch_progress wp
-							WHERE wp.media_item_id = ep.id
-							  AND wp.profile_id = $1
-							  AND wp.completed = TRUE
-						  )
-					)
-				ELSE FALSE END AS completed
-		) w ON TRUE
 		WHERE mi.type IN ('movie', 'series')
 		  -- GIN pre-filter (idx_media_catalog_genres_gin): prune to genre-
 		  -- overlapping candidates by index before the per-row scoring, instead
@@ -381,7 +332,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 		  -- below - both mean "shares at least one of the profile's genres".
 		  AND mc.genres ?| $%d::text[]
 		  AND (%s) >= 1
-		  AND w.completed = FALSE
+		  AND NOT media_watched($1, mi.id)
 		ORDER BY score DESC, mcl.community_rating DESC NULLS LAST
 		LIMIT $%d
 	`, scoreExpr, genresArrIdx, scoreExpr, limitIdx)
@@ -434,37 +385,13 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 		FROM media_items mi
 		LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
 		LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id
-		LEFT JOIN LATERAL (
-			SELECT CASE
-				WHEN mi.type = 'movie' THEN
-					COALESCE((SELECT completed FROM watch_progress wp WHERE wp.media_item_id = mi.id AND wp.profile_id = $2 LIMIT 1), FALSE)
-				WHEN mi.type = 'series' THEN
-					-- A series counts as watched only when EVERY current episode has a
-					-- completed wp row; a series has no wp row of its own, so the old
-					-- "wp.media_item_id = mi.id" check never matched and fully-watched
-					-- series leaked into Similar (unlike Recommended/RecentlyAdded).
-					NOT EXISTS (
-						SELECT 1
-						FROM media_items se
-						JOIN media_items ep ON ep.parent_id = se.id
-						WHERE se.parent_id = mi.id
-						  AND ep.type = 'episode'
-						  AND NOT EXISTS (
-							SELECT 1 FROM watch_progress wp
-							WHERE wp.media_item_id = ep.id
-							  AND wp.profile_id = $2
-							  AND wp.completed = TRUE
-						  )
-					)
-				ELSE FALSE END AS completed
-		) w ON TRUE
 		WHERE mi.id != $1
 		  AND mi.type IN ('movie', 'series')
 		  -- GIN pre-filter (idx_media_catalog_genres_gin): only candidates that
 		  -- share ≥1 linking genre (see linkingGenres), by index. Replaces the
 		  -- INNER JOIN LATERAL score>=1 that forced a per-row genre scan.
 		  AND mc.genres ?| $5::text[]
-		  AND w.completed = FALSE
+		  AND NOT media_watched($2, mi.id)
 		ORDER BY score DESC, mcl.community_rating DESC NULLS LAST
 		LIMIT $4
 	`, mediaItemID, profileID, pq.Array(targetGenres), limit, pq.Array(linkingGenres(targetGenres)))

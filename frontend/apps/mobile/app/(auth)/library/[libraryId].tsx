@@ -67,7 +67,7 @@ import {
   selectableMediaIds,
   SORT_OPTIONS,
 } from "../../../src/components/library/libraryFilterUtils";
-import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState, nextFilterOffset, libraryFilterOptions, showsWatched } from "@evey/client";
+import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState, itemPercent, itemShowsWatched, nextFilterOffset, libraryFilterOptions, showsWatched } from "@evey/client";
 import { POSTER_GRID } from "../../../src/lib/posterGrid";
 
 const NUM_COLUMNS = POSTER_GRID.columns;
@@ -661,8 +661,8 @@ export default function LibraryDetailScreen() {
   const renderItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
       const isSelected = bulkMode && selected.has(item.id ?? "");
-      const watched = item.id ? watchedMap.get(item.id) === true : false;
-      const watchPercent = item.id ? percentMap.get(item.id) : undefined;
+      const watched = itemShowsWatched(item, watchedMap);
+      const watchPercent = item.id ? itemPercent(item, percentMap) : undefined;
       const hasProgress = watchPercent != null && watchPercent > 0;
       const vStream = videoStream(item.streams);
       const resLabel = resolutionLabel(vStream);

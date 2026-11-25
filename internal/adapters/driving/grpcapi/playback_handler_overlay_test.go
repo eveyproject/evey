@@ -87,3 +87,33 @@ func TestPlaybackHandler_WatchHistory_AppliesLocaleAndOverrides(t *testing.T) {
 		assert.Equal(t, want[p.MediaItemId], p.Title, p.MediaItemId)
 	}
 }
+
+// A title marked as watched by hand has no position: the history page leaves it
+// out, but the watched overlay (a call with a bare limit, what the home rails
+// and the library grids filter "already seen" by) must still carry it.
+func TestPlaybackHandler_WatchHistory_OverlayKeepsMarkedTitles(t *testing.T) {
+	h, progressRepo, mediaQueryRepo, _ := newTestPlaybackHandlerFull()
+	ctx := pbUserCtx("user-2", "profile-2")
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-marked", LibraryID: "lib-1", Type: "movie", Title: "Marked"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-played", LibraryID: "lib-1", Type: "movie", Title: "Played"})
+	require.NoError(t, progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-marked", ProfileID: "profile-2", MediaItemID: "mi-marked", Completed: true, PlayCount: 1, LastPlayedAt: time.Now(),
+	}))
+	require.NoError(t, progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-played", ProfileID: "profile-2", MediaItemID: "mi-played",
+		Position: mustPlaybackDurationMs(t, 10000), LastPlayedAt: time.Now().Add(-time.Minute),
+	}))
+
+	overlay, err := h.GetWatchHistory(ctx, &eveyv1.GetWatchHistoryRequest{Limit: 500})
+	require.NoError(t, err)
+	played := map[string]bool{}
+	for _, it := range overlay.Items {
+		played[it.MediaItemId] = it.Played
+	}
+	assert.Equal(t, map[string]bool{"mi-marked": true, "mi-played": false}, played, "the overlay carries the marked title")
+
+	page, err := h.GetWatchHistory(ctx, &eveyv1.GetWatchHistoryRequest{Pagination: &eveyv1.PaginationRequest{PageSize: 10}})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, "mi-played", page.Items[0].MediaItemId, "the history page lists what was played")
+}

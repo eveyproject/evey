@@ -44,7 +44,9 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
   }),
 }));
 vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-server" }));
-vi.mock("../../../src/hooks/useWatchedMap", () => ({ useWatchedMap: () => ({ get: () => false }) }));
+vi.mock("../../../src/hooks/useWatchedMap", () => ({ useWatchedMap: () => ({ get: () => false }),
+  filterUnwatched: (items: any[]) => items.filter((i) => i.userData?.played !== true),
+}));
 vi.mock("../../../src/features/plugins/PluginSlot", () => ({ PluginSlot: () => null }));
 vi.mock("../../../src/components/Skeleton", () => ({ Skeleton: () => null, SkeletonRow: () => null }));
 vi.mock("../../../src/components/MediaRow", () => ({ MediaRow: () => null, default: () => null }));

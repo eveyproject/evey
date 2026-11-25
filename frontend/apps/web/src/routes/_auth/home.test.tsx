@@ -15,6 +15,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const resumeHook = vi.fn(() => ({ data: { items: [], progress: [] }, isLoading: false }));
+const listItemsHook = vi.fn((..._a: unknown[]) => ({ data: { items: [] as unknown[] }, isLoading: false }));
+const historyHook = vi.fn(() => ({ data: { items: [] as unknown[] }, isLoading: false }));
 
 vi.mock("@evey/api", () => ({
   useFeedServiceRecommended: () => ({ data: { items: [] }, isLoading: false }),
@@ -24,10 +26,10 @@ vi.mock("@evey/api", () => ({
   useCollectionServiceListCollections: () => ({ data: { collections: [] }, isLoading: false }),
   useActivityServiceGetPopularMedia: () => ({ data: [], isLoading: false }),
   WATCH_HISTORY_OVERLAY_LIMIT: 500,
-  usePlaybackServiceGetWatchHistory: () => ({ data: { items: [] }, isLoading: false }),
+  usePlaybackServiceGetWatchHistory: () => historyHook(),
   useFeedServiceBecauseYouWatched: () => ({ data: { items: [] }, isLoading: false }),
   useLibraryServiceListLibraries: () => librariesHook(),
-  useLibraryServiceListMediaItems: () => ({ data: { items: [] }, isLoading: false }),
+  useLibraryServiceListMediaItems: (...a: unknown[]) => listItemsHook(...a),
   useMusicServiceGetAlbums: () => ({ data: { albums: [] }, isLoading: false }),
   usePhotoServiceListPhotoAlbums: () => ({ data: { albums: [] }, isLoading: false }),
 }));
@@ -36,12 +38,14 @@ vi.mock("@evey/api", () => ({
 // percent at all - the audited bug was a prop never passed), so the card is a
 // probe that echoes its props.
 vi.mock("../../features/library/MediaCardWithModals", () => ({
-  MediaCardWithModals: ({ item, progressPercent, showProgress }: { item: { title?: string }; progressPercent?: number; showProgress?: boolean }) =>
-    React.createElement(
-      "div",
-      { "data-testid": "resume-card", "data-progress": String(progressPercent), "data-show-progress": String(showProgress) },
-      item.title,
-    ),
+  MediaCardWithModals: ({ item, progressPercent, showProgress }: { item: { id?: string; title?: string }; progressPercent?: number; showProgress?: boolean }) =>
+    item.title === undefined
+      ? React.createElement("div", { "data-testid": "rail-card" }, item.id)
+      : React.createElement(
+        "div",
+        { "data-testid": "resume-card", "data-progress": String(progressPercent), "data-show-progress": String(showProgress) },
+        item.title,
+      ),
 }));
 
 vi.mock("@evey/store", () => ({
@@ -128,5 +132,26 @@ describe("HomePage", () => {
     render(React.createElement(HomePage), { wrapper: createWrapper() });
 
     await waitFor(() => expect(screen.getByText("Offline")).toBeInTheDocument());
+  });
+
+  // The bug that kept coming back: a title marked watched by hand stayed on the
+  // home's library rail. The rail asks the server for the unwatched only, and
+  // hides by the server's own mark; the overlay answers only for a title an
+  // older server sent without one.
+  it("keeps what this profile watched off a library rail, by the server's mark", async () => {
+    librariesHook.mockReturnValue({ data: { libraries: [{ id: "lib-1", name: "Films", type: "LIBRARY_TYPE_MOVIES" }] }, isLoading: false, isError: false, error: null, refetch: vi.fn() });
+    feedConfigHook.mockReturnValue({ data: { configs: [{ feedType: "library:lib-1", enabled: true, displayOrder: 0 }] }, isError: false } as never);
+    historyHook.mockReturnValue({ data: { items: [{ mediaItemId: "old-server-seen", played: true }] }, isLoading: false });
+    listItemsHook.mockReturnValue({ data: { items: [
+      { id: "marked-by-hand", userData: { played: true } },
+      { id: "unseen", userData: { played: false } },
+      { id: "old-server-seen" },
+      { id: "old-server-unseen" },
+    ] }, isLoading: false });
+    const HomePage = await getHomePage();
+    render(React.createElement(HomePage), { wrapper: createWrapper() });
+    await waitFor(() => expect(screen.getAllByTestId("rail-card").length).toBeGreaterThan(0));
+    expect(screen.getAllByTestId("rail-card").map((c) => c.textContent)).toEqual(["unseen", "old-server-unseen"]);
+    expect(listItemsHook).toHaveBeenCalledWith(expect.objectContaining({ libraryId: "lib-1", unwatchedOnly: true }));
   });
 });

@@ -102,7 +102,8 @@ export function MediaDetailActions({
   const { data: progress } = usePlaybackServiceGetWatchProgress(item.id!, undefined, {
     query: { ...RESUME_PROGRESS_QUERY, enabled: !!item.id, retry: false },
   });
-  const watched = watchedOverride ?? (progress?.played === true);
+  // The server's rule when it sent one (a series once every episode is done).
+  const watched = watchedOverride ?? (item.userData ? item.userData.played === true : progress?.played === true);
   const resumeMs = progress?.positionMs;
   // A film seen before and watched again resumes too: see resumableMs.
   const hasProgress = resumableMs(progress) > 0;

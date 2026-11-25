@@ -222,6 +222,6 @@ describe("FavoritesScreen bulk actions run one at a time", () => {
     expect(markUnwatchedMock).not.toHaveBeenCalled();
     expect(markWatchedMock).toHaveBeenCalledTimes(1);
     // The batch refreshes the watched badges and the home rows once it ends.
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["/api/v1/playback/history"] });
+    await vi.waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith(expect.objectContaining({ predicate: expect.any(Function) }), { cancelRefetch: false }));
   });
 });

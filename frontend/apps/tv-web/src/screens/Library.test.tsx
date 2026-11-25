@@ -110,6 +110,27 @@ describe("the library screen", () => {
 // A library of a few thousand titles must not put a few thousand cards in
 // front of a television. Everything fetched stays in memory; the window is
 // what the document holds.
+describe("a grid card's watched mark", () => {
+  const withItem = (item: Record<string, unknown>) =>
+    infinite.mockReturnValue({
+      data: { pages: [{ items: [item], pagination: { totalItems: 1 } }] },
+      isLoading: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage, refetch: vi.fn(),
+    });
+
+  it("wears the mark from the item's own user data, absent from the overlay", () => {
+    withItem({ id: "a", title: "Alpha", userData: { played: true, playCount: 1, percentComplete: 100 } });
+    const { container } = render(<LibraryScreen libraryId="lib-1" />);
+    expect(container.querySelector(".watched-mark.on")).not.toBeNull();
+  });
+
+  it("has no mark for an unplayed item with user data", () => {
+    withItem({ id: "a", title: "Alpha", userData: { played: false, playCount: 0 } });
+    const { container } = render(<LibraryScreen libraryId="lib-1" />);
+    expect(container.querySelector(".watched-mark")).not.toBeNull();
+    expect(container.querySelector(".watched-mark.on")).toBeNull();
+  });
+});
+
 describe("renderWindow", () => {
   it("renders everything while the list is small", () => {
     expect(renderWindow(40, 0, 6)).toEqual({ start: 0, end: 40 });

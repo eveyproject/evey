@@ -217,6 +217,22 @@ message MediaItem {
   // than making index_number optional, a cardinality change buf breaking
   // refuses.
   bool has_index_number = 35;
+  // What the requesting profile did with this title, filled on every read
+  // that returns a MediaItem. Clients read the watched mark and the progress
+  // here, never from a list of their own.
+  MediaUserData user_data = 36;
+}
+
+// played is the server's one rule (media_watched): a film or an episode by
+// its completed row, a series or a season once every episode is completed.
+// position_ms, duration_ms and percent_complete are the item's own progress
+// row (0 for a series or a season).
+message MediaUserData {
+  bool played = 1;
+  int64 position_ms = 2;
+  int64 duration_ms = 3;
+  double percent_complete = 4;
+  int32 play_count = 5;
 }
 
 message Rating {
@@ -512,6 +528,9 @@ message ListMediaItemsRequest {
   // trailers, certifications, studios, external ratings or ids, and no cast
   // unless person_id is set. A grid page weighed ~8 KB per item without it.
   bool summary = 10;
+  // Keep only what the requesting profile has not watched (MediaUserData
+  // played): what a home rail shows.
+  bool unwatched_only = 11;
 }
 
 message ListMediaItemsResponse {

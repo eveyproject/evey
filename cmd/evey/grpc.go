@@ -269,6 +269,8 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		authInterceptor.Unary(),
 		profileHoursInterceptor.Unary(),
 		impersonationGuard.Unary(),
+		// Every MediaItem an answer carries gets the caller's watched mark here.
+		grpcapi.MediaUserDataUnary(grpcDeps.PlaybackQuery),
 		// Innermost: it sees the handler's own refusals, with their message key.
 		grpcapi.AccountAuditUnary(deps.engagement.activityCmdSvc),
 	}

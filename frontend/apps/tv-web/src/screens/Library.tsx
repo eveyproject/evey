@@ -25,6 +25,8 @@ import {
   buildPlayAllQueue,
   canPlayAllForSelection,
   isHdrStream,
+  itemPercent,
+  itemShowsWatched,
   pickRandomItem,
   resolutionLabel,
   useDebounce,
@@ -322,8 +324,8 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
                       rating={item.communityRating}
                       resolution={resolutionLabel(v)}
                       hdr={isHdrStream(v)}
-                      watched={watchedMap.get(item.id) === true}
-                      percent={percentMap.get(item.id)}
+                      watched={itemShowsWatched(item, watchedMap)}
+                      percent={itemPercent(item, percentMap)}
                       autoFocus={window.start + i === 0}
                       onFocus={cardFocused(item.id, window.start + i)}
                       onPress={openMedia(item.id, item.id)}

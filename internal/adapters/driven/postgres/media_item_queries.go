@@ -179,6 +179,11 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		args = append(args, *f.PersonID)
 		argIdx++
 	}
+	if f.UnwatchedBy != "" {
+		conditions = append(conditions, fmt.Sprintf("NOT media_watched($%d, mi.id)", argIdx))
+		args = append(args, f.UnwatchedBy)
+		argIdx++
+	}
 	if f.MissingProviderIDs != nil {
 		if *f.MissingProviderIDs {
 			conditions = append(conditions, "(mc.provider_ids IS NULL OR mc.provider_ids = '{}'::jsonb)")

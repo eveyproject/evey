@@ -157,6 +157,46 @@ func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID 
 	return result, nil
 }
 
+func (r *FakeWatchProgressRepository) GetWatchStates(_ context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*playback.WatchProgress
+	for _, wp := range r.items {
+		if string(wp.ProfileID) == profileID {
+			result = append(result, wp)
+		}
+	}
+	sort.SliceStable(result, func(i, j int) bool { return result[i].LastPlayedAt.After(result[j].LastPlayedAt) })
+	if limit > 0 && limit < len(result) {
+		result = result[:limit]
+	}
+	return result, nil
+}
+
+// UserData reads each id's own row: the series rule (every episode) is the
+// SQL's, pinned by the postgres adapter's tests.
+func (r *FakeWatchProgressRepository) UserData(_ context.Context, profileID string, mediaItemIDs []string) (map[string]playback.UserData, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make(map[string]playback.UserData, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		var ud playback.UserData
+		for _, wp := range r.items {
+			if string(wp.ProfileID) == profileID && string(wp.MediaItemID) == id {
+				ud = playback.UserData{Played: wp.Completed, Position: wp.Position, PlayCount: wp.PlayCount}
+			}
+		}
+		out[id] = ud
+	}
+	return out, nil
+}
+
 func (r *FakeWatchProgressRepository) GetByProfileCursor(_ context.Context, profileID string, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
 	if r.Err != nil {
 		return nil, r.Err

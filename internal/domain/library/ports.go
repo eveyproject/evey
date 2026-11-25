@@ -58,6 +58,9 @@ type ListMediaItemsFilter struct {
 	// the strict pass to the caller.
 	Parental *ParentalRule
 	PersonID *string // filter to items featuring this person
+	// UnwatchedBy, when set, keeps only what this profile has not watched,
+	// by media_watched (migration 000200): the rule every home rail reads.
+	UnwatchedBy string
 	// MissingProviderIDs filters by whether the item's Catalog.ProviderIDs is
 	// effectively empty (NULL row in media_catalog or provider_ids = '{}').
 	// nil = no filter; true = only orphans; false = only matched items.
