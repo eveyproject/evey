@@ -142,6 +142,9 @@ than the file. The file then gets there the way `mv` does it: copied, checked,
 then removed from its old place. For a large film that takes the time of a
 copy, a few minutes on spinning disks; the original stays untouched until the
 copy is whole.
+That copy runs in the background: the confirmation closes at once, the
+plugin page shows the move as in progress, and an Evey notification tells the
+administrators when it is done, or why the file stayed.
 
 ## Music libraries
 

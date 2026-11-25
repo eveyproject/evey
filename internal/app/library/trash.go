@@ -38,51 +38,141 @@ var ErrTrashNoFile = errors.New("media item has no file of its own")
 // write outside what the administrator pointed Evey at.
 var ErrTrashOutsideLibrary = errors.New("media file is outside its library's folders")
 
+// TrashResult is where a trashed file is, or will be. Pending means the
+// file had to be copied to another disk and the copy runs in the background:
+// the item leaves Evey when it is whole, and a MediaTrashFinished event says
+// how it ended.
+type TrashResult struct {
+	TrashedPath string
+	Pending     bool
+}
+
+// trashJob is a move to the trash that must copy across disks.
+type trashJob struct {
+	id, title, from, dest, destDir string
+}
+
 // TrashMediaItem moves one media file, with the files beside it that share
 // its name (subtitles, .nfo), to <library root>/.evey-trash/<same relative
 // path>, then removes the item from Evey the way an admin delete does. The
 // file is moved, never deleted: getting it back is a move in the other
-// direction and a scan. When the trash folder is on another disk than the
-// file (a pooled library), the move is a copy then a removal, as mv does. It
-// returns where the file now is.
+// direction and a scan.
 //
-// The move comes first: if it fails (a read-only mount, a file already gone)
-// the item stays in Evey untouched.
-func (s *CommandService) TrashMediaItem(ctx context.Context, id string) (string, error) {
+// A move within one disk is a rename, done before this returns. When the
+// trash folder is on another disk than the file (a pooled library) the move
+// is a copy then a removal, as mv does, minutes for a large film: it is
+// queued, this returns at once with Pending, and the background worker
+// copies one file at a time. Asked again while its copy waits or runs, the
+// same item answers the same pending move.
+//
+// Until the file is whole in the trash the item stays in Evey untouched; a
+// move that fails (a read-only mount, a full disk) leaves both in place.
+func (s *CommandService) TrashMediaItem(ctx context.Context, id string) (TrashResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.TrashMediaItem")
 	defer span.End()
+	if dest, ok := s.trashPending.Load(id); ok {
+		return TrashResult{TrashedPath: dest.(string), Pending: true}, nil
+	}
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(id))
 	if err != nil {
-		return "", fmt.Errorf("CommandService.TrashMediaItem: %w", err)
+		return TrashResult{}, fmt.Errorf("CommandService.TrashMediaItem: %w", err)
 	}
 	if !item.IsPlayable() {
-		return "", fmt.Errorf("CommandService.TrashMediaItem: %w", ErrTrashNoFile)
+		return TrashResult{}, fmt.Errorf("CommandService.TrashMediaItem: %w", ErrTrashNoFile)
 	}
 	lib, err := s.scan.libQueries.GetByID(ctx, item.LibraryID)
 	if err != nil {
-		return "", fmt.Errorf("CommandService.TrashMediaItem: library: %w", err)
+		return TrashResult{}, fmt.Errorf("CommandService.TrashMediaItem: library: %w", err)
 	}
 	root := libraryRootOf(lib.Paths, item.File.Path)
 	if root == "" {
-		return "", fmt.Errorf("CommandService.TrashMediaItem: %w", ErrTrashOutsideLibrary)
+		return TrashResult{}, fmt.Errorf("CommandService.TrashMediaItem: %w", ErrTrashOutsideLibrary)
 	}
-	// Across disks the move is a copy, minutes for a large film: once begun it
-	// finishes, and the item is removed, even if the caller hangs up.
-	ctx = context.WithoutCancel(ctx)
-	dest, err := moveToTrash(root, item.File.Path)
+	from := item.File.Path
+	destDir, dest, err := trashDestination(root, from)
 	if err != nil {
-		return "", fmt.Errorf("CommandService.TrashMediaItem: %w", err)
+		return TrashResult{}, fmt.Errorf("CommandService.TrashMediaItem: %w", err)
 	}
+	// The item's removal must not depend on the caller staying.
+	ctx = context.WithoutCancel(ctx)
+	err = rename(from, dest)
+	switch {
+	case err == nil:
+		moveCompanions(from, destDir)
+		if derr := s.finishTrash(ctx, id, from, dest); derr != nil {
+			return TrashResult{TrashedPath: dest}, fmt.Errorf("CommandService.TrashMediaItem: %w", derr)
+		}
+		return TrashResult{TrashedPath: dest}, nil
+	case errors.Is(err, syscall.EXDEV):
+		if prev, loaded := s.trashPending.LoadOrStore(id, dest); loaded {
+			return TrashResult{TrashedPath: prev.(string), Pending: true}, nil
+		}
+		s.enqueueTrash(trashJob{id: id, title: item.Title, from: from, dest: dest, destDir: destDir})
+		slog.InfoContext(ctx, "library: move to the trash queued, the file is copied to another disk",
+			slog.String("mediaItemID", id), slog.String("from", from), slog.String("to", dest))
+		return TrashResult{TrashedPath: dest, Pending: true}, nil
+	default:
+		return TrashResult{}, fmt.Errorf("CommandService.TrashMediaItem: move to trash: %w", err)
+	}
+}
+
+// finishTrash removes the item once its file is in the trash.
+func (s *CommandService) finishTrash(ctx context.Context, id, from, dest string) error {
 	if err := s.DeleteMediaItem(ctx, id); err != nil {
 		// The file is in the trash and the row still points at its old place:
 		// the next scan sees it missing and offers to remove it. Say so.
 		slog.ErrorContext(ctx, "library: file moved to the trash but the item could not be removed",
 			slog.String("mediaItemID", id), slog.String("trashed", dest), slog.Any("err", err))
-		return dest, fmt.Errorf("CommandService.TrashMediaItem: %w", err)
+		return err
 	}
 	slog.InfoContext(ctx, "library: media file moved to the trash",
-		slog.String("mediaItemID", id), slog.String("from", item.File.Path), slog.String("to", dest))
-	return dest, nil
+		slog.String("mediaItemID", id), slog.String("from", from), slog.String("to", dest))
+	return nil
+}
+
+// enqueueTrash hands a cross-disk move to the worker, started on first use.
+// One copy at a time: several would only make the disks seek between them.
+func (s *CommandService) enqueueTrash(job trashJob) {
+	s.trashOnce.Do(func() {
+		s.trashQueue = make(chan trashJob, 256)
+		go s.runTrashWorker()
+	})
+	s.trashQueue <- job
+}
+
+func (s *CommandService) runTrashWorker() {
+	ctx := s.trashCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for job := range s.trashQueue {
+		if s.trashHold != nil {
+			<-s.trashHold
+		}
+		s.runTrashJob(ctx, job)
+	}
+}
+
+func (s *CommandService) runTrashJob(ctx context.Context, job trashJob) {
+	defer s.trashPending.Delete(job.id)
+	evt := library.MediaTrashFinished{MediaItemID: shared.MediaItemID(job.id), Title: job.title, TrashedPath: job.dest}
+	err := copyThenRemove(ctx, job.from, job.dest)
+	if err == nil {
+		moveCompanions(job.from, job.destDir)
+		err = s.finishTrash(ctx, job.id, job.from, job.dest)
+	} else {
+		slog.WarnContext(ctx, "library: move to the trash failed, the file stays",
+			slog.String("mediaItemID", job.id), slog.String("file", job.from), slog.Any("err", err))
+	}
+	if err != nil {
+		evt.Err = err.Error()
+	}
+	evt.OccurredAt = time.Now()
+	if s.events != nil {
+		if perr := s.events.Publish(context.WithoutCancel(ctx), evt); perr != nil {
+			slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", perr))
+		}
+	}
 }
 
 // libraryRootOf returns the library root the path lies under, the longest
@@ -102,19 +192,29 @@ func libraryRootOf(roots []string, path string) string {
 	return best
 }
 
-// moveToTrash renames the file and its same-name companions into the trash
-// under root, keeping their path relative to root. A name already taken in
-// the trash (the same title trashed twice) gets a timestamp, never overwrites.
-func moveToTrash(root, path string) (string, error) {
+// trashDestination makes the trash folder for path and picks its name
+// there: <root>/.evey-trash/<same relative path>, a timestamp added when the
+// name is taken (the same title trashed twice), never an overwrite.
+func trashDestination(root, path string) (string, string, error) {
 	rel, err := filepath.Rel(root, path)
 	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
-		return "", ErrTrashOutsideLibrary
+		return "", "", ErrTrashOutsideLibrary
 	}
 	destDir := filepath.Join(root, TrashDirName, filepath.Dir(rel))
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return "", fmt.Errorf("create trash folder: %w", err)
+		return "", "", fmt.Errorf("create trash folder: %w", err)
 	}
-	dest := freeName(filepath.Join(destDir, filepath.Base(path)))
+	return destDir, freeName(filepath.Join(destDir, filepath.Base(path))), nil
+}
+
+// moveToTrash moves the file and its companions into the trash in one go,
+// copying across disks if it must. TrashMediaItem splits the same steps to
+// answer before a long copy; this whole form serves the tests and tools.
+func moveToTrash(root, path string) (string, error) {
+	destDir, dest, err := trashDestination(root, path)
+	if err != nil {
+		return "", err
+	}
 	if err := moveFile(path, dest); err != nil {
 		return "", fmt.Errorf("move to trash: %w", err)
 	}
@@ -162,10 +262,12 @@ func moveFile(from, to string) error {
 	if err == nil || !errors.Is(err, syscall.EXDEV) {
 		return err
 	}
-	return copyThenRemove(from, to)
+	return copyThenRemove(context.Background(), from, to)
 }
 
-func copyThenRemove(from, to string) (err error) {
+// copyThenRemove is the cross-disk half of moveFile. ctx stops it between
+// chunks (a server shutting down): the original stays, the partial goes.
+func copyThenRemove(ctx context.Context, from, to string) (err error) {
 	// O_NOFOLLOW and a regular file only: a copy, unlike a rename, reads what
 	// a link points at, and a link planted in a library could otherwise bring
 	// a server secret into it.
@@ -182,6 +284,11 @@ func copyThenRemove(from, to string) (err error) {
 		return fmt.Errorf("copy across disks: %s is not a regular file", from)
 	}
 	partial := to + partialSuffix
+	// A partial left by a copy a shutdown cut short is ours (only Evey writes
+	// in the trash); it would block this copy for good.
+	if st, serr := os.Lstat(partial); serr == nil && st.Mode().IsRegular() {
+		_ = os.Remove(partial) //nolint:gosec // G703 FP: a .evey-partial file inside the trash folder, written by Evey alone
+	}
 	dst, err := os.OpenFile(partial, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm()) //nolint:gosec // G304 FP: next to a destination under the library root
 	if err != nil {
 		return err
@@ -194,7 +301,7 @@ func copyThenRemove(from, to string) (err error) {
 			}
 		}
 	}()
-	n, err := io.CopyBuffer(dst, src, make([]byte, 4<<20))
+	n, err := io.CopyBuffer(dst, ctxReader{ctx: ctx, r: src}, make([]byte, 4<<20))
 	if err != nil {
 		return fmt.Errorf("copy across disks: %w", err)
 	}
@@ -219,6 +326,19 @@ func copyThenRemove(from, to string) (err error) {
 		slog.Warn("library: moved by copy, the original could not be removed", slog.String("file", from), slog.Any("err", rmErr))
 	}
 	return nil
+}
+
+// ctxReader stops a copy when ctx ends.
+type ctxReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (c ctxReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.r.Read(p)
 }
 
 func freeName(p string) string {

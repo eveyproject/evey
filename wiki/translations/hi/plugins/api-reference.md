@@ -1,5 +1,5 @@
 ---
-source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
+source_sha: 27a961b5b1dd852456317390eed14d854994fa8913a49d3698c3343bf7a21430
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -282,7 +282,7 @@ Evey से मीडिया फ़ाइलों को उनकी ला�
 
 ```js
 const res = await evey.media.trash([id1, id2]);
-// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+// { trashed: [{ id, trashedPath, pending }], failed: [{ id, message }] }
 ```
 
 हाँ कहने पर हर फ़ाइल, अपने सबटाइटल और `.nfo` के साथ, अपनी लाइब्रेरी की जड़ में
@@ -292,7 +292,9 @@ const res = await evey.media.trash([id1, id2]);
 ना कहने पर promise `cancelled` के साथ reject होता है, और ब्राउज़र में `media.trash`
 वाले प्लगइन के `admin.nav` पेज के अलावा कहीं भी `method not permitted` के साथ (फ़ोन
 और TV ऐप अभी यह नहीं देते)। किसी एक फ़ाइल का इनकार (रीड-ओनली माउंट, फ़ाइल पहले
-ही गायब) `failed` में लौटता है।
+ही गायब) `failed` में लौटता है। `pending` तब true होता है जब फ़ाइल बैकग्राउंड में किसी
+दूसरे डिस्क के ट्रैश फ़ोल्डर में कॉपी हो रही हो: कॉपी पूरी होने तक आइटम
+`evey.media.list` में रहता है, और एडमिन को हर हाल में सूचना मिलती है।
 
 `evey.media.restore(paths)` इसे उसी नियम के तहत पलटता है: `trashedPath` मानों से Evey
 हर फ़ाइल और उसके सबटाइटल को उनकी जगह वापस रखता है और लाइब्रेरी स्कैन करता है, ताकि

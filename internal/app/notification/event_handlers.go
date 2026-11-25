@@ -175,6 +175,49 @@ func (s *CommandService) handlePluginUpdateAttention(parentCtx context.Context, 
 		slog.String("outcome", string(e.Outcome)), slog.Int("admins", len(profiles)))
 }
 
+// handleMediaTrashFinished tells the admins how a move to the trash that had
+// to copy across disks ended, minutes after they asked for it. The subject is
+// the title; the message is where the file now is, or why it stayed.
+func (s *CommandService) handleMediaTrashFinished(parentCtx context.Context, ev shared.Event) {
+	defer func() {
+		if rv := recover(); rv != nil {
+			slog.ErrorContext(parentCtx, "handleMediaTrashFinished panic recovered", slog.Any("panic", rv))
+		}
+	}()
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+	e, ok := ev.(library.MediaTrashFinished)
+	if !ok {
+		return
+	}
+	typ, title, key, msg := notification.TypeMediaTrashed, "Moved to the trash: ", "notifications.push.media_trashed.title", e.TrashedPath
+	if e.Err != "" {
+		typ, title, key, msg = notification.TypeMediaTrashFailed, "Could not move to the trash: ", "notifications.push.media_trash_failed.title", e.Err
+	}
+	title += e.Title
+	push := pushSpec{key: key, params: map[string]string{"title": e.Title}, fallback: title}
+	profiles, err := s.listAdminTargetProfiles(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "notification: list admin profiles for media.trash.finished", slog.Any("err", err))
+		return
+	}
+	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	fanoutID := uuid.New().String()
+	for _, p := range profiles {
+		n, err := notification.NewNotification(uuid.New().String(), p.ID, typ, title,
+			notification.WithNotificationMessage(msg),
+			notification.WithLabelParts(e.Title, 0, 0),
+			notification.WithNotificationLevel(notification.LevelAll),
+			notification.WithNotificationExpiresAt(&expires),
+		)
+		if err != nil {
+			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			continue
+		}
+		s.persistAndDispatch(ctx, n, push, p.Locale, fanoutID)
+	}
+}
+
 // listAdminTargetProfiles prefers the optional AdminProfileLister so
 // plugin errors page only admin users. Falls back to all profiles when
 // no admin lookup is wired (keeps dev/test setups working).

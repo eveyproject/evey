@@ -280,7 +280,7 @@ nothing moves until the administrator says yes there.
 
 ```js
 const res = await evey.media.trash([id1, id2]);
-// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+// { trashed: [{ id, trashedPath, pending }], failed: [{ id, message }] }
 ```
 
 On yes, each file goes, with its subtitles and `.nfo`, to `.evey-trash` at
@@ -291,7 +291,10 @@ an episode only: a series is a folder. The promise is rejected with
 `cancelled` when the administrator says no, and with `method not permitted`
 anywhere but an `admin.nav` page of a plugin granted `media.trash` in the
 browser (the phone and TV apps do not offer it yet). A refusal per file (a
-read-only mount, a file already gone) comes back in `failed`.
+read-only mount, a file already gone) comes back in `failed`. `pending` is
+true when the file is being copied to a trash folder on another disk in the
+background: the item stays in `evey.media.list` until the copy is whole, and
+the administrators get a notification either way.
 
 `evey.media.restore(paths)` undoes it, under the same rule: given the
 `trashedPath` values, Evey moves each file and its subtitles back where it

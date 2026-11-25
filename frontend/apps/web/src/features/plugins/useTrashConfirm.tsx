@@ -31,7 +31,8 @@ export interface TrashCandidate {
 }
 
 export interface TrashResult {
-  trashed: { id: string; trashedPath: string }[];
+  /** pending: the file is being copied to another disk in the background. */
+  trashed: { id: string; trashedPath: string; pending: boolean }[];
   failed: { id: string; message: string }[];
 }
 
@@ -121,8 +122,8 @@ export function useTrashConfirm() {
     const result: TrashResult = { trashed: [], failed: [] };
     for (const c of candidates) {
       try {
-        const res = await eveyFetch<{ trashedPath?: string }>({ url: `/api/v1/admin/media/${encodeURIComponent(c.id)}/trash`, method: "POST" });
-        result.trashed.push({ id: c.id, trashedPath: res.trashedPath ?? "" });
+        const res = await eveyFetch<{ trashedPath?: string; pending?: boolean }>({ url: `/api/v1/admin/media/${encodeURIComponent(c.id)}/trash`, method: "POST" });
+        result.trashed.push({ id: c.id, trashedPath: res.trashedPath ?? "", pending: !!res.pending });
       } catch (err) {
         result.failed.push({ id: c.id, message: err instanceof Error ? err.message : String(err) });
       }

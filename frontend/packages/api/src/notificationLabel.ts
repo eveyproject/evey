@@ -28,6 +28,8 @@ const TITLE_KEYS: Record<string, string> = {
   request_answered: "common.notifications.requestAnswered",
   plugin_update_held: "common.notifications.pluginUpdateHeld",
   plugin_update_refused: "common.notifications.pluginUpdateRefused",
+  media_trashed: "common.notifications.mediaTrashed",
+  media_trash_failed: "common.notifications.mediaTrashFailed",
 };
 
 // The English labels the server stored for media request notifications before

@@ -44,6 +44,10 @@ push:
     title: "Plugin-Update wartet auf Ihre Freigabe: {plugin}"
   plugin_update_refused:
     title: "Plugin-Update abgelehnt: {plugin}"
+  media_trashed:
+    title: "In den Papierkorb verschoben: {title}"
+  media_trash_failed:
+    title: "Konnte nicht in den Papierkorb: {title}"
   # Push bodies for the media request events: the stored Message is a
   # machine value the clients translate; the push is rendered here.
   media_type:

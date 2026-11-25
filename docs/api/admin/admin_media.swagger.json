@@ -585,7 +585,7 @@
     },
     "/api/v1/admin/media/{id}/trash": {
       "post": {
-        "summary": "TrashMediaItem moves a movie or episode file, with its subtitles and\n.nfo, to .evey-trash at the root of its library (same relative path),\nthen removes the item as DeleteMediaItem does. Nothing is deleted from\ndisk: emptying the trash is the administrator's own call.",
+        "summary": "TrashMediaItem moves a movie or episode file, with its subtitles and\n.nfo, to .evey-trash at the root of its library (same relative path),\nthen removes the item as DeleteMediaItem does. Nothing is deleted from\ndisk: emptying the trash is the administrator's own call. A move across\ndisks (a pooled library) is a copy, done in the background: the answer\ncomes at once with pending set.",
         "operationId": "AdminMediaService_TrashMediaItem",
         "responses": {
           "200": {
@@ -1791,7 +1791,11 @@
       "properties": {
         "trashedPath": {
           "type": "string",
-          "description": "Where the file now is, inside the library's .evey-trash folder."
+          "description": "Where the file now is, or will be, inside the library's .evey-trash folder."
+        },
+        "pending": {
+          "type": "boolean",
+          "description": "The trash folder is on another disk than the file: the file is being\ncopied there in the background. The item leaves Evey when the copy is\nwhole, and the administrators get a notification either way."
         }
       }
     },

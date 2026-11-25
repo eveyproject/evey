@@ -36,17 +36,19 @@ func TestTypeConstants(t *testing.T) {
 func TestType_IsValid_Notification(t *testing.T) {
 	t.Parallel()
 	cases := map[notification.Type]bool{
-		notification.TypeNewMovie:       true,
-		notification.TypeNewEpisode:     true,
-		notification.TypeNewSeason:      true,
-		notification.TypeNewSeries:      true,
-		notification.TypeNewAlbum:       true,
-		notification.TypeLibraryScanned: true,
-		notification.TypeBackupFailed:   true,
-		notification.TypePluginError:    true,
-		notification.TypeCustom:         true,
-		notification.Type(""):           false,
-		"garbage":                       false,
+		notification.TypeNewMovie:         true,
+		notification.TypeNewEpisode:       true,
+		notification.TypeNewSeason:        true,
+		notification.TypeNewSeries:        true,
+		notification.TypeNewAlbum:         true,
+		notification.TypeLibraryScanned:   true,
+		notification.TypeBackupFailed:     true,
+		notification.TypePluginError:      true,
+		notification.TypeCustom:           true,
+		notification.TypeMediaTrashed:     true,
+		notification.TypeMediaTrashFailed: true,
+		notification.Type(""):             false,
+		"garbage":                         false,
 	}
 	for typ, want := range cases {
 		if typ.IsValid() != want {
