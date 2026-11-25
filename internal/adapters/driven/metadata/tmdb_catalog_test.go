@@ -30,7 +30,7 @@ func TestSeriesEpisodes_BatchesSeasons(t *testing.T) {
 		for s := range strings.SplitSeq(app, ",") {
 			var n int
 			_, _ = fmt.Sscanf(s, "season/%d", &n)
-			parts = append(parts, fmt.Sprintf(`"%s":{"episodes":[{"episode_number":1,"name":"S%dE1","air_date":"2011-04-17"},{"episode_number":2,"name":"S%dE2","air_date":""}]}`, s, n, n))
+			parts = append(parts, fmt.Sprintf(`"%s":{"episodes":[{"episode_number":1,"name":"S%dE1","air_date":"1999-04-17"},{"episode_number":2,"name":"S%dE2","air_date":""}]}`, s, n, n))
 		}
 		fmt.Fprintf(w, `{"id":1399,%s}`, strings.Join(parts, ","))
 	})

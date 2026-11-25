@@ -127,7 +127,7 @@ func parseTMDBDate(s string) *time.Time {
 	if s == "" {
 		return nil
 	}
-	t, err := time.Parse("2006-01-02", s)
+	t, err := time.Parse(time.DateOnly, s)
 	if err != nil {
 		return nil
 	}

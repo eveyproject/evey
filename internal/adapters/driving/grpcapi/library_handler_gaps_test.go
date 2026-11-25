@@ -28,7 +28,7 @@ func TestMayReadGaps(t *testing.T) {
 
 // The proto carries numbers, titles and dates; an unknown date is empty.
 func TestCatalogGapsToProto(t *testing.T) {
-	d, _ := time.Parse("2006-01-02", "2012-04-01")
+	d := time.Date(2012, 4, 1, 0, 0, 0, 0, time.UTC)
 	got := catalogGapsToProto(appcatalog.Gaps{
 		Series: []appcatalog.SeriesGaps{{SeriesID: "s", Title: "GoT", Year: 2011, FromCatalog: true, Seasons: []appcatalog.MissingSeason{
 			{Season: 2, Episodes: []appcatalog.MissingEpisode{{Episode: 1, Title: "The North Remembers", AirDate: &d}, {Episode: 5}}},
@@ -36,7 +36,7 @@ func TestCatalogGapsToProto(t *testing.T) {
 		Sagas: []appcatalog.SagaGaps{{CollectionID: "c", Name: "Rocky", Owned: 2, Missing: []library.CollectionPart{{Title: "Rocky III", ReleaseDate: &d, PosterURL: "https://p"}}}},
 	})
 	require.Len(t, got.Series, 1)
-	assert.Equal(t, "2012-04-01", got.Series[0].Seasons[0].Episodes[0].AirDate)
+	assert.Equal(t, d.Format(time.DateOnly), got.Series[0].Seasons[0].Episodes[0].AirDate)
 	assert.Empty(t, got.Series[0].Seasons[0].Episodes[1].AirDate)
 	require.Len(t, got.Sagas, 1)
 	assert.Equal(t, "Rocky III", got.Sagas[0].Missing[0].Title)

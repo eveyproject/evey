@@ -72,12 +72,12 @@ func (s *fakeSource) CollectionParts(_ context.Context, id int) ([]library.Colle
 	return []library.CollectionPart{{TmdbID: id}}, nil
 }
 
-func day(s string) *time.Time {
-	t, _ := time.Parse("2006-01-02", s)
+func day(y int, m time.Month, d int) *time.Time {
+	t := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 	return &t
 }
 
-var today, _ = time.Parse("2006-01-02", "2026-11-25")
+var today = time.Date(2026, 11, 25, 0, 0, 0, 0, time.UTC)
 
 func newSvc(repo *fakeRepo, src library.CatalogSource) *Service {
 	s := NewService(repo, src)
@@ -95,15 +95,15 @@ func TestGaps_FromCatalog(t *testing.T) {
 	repo := &fakeRepo{
 		series: []library.SeriesRef{{ItemID: "got", Title: "Game of Thrones", Year: 2011}},
 		expected: map[string][]library.ExpectedEpisode{"got": {
-			{Season: 0, Episode: 1, AirDate: day("2010-12-05")}, // special: never counted
-			{Season: 1, Episode: 1, AirDate: day("2011-04-17")},
-			{Season: 1, Episode: 2, AirDate: day("2011-04-24")},
-			{Season: 2, Episode: 1, Title: "The North Remembers", AirDate: day("2012-04-01")},
-			{Season: 2, Episode: 2, AirDate: day("2012-04-08")},
-			{Season: 3, Episode: 1, AirDate: day("2013-03-31")},
-			{Season: 3, Episode: 2, AirDate: day("2013-04-07")},
-			{Season: 4, Episode: 1, AirDate: day("2027-01-01")}, // not out yet
-			{Season: 4, Episode: 2},                             // no date
+			{Season: 0, Episode: 1, AirDate: day(2010, 12, 5)}, // special: never counted
+			{Season: 1, Episode: 1, AirDate: day(2011, 4, 17)},
+			{Season: 1, Episode: 2, AirDate: day(2011, 4, 24)},
+			{Season: 2, Episode: 1, Title: "The North Remembers", AirDate: day(2012, 4, 1)},
+			{Season: 2, Episode: 2, AirDate: day(2012, 4, 8)},
+			{Season: 3, Episode: 1, AirDate: day(2013, 3, 31)},
+			{Season: 3, Episode: 2, AirDate: day(2013, 4, 7)},
+			{Season: 4, Episode: 1, AirDate: day(2027, 1, 1)}, // not out yet
+			{Season: 4, Episode: 2},                           // no date
 		}},
 		owned: map[string][]library.OwnedEpisode{"got": {ep(1, 1), ep(1, 2), ep(2, 2)}},
 	}
@@ -145,7 +145,7 @@ func TestGaps_FromNumbering(t *testing.T) {
 func TestGaps_CompleteSeriesIsSilent(t *testing.T) {
 	repo := &fakeRepo{
 		series:   []library.SeriesRef{{ItemID: "a"}},
-		expected: map[string][]library.ExpectedEpisode{"a": {{Season: 1, Episode: 1, AirDate: day("2020-01-01")}}},
+		expected: map[string][]library.ExpectedEpisode{"a": {{Season: 1, Episode: 1, AirDate: day(2020, 1, 1)}}},
 		owned:    map[string][]library.OwnedEpisode{"a": {ep(1, 1)}},
 	}
 	g, err := newSvc(repo, nil).Gaps(context.Background(), nil)
@@ -159,10 +159,10 @@ func TestGaps_Sagas(t *testing.T) {
 		sagas:   []library.CollectionRef{{ID: "c1", Name: "Rocky"}},
 		ownedIn: map[string][]int{"c1": {1366, 1367}},
 		parts: map[string][]library.CollectionPart{"c1": {
-			{TmdbID: 1366, Title: "Rocky", ReleaseDate: day("1976-11-21")},
-			{TmdbID: 1367, Title: "Rocky II", ReleaseDate: day("1979-06-15")},
-			{TmdbID: 1371, Title: "Rocky III", ReleaseDate: day("1982-05-28")},
-			{TmdbID: 9999, Title: "Rocky VII", ReleaseDate: day("2028-01-01")},
+			{TmdbID: 1366, Title: "Rocky", ReleaseDate: day(1976, 11, 21)},
+			{TmdbID: 1367, Title: "Rocky II", ReleaseDate: day(1979, 6, 15)},
+			{TmdbID: 1371, Title: "Rocky III", ReleaseDate: day(1982, 5, 28)},
+			{TmdbID: 9999, Title: "Rocky VII", ReleaseDate: day(2028, 1, 1)},
 		}},
 	}
 	g, err := newSvc(repo, nil).Gaps(context.Background(), nil)

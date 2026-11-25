@@ -52,7 +52,7 @@ func TestCatalogRepo_RoundTrip(t *testing.T) {
 	assert.Equal(t, "got", due[0].ItemID)
 	assert.Equal(t, "1399", due[0].TmdbID)
 
-	aired, _ := time.Parse("2006-01-02", "2011-04-17")
+	aired := time.Date(2011, 4, 17, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, repo.ReplaceSeriesEpisodes(ctx, "got", []library.ExpectedEpisode{
 		{Season: 1, Episode: 1, Title: "Winter Is Coming", AirDate: &aired},
 		{Season: 1, Episode: 2},

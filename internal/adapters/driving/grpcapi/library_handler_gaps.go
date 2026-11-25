@@ -43,7 +43,7 @@ func ymd(t *time.Time) string {
 	if t == nil {
 		return ""
 	}
-	return t.Format("2006-01-02")
+	return t.Format(time.DateOnly)
 }
 
 func catalogGapsToProto(g appcatalog.Gaps) *eveyv1.GetCatalogGapsResponse {
