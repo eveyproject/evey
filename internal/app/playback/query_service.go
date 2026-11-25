@@ -86,6 +86,12 @@ func (s *QueryService) GetWatchHistory(ctx context.Context, profileID shared.Pro
 	return s.progress.GetByProfile(ctx, string(profileID), limit, offset)
 }
 
+func (s *QueryService) GetWatchStates(ctx context.Context, profileID shared.ProfileID, limit int) ([]*playback.WatchProgress, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.GetWatchStates")
+	defer span.End()
+	return s.progress.GetWatchStates(ctx, string(profileID), limit)
+}
+
 func (s *QueryService) GetWatchHistoryCursor(ctx context.Context, profileID shared.ProfileID, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.GetWatchHistoryCursor")
 	defer span.End()

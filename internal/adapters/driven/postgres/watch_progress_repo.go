@@ -306,6 +306,33 @@ func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID st
 	return progress, nil
 }
 
+// GetWatchStates reads every row, the marked ones included: the watched
+// overlay, not the history.
+func (r *WatchProgressRepository) GetWatchStates(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetWatchStates")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
+		 FROM watch_progress WHERE profile_id = $1
+		 ORDER BY last_played_at DESC, id DESC LIMIT $2`, profileID, limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("WatchProgressRepo.GetWatchStates: %w", err)
+	}
+	defer rows.Close()
+	progress, err := r.scanWatchProgressRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return progress, nil
+}
+
 func (r *WatchProgressRepository) GetByProfileCursor(ctx context.Context, profileID string, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetByProfileCursor")
 	defer span.End()

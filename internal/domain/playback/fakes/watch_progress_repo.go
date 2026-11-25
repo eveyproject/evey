@@ -157,6 +157,25 @@ func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID 
 	return result, nil
 }
 
+func (r *FakeWatchProgressRepository) GetWatchStates(_ context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*playback.WatchProgress
+	for _, wp := range r.items {
+		if string(wp.ProfileID) == profileID {
+			result = append(result, wp)
+		}
+	}
+	sort.SliceStable(result, func(i, j int) bool { return result[i].LastPlayedAt.After(result[j].LastPlayedAt) })
+	if limit > 0 && limit < len(result) {
+		result = result[:limit]
+	}
+	return result, nil
+}
+
 func (r *FakeWatchProgressRepository) GetByProfileCursor(_ context.Context, profileID string, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
 	if r.Err != nil {
 		return nil, r.Err
