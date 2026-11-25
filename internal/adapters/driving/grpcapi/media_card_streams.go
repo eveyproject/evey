@@ -73,7 +73,22 @@ func stampCardStreams(ctx context.Context, src mediaStreamsReader, msg proto.Mes
 		if v == nil {
 			continue
 		}
-		c.Set(fields.ByName(cardStreamField), protoreflect.ValueOfMessage(mediaStreamToProto(v, false).ProtoReflect()))
+		setCardVideoStream(c, mediaStreamToProto(v, false))
+	}
+}
+
+// setCardVideoStream writes the known card messages by their field, so the
+// contract guard sees the write; a card message added later falls back to
+// reflection until it gets its case (the guard and
+// TestMediaCardStreamsUnary_KnowsEveryCardMessage both point at it).
+func setCardVideoStream(c protoreflect.Message, v *eveyv1.MediaStream) {
+	switch card := c.Interface().(type) {
+	case *eveyv1.FeedItem:
+		card.VideoStream = v
+	case *eveyv1.PopularMediaItem:
+		card.VideoStream = v
+	default:
+		c.Set(c.Descriptor().Fields().ByName(cardStreamField), protoreflect.ValueOfMessage(v.ProtoReflect()))
 	}
 }
 
