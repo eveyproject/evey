@@ -33,6 +33,15 @@ func bodyReadTimeoutMiddleware(next http.Handler, d time.Duration) http.Handler 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost, http.MethodPut, http.MethodPatch:
+			// No body, nothing to dribble. And no deadline, above all: with no
+			// body net/http already runs its background read on the
+			// connection, the deadline fires it mid-handler, and that cancels
+			// the CONNECTION's context. A keep-alive connection back in a
+			// proxy's pool then refuses every later request of every client
+			// in a millisecond.
+			if r.ContentLength == 0 {
+				break
+			}
 			if err := http.NewResponseController(w).SetReadDeadline(time.Now().Add(d)); err != nil {
 				// Fail open: a ResponseWriter that cannot set a deadline (e.g. a
 				// test double) just leaves this request unprotected, as before.
