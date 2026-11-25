@@ -215,6 +215,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		HLSVODOrch:             deps.media.hlsVODOrch,
 		HLSVODRemover:          deps.media.hlsVODRemover,
 		Scheduler:              deps.library.scheduler,
+		Catalog:                deps.library.catalog,
 		LogDir:                 logDir,
 		ServerCtx:              serverCtx,
 		Translator:             deps.translator,

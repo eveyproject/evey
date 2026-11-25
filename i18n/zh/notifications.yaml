@@ -44,6 +44,10 @@ push:
     title: "插件更新等待您批准：{plugin}"
   plugin_update_refused:
     title: "插件更新已被拒绝：{plugin}"
+  media_trashed:
+    title: "已移到回收站：{title}"
+  media_trash_failed:
+    title: "无法移到回收站：{title}"
   # Push bodies for the media request events: the stored Message is a
   # machine value the clients translate; the push is rendered here.
   media_type:

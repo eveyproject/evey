@@ -75,6 +75,18 @@ service LibraryService {
     };
   }
 
+  // GetCatalogGaps lists what the libraries miss: aired episodes of the
+  // series they hold (from the catalog source, else from the gaps in their
+  // own numbering) and released films of the sagas they started. Worked out
+  // from what the server stored; it never calls the catalog source itself.
+  // Administrators only: a plugin token with the media.gaps scope, which is
+  // minted on an administrator's session alone.
+  rpc GetCatalogGaps(GetCatalogGapsRequest) returns (GetCatalogGapsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/public/catalog-gaps"
+    };
+  }
+
   rpc SearchMedia(SearchMediaRequest) returns (SearchMediaResponse) {
     option (google.api.http) = {
       get: "/api/v1/media/search"
@@ -676,4 +688,51 @@ message SeriesAggregate {
   int64 total_duration_ms = 2;
   int32 episode_count = 3;
   int32 season_count = 4;
+}
+
+message GetCatalogGapsRequest {}
+
+message GetCatalogGapsResponse {
+  repeated SeriesGaps series = 1;
+  repeated SagaGaps sagas = 2;
+}
+
+// SeriesGaps is what one series misses. from_catalog: worked out from the
+// catalog source; otherwise from the gaps in the library's own numbering.
+message SeriesGaps {
+  string series_id = 1;
+  string title = 2;
+  int32 year = 3;
+  bool from_catalog = 4;
+  repeated MissingSeason seasons = 5;
+}
+
+// MissingSeason groups a series' missing episodes. whole: not one episode of
+// the season is held (episodes may then be empty when its size is unknown).
+message MissingSeason {
+  int32 season = 1;
+  bool whole = 2;
+  repeated MissingEpisode episodes = 3;
+}
+
+message MissingEpisode {
+  int32 episode = 1;
+  string title = 2;
+  // air_date is YYYY-MM-DD, empty when unknown.
+  string air_date = 3;
+}
+
+// SagaGaps is a saga the libraries started and its released films they lack.
+message SagaGaps {
+  string collection_id = 1;
+  string name = 2;
+  int32 owned = 3;
+  repeated SagaPart missing = 4;
+}
+
+message SagaPart {
+  string title = 1;
+  // release_date is YYYY-MM-DD.
+  string release_date = 2;
+  string poster_url = 3;
 }

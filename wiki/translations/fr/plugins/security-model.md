@@ -1,5 +1,5 @@
 ---
-source_sha: c65f3c0022c382ccdcdeb528b421c080edcf8bde1382a04fde320dbe9fca3701
+source_sha: 1b3b5ce7c086e1f2a42545c9d6c6895b8fcdf7c5f78287e1ea52cecfe7cd45a4
 reviewed: true
 ---
 # Permissions et emplacements { #permissions-and-slots }
@@ -83,6 +83,7 @@ métadonnées (`metadata.provider`) sont des capacités, déclarées sous
 | `notification.sender` | Réservée à `SendNotification`, non servi aujourd'hui. |
 | `public` | L'interface peut lire une projection sûre des médias (identifiant, titre, type, année, résumé, affiche), jamais les chemins ni les flux. Voir [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `media.files` | Ajoute le chemin et la taille du fichier de chaque média à ce que renvoie `public`. Le jeton ne la porte que si la personne qui regarde est administrateur ; pour toute autre personne elle est retirée à l'émission du jeton. Un chemin nomme les dossiers du serveur, l'administrateur la voit donc dans le consentement d'installation. |
+| `media.gaps` | L'interface peut lire ce qui manque aux bibliothèques (épisodes diffusés des séries présentes, films sortis des sagas entamées), calculé par Evey d'après ce qu'il a stocké de TMDB. Jamais un appel à TMDB par le plugin. Le jeton ne la porte que si la personne qui regarde est administrateur. |
 | `media.trash` | Sur sa page `admin.nav`, l'interface peut demander à Evey de mettre des fichiers à la corbeille de la bibliothèque. Jamais une portée de jeton : la page hôte affiche la confirmation d'Evey, tirée des fiches d'Evey, et seul le oui de l'administrateur appelle l'endpoint admin, sur la session de l'administrateur. Les fichiers sont déplacés dans `.evey-trash`, jamais effacés. |
 | `prefs` | L'interface peut lire et écrire les préférences de l'utilisateur courant dans l'espace propre du plugin. Voir [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |
 | `hardware.gpu` | Le processus reçoit le noeud de rendu DRM de l'hôte (le vrai `renderD1xx`, jamais un noeud carte). Une surface d'attaque sur le pilote noyau et une frontière de mémoire GPU partagée avec le transcodeur : un GPU bloqué peut figer le transcodage. Sans elle, les noeuds GPU sont entièrement exclus de la liste Landlock ; avec elle, le lanceur ajoute une règle `IOCTL_DEV` limitée à ce seul fichier (Landlock ABI 5 ou plus ; sur un noyau plus ancien, l'accès en lecture et écriture suffit déjà à soumettre des commandes). Le Tableau de bord sécurité affiche un avertissement critique une fois le plugin installé. Ne l'accordez qu'à un plugin que vous feriez tourner hors sandbox. |

@@ -1,5 +1,5 @@
 ---
-source_sha: c65f3c0022c382ccdcdeb528b421c080edcf8bde1382a04fde320dbe9fca3701
+source_sha: 1b3b5ce7c086e1f2a42545c9d6c6895b8fcdf7c5f78287e1ea52cecfe7cd45a4
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -80,6 +80,7 @@ metadatos (`metadata.provider`) son capacidades, que se declaran en
 | `notification.sender` | Reservado para `SendNotification`, que hoy no se sirve. |
 | `public` | La interfaz puede leer una versión segura de los elementos multimedia (id, título, tipo, año, resumen, póster), nunca rutas ni flujos. Consulta [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `media.files` | Añade la ruta y el tamaño del archivo de cada elemento a lo que devuelve `public`. El token solo lo lleva si quien mira es administrador; para cualquier otra persona se quita al emitir el token. Una ruta nombra las carpetas del servidor, así que el administrador lo ve en el consentimiento de instalación. |
+| `media.gaps` | La interfaz puede leer lo que les falta a las bibliotecas (episodios emitidos de series presentes, películas estrenadas de sagas empezadas), calculado por Evey a partir de lo que guardó de TMDB. Nunca una llamada a TMDB por parte del plugin. El token solo lo lleva si quien mira es administrador. |
 | `media.trash` | En su página `admin.nav`, la interfaz puede pedir a Evey que mueva archivos a la papelera de la biblioteca. Nunca un alcance de token: la página anfitriona muestra la confirmación propia de Evey, con los registros de Evey, y solo el sí del administrador llama al endpoint de admin, con su sesión. Los archivos se mueven a `.evey-trash`, nunca se borran. |
 | `prefs` | La interfaz puede leer y escribir las preferencias del usuario actual en el espacio de nombres propio del plugin. Consulta [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |
 | `hardware.gpu` | El proceso recibe el nodo de renderizado DRM del servidor (el `renderD1xx` real, nunca un nodo card). Es una superficie de ataque del controlador del núcleo y una frontera de memoria de la GPU compartida con el transcodificador: una GPU bloqueada puede atascar la transcodificación. Sin él, los nodos de la GPU quedan totalmente fuera de la lista permitida de Landlock; con él, el lanzador añade una regla `IOCTL_DEV` limitada a ese único archivo (Landlock ABI 5 o posterior; en núcleos más antiguos, el acceso en lectura y escritura basta para enviar comandos). El Panel de seguridad muestra un aviso crítico una vez instalado el plugin. Concédelo solo a plugins que ejecutarías fuera de un sandbox. |

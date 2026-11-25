@@ -51,7 +51,7 @@ describe("useTrashConfirm", () => {
     fetchMock
       .mockResolvedValueOnce(record)
       .mockResolvedValueOnce({ ...record, filePath: "/media/b.mkv" })
-      .mockResolvedValueOnce({ trashedPath: "/media/.evey-trash/Dune (2021)/Dune.mkv" })
+      .mockResolvedValueOnce({ trashedPath: "/media/.evey-trash/Dune (2021)/Dune.mkv", pending: true })
       .mockRejectedValueOnce(new Error("read-only file system"));
     render(<Host />);
     let outcome: Promise<TrashResult> = Promise.resolve({ trashed: [], failed: [] });
@@ -60,7 +60,7 @@ describe("useTrashConfirm", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith({ url: "/api/v1/admin/media/m2/trash", method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith({ url: "/api/v1/admin/media/m1/trash", method: "POST" });
     await expect(outcome).resolves.toEqual({
-      trashed: [{ id: "m1", trashedPath: "/media/.evey-trash/Dune (2021)/Dune.mkv" }],
+      trashed: [{ id: "m1", trashedPath: "/media/.evey-trash/Dune (2021)/Dune.mkv", pending: true }],
       failed: [{ id: "m2", message: "read-only file system" }],
     });
   });

@@ -276,6 +276,8 @@ var APIKeyScopeFor = map[string]string{
 	// GetAnalytics re-checks claims.IsAdmin in the handler
 	// (activity_handler.go:360). Both are genuinely admin-only.
 	"/evey.v1.ActivityService/GetServerStats": ScopeAdminRead,
+	// Admin-only by the handler (lists the whole collection).
+	"/evey.v1.LibraryService/GetCatalogGaps": ScopeAdminRead,
 	// GetUserStats is NOT admin-enforced anywhere: the handler only calls
 	// resolveProfileID (activity_handler.go:129), exactly like its sibling
 	// GetPlayHistory, which sits in ScopePlaybackRead. It is bucketed here

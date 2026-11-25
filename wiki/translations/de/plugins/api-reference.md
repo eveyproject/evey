@@ -1,5 +1,5 @@
 ---
-source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
+source_sha: 88b25d5013bee4a453fc1acd638af277264419566f6746aea48dd160a29a2b7e
 reviewed: true
 ---
 # Plugin-API-Referenz { #plugin-api-reference }
@@ -288,6 +288,29 @@ Slot `admin.nav`.
 ein Bild direkt vom Server zu laden. Nutzen Sie sie als Quelle eines `<img>`
 oder als Textur.
 
+### `evey.media.gaps()` (Berechtigung `media.gaps`) { #eveymediagaps-permission-mediagaps }
+
+Was den Bibliotheken fehlt, von Evey berechnet: die bereits ausgestrahlten
+Episoden der vorhandenen Serien, die nicht da sind, und die erschienenen Filme
+der begonnenen Reihen. Was eine Serie oder Reihe enthält, erfährt Evey selbst
+bei TMDB, in seinem eigenen Tempo (eine gespeicherte Antwort wird nach einer
+Woche erneuert); ein Plugin ruft TMDB nie auf, es liest das Ergebnis.
+
+```js
+const { series, sagas } = await evey.media.gaps();
+// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
+//   episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+```
+
+Nur Erschienenes zählt: Eine Episode oder ein Film ohne Datum oder mit einem
+Datum nach heute fehlt noch nicht, und Specials (Staffel 0) bleiben außen vor.
+Eine Serie, die TMDB nicht kennt, wird nach den Lücken ihrer eigenen
+Nummerierung gelistet (`fromCatalog` falsch): fehlende Episoden unter der
+höchsten vorhandenen, fehlende Staffeln unter der höchsten vorhandenen
+(`whole`, ohne Episodenliste). Nur in der Sitzung eines Administrators, wie
+`media.files`.
+
 ### `evey.media.trash(ids)` (Berechtigung `media.trash`, nur Slot `admin.nav`) { #eveymediatrashids }
 
 Bittet Evey, Mediendateien in den Papierkorb ihrer Bibliothek zu verschieben.
@@ -298,7 +321,7 @@ Administrator dort Ja sagt.
 
 ```js
 const res = await evey.media.trash([id1, id2]);
-// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+// { trashed: [{ id, trashedPath, pending }], failed: [{ id, message }] }
 ```
 
 Bei Ja wandert jede Datei, mit Untertiteln und `.nfo`, nach `.evey-trash` im
@@ -310,7 +333,10 @@ Promise wird mit `cancelled` abgelehnt, wenn der Administrator Nein sagt, und
 mit `method not permitted` überall außer auf einer `admin.nav`-Seite eines
 Plugins mit `media.trash` im Browser (die Handy- und TV-Apps bieten es noch
 nicht an). Eine Ablehnung pro Datei (schreibgeschütztes Laufwerk, Datei schon
-weg) kommt in `failed` zurück.
+weg) kommt in `failed` zurück. `pending` ist wahr, wenn die Datei im
+Hintergrund in einen Papierkorb auf einer anderen Platte kopiert wird: Der
+Eintrag bleibt in `evey.media.list`, bis die Kopie vollständig ist, und die
+Administratoren werden in jedem Fall benachrichtigt.
 
 `evey.media.restore(paths)` macht das rückgängig, unter derselben Regel: Aus
 den `trashedPath`-Werten legt Evey jede Datei samt Untertiteln an ihren Platz

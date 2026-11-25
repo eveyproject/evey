@@ -61,6 +61,10 @@ type AutoUpdater struct {
 
 	// checkMu serialises checks: the ticker and an admin's button.
 	checkMu sync.Mutex
+
+	// takesHeld, when set, takes a held release without an admin (see
+	// WithHeldUpdateApprover).
+	takesHeld func(*plugin.Plugin) bool
 }
 
 // NewAutoUpdater builds the updater on the installer it installs through.
@@ -72,6 +76,16 @@ func NewAutoUpdater(installer *InstallerService) *AutoUpdater {
 // between checks (tests).
 func (u *AutoUpdater) WithSchedule(first, every time.Duration) *AutoUpdater {
 	u.firstCheck, u.interval = first, every
+	return u
+}
+
+// WithHeldUpdateApprover lets a release the check holds be applied at once
+// for the plugins approve accepts, as an admin's approval would: through
+// ApplyUpdate, on the bytes judged, never under another publisher key. For a
+// server with no admin to approve it (the public demo); a refused release is
+// never taken.
+func (u *AutoUpdater) WithHeldUpdateApprover(approve func(*plugin.Plugin) bool) *AutoUpdater {
+	u.takesHeld = approve
 	return u
 }
 
@@ -201,6 +215,17 @@ func (u *AutoUpdater) check(ctx context.Context, pluginID string) (plugin.Update
 		}
 		if j.digest != "" && (j.outcome == plugin.UpdateHeld || j.outcome == plugin.UpdateRefused) {
 			state.Digest, state.JudgedFor = j.digest, judgedFor
+		}
+	}
+	if state.Outcome == plugin.UpdateHeld && state.Digest != "" && u.takesHeld != nil && u.takesHeld(p) {
+		updated, applyErr := s.ApplyUpdate(ctx, p.ID, p.UpdateSource, state.Digest, false)
+		if applyErr != nil {
+			slog.WarnContext(ctx, "plugin held update not taken", slog.String("plugin", p.Name),
+				slog.String("release", state.LatestVersion), slog.Any("err", applyErr))
+		} else {
+			state = plugin.UpdateState{CheckedAt: state.CheckedAt, Notified: state.Notified,
+				LatestVersion: updated.Version, Outcome: plugin.UpdateApplied,
+				Reason: "taken without an admin, which this server has none of: " + state.Reason}
 		}
 	}
 	state.Reason = truncateRunes(state.Reason, maxReasonRunes)

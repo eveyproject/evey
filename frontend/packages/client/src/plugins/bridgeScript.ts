@@ -33,12 +33,21 @@ export interface EveyBridge {
     // origin taints cross-origin textures, so a plugin cannot load library
     // posters any other way.
     poster(id: string): Promise<string>;
+    // What the libraries miss, worked out by the server from what it stored
+    // of TMDB: { series: [{ seriesId, title, year, fromCatalog, seasons: [{
+    // season, whole, episodes: [{ episode, title, airDate }] }] }], sagas: [{
+    // collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }] }.
+    // Permission media.gaps, on an administrator's session only.
+    gaps(): Promise<unknown>;
     // Asks the host to move these media files to their library's trash. The
     // host shows its own confirmation, built from the server's record of each
-    // item; the promise resolves to { trashed: [{ id, trashedPath }], failed:
+    // item; the promise resolves to { trashed: [{ id, trashedPath, pending }], failed:
     // [{ id, message }] } once the administrator answered, and is rejected
-    // with "cancelled" on no. Only on an admin.nav page of a plugin granted
-    // media.trash; anywhere else it is rejected.
+    // with "cancelled" on no. pending: the trash folder is on another disk,
+    // the file is being copied there in the background; the item leaves the
+    // list once the copy is whole and the administrators get a notification.
+    // Only on an admin.nav page of a plugin granted media.trash; anywhere
+    // else it is rejected.
     trash(ids: string[]): Promise<unknown>;
     // Undoes trash: moves the files (the trashedPath values it returned) back
     // where they were; the library is scanned and the titles come back as new
@@ -96,6 +105,7 @@ export const BRIDGE_SCRIPT = `
       get: function(id) { return rpc("media.get", { id: id }); },
       list: function(opts) { return rpc("media.list", opts || {}); },
       poster: function(id) { return rpc("media.poster", { id: id }); },
+      gaps: function() { return rpc("media.gaps", {}); },
       trash: function(ids) { return rpc("media.trash", { ids: ids || [] }); },
       restore: function(paths) { return rpc("media.restore", { paths: paths || [] }); }
     },

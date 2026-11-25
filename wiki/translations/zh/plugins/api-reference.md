@@ -1,5 +1,5 @@
 ---
-source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
+source_sha: 88b25d5013bee4a453fc1acd638af277264419566f6746aea48dd160a29a2b7e
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -230,6 +230,22 @@ const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pag
 
 `poster` 返回 `data:` URL，是因为框架的策略禁止直接从服务器加载图片；可以把它用作 `<img>` 的来源，或者当作纹理。
 
+### `evey.media.gaps()`（权限 `media.gaps`） { #eveymediagaps-permission-mediagaps }
+
+媒体库缺了什么，由 Evey 计算：已有剧集中已播出但没有的单集，以及已开始收藏的系列电影中已上映但没有的影片。
+一部剧或一个系列包含什么，由 Evey 自己按节奏向 TMDB 查询（保存的结果一周后更新）；插件从不调用 TMDB，只读取结果。
+
+```js
+const { series, sagas } = await evey.media.gaps();
+// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
+//   episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+```
+
+只计算已经发布的内容：没有日期或日期晚于今天的单集或电影还不算缺失，特别篇（第 0 季）不计入。
+TMDB 不认识的剧集按其自身编号中的空缺列出（`fromCatalog` 为 false）：低于已有最高集号的缺失单集、低于已有最高季号的缺失整季（`whole`，不带单集列表）。
+仅限管理员会话，与 `media.files` 相同。
+
 ### `evey.media.trash(ids)`（权限 `media.trash`，仅限插槽 `admin.nav`） { #eveymediatrashids }
 
 请求 Evey 把媒体文件移到其媒体库的回收站。插件只是请求：Evey 会显示自己的确认窗口，内容来自 Evey 自己对每个条目的记录
@@ -237,13 +253,14 @@ const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pag
 
 ```js
 const res = await evey.media.trash([id1, id2]);
-// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+// { trashed: [{ id, trashedPath, pending }], failed: [{ id, message }] }
 ```
 
 确认后，每个文件连同字幕和 `.nfo` 会移到其媒体库根目录下的 `.evey-trash`，保持相同的相对路径，该条目随之从 Evey 中移除。
 磁盘上不会删除任何内容：由管理员清空该文件夹，移回原处的文件会在下次扫描时回来。只适用于电影或单集：剧集是一个文件夹。
 管理员拒绝时 Promise 以 `cancelled` 拒绝；在浏览器中，除了拥有 `media.trash` 的插件的 `admin.nav` 页面之外，
-任何地方都会以 `method not permitted` 拒绝（手机和电视应用暂不提供）。单个文件被拒（只读挂载、文件已不在）会出现在 `failed` 中。
+任何地方都会以 `method not permitted` 拒绝（手机和电视应用暂不提供）。单个文件被拒（只读挂载、文件已不在）会出现在 `failed` 中。`pending` 为 true 表示文件正在后台复制到另一块盘上的回收站：
+复制完整之前该条目仍在 `evey.media.list` 中，无论结果如何管理员都会收到通知。
 
 `evey.media.restore(paths)` 按同样的规则撤销：根据 `trashedPath` 值，Evey 把每个文件连同字幕移回原处并扫描媒体库，
 标题随之回来，作为按文件名重新识别的新条目（旧条目的播放进度不会恢复）。结果为

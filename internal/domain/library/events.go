@@ -125,3 +125,18 @@ type PruneSuspended struct {
 }
 
 func (e PruneSuspended) EventName() string { return "library.prune.suspended" }
+
+// MediaTrashFinished closes a move to the trash that had to copy the file to
+// another disk (a pooled library), done in the background: Err is empty when
+// the file is in the trash and the item gone, else why it stayed where it
+// was. A move that was a plain rename finishes in the request and publishes
+// no such event.
+type MediaTrashFinished struct {
+	MediaItemID shared.MediaItemID
+	Title       string
+	TrashedPath string
+	Err         string
+	OccurredAt  time.Time
+}
+
+func (e MediaTrashFinished) EventName() string { return "media.trash.finished" }

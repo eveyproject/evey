@@ -24,6 +24,7 @@ import (
 	"github.com/eveyproject/evey/internal/adapters/driven/webhooksender"
 	httpapi "github.com/eveyproject/evey/internal/adapters/driving/http"
 	appactivity "github.com/eveyproject/evey/internal/app/activity"
+	appcatalog "github.com/eveyproject/evey/internal/app/catalog"
 	appcollection "github.com/eveyproject/evey/internal/app/collection"
 	appconfig "github.com/eveyproject/evey/internal/app/config"
 	appdemo "github.com/eveyproject/evey/internal/app/demo"
@@ -754,6 +755,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// stored on media_items. profilesForDecision reads it at manifest time
 	// to pick the appropriate ABR ladder. Repo nil-safe across the path -
 	// unclassified items keep getting LadderFilmNormal.
+	// What the libraries miss (episodes, saga films): the server asks TMDB
+	// at its own slow pace, stores the answer, and works the gaps out on read.
+	catalogSvc := appcatalog.NewService(postgres.NewCatalogRepo(db), infra.tmdbProvider)
+	go catalogSvc.Run(ctx)
+
 	complexityRepo := postgres.NewMediaComplexityRepo(db)
 	complexityClassifier := ffmpeg.NewComplexityClassifier("ffmpeg", "ffprobe")
 
@@ -1229,6 +1235,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			querySvc:          libQuerySvc,
 			scheduler:         libScheduler,
 			introDetectionSvc: introDetectionSvc,
+			catalog:           catalogSvc,
 		},
 		user: userDeps{
 			authSvc:   userAuthSvc,
@@ -1293,7 +1300,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			pluginInstallerSvc:         pluginInstallerSvc,
 			pluginRuntimeSvc:           pluginRuntimeSvc,
 			pluginQuerySvc:             pluginQuerySvc,
-			pluginAutoUpdater:          appplugin.NewAutoUpdater(pluginInstallerSvc),
+			pluginAutoUpdater:          newPluginAutoUpdater(cfg, pluginInstallerSvc),
 			pluginTokenSvc:             pluginTokenSvc,
 			pluginHostServer:           pluginHostSrv,
 			pluginSecurityDashboardSvc: pluginSecurityDashboardSvc,

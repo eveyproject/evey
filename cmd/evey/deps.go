@@ -10,6 +10,7 @@ import (
 	"github.com/eveyproject/evey/internal/adapters/driving/pluginhost"
 	appactivity "github.com/eveyproject/evey/internal/app/activity"
 	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	appcatalog "github.com/eveyproject/evey/internal/app/catalog"
 	appcollection "github.com/eveyproject/evey/internal/app/collection"
 	appconfig "github.com/eveyproject/evey/internal/app/config"
 	appfavorite "github.com/eveyproject/evey/internal/app/favorite"
@@ -53,6 +54,7 @@ type libraryDeps struct {
 	querySvc          *applibrary.QueryService
 	scheduler         *applibrary.Scheduler
 	introDetectionSvc *applibrary.IntroDetectionService
+	catalog           *appcatalog.Service
 }
 
 // userDeps groups user/auth services.

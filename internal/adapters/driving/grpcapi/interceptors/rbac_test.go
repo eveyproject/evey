@@ -366,6 +366,7 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.LibraryService/ListMediaItems":        "lib-access + parental filtered",
 	"/evey.v1.LibraryService/GetPublicMediaItem":    "public endpoint (parental-filtered)",
 	"/evey.v1.LibraryService/ListPublicMediaItems":  "public endpoint (parental-filtered)",
+	"/evey.v1.LibraryService/GetCatalogGaps":        "admin check in the handler (admin session or a media.gaps plugin token); RoleAdmin would floor plugin tokens",
 	"/evey.v1.LibraryService/SearchMedia":           "lib-access + parental filtered",
 	"/evey.v1.LibraryService/GetPerson":             "read",
 	"/evey.v1.LibraryService/GetLibrarySchedule":    "read",

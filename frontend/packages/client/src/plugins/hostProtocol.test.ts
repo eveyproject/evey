@@ -159,6 +159,7 @@ describe("pluginRequestFor", () => {
     expect(pluginRequestFor("plg-a", "prefs.set", { key: "k", value: 1 }, "T")).toMatchObject({ method: "PUT", body: JSON.stringify({ value: "1" }) });
     expect(pluginRequestFor("plg-a", "media.list", { libraryId: "L" }, "T")).toMatchObject({ path: "/api/v1/public/media?libraryId=L" });
     expect(pluginRequestFor("plg-a", "media.list", {}, "T")).toMatchObject({ path: "/api/v1/public/media" });
+    expect(pluginRequestFor("plg-a", "media.gaps", {}, "T")).toEqual({ path: "/api/v1/public/catalog-gaps", method: "GET", authToken: "T" });
     expect(pluginRequestFor("plg-a", "media.list", { type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pageSize: 9999 }, "T")).toMatchObject({
       path: "/api/v1/public/media?type=MEDIA_ITEM_TYPE_MOVIE&pagination.page=2&pagination.pageSize=500",
     });

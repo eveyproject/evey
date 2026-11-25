@@ -53,7 +53,9 @@ service AdminMediaService {
   // TrashMediaItem moves a movie or episode file, with its subtitles and
   // .nfo, to .evey-trash at the root of its library (same relative path),
   // then removes the item as DeleteMediaItem does. Nothing is deleted from
-  // disk: emptying the trash is the administrator's own call.
+  // disk: emptying the trash is the administrator's own call. A move across
+  // disks (a pooled library) is a copy, done in the background: the answer
+  // comes at once with pending set.
   rpc TrashMediaItem(TrashMediaItemRequest) returns (TrashMediaItemResponse) {
     option (google.api.http) = {
       post: "/api/v1/admin/media/{id}/trash"
@@ -822,8 +824,12 @@ message RestoreTrashedMediaResponse {
 }
 
 message TrashMediaItemResponse {
-  // Where the file now is, inside the library's .evey-trash folder.
+  // Where the file now is, or will be, inside the library's .evey-trash folder.
   string trashed_path = 1;
+  // The trash folder is on another disk than the file: the file is being
+  // copied there in the background. The item leaves Evey when the copy is
+  // whole, and the administrators get a notification either way.
+  bool pending = 2;
 }
 
 message RelinkCollectionsRequest {

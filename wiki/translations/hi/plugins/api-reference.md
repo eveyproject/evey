@@ -1,5 +1,5 @@
 ---
-source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
+source_sha: 88b25d5013bee4a453fc1acd638af277264419566f6746aea48dd160a29a2b7e
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -273,6 +273,28 @@ const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pag
 `poster` एक `data:` URL लौटाता है, क्योंकि फ़्रेम की नीति सर्वर से सीधे तस्वीर
 लोड करने से मना करती है; इसे `<img>` के स्रोत या texture की तरह इस्तेमाल करें।
 
+### `evey.media.gaps()` (अनुमति `media.gaps`) { #eveymediagaps-permission-mediagaps }
+
+लाइब्रेरी में क्या कम है, Evey का निकाला हुआ: मौजूद सीरीज़ के पहले से प्रसारित
+एपिसोड जो नहीं हैं, और शुरू की गई सीरीज़-फ़िल्मों (saga) की रिलीज़ हो चुकी फ़िल्में
+जो नहीं हैं। कोई सीरीज़ या saga क्या रखती है, यह Evey ख़ुद TMDB से अपनी रफ़्तार
+से जानता है (सहेजा जवाब एक हफ़्ते बाद नया होता है); प्लगइन कभी TMDB को कॉल नहीं
+करता, वह नतीजा पढ़ता है।
+
+```js
+const { series, sagas } = await evey.media.gaps();
+// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
+//   episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+```
+
+सिर्फ़ जो आ चुका है वही गिना जाता है: बिना तारीख़ का या आज के बाद की तारीख़ वाला
+एपिसोड या फ़िल्म अभी कम नहीं है, और स्पेशल (सीज़न 0) अलग रखे जाते हैं। जिस
+सीरीज़ को TMDB नहीं जानता, वह अपनी ही नंबरिंग के छेदों से दिखती है
+(`fromCatalog` false): सबसे ऊँचे मौजूद एपिसोड से नीचे के कम एपिसोड, सबसे ऊँचे
+मौजूद सीज़न से नीचे के कम सीज़न (`whole`, बिना एपिसोड सूची)। सिर्फ़ एडमिन के
+सेशन पर, `media.files` की तरह।
+
 ### `evey.media.trash(ids)` (अनुमति `media.trash`, सिर्फ़ स्लॉट `admin.nav`) { #eveymediatrashids }
 
 Evey से मीडिया फ़ाइलों को उनकी लाइब्रेरी के ट्रैश में ले जाने को कहता है। प्लगइन
@@ -282,7 +304,7 @@ Evey से मीडिया फ़ाइलों को उनकी ला�
 
 ```js
 const res = await evey.media.trash([id1, id2]);
-// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+// { trashed: [{ id, trashedPath, pending }], failed: [{ id, message }] }
 ```
 
 हाँ कहने पर हर फ़ाइल, अपने सबटाइटल और `.nfo` के साथ, अपनी लाइब्रेरी की जड़ में
@@ -292,7 +314,9 @@ const res = await evey.media.trash([id1, id2]);
 ना कहने पर promise `cancelled` के साथ reject होता है, और ब्राउज़र में `media.trash`
 वाले प्लगइन के `admin.nav` पेज के अलावा कहीं भी `method not permitted` के साथ (फ़ोन
 और TV ऐप अभी यह नहीं देते)। किसी एक फ़ाइल का इनकार (रीड-ओनली माउंट, फ़ाइल पहले
-ही गायब) `failed` में लौटता है।
+ही गायब) `failed` में लौटता है। `pending` तब true होता है जब फ़ाइल बैकग्राउंड में किसी
+दूसरे डिस्क के ट्रैश फ़ोल्डर में कॉपी हो रही हो: कॉपी पूरी होने तक आइटम
+`evey.media.list` में रहता है, और एडमिन को हर हाल में सूचना मिलती है।
 
 `evey.media.restore(paths)` इसे उसी नियम के तहत पलटता है: `trashedPath` मानों से Evey
 हर फ़ाइल और उसके सबटाइटल को उनकी जगह वापस रखता है और लाइब्रेरी स्कैन करता है, ताकि
