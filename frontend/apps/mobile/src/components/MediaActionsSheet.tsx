@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { displayTitle, usePlaybackServiceMarkAsUnwatched, usePlaybackServiceMarkAsWatched, type V1MediaItem } from "@evey/api";
+import { displayTitle, libraryServiceGetMediaItem, playbackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, usePlaybackServiceMarkAsWatched, type V1MediaItem } from "@evey/api";
 import { invalidateWatchedState } from "@evey/client";
 import { toast, useAuthStore } from "@evey/store";
 import { FONT_SIZE } from "@evey/theme";
@@ -67,6 +67,26 @@ export function MediaActionsSheet({ item, onClose }: { item: V1MediaItem | null;
     (watched ? markWatched : markUnwatched).mutate({ mediaItemId: mediaId, params: { profileId } });
   };
 
+  // An episode (Continue Watching above all) knows its season, not its series:
+  // the season names it. Marking the series marks every episode under it on
+  // the server, so the whole show leaves the row in one action.
+  const episodeSeasonId = item?.type === "MEDIA_ITEM_TYPE_EPISODE" ? item.parentId : undefined;
+  const markSeries = async () => {
+    onClose();
+    if (!episodeSeasonId) return;
+    if (!profileId) { toast.error(t("media.contextMenu.noProfileSelected")); return; }
+    try {
+      const season = await libraryServiceGetMediaItem(episodeSeasonId);
+      const seriesId = season.parentId;
+      if (!seriesId) throw new Error("season without a series");
+      await playbackServiceMarkAsWatched(seriesId, { profileId });
+      invalidateWatchedState(qc, seriesId);
+      toast.success(t("media.contextMenu.markedSeriesWatched"));
+    } catch {
+      toast.error(t("media.contextMenu.markSeriesError"));
+    }
+  };
+
   const actions: Action[] = !item || !mediaId ? [] : [
     ...(isAdmin ? [{ key: "edit-metadata", icon: "create-outline" as const, label: t("media.contextMenu.editMetadata"), onPress: () => { onClose(); router.push(`/media/${mediaId}?edit=1` as never); } }] : []),
     { key: "add-to-playlist", icon: "list-outline", label: t("media.contextMenu.addToPlaylist"), onPress: () => thenOpen(() => setPlaylistFor(item)) },
@@ -78,6 +98,7 @@ export function MediaActionsSheet({ item, onClose }: { item: V1MediaItem | null;
       onPress: () => { toggleFav.mutate(isFav); onClose(); },
     },
     { key: "mark-watched", icon: "eye-outline", label: t("media.contextMenu.markWatched"), onPress: () => mark(true) },
+    ...(episodeSeasonId ? [{ key: "mark-series-watched", icon: "albums-outline" as const, label: t("media.contextMenu.markSeriesWatched"), onPress: () => { void markSeries(); } }] : []),
     { key: "mark-unwatched", icon: "eye-off-outline", label: t("media.contextMenu.markUnwatched"), onPress: () => mark(false) },
   ];
 
