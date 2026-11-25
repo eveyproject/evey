@@ -1305,38 +1305,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	// instead of re-fetching them through fillAncestorTitles.
 	stampAncestorTitles(resp.Items, seasonByID, seriesByID)
 	fillPrimaryBlurhashes(ctx, h.metadataSvc, resp.Items)
-	if h.librarySvc != nil {
-		fillVideoStreams(ctx, h.librarySvc, resp.Items)
-	}
 	return resp, nil
-}
-
-// fillVideoStreams gives each card of the rail its video stream (resolution
-// and HDR badges), in one read. Only the video one: a card has no use for the
-// audio and subtitle tracks, the title page fetches them.
-func fillVideoStreams(ctx context.Context, src mediaStreamsReader, items []*eveyv1.MediaItem) {
-	if src == nil || len(items) == 0 {
-		return
-	}
-	ids := make([]string, 0, len(items))
-	for _, it := range items {
-		if it.GetId() != "" && len(it.GetStreams()) == 0 {
-			ids = append(ids, it.GetId())
-		}
-	}
-	if len(ids) == 0 {
-		return
-	}
-	streams, err := src.GetStreamsForItems(ctx, ids)
-	if err != nil {
-		slog.WarnContext(ctx, "resume rail streams", slog.Any("err", err))
-		return
-	}
-	for _, it := range items {
-		if v := firstVideoStream(streams[it.GetId()]); v != nil && len(it.GetStreams()) == 0 {
-			it.Streams = []*eveyv1.MediaStream{mediaStreamToProto(v, false)}
-		}
-	}
 }
 
 // GetNextUp is retired: the next episode of a series being watched is a card

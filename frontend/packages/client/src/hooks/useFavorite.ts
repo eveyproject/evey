@@ -9,6 +9,7 @@ import {
   collectAllPages,
   EXPORT_PAGE_SIZE,
   type V1FavoriteProto,
+  type V1MediaStream,
 } from "@evey/api";
 
 // Must not exceed the server's maxBatchIsFavoriteIDs (grpcapi/favorite_handler.go):
@@ -143,6 +144,8 @@ export interface FavoriteItem {
   type?: string;
   year?: number;
   communityRating?: number;
+  /** The card's resolution and HDR badges (see feedItemToCard). */
+  videoStream?: V1MediaStream;
 }
 
 // The favourites page sorts, filters and searches over this list on the
@@ -174,6 +177,7 @@ export function useFavoritesList() {
         type: f.type,
         year: f.year,
         communityRating: f.communityRating,
+        videoStream: f.videoStream,
       }));
     },
   });

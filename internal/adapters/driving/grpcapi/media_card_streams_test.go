@@ -78,7 +78,9 @@ func TestMediaCardStreamsUnary_KnowsEveryCardMessage(t *testing.T) {
 		}
 		return true
 	})
-	assert.ElementsMatch(t, []string{"evey.v1.FeedItem", "evey.v1.PopularMediaItem"}, got)
+	assert.ElementsMatch(t, []string{
+		"evey.v1.FeedItem", "evey.v1.PopularMediaItem", "evey.v1.FavoriteProto", "evey.v1.CollectionItemProto",
+	}, got)
 }
 
 func TestMediaCardStreamsUnary_IsInTheServerChain(t *testing.T) {
@@ -92,12 +94,28 @@ func TestMediaCardStreamsUnary_IsInTheServerChain(t *testing.T) {
 	assert.Contains(t, chain[start:start+end], "grpcapi.MediaCardStreamsUnary(", "the unary chain fills the card badges")
 }
 
-func TestFillVideoStreams_ResumeCardsGetTheirVideoStreamOnly(t *testing.T) {
+// A favourite names its title by media_item_id (its own id is the favourite's);
+// a collection's title by id.
+func TestMediaCardStreamsUnary_FavouritesAndCollectionsByTheirTitle(t *testing.T) {
+	src := &stubStreams{by: map[string][]*library.MediaStream{"film": uhdHDR()}}
+	favs := &eveyv1.ListFavoritesResponse{Items: []*eveyv1.FavoriteProto{{Id: "fav-1", MediaItemId: "film"}}}
+	require.NoError(t, runCardStreams(src, favs))
+	assert.Equal(t, []string{"film"}, src.asked)
+	require.NotNil(t, favs.Items[0].GetVideoStream())
+
+	col := &eveyv1.CollectionItemProto{Id: "film"}
+	require.NoError(t, runCardStreams(src, &eveyv1.GetCollectionResponse{Items: []*eveyv1.CollectionItemProto{col}}))
+	require.NotNil(t, col.GetVideoStream())
+}
+
+// A title sent without streams (a search, Continue Watching) gets its video
+// stream only; one that has its streams is left as it is, and not read.
+func TestMediaCardStreamsUnary_BareTitlesGetTheirVideoStream(t *testing.T) {
 	src := &stubStreams{by: map[string][]*library.MediaStream{"ep": uhdHDR()}}
-	items := []*eveyv1.MediaItem{{Id: "ep"}, {Id: "full", Streams: []*eveyv1.MediaStream{{Index: 7}}}}
-	fillVideoStreams(context.Background(), src, items)
-	require.Len(t, items[0].Streams, 1)
-	assert.Equal(t, int32(2160), items[0].Streams[0].GetHeight())
-	assert.Equal(t, []string{"ep"}, src.asked, "an item that already has its streams is not read again")
-	assert.Equal(t, int32(7), items[1].Streams[0].GetIndex())
+	resp := &eveyv1.SearchMediaResponse{Items: []*eveyv1.MediaItem{{Id: "ep"}, {Id: "full", Streams: []*eveyv1.MediaStream{{Index: 7}}}}}
+	require.NoError(t, runCardStreams(src, resp))
+	require.Len(t, resp.Items[0].Streams, 1)
+	assert.Equal(t, int32(2160), resp.Items[0].Streams[0].GetHeight())
+	assert.Equal(t, []string{"ep"}, src.asked)
+	assert.Equal(t, int32(7), resp.Items[1].Streams[0].GetIndex())
 }

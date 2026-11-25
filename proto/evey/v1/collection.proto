@@ -4,6 +4,7 @@ package evey.v1;
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "evey/v1/library.proto";
 
 option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
@@ -220,6 +221,9 @@ message CollectionItemProto {
   string overview = 5;
   double community_rating = 6;
   repeated string genres = 7;
+  // The title's video stream, for the card's resolution and HDR badges, as on
+  // FeedItem (filled by MediaCardStreamsUnary; id is the media item's).
+  MediaStream video_stream = 8;
 }
 
 message ListCollectionsForMediaItemRequest {

@@ -4,6 +4,7 @@ package evey.v1;
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "evey/v1/library.proto";
 
 option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
@@ -54,6 +55,9 @@ message FavoriteProto {
   string type = 6;
   int32 year = 7;
   double community_rating = 8;
+  // The title's video stream, for the card's resolution and HDR badges, as on
+  // FeedItem (filled by MediaCardStreamsUnary).
+  MediaStream video_stream = 9;
 }
 
 message ListFavoritesRequest {

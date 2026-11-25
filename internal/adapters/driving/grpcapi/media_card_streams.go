@@ -19,18 +19,30 @@ type mediaStreamsReader interface {
 
 var mediaStreamFullName = (&eveyv1.MediaStream{}).ProtoReflect().Descriptor().FullName()
 
-// A card message is one that names a title (media_item_id) and declares a
-// video_stream to show its resolution and HDR badges: FeedItem and
-// PopularMediaItem today, any rail added later by declaring the same pair.
+// A card message is one that names a title and declares a video_stream to
+// show its resolution and HDR badges: FeedItem, PopularMediaItem,
+// FavoriteProto and CollectionItemProto today, any card added later by
+// declaring the same pair. The title is media_item_id, or id on a message
+// without one (a collection's titles).
 const (
-	cardIDField     = protoreflect.Name("media_item_id")
-	cardStreamField = protoreflect.Name("video_stream")
+	cardIDField       = protoreflect.Name("media_item_id")
+	cardIDFieldBareID = protoreflect.Name("id")
+	cardStreamField   = protoreflect.Name("video_stream")
 )
 
+func cardIDDescriptor(md protoreflect.MessageDescriptor) protoreflect.FieldDescriptor {
+	if fd := md.Fields().ByName(cardIDField); fd != nil {
+		return fd
+	}
+	return md.Fields().ByName(cardIDFieldBareID)
+}
+
 // MediaCardStreamsUnary fills video_stream on every card message an answer
-// carries, in one read per answer. It sits on the server, like the watched
-// mark, so a home rail cannot ship without its badges: each rail filling its
-// own is how the web cards ended up with badge code no rail ever fed.
+// carries, and gives every MediaItem sent without streams its video one (a
+// search, Continue Watching), in one read per answer. It sits on the server,
+// like the watched mark, so no screen ships without its badges: each rail
+// filling its own is how the web cards ended up with badge code no rail fed,
+// and the popular row, the search and the favourites without badges.
 func MediaCardStreamsUnary(src mediaStreamsReader) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		resp, err := handler(ctx, req)
@@ -47,17 +59,30 @@ func MediaCardStreamsUnary(src mediaStreamsReader) grpc.UnaryServerInterceptor {
 func stampCardStreams(ctx context.Context, src mediaStreamsReader, msg proto.Message) {
 	var cards []protoreflect.Message
 	collectCards(msg.ProtoReflect(), &cards)
-	if len(cards) == 0 {
+	var bare []*eveyv1.MediaItem
+	var items []*eveyv1.MediaItem
+	collectMediaItems(msg.ProtoReflect(), &items)
+	for _, it := range items {
+		if len(it.GetStreams()) == 0 {
+			bare = append(bare, it)
+		}
+	}
+	if len(cards) == 0 && len(bare) == 0 {
 		return
 	}
-	ids := make([]string, 0, len(cards))
-	seen := make(map[string]bool, len(cards))
-	for _, c := range cards {
-		id := c.Get(c.Descriptor().Fields().ByName(cardIDField)).String()
+	ids := make([]string, 0, len(cards)+len(bare))
+	seen := make(map[string]bool, len(cards)+len(bare))
+	add := func(id string) {
 		if id != "" && !seen[id] {
 			seen[id] = true
 			ids = append(ids, id)
 		}
+	}
+	for _, c := range cards {
+		add(c.Get(cardIDDescriptor(c.Descriptor())).String())
+	}
+	for _, it := range bare {
+		add(it.GetId())
 	}
 	if len(ids) == 0 {
 		return
@@ -68,12 +93,16 @@ func stampCardStreams(ctx context.Context, src mediaStreamsReader, msg proto.Mes
 		return
 	}
 	for _, c := range cards {
-		fields := c.Descriptor().Fields()
-		v := firstVideoStream(streams[c.Get(fields.ByName(cardIDField)).String()])
-		if v == nil {
-			continue
+		if v := firstVideoStream(streams[c.Get(cardIDDescriptor(c.Descriptor())).String()]); v != nil {
+			setCardVideoStream(c, mediaStreamToProto(v, false))
 		}
-		setCardVideoStream(c, mediaStreamToProto(v, false))
+	}
+	// Only the video stream: a card has no use for the audio and subtitle
+	// tracks, the title page fetches them with the title.
+	for _, it := range bare {
+		if v := firstVideoStream(streams[it.GetId()]); v != nil {
+			it.Streams = []*eveyv1.MediaStream{mediaStreamToProto(v, false)}
+		}
 	}
 }
 
@@ -86,6 +115,10 @@ func setCardVideoStream(c protoreflect.Message, v *eveyv1.MediaStream) {
 	case *eveyv1.FeedItem:
 		card.VideoStream = v
 	case *eveyv1.PopularMediaItem:
+		card.VideoStream = v
+	case *eveyv1.FavoriteProto:
+		card.VideoStream = v
+	case *eveyv1.CollectionItemProto:
 		card.VideoStream = v
 	default:
 		c.Set(c.Descriptor().Fields().ByName(cardStreamField), protoreflect.ValueOfMessage(v.ProtoReflect()))
@@ -102,7 +135,7 @@ func firstVideoStream(streams []*library.MediaStream) *library.MediaStream {
 }
 
 func isCardMessage(md protoreflect.MessageDescriptor) bool {
-	id := md.Fields().ByName(cardIDField)
+	id := cardIDDescriptor(md)
 	vs := md.Fields().ByName(cardStreamField)
 	return id != nil && id.Kind() == protoreflect.StringKind && !id.IsList() &&
 		vs != nil && vs.Message() != nil && vs.Message().FullName() == mediaStreamFullName && !vs.IsList()

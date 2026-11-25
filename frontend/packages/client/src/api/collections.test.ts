@@ -70,6 +70,17 @@ describe("useCollectionPage", () => {
     expect(result.current.data?.items[0]?.title).toBe("Iron Man");
   });
 
+  // A collection's cards read their badges off the title's video stream.
+  it("hands each title's video stream to its card", async () => {
+    const v = { type: "MEDIA_STREAM_TYPE_VIDEO", width: 1920, height: 1080 };
+    mockGet.mockReturnValue({ data: { collection: { id: "c-1", name: "Marvel", createdAt: "2024-01-01", updatedAt: "2024-01-01" } }, isLoading: false, isSuccess: true });
+    mockGetItems.mockReturnValue({ data: { items: [{ id: "m-1", title: "Iron Man", type: "movie", videoStream: v }, { id: "s-1", title: "Show", type: "series" }], total: 2 }, isLoading: false, isSuccess: true });
+    const { useCollectionPage: useCollection } = await import("./collections");
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useCollection("c-1"), { wrapper });
+    expect(result.current.data?.items.map((i) => i.streams)).toEqual([[v], undefined]);
+  });
+
   it("is disabled when id is empty", async () => {
     mockGet.mockReturnValue({ data: undefined, isLoading: false, isSuccess: false });
     mockGetItems.mockReturnValue({ data: undefined, isLoading: false, isSuccess: false });
