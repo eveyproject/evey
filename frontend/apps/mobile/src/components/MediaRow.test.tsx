@@ -15,7 +15,10 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("expo-router", () => ({ router }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (_k: string, f?: string) => f ?? _k }) }));
 vi.mock("../providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { text: "#fff", accent: "#f00" }, spacing: { sm: 8, md: 12, lg: 16 } }) }));
-vi.mock("../hooks/useWatchedMap", () => ({ useWatchProgressMaps: () => ({ watchedMap: new Map([["m1", true]]), percentMap: new Map() }) }));
+vi.mock("../hooks/useWatchedMap", () => ({
+  useWatchProgressMaps: () => ({ watchedMap: new Map([["m1", true]]), percentMap: new Map() }),
+  itemShowsWatched: (item: any, legacy?: Map<string, boolean>) => (item.userData ? item.userData.played === true : legacy?.get(item.id) === true),
+}));
 vi.mock("./MediaCard", () => ({
   MediaCard: ({ item, onPress, watchPercent, watched }: any) =>
     React.createElement("button", { "aria-label": item.title, onClick: onPress, "data-pct": watchPercent, "data-watched": String(!!watched) }),
@@ -42,6 +45,16 @@ describe("MediaRow", () => {
     expect(onItemPress).toHaveBeenCalledWith(items[1]);
     fireEvent.click(screen.getByLabelText("See all"));
     expect(router.push).toHaveBeenCalledWith("/recent");
+  });
+
+  it("lets the item's own userData win over the overlay map", () => {
+    const items = [
+      { id: "m1", title: "One", userData: { played: false } },
+      { id: "m9", title: "Nine", userData: { played: true } },
+    ] as any[];
+    render(<MediaRow title="Recent" items={items} />);
+    expect(screen.getByLabelText("One").getAttribute("data-watched")).toBe("false");
+    expect(screen.getByLabelText("Nine").getAttribute("data-watched")).toBe("true");
   });
 
   it("opens the row's page from its title too, and a row without one keeps a plain title", () => {

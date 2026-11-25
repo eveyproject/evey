@@ -4,12 +4,11 @@ import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, displayTitle, itemLabel } from "@evey/api";
-import { useImageRetry, useMediaPrefetch } from "@evey/client";
+import { useImageRetry, useItemShowsWatched, useMediaPrefetch } from "@evey/client";
 import type { V1Artwork } from "@evey/api";
 import { Blurhash } from "react-blurhash";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
-import { useIsWatched } from "@/hooks/useWatchedMap";
 import { typeLabel } from "@/utils/typeLabel";
 import { HoverPreview } from "./MediaCardHoverPreview";
 import { CardContextMenu } from "./MediaCardContextMenu";
@@ -145,7 +144,9 @@ export const MediaCard = memo(function MediaCard({
       ? Math.min(100, Math.max(0, Math.round(progressPercent)))
       : undefined;
 
-  const watchedFromData = useIsWatched(item.id);
+  // The server stamps the mark on the title (user_data); the overlay only
+  // answers for a server too old to send it.
+  const watchedFromData = useItemShowsWatched(item);
   const watchedFromProps = isWatched || watchedFromData || (pct !== undefined && pct >= WATCHED_THRESHOLD_PCT);
   const [watchedLocal, setWatchedLocal] = useState<boolean | null>(null);
   const watched = watchedLocal ?? watchedFromProps;

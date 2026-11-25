@@ -27,7 +27,7 @@ import type {
   LibraryServiceSearchMediaSortOrder,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import { buildWatchProgressMaps, videoStream, isHdrStream, resolutionLabel } from "@evey/client";
+import { buildWatchProgressMaps, itemShowsWatched, itemPercent, videoStream, isHdrStream, resolutionLabel } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
@@ -549,8 +549,8 @@ export default function LibraryDetailScreen() {
       <LibraryGridCard
         item={item}
         index={index}
-        watched={item.id ? watchedMap.get(item.id) === true : false}
-        percent={item.id ? percentMap.get(item.id) : undefined}
+        watched={itemShowsWatched(item, watchedMap)}
+        percent={itemPercent(item, percentMap) || undefined}
         cardWidth={cardWidth}
         titleBlock={titleBlock}
         serverUrl={serverUrl}

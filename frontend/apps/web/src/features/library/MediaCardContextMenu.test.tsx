@@ -35,6 +35,13 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   };
 });
 
+// The refresh itself (every query on screen, coalesced) is pinned by
+// @evey/client's own tests: here, only that the menu hands the mark to it.
+const mockInvalidateWatchedState = vi.fn();
+vi.mock("@/lib/invalidateWatchedState", () => ({
+  invalidateWatchedState: (...a: unknown[]) => mockInvalidateWatchedState(...a),
+}));
+
 vi.mock("@evey/api", () => ({
   usePlaybackServiceMarkAsWatched: (opts: {
     mutation?: { onSuccess?: () => void; onError?: () => void };
@@ -254,28 +261,11 @@ describe("CardContextMenu", () => {
 
   // ── Mark watched: onSuccess / onError callbacks ───────────────────────────────
 
-  it("markWatched onSuccess invalidates item, watch history, and feeds", async () => {
+  it("markWatched onSuccess refreshes the watched state of the title", async () => {
     renderMenu({ mediaId: "mi-test" });
     fireEvent.click(screen.getByTestId("media-context-menu-mark-watched"));
     watchedOnSuccess?.();
-    await waitFor(() =>
-      expect(mockInvalidateQueries).toHaveBeenCalledWith(
-        expect.objectContaining({ queryKey: ["/api/v1/media/mi-test"] }),
-      ),
-    );
-    // Must mirror MediaCard.invalidateItem so the watched badge + "Continue
-    // Watching" feeds update, not just the detail query.
-    expect(mockInvalidateQueries).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["/api/v1/playback/history"] }),
-    );
-    const predicateCall = mockInvalidateQueries.mock.calls.find(
-      ([arg]) => typeof arg?.predicate === "function",
-    );
-    expect(predicateCall).toBeTruthy();
-    const predicate = predicateCall![0].predicate as (q: { queryKey: unknown[] }) => boolean;
-    expect(predicate({ queryKey: ["/api/v1/feeds/continue-watching"] })).toBe(true);
-    expect(predicate({ queryKey: ["/api/v1/popular"] })).toBe(true);
-    expect(predicate({ queryKey: ["/api/v1/media/mi-test"] })).toBe(false);
+    await waitFor(() => expect(mockInvalidateWatchedState).toHaveBeenCalledWith(expect.anything(), "mi-test"));
   });
 
   it("markWatched onSuccess shows success toast", async () => {
@@ -310,15 +300,11 @@ describe("CardContextMenu", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
-  it("markUnwatched onSuccess invalidates the media item query", async () => {
+  it("markUnwatched onSuccess refreshes the watched state of the title", async () => {
     renderMenu({ mediaId: "mi-test" });
     fireEvent.click(screen.getByTestId("media-context-menu-mark-unwatched"));
     unwatchedOnSuccess?.();
-    await waitFor(() =>
-      expect(mockInvalidateQueries).toHaveBeenCalledWith(
-        expect.objectContaining({ queryKey: ["/api/v1/media/mi-test"] }),
-      ),
-    );
+    await waitFor(() => expect(mockInvalidateWatchedState).toHaveBeenCalledWith(expect.anything(), "mi-test"));
   });
 
   it("markUnwatched onSuccess shows success toast", async () => {

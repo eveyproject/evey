@@ -389,6 +389,23 @@ describe("MediaDetailScreen (TV) episode watched toggle", () => {
     expect(screen.getByLabelText("media.detail.markUnwatched: 2. Second")).toBeTruthy();
   });
 
+  it("reads an episode's own userData first, the overlay only when it has none", () => {
+    watchHistory = { data: { items: [{ mediaItemId: "ep-2", played: true }] } };
+    listMediaItemsMock.mockReturnValue({
+      data: {
+        items: [
+          { id: "ep-1", indexNumber: 1, title: "Pilot", userData: { played: true } },
+          { id: "ep-2", indexNumber: 2, title: "Second" },
+          { id: "ep-3", indexNumber: 3, title: "Third", userData: { played: false } },
+        ],
+      },
+    });
+    renderScreen();
+    expect(screen.getByLabelText("media.detail.markUnwatched: 1. Pilot")).toBeTruthy();
+    expect(screen.getByLabelText("media.detail.markUnwatched: 2. Second")).toBeTruthy();
+    expect(screen.getByLabelText("media.detail.markWatched: 3. Third")).toBeTruthy();
+  });
+
   it("offers no toggle on the demo", () => {
     demoState.demoMode = true;
     try {

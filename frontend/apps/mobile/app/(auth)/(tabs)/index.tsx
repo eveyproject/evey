@@ -34,7 +34,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { MediaRow } from "../../../src/components/MediaRow";
 import { MediaActionsSheet } from "../../../src/components/MediaActionsSheet";
-import { useWatchedMap } from "../../../src/hooks/useWatchedMap";
+import { filterUnwatched, useWatchedMap } from "../../../src/hooks/useWatchedMap";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { CollectionRow } from "../../../src/components/CollectionRow";
@@ -183,7 +183,7 @@ function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress, 
       ? "MEDIA_ITEM_TYPE_MOVIE"
       : undefined;
   const visibleTarget = resolveMaxItems(maxItems, 20);
-  // Over-fetch: the server list doesn't filter by watched state, so pull a
+  // Over-fetch: an older server ignores unwatchedOnly, so pull a
   // wider page than the row actually shows and filter client-side below,
   // keeping the row full after watched items are dropped. The fetched window
   // scales with maxItems so a configured larger row doesn't come up short
@@ -192,6 +192,7 @@ function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress, 
     libraryId,
     ...(typeFilter ? { type: typeFilter as never } : {}),
     "pagination.pageSize": Math.max(40, visibleTarget * 2),
+    unwatchedOnly: true,
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED" as never,
     sortOrder: "SORT_ORDER_DESC" as never,
   });
@@ -200,8 +201,7 @@ function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress, 
 
   const items = useMemo(
     () =>
-      (data?.items ?? [])
-        .filter((i): i is V1MediaItem => !!i.id && !watchedMap.get(i.id))
+      filterUnwatched((data?.items ?? []).filter((i): i is V1MediaItem => !!i.id), watchedMap)
         .slice(0, visibleTarget),
     [data?.items, watchedMap, visibleTarget],
   );
