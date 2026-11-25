@@ -105,7 +105,7 @@ func collectMediaItems(m protoreflect.Message, out *[]*eveyv1.MediaItem) {
 		switch {
 		case fd.IsList():
 			l := v.List()
-			for i := 0; i < l.Len(); i++ {
+			for i := range l.Len() {
 				collectMediaItems(l.Get(i).Message(), out)
 			}
 		case fd.IsMap():
@@ -142,7 +142,7 @@ func descriptorHoldsMediaItem(md protoreflect.MessageDescriptor, visiting map[pr
 	}
 	visiting[md.FullName()] = true
 	fields := md.Fields()
-	for i := 0; i < fields.Len(); i++ {
+	for i := range fields.Len() {
 		fd := fields.Get(i)
 		sub := fd.Message()
 		if fd.IsMap() {

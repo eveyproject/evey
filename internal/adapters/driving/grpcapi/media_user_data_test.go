@@ -63,7 +63,7 @@ func TestMediaUserDataUnary_FindsNestedItems(t *testing.T) {
 	md := resp.ProtoReflect().Descriptor()
 	// Whatever field of the answer holds the MediaItem, the walk reaches it.
 	var field protoreflect.FieldDescriptor
-	for i := 0; i < md.Fields().Len(); i++ {
+	for i := range md.Fields().Len() {
 		if f := md.Fields().Get(i); f.Message() != nil && f.Message().FullName() == mediaItemFullName && !f.IsList() {
 			field = f
 		}
@@ -92,9 +92,9 @@ func TestMediaUserDataUnary_LeavesOtherAnswersAlone(t *testing.T) {
 func TestMediaUserDataUnary_CoversEveryRPCReturningTitles(t *testing.T) {
 	var got []string
 	protoregistry.GlobalFiles.RangeFilesByPackage("evey.v1", func(fd protoreflect.FileDescriptor) bool {
-		for i := 0; i < fd.Services().Len(); i++ {
+		for i := range fd.Services().Len() {
 			ms := fd.Services().Get(i).Methods()
-			for j := 0; j < ms.Len(); j++ {
+			for j := range ms.Len() {
 				if mayHoldMediaItem(ms.Get(j).Output()) {
 					got = append(got, string(ms.Get(j).FullName()))
 				}
@@ -122,6 +122,6 @@ func TestMediaUserDataUnary_IsInTheServerChain(t *testing.T) {
 	start := strings.Index(chain, "unary := []grpc.UnaryServerInterceptor{")
 	require.GreaterOrEqual(t, start, 0)
 	end := strings.Index(chain[start:], "\n\t}\n")
-	require.Greater(t, end, 0)
+	require.Positive(t, end)
 	assert.Contains(t, chain[start:start+end], "grpcapi.MediaUserDataUnary(", "the unary chain stamps the watched mark")
 }
