@@ -418,6 +418,15 @@ function withListSummary(request: FetcherRequest): FetcherRequest["params"] {
   return { ...request.params, summary: true };
 }
 
+function isRawBody(data: unknown): boolean {
+  return (
+    (typeof FormData !== "undefined" && data instanceof FormData) ||
+    (typeof Blob !== "undefined" && data instanceof Blob) ||
+    (typeof URLSearchParams !== "undefined" && data instanceof URLSearchParams) ||
+    data instanceof ArrayBuffer
+  );
+}
+
 async function eveyFetchWithSignal<T>(request: FetcherRequest, signal: AbortSignal): Promise<T> {
   const token = await _ensureFreshToken(request.url);
   const headers: Record<string, string> = { ...extraHeaders, ...request.headers };
@@ -429,7 +438,10 @@ async function eveyFetchWithSignal<T>(request: FetcherRequest, signal: AbortSign
     const csrf = getCSRFToken();
     if (csrf) headers["X-CSRF-Token"] = csrf;
   }
-  if (request.data !== undefined) {
+  // A form or a file is sent as itself: the browser writes the multipart
+  // boundary into Content-Type, and JSON.stringify would turn it into "{}".
+  const rawBody = isRawBody(request.data);
+  if (request.data !== undefined && !rawBody) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -454,7 +466,7 @@ async function eveyFetchWithSignal<T>(request: FetcherRequest, signal: AbortSign
       method: request.method,
       credentials: credentialsMode,
       headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
-      body: request.data !== undefined ? JSON.stringify(request.data) : undefined,
+      body: rawBody ? (request.data as BodyInit) : request.data !== undefined ? JSON.stringify(request.data) : undefined,
       signal,
     });
 

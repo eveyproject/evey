@@ -1,5 +1,5 @@
 ---
-source_sha: ed2800347644b7f29af5ff78967016d21d06afa3fd5b38856a393e93da5cb5bf
+source_sha: afbc7464f75fabbfac5fcb4804f737e9889ec38f19241b7f9688b5a9c07b01ca
 reviewed: true
 ---
 # 媒体库与元数据 { #libraries-and-metadata }
@@ -86,6 +86,15 @@ reviewed: true
 
 !!! note "网络共享"
     在 NFS 或 SMB 共享上，由另一台机器写入的文件不会给服务器发送任何信号。定期读取会发现它。
+
+## 回收站文件夹 { #the-trash-folder }
+
+拥有 `media.trash` 权限的插件页面（例如处理重复项的 Librarian）可以提议把文件移到回收站。
+Evey 会先在自己的窗口里询问，列出每个文件的路径、大小和画质。确认后，文件连同字幕和 `.nfo`
+会移到其媒体库根目录下的 `.evey-trash`，保持相同的文件夹结构，该标题随之从 Evey 中移除。
+
+磁盘上不会删除任何内容。确认无误后请自行清空 `.evey-trash`；要找回文件，可以紧接着在插件页面上使用 **Undo**，或把它移回原处并扫描媒体库。
+Evey 从不读取这个文件夹。以只读方式挂载的媒体库无法使用回收站：移动会被拒绝，标题保持不变。
 
 ## 音乐媒体库 { #music-libraries }
 

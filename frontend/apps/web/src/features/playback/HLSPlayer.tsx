@@ -4,7 +4,8 @@ import { useAuthStore, toast } from "@evey/store";
 import { isClientDrawableSubtitle } from "@evey/api";
 import { Users } from "lucide-react";
 import Hls from "hls.js";
-import type { V1StreamInfo } from "@evey/api";
+import type { V1PlayedState, V1ServedLeg, V1StreamInfo } from "@evey/api";
+import { fileTrackOrdinal, playedState, trackRendition } from "@evey/client";
 import { PGSSubtitleOverlay } from "./PGSSubtitleOverlay";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
@@ -233,6 +234,7 @@ export function HLSPlayer({
     getSeriesTrackPrefs,
     getPreferredAudioLang,
     profileAudioLangs.length > 0 ? profileAudioLangs : undefined,
+    streamInfo.audioStreamIndex,
   );
   const [currentAudioIndex, setCurrentAudioIndex] = useState(defaultAudio?.index ?? 0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(defaultAudio?.trackIndex ?? 0);
@@ -355,6 +357,7 @@ export function HLSPlayer({
         getSeriesTrackPrefs,
         getPreferredAudioLang,
         profileAudioLangs.length > 0 ? profileAudioLangs : undefined,
+        streamInfo.audioStreamIndex,
       );
       if (best && best.index !== currentAudioIndex) {
         setCurrentAudioIndex(best.index);
@@ -816,10 +819,10 @@ export function HLSPlayer({
     canWasmDecodeAC3() &&
     isWasmDecodableAudioCodec(selectedAudioCodec);
 
-  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, hlsLevelSizes, autoLevelHeight, autoLevelWidth, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode } = useTranscodePlayback({
+  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, hlsLevelSizes, autoLevelHeight, autoLevelWidth, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode, bufferCodecs } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef, audioTrackOverrideRef,
-    pinnedQualityRef, onFragStatsRef, onBufferStallRef,
+    pinnedQualityRef, onFragStatsRef, onBufferStallRef, audioStreams,
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
     startPositionMs, onEnded, setIsBuffering: setIsBufferingDebounced, setFatalError,
     setShedReason,
@@ -975,6 +978,33 @@ export function HLSPlayer({
     onLegChange: setWasmAudioLeg,
     audioOffsetMs,
   });
+
+  // The session's two witnesses (domain/playback/served.go), for the stream
+  // panel: what this player decodes - read live from what hls.js, the wasm
+  // engine and the element loaded, and sent with each progress tick - and
+  // what the server answers it sent. Neither is a verdict.
+  const [witness, setWitness] = useState<{ played?: V1PlayedState; servedVideo?: V1ServedLeg; servedAudio?: V1ServedLeg }>({});
+  useEffect(() => setWitness({}), [mediaId]);
+  const readPlayedRef = useRef<() => V1PlayedState | undefined>(() => undefined);
+  readPlayedRef.current = () => {
+    const hls = hlsRef.current;
+    const video = videoRef.current;
+    const active = hls && hls.audioTrack >= 0 ? hls.audioTracks[hls.audioTrack] : undefined;
+    return playedState({
+      hls: transcodeMode,
+      bufferCodecs,
+      hasRenditions: (hls?.audioTracks.length ?? 0) > 0,
+      activeRendition: active ? { url: active.url, attrs: active.attrs as unknown as Record<string, string | undefined> } : undefined,
+      masterUrl: hls?.url ?? undefined,
+      wasmPath: wasmAudioActive,
+      wasmDecoding: wasmAudioActive && wasmAudioLeg === "wasm",
+      wasmTrack: wasmTrackIndex ?? currentTrackIndex ?? undefined,
+      fileTrack: fileTrackOrdinal(video, audioStreams),
+      height: (transcodeMode ? playingVariant?.height : video?.videoHeight) ?? undefined,
+      audioStreams,
+    });
+  };
+  const readPlayed = useCallback(() => readPlayedRef.current(), []);
 
   useEffect(() => {
     if (audioOffsetMs === appliedAudioOffsetMs) return;
@@ -1273,6 +1303,8 @@ export function HLSPlayer({
     const pinned = pickPinnedLevel({
       levelHeights: hls.levels.map((l: { height: number }) => l.height),
       desiredHeight: autoQuality ? autoCapHeight : currentQuality,
+      // The variant playing carries the audio group the viewer is on.
+      prefer: hls.currentLevel,
     });
     const last = lastPinRef.current;
     lastPinRef.current = { auto: autoQuality, quality: currentQuality, renderCap: renderCapHeight };
@@ -1382,16 +1414,18 @@ export function HLSPlayer({
     const target = stream?.trackIndex ?? 0;
     const wasmForTarget =
       !wasmAudioDisabled && canWasmDecodeAC3() && isWasmDecodableAudioCodec(stream?.codec);
+    const rendition = hlsRef.current ? trackRendition(hlsRef.current.allAudioTracks, target, audioStreams) : undefined;
     const path = pickTranscodeAudioSwitchPath({
       hasHls: !!hlsRef.current,
       wasmActiveNow: wasmAudioActive,
       wasmActiveForTarget: wasmForTarget,
-      audioRenditionCount: hlsRef.current?.audioTracks.length ?? 0,
-      targetTrackIndex: target,
+      targetRenditionFound: !!rendition,
     });
-    if (path === "hls-rendition" && hlsRef.current) {
+    if (path === "hls-rendition" && hlsRef.current && rendition) {
       audioTrackOverrideRef.current = target;
-      hlsRef.current.audioTrack = target;
+      // setAudioOption switches the variant too when the rendition sits in
+      // another audio group (the packager groups renditions by codec).
+      hlsRef.current.setAudioOption(rendition);
       return;
     }
     if (path === "wasm-engine") {
@@ -1514,6 +1548,8 @@ export function HLSPlayer({
         mediaType={mediaType}
         onRemoteStop={onClose}
         onRemoteMessage={showAdminMessage}
+        getPlayed={readPlayed}
+        onWitness={setWitness}
         cast={castConnected && castPlayback.isMediaLoaded ? {
           active: true,
           positionSec: castPlayback.currentTime,
@@ -1592,8 +1628,8 @@ export function HLSPlayer({
         <PlayerControls
           streamInfo={streamInfo}
           wasmAudioActive={wasmAudioActive}
-          wasmAudioLeg={wasmAudioLeg}
           servedVariant={served}
+          witness={witness}
           audioTrackIndex={audioTrackOverrideRef.current ?? currentTrackIndex}
           onClose={onClose}
           onAudioChange={handleAudioChange}

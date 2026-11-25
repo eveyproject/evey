@@ -4,6 +4,7 @@ package evey.v1;
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "evey/v1/served.proto";
 
 option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
@@ -89,10 +90,8 @@ message ActiveSession {
   int32 season_number = 21;
   int32 episode_number = 22;
   bool is_paused = 23;
-  // Per-track serving decision ("copy"|"transcode"). The panel derives the
-  // serving engine from these (copy rung -> mkvgo on-demand, transcode -> ffmpeg)
-  // and renders per-track badges. video_codec/audio_codec/resolution above carry
-  // the served codecs (source->target form when transcoding).
+  // Deprecated: derived from served_video/served_audio for clients built
+  // before them ("copy" | "transcode"). Read served_* instead.
   string video_decision = 24;
   string audio_decision = 25;
   // Non-empty when the client relays playback to a cast device (web sender ->
@@ -106,15 +105,18 @@ message ActiveSession {
   // it belongs to once two accounts use the same profile names.
   string user_id = 28;
   string username = 29;
-  // What the server ACTUALLY serves, recorded when the master playlist is
-  // rendered (the decisions above are the client's start-time declaration,
-  // audio_decision then follows the wasm beacons). video_engine: "mkvgo"
-  // (on-demand copy) | "ffmpeg". video_backend, transcode only: "software" |
-  // "qsv" | "vaapi" | "nvenc". audio_engine: "mkvgo" | "ffmpeg" | "client"
-  // (ac3go wasm decode on the player). Empty on sessions started before this.
+  // Deprecated: derived from served_video/served_audio for clients built
+  // before them. Read served_* instead.
   string video_engine = 30;
   string video_backend = 31;
   string audio_engine = 32;
+  // What the server sent, observed on the responses that carried the bytes:
+  // the latest video and audio. Absent until bytes were served. play_method,
+  // video_codec, audio_codec and resolution above summarize them.
+  ServedLeg served_video = 33;
+  ServedLeg served_audio = 34;
+  // What the player reports it decodes. Absent until it reported.
+  PlayedState played = 35;
 }
 
 message ListActiveSessionsRequest {}

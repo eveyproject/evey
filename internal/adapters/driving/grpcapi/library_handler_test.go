@@ -46,6 +46,7 @@ func newTestLibraryHandlerWithScanner() (*libraryHandler, *libfakes.FakeLibraryQ
 	// A created library is visible to the readers at once, as with one
 	// database: the first scan of a new library looks it up right away.
 	libCmdRepo.OnCreate = libQueryRepo.Seed
+	libCmdRepo.OnUpdate = libQueryRepo.Seed
 	scanner := libfakes.NewFakeFileScanner()
 	prober := libfakes.NewFakeStreamProber()
 	searchIdx := libfakes.NewFakeSearchIndex()

@@ -7,6 +7,44 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+### Added
+- Plugins: a `media.files` permission adds each media item's file path and
+  size to what `evey.media.list` and `evey.media.get` return. The plugin
+  token carries it only when the person looking is an administrator.
+- Plugins: with `media.files`, each item also carries its quality
+  (resolution, codecs, HDR, bit depth, bitrate, audio channels).
+- Plugins: a `media.trash` permission lets an `admin.nav` page ask to move
+  media files to the library trash. Evey shows its own confirmation from its
+  own records; the admin endpoint `POST /api/v1/admin/media/{id}/trash`
+  moves the file, its subtitles and `.nfo` to `.evey-trash` at the root of
+  the library and removes the item. Nothing is deleted from the disk.
+  `evey.media.restore` and `POST /api/v1/admin/media/trash/restore` undo it:
+  the file goes back and the library is scanned.
+- Plugins: `evey.media.list` takes a `type` and a page (`page`, `pageSize`,
+  up to 500), so a plugin can read a whole library. Without them it still
+  returns the first 500 items, every type mixed.
+- Music (web): tracks, albums and playlists drag onto a queue beside the
+  music page, to build a playlist of the moment without playing a whole
+  album. The queue reorders by dragging, plays as it stands and saves as a
+  playlist; the mini player's queue edits the same way. Touch screens start
+  a drag with a long press.
+- Music (web): a playlist is created by hand from the music page, renamed in
+  place, reordered by dragging and filled from a track search.
+- Music: an automatic mix can be limited to chosen styles and given a
+  length. A track tagged with several genres counts for each of them.
+- Shared listening (web): albums, tracks and playlists drag onto the room's
+  queue, which reorders by dragging.
+
+### Changed
+- The web profile menu no longer lists "Manage profiles", which opened the
+  same page as Settings, and its entries no longer wrap.
+
+### Fixed
+- An open music playlist showed only the tracks the page had already
+  loaded; it now shows all of them.
+- Listening history weighs on a mix genre by genre: plays of a track tagged
+  "Alternative/Rock" now also favour a track tagged "Rock".
+
 ## [0.1.8] - 2026-11-15
 
 Server image `eveyproject/evey:0.1.8` (also `0.1` and `latest`). The app

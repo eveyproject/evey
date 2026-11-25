@@ -6,6 +6,7 @@ import {
   buildInitPayload,
   clampSlotHeight,
   ADMIN_CONFIG_SLOT,
+  ADMIN_NAV_SLOT,
   createPluginRpc,
   createToastLimiter,
   frameLoadMessage,
@@ -46,6 +47,14 @@ interface PluginIframeProps {
   pixelScale?: number;
   /** In the admin.plugin.config slot: called once the plugin saved its server config. */
   onConfigSaved?: () => void;
+  /**
+   * Answers evey.media.trash with the host's own confirmation. Honoured only
+   * in the admin.nav slot; the caller passes it only for a plugin granted
+   * media.trash.
+   */
+  onTrashRequest?: (ids: string[]) => Promise<unknown>;
+  /** Answers evey.media.restore; passed together with onTrashRequest. */
+  onRestoreRequest?: (paths: string[]) => Promise<unknown>;
 }
 
 /**
@@ -131,7 +140,7 @@ async function posterThumbnail(blob: Blob): Promise<string> {
 
 const MIN_SLOT_HEIGHT = 50;
 
-export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNavigate, surface = "web", suggestedHeight: hostSuggested, pixelScale = 1, onConfigSaved }: PluginIframeProps) {
+export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNavigate, surface = "web", suggestedHeight: hostSuggested, pixelScale = 1, onConfigSaved, onTrashRequest, onRestoreRequest }: PluginIframeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [suggestedHeight] = useState(() => hostSuggested ?? suggestedSlotHeight(slot, window.innerWidth));
   const [height, setHeight] = useState(suggestedHeight ?? 100);
@@ -210,6 +219,11 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
   const limitedToast = useMemo(() => createToastLimiter(toast), []);
   const onConfigSavedRef = useRef(onConfigSaved);
   useEffect(() => { onConfigSavedRef.current = onConfigSaved; }, [onConfigSaved]);
+  const onTrashRef = useRef(onTrashRequest);
+  useEffect(() => { onTrashRef.current = onTrashRequest; }, [onTrashRequest]);
+  const onRestoreRef = useRef(onRestoreRequest);
+  useEffect(() => { onRestoreRef.current = onRestoreRequest; }, [onRestoreRequest]);
+  const trashable = slot === ADMIN_NAV_SLOT && !!onTrashRequest;
   const rpc = useMemo(
     () =>
       createPluginRpc(pluginId, {
@@ -219,8 +233,10 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
       }, {
         configWrite: slot === ADMIN_CONFIG_SLOT,
         onConfigSaved: () => onConfigSavedRef.current?.(),
+        trash: trashable ? (ids) => onTrashRef.current!(ids) : undefined,
+        restore: trashable && onRestoreRef.current ? (paths) => onRestoreRef.current!(paths) : undefined,
       }),
-    [pluginId, slot],
+    [pluginId, slot, trashable],
   );
 
   // context is an inline object at every call site (context={{ mediaId }}), so

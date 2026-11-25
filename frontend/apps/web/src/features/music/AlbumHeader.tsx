@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Music, Play, Shuffle } from "lucide-react";
+import { ListPlus, Music, Play, Shuffle } from "lucide-react";
 import { useImageToken } from "@/lib/imageToken";
 import { formatDurationSec } from "@evey/api";
 import { Button } from "@/components/ui/Button";
@@ -14,10 +14,12 @@ export function AlbumHeader({
   album,
   onPlay,
   onShuffle,
+  onAddToQueue,
 }: {
   album: Album;
   onPlay: () => void;
   onShuffle: () => void;
+  onAddToQueue?: () => void;
 }) {
   const { t } = useTranslation();
   const accessToken = useImageToken();
@@ -51,6 +53,12 @@ export function AlbumHeader({
             <Shuffle size={ICON.md} />
             {t("media.music.shuffle")}
           </Button>
+          {onAddToQueue && (
+            <Button variant="secondary" size="lg" onClick={onAddToQueue} data-testid="album-header-queue">
+              <ListPlus size={ICON.md} />
+              {t("media.music.addToQueue")}
+            </Button>
+          )}
         </div>
       </div>
     </div>

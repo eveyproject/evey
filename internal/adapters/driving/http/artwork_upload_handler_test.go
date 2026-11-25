@@ -25,14 +25,14 @@ func TestArtworkTypeFromForm(t *testing.T) {
 		want   string
 		wantOK bool
 	}{
-		{"poster", "ARTWORK_TYPE_PRIMARY", true},
-		{"primary", "ARTWORK_TYPE_PRIMARY", true},
-		{"backdrop", "ARTWORK_TYPE_BACKDROP", true},
-		{"BACKDROP", "ARTWORK_TYPE_BACKDROP", true},
-		{"  Poster  ", "ARTWORK_TYPE_PRIMARY", true},
+		{"poster", "poster", true},
+		{"primary", "poster", true},
+		{"backdrop", "backdrop", true},
+		{"BACKDROP", "backdrop", true},
+		{"  Poster  ", "poster", true},
 		// Absent means poster: it is the field an admin edits by default, and
 		// the alternative is failing an upload over a missing optional field.
-		{"", "ARTWORK_TYPE_PRIMARY", true},
+		{"", "poster", true},
 		// Anything else is refused rather than stored: a record with a type no
 		// screen reads is invisible, so the admin would see the upload
 		// "succeed" and nothing change.
@@ -148,7 +148,7 @@ func TestArtworkUpload_Success(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), `"type":"ARTWORK_TYPE_PRIMARY"`)
+	assert.Contains(t, w.Body.String(), `"type":"poster"`)
 	assert.Contains(t, w.Body.String(), `"id":`)
 }
 

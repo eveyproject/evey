@@ -7,10 +7,12 @@ import {
   playerSubtitleStreams,
   subtitleBurnMode,
 } from "@evey/api";
+import type { V1PlayedState, V1ServedLeg } from "@evey/api";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler, BackHandler, findNodeHandle } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { VideoView } from "expo-video";
 import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer";
+import { useNativePlayed, type NativePlayerLike } from "@evey/client/native/useNativePlayed";
 import { setPlayhead, setSeekPreview } from "@evey/client";
 import { playerBufferOptions } from "@evey/client/native/playerBufferOptions";
 import { getDeviceProfile } from "@evey/media-caps";
@@ -1418,6 +1420,25 @@ export default function PlayerScreen() {
   const getVolume = useCallback(() => volumePct / 100, [volumePct]);
   const getIsMuted = useCallback(() => muted, [muted]);
 
+  // The session's two witnesses for the stream panel.
+  const [witness, setWitness] = useState<{ played?: V1PlayedState; servedVideo?: V1ServedLeg; servedAudio?: V1ServedLeg }>({});
+  useEffect(() => setWitness({}), [mediaId]);
+  const { getPlayed: nativeGetPlayed, trackFor: nativeTrackFor, ready: nativeReady } = useNativePlayed(player as unknown as NativePlayerLike, streamUrl, audioStreams);
+  // The track asked for, selected in the player by the rendition that carries
+  // it: the player starts on the DEFAULT rendition of the variant it picked,
+  // which a master grouped by codec does not tie to the track asked for.
+  useEffect(() => {
+    if (!player || !nativeReady || selectedAudioIndex == null) return;
+    const ordinal = audioStreams.find((s) => s.index === selectedAudioIndex)?.trackIndex;
+    if (ordinal == null) return;
+    const want = nativeTrackFor(ordinal);
+    if (!want) return;
+    try {
+      const cur = (player as unknown as NativePlayerLike).audioTrack;
+      if (cur && (cur.id ? cur.id === want.id : cur.name === want.name)) return;
+      (player as unknown as { audioTrack: unknown }).audioTrack = want;
+    } catch { /* released */ }
+  }, [player, nativeReady, nativeTrackFor, selectedAudioIndex, audioStreams]);
   const remoteCallbacks = useMemo(
     () => ({
       onRemotePause: () => {
@@ -1437,8 +1458,11 @@ export default function PlayerScreen() {
       onRemoteStop: () => {
         handleBack();
       },
+      // The player's witness: what it decodes, read from what it loaded.
+      getPlayed: nativeGetPlayed,
+      onWitness: setWitness,
     }),
-    [player, handleBack],
+    [player, handleBack, nativeGetPlayed],
   );
 
   useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted, remoteCallbacks);
@@ -1704,6 +1728,7 @@ export default function PlayerScreen() {
         streamInfo={streamInfo ?? null}
         audioStreamIndex={selectedAudioIndex}
         served={servedVariant(streamInfo, playingTrack.playing, playingTrack.ladderBitrates)}
+        witness={witness}
       />
 
       <SkipIntroButton

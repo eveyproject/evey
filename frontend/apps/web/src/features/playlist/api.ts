@@ -11,5 +11,6 @@ export {
   useAddToPlaylist,
   useRemoveFromPlaylist,
   useReorderPlaylistItems,
+  useMixOptions,
 } from "@evey/client";
-export type { Playlist, PlaylistItem, PlaylistRule } from "@evey/client";
+export type { Playlist, PlaylistItem, PlaylistRule, MixOptions } from "@evey/client";

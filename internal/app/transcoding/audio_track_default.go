@@ -77,7 +77,7 @@ func DefaultAudioTrack(streams []*library.MediaStream, prefLangs []string) int {
 		if s == nil || s.StreamType != library.Audio {
 			continue
 		}
-		e := audioEntry{audioIdx: len(audio), lang: langcode.Normalize(s.Language), isDefault: s.IsDefault, commentary: s.Commentary, rank: demoAudioRank(s.Codec)}
+		e := audioEntry{audioIdx: len(audio), lang: langcode.Normalize(s.Language), isDefault: s.IsDefault, commentary: s.IsCommentary(), rank: demoAudioRank(s.Codec)}
 		if s.Channels != nil {
 			e.channels = *s.Channels
 		}

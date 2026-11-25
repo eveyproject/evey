@@ -19,6 +19,7 @@ import (
 func newUpdateLibHandler() (*libraryHandler, *libfakes.FakeLibraryCommandRepo, *libfakes.FakeLibraryQueryRepo) {
 	libCmd := libfakes.NewFakeLibraryCommandRepo()
 	libQuery := libfakes.NewFakeLibraryQueryRepo()
+	libCmd.OnUpdate = libQuery.Seed
 	mediaCmd := libfakes.NewFakeMediaItemCommandRepo()
 	mediaQuery := libfakes.NewFakeMediaItemQueryRepo()
 	streamRepo := libfakes.NewFakeMediaStreamRepository()

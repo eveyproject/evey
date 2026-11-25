@@ -68,8 +68,10 @@ const mockSession = {
   playMethod: "direct_play",
   videoCodec: "h264",
   audioCodec: "aac",
-  resolution: "1920x1080",
+  resolution: "1080p",
   bandwidthBps: 5000000,
+  servedVideo: { engine: "file", copy: true, track: -1, codec: "h264", height: 1080 },
+  servedAudio: { engine: "file", copy: true, track: -1 },
 };
 
 describe("SessionsPage", () => {
@@ -122,80 +124,68 @@ describe("SessionsPage", () => {
     expect(screen.getByTestId("play-method-badge")).toBeInTheDocument();
   });
 
-  it("renders no play-method badge when the session has no play method", async () => {
-    // Cast-resurrected and music sessions carry no play_method - rendering
-    // the badge anyway produced an empty green pill.
-    mockUseQuery.mockReturnValue({ data: [{ ...mockSession, playMethod: "" }], isLoading: false, isError: false });
+  it("renders no play-method badge before any byte was served", async () => {
+    // A session a start just created, a cast-resurrected or a music session:
+    // nothing served names no method, not an empty green pill.
+    mockUseQuery.mockReturnValue({ data: [{ ...mockSession, servedVideo: undefined, servedAudio: undefined }], isLoading: false, isError: false });
     const SessionsPage = await getSessionsPage();
     render(React.createElement(SessionsPage), { wrapper: createWrapper() });
     expect(screen.queryByTestId("play-method-badge")).toBeNull();
   });
 
-  it("renders per-track decision badges with codecs and engine (copy rung)", async () => {
-    // Hybrid copy rung: video copied (mkvgo), audio transcoded (ffmpeg).
-    const copyRung = {
+  it("renders the served tracks with their codecs and engines (hybrid)", async () => {
+    // Video copied by the packager, MP3 track 2 encoded to AAC by ffmpeg.
+    const hybrid = {
       ...mockSession,
-      playMethod: "transcode",
-      videoDecision: "copy",
-      audioDecision: "transcode",
-      videoCodec: "h264",
-      audioCodec: "ac3→aac",
-      resolution: "1040p",
+      servedVideo: { engine: "mkvgo", copy: true, track: -1, codec: "h264", height: 1040 },
+      servedAudio: { engine: "ffmpeg", track: 1, codec: "aac", sourceCodec: "mp3" },
     };
-    mockUseQuery.mockReturnValue({ data: [copyRung], isLoading: false, isError: false });
+    mockUseQuery.mockReturnValue({ data: [hybrid], isLoading: false, isError: false });
     const SessionsPage = await getSessionsPage();
     render(React.createElement(SessionsPage), { wrapper: createWrapper() });
-    // Codec detail strings (language-neutral) prove the per-track rows rendered.
     expect(screen.getByText("(h264, 1040p)")).toBeInTheDocument();
-    expect(screen.getByText("(ac3→aac)")).toBeInTheDocument();
-    // Engine derived per track when the server recorded none: copy -> mkvgo, transcode -> ffmpeg.
+    expect(screen.getByText("(mp3→aac)")).toBeInTheDocument();
     expect(screen.getByText("· mkvgo")).toBeInTheDocument();
     expect(screen.getByText("· ffmpeg")).toBeInTheDocument();
+    expect(screen.getByText("Transcode")).toBeInTheDocument();
   });
 
-  it("names the recorded engine and backend over the guess, and the player-side decode", async () => {
-    // What the server recorded at master render: QSV transcode, audio decoded by ac3go in the browser.
-    const recorded = {
+  it("names the encode backend and the player's wasm decoder", async () => {
+    const wasm = {
       ...mockSession,
-      playMethod: "transcode",
-      videoDecision: "transcode",
-      videoEngine: "ffmpeg",
-      videoBackend: "qsv",
-      audioDecision: "wasm",
-      audioEngine: "client",
-      videoCodec: "hevc→h264",
-      audioCodec: "eac3",
+      servedVideo: { engine: "ffmpeg", codec: "h264", sourceCodec: "hevc", backend: "qsv" },
+      servedAudio: { engine: "ffmpeg", copy: true, track: 0, codec: "eac3" },
+      played: { source: "hls", audioTrack: 0, audioCodec: "ec-3", audioDecoder: "wasm" },
     };
-    mockUseQuery.mockReturnValue({ data: [recorded], isLoading: false, isError: false });
+    mockUseQuery.mockReturnValue({ data: [wasm], isLoading: false, isError: false });
     const SessionsPage = await getSessionsPage();
     render(React.createElement(SessionsPage), { wrapper: createWrapper() });
     expect(screen.getByText("· ffmpeg Quick Sync")).toBeInTheDocument();
-    expect(screen.getByText("· ac3go in the player")).toBeInTheDocument();
-    expect(screen.getByText("decoded by the player")).toBeInTheDocument();
+    expect(screen.getByTestId("played")).toHaveTextContent("decoded by ac3go (wasm)");
   });
 
-  it("renders no per-track badges when decisions are absent (direct play)", async () => {
+  it("names a direct play by the source file, no engine", async () => {
     mockUseQuery.mockReturnValue({ data: [mockSession], isLoading: false, isError: false });
     const SessionsPage = await getSessionsPage();
     render(React.createElement(SessionsPage), { wrapper: createWrapper() });
     expect(screen.queryByText("· mkvgo")).not.toBeInTheDocument();
     expect(screen.queryByText("· ffmpeg")).not.toBeInTheDocument();
+    expect(screen.getByTestId("served-video")).toHaveTextContent("source file");
   });
 
-  it("shows Transcode badge for transcode method", async () => {
-    const transcodeSession = { ...mockSession, playMethod: "transcode", videoDecision: "transcode", audioDecision: "copy" };
-    mockUseQuery.mockReturnValue({ data: [transcodeSession], isLoading: false, isError: false });
+  // The case measured on the demo: the player said MP3 while the server kept
+  // sending the AAC track. Both facts show, and the card says they differ.
+  it("says so when the player plays another track than the one sent", async () => {
+    const off = {
+      ...mockSession,
+      servedVideo: { engine: "mkvgo", copy: true, codec: "h264" },
+      servedAudio: { engine: "mkvgo", copy: true, track: 2, codec: "aac" },
+      played: { source: "hls", audioTrack: 1, audioCodec: "mp4a.40.2", audioDecoder: "native" },
+    };
+    mockUseQuery.mockReturnValue({ data: [off], isLoading: false, isError: false });
     const SessionsPage = await getSessionsPage();
     render(React.createElement(SessionsPage), { wrapper: createWrapper() });
-    expect(screen.getByText("Transcode")).toBeInTheDocument();
-  });
-
-  // A routing "transcode" whose tracks are not known yet claims no encode.
-  it("names no method while a segmented session's tracks are unknown", async () => {
-    mockUseQuery.mockReturnValue({ data: [{ ...mockSession, playMethod: "transcode", videoDecision: "", audioDecision: "" }], isLoading: false, isError: false });
-    const SessionsPage = await getSessionsPage();
-    render(React.createElement(SessionsPage), { wrapper: createWrapper() });
-    expect(screen.queryByText("Transcode")).not.toBeInTheDocument();
+    expect(screen.getByTestId("mismatch-track")).toHaveTextContent("the player plays track 2, the server sends track 3");
   });
 
   it("clicking stop button shows confirm/cancel", async () => {

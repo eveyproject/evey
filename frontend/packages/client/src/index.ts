@@ -93,6 +93,8 @@ export * from "./lib/tvLayout";
 export * from "./lib/streamBadges";
 export * from "./lib/libraryFilterFacets";
 export * from "./lib/streamInfoModel";
+export * from "./lib/playedState";
+export * from "./lib/masterRenditions";
 export * from "./lib/pickedAudioStream";
 export * from "./lib/syncplayReconcile";
 export * from "./lib/profilePicker";

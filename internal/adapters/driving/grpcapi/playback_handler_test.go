@@ -124,7 +124,6 @@ func TestPlaybackHandler_StartStream(t *testing.T) {
 	assert.NotEmpty(t, resp.Id)
 	assert.Equal(t, "profile-1", resp.ProfileId)
 	assert.Equal(t, "mi-1", resp.MediaItemId)
-	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, resp.PlayMethod)
 }
 
 func TestPlaybackHandler_StartStream_StampsServedBitrate(t *testing.T) {
@@ -144,35 +143,29 @@ func TestPlaybackHandler_StartStream_StampsServedBitrate(t *testing.T) {
 	assert.Equal(t, int64(4_192_000), stored.BandwidthBps, "the client-reported served bitrate is stamped, not the 20 Mbps source")
 }
 
-// A file routed through the segmented session with both tracks copied (the
-// demo's Sintel on Chrome: container_incompatible + sibling_audio_undecodable)
-// is recorded as the remux it is; the admin pages and the play-method counts
-// read this column.
-func TestPlaybackHandler_StartStream_RecordsACopiedSegmentedSessionAsRemux(t *testing.T) {
-	cases := []struct {
-		video, audio string
-		want         eveyv1.PlayMethod
-	}{
-		{"copy", "copy", eveyv1.PlayMethod_PLAY_METHOD_DIRECT_STREAM},
-		{"copy", "wasm", eveyv1.PlayMethod_PLAY_METHOD_DIRECT_STREAM},
-		{"transcode", "copy", eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE},
-		{"copy", "transcode", eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE},
-		{"", "", eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE}, // an older client reports nothing
-	}
-	for _, c := range cases {
-		h, sessionRepo, _, _, _, _ := newTestPlaybackHandler()
-		resp, err := h.StartStream(pbAdminCtx(), &eveyv1.StartStreamRequest{
-			MediaItemId:   "mi-1",
-			PlayMethod:    eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE,
-			VideoDecision: c.video,
-			AudioDecision: c.audio,
-		})
-		require.NoError(t, err)
-		assert.Equal(t, c.want, resp.PlayMethod, "%s/%s", c.video, c.audio)
-		stored, err := sessionRepo.GetByID(context.Background(), resp.Id)
-		require.NoError(t, err)
-		assert.Equal(t, playMethodFromProto[c.want], stored.PlayMethod, "%s/%s", c.video, c.audio)
-	}
+// The start's method, decisions and codecs are the client's echo of a
+// verdict, and a verdict is not what is served: the session names no method
+// and no codec until the served witness sees bytes go out.
+func TestPlaybackHandler_StartStream_DoesNotRecordTheClientsVerdict(t *testing.T) {
+	h, sessionRepo, _, _, _, _ := newTestPlaybackHandler()
+	resp, err := h.StartStream(pbAdminCtx(), &eveyv1.StartStreamRequest{
+		MediaItemId:   "mi-1",
+		PlayMethod:    eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+		VideoDecision: "copy",
+		AudioDecision: "copy",
+		VideoCodec:    "h264",
+		AudioCodec:    "mp3",
+		Resolution:    "1080p",
+	})
+	require.NoError(t, err)
+	stored, err := sessionRepo.GetByID(context.Background(), resp.Id)
+	require.NoError(t, err)
+	assert.Empty(t, stored.PlayMethod)
+	assert.Empty(t, stored.VideoCodec)
+	assert.Empty(t, stored.AudioCodec)
+	assert.Empty(t, stored.Resolution)
+	assert.Nil(t, stored.Served.Video)
+	assert.Nil(t, stored.Served.Audio)
 }
 
 func TestPlaybackHandler_StartStream_FallsBackToSourceBitrate(t *testing.T) {
@@ -268,6 +261,52 @@ func TestPlaybackHandler_ReportProgress(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, int64(60000), wp.PositionMs)
+}
+
+// The heartbeat carries both witnesses: the player's report of what it
+// decodes goes up onto the session, what the server sent comes back down -
+// the player's panel reads the same served path the admin pages do.
+func TestPlaybackHandler_ReportProgress_CarriesPlayedUpAndServedDown(t *testing.T) {
+	h, sessionRepo, _, _, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	startResp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{MediaItemId: "mi-1", DeviceName: "Firefox"})
+	require.NoError(t, err)
+
+	// Nothing served yet: nothing comes back.
+	resp, err := h.ReportProgress(ctx, &eveyv1.ReportProgressRequest{SessionId: startResp.Id, PositionMs: 1000})
+	require.NoError(t, err)
+	assert.Nil(t, resp.ServedVideo)
+	assert.Nil(t, resp.ServedAudio)
+
+	// The served witness saw an MP3 track encoded to AAC go out.
+	audio := playback.ServedLeg{Engine: playback.EngineFFmpeg, Track: 1, Codec: "aac", SourceCodec: "mp3"}
+	require.NoError(t, h.cmd.RecordServed(ctx, "profile-1", "mi-1", playback.LegAudio, audio))
+
+	resp, err = h.ReportProgress(ctx, &eveyv1.ReportProgressRequest{
+		SessionId: startResp.Id, PositionMs: 4000,
+		Played: &eveyv1.PlayedState{Source: "hls", AudioTrack: 1, AudioCodec: "mp4a.40.2", AudioDecoder: "native"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.ServedAudio)
+	assert.Equal(t, int32(1), resp.ServedAudio.Track)
+	assert.Equal(t, "mp3", resp.ServedAudio.SourceCodec)
+
+	stored, err := sessionRepo.GetByID(context.Background(), startResp.Id)
+	require.NoError(t, err)
+	require.NotNil(t, stored.Played)
+	assert.Equal(t, 1, stored.Played.AudioTrack)
+	assert.Equal(t, "mp4a.40.2", stored.Played.AudioCodec)
+
+	// A report outside the vocabulary is dropped; the tick still counts.
+	_, err = h.ReportProgress(ctx, &eveyv1.ReportProgressRequest{
+		SessionId: startResp.Id, PositionMs: 7000,
+		Played: &eveyv1.PlayedState{Source: "somewhere", AudioTrack: 0},
+	})
+	require.NoError(t, err)
+	stored, err = sessionRepo.GetByID(context.Background(), startResp.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 1, stored.Played.AudioTrack)
+	assert.Equal(t, int64(7000), stored.Position.Milliseconds())
 }
 
 // TestPlaybackHandler_StopStream_IDOR_OtherProfileDenied locks in the ownership

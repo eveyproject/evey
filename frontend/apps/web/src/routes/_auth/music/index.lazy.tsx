@@ -3,7 +3,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useMusicPlayerStore, type MusicSource } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Shuffle } from "lucide-react";
+import { ListMusic, Shuffle } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { shuffleTracks } from "@/features/music/musicFormat";
@@ -13,6 +13,8 @@ import { AlbumsTab } from "@/features/music/AlbumsTab";
 import { ArtistsTab } from "@/features/music/ArtistsTab";
 import { PlaylistsTab } from "@/features/music/PlaylistsTab";
 import { AlbumHeader } from "@/features/music/AlbumHeader";
+import { QueueSidebar } from "@/features/music/QueueSidebar";
+import { useAddToQueue } from "@/features/music/useAddToQueue";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
   component: MusicPage,
@@ -27,6 +29,11 @@ function MusicPage() {
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(urlSearch.libraryId);
   const playing = useMusicPlayerStore((s) => s.playing);
   const playInStore = useMusicPlayerStore((s) => s.play);
+  const queueLength = useMusicPlayerStore((s) => s.queue.length);
+  const addToQueue = useAddToQueue();
+  // Below the large breakpoint the queue is not a column: a button opens it
+  // above the tabs.
+  const [queueOpen, setQueueOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [albumFilter, setAlbumFilter] = useState<string | null>(urlSearch.album ?? null);
   const [artistFilter, setArtistFilter] = useState<string | null>(urlSearch.artist ?? null);
@@ -140,12 +147,22 @@ function MusicPage() {
           </select>
         )}
 
+        <button
+          type="button"
+          onClick={() => setQueueOpen((v) => !v)}
+          aria-expanded={queueOpen}
+          className="lg:hidden sm:ml-auto inline-flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-sm)] text-sm border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] cursor-pointer"
+        >
+          <ListMusic size={ICON.md} aria-hidden="true" />
+          {t("media.music.queue")} ({queueLength})
+        </button>
+
         {(tracks?.length ?? 0) > 0 && (
           <button
             type="button"
             onClick={() => { void playRandom(); }}
             data-testid="music-shuffle-play"
-            className="sm:ml-auto inline-flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer"
+            className="lg:ml-auto inline-flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer"
           >
             <Shuffle size={ICON.md} aria-hidden="true" />
             {t("media.music.playRandom")}
@@ -153,6 +170,10 @@ function MusicPage() {
         )}
       </div>
 
+      {queueOpen && <QueueSidebar className="lg:hidden mb-6" />}
+
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
+      <div className="min-w-0">
       <div className="flex flex-wrap gap-2 mb-6">
         {(["albums", "tracks", "artists", "playlists"] as Tab[]).map((tabKey) => (
           <button key={tabKey} className={tabClass(tab === tabKey)} onClick={() => setTab(tabKey)}>
@@ -165,6 +186,7 @@ function MusicPage() {
         <AlbumHeader
           album={openAlbum}
           onPlay={() => handlePlay(tracks![0], tracks!, albumSource)}
+          onAddToQueue={() => void addToQueue({ kind: "music-album", album: openAlbum, libraryID: activeLibraryID ?? "" })}
           onShuffle={() => {
             const shuffled = shuffleTracks(tracks!);
             handlePlay(shuffled[0], shuffled, albumSource);
@@ -232,7 +254,9 @@ function MusicPage() {
         <PlaylistsTab allTracks={tracks ?? []} onPlay={(tr, all, source) => handlePlay(tr, all, source)} libraryID={activeLibraryID} />
       )}
 
-      {/* NowPlayingBar is now rendered globally via AuthLayout's GlobalAudioPlayer */}
+      </div>
+      <QueueSidebar className="hidden lg:flex sticky top-4" />
+      </div>
     </div>
   );
 }

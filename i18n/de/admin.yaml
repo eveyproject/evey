@@ -18,7 +18,6 @@ nav:
   mediaRequests: Medienanfragen
   shareLinks: "Freigabelinks"
   integrations: Integrationen
-  pluginPages: "Plugin-Seiten"
   plugins: Plugins
   webhooks: Webhooks
   apiKeys: API-Schlüssel
@@ -302,6 +301,12 @@ plugins:
   installedTitle: Installierte Plugins
   pageBadge: "Plugin"
   pageProvidedBy: "Diese Seite wird von einem Plugin dargestellt, nicht von Evey."
+  trash:
+    title_one: "{{count}} Datei in den Papierkorb verschieben?"
+    title_other: "{{count}} Dateien in den Papierkorb verschieben?"
+    explain: "Ein Plugin möchte diese Dateien aus der Bibliothek entfernen. Evey verschiebt jede, mit ihren Untertiteln, in den Ordner .evey-trash im Stammverzeichnis ihrer Bibliothek und entfernt sie aus Evey. Nichts wird von der Festplatte gelöscht: Leeren Sie diesen Ordner selbst, wenn Sie sicher sind."
+    confirm_one: "In den Papierkorb"
+    confirm_other: "Alle {{count}} in den Papierkorb"
   uploadFile: Datei hochladen
   fromUrl: Von URL
   installFromUrl: Von URL installieren
@@ -633,9 +638,19 @@ sessions:
     audioCopied: kopiert
     audioTranscoded: transkodiert
     audioClientDecoded: vom Player dekodiert
+    trackN: "Spur {{n}}"
+    allTracks: "alle Spuren, der Player wählt"
+    fromFile: "Quelldatei"
+    player: "Player"
+    decoderNative: "nativer Decoder"
+    decoderWasm: "von ac3go dekodiert (wasm)"
+    waiting: "noch keine Bytes gesendet"
+    mismatchTrack: "Abweichung: der Player spielt Spur {{played}}, der Server sendet Spur {{served}}"
+    mismatchCodec: "Abweichung: der Player dekodiert {{played}}, der Server sendet {{served}}"
     engine:
       mkvgo: "mkvgo"
       ffmpeg: "ffmpeg"
+      file: "Datei"
       client: "ac3go im Player"
     backend:
       software: "Software (CPU)"

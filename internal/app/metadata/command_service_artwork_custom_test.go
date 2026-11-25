@@ -69,7 +69,7 @@ func (r *errAfterFirstRead) Read(p []byte) (int, error) {
 func TestAddCustomArtwork_StorageDisabled(t *testing.T) {
 	cmdSvc := newArtworkCmdSvc(metafakes.NewFakeMetadataOverrideRepository(), metafakes.NewFakeArtworkRepository())
 
-	rec, err := cmdSvc.AddCustomArtwork(context.Background(), "m1", "ARTWORK_TYPE_PRIMARY", strings.NewReader("img"), ".jpg")
+	rec, err := cmdSvc.AddCustomArtwork(context.Background(), "m1", domain.ArtworkTypePoster, strings.NewReader("img"), ".jpg")
 	require.ErrorIs(t, err, errArtworkStorageDisabled)
 	assert.Nil(t, rec)
 }
@@ -79,7 +79,7 @@ func TestAddCustomArtwork_EmptyMediaItemID(t *testing.T) {
 	cmdSvc := newArtworkCmdSvc(metafakes.NewFakeMetadataOverrideRepository(), artworkRepo)
 	WithAutoDownload(t.TempDir(), false)(cmdSvc)
 
-	rec, err := cmdSvc.AddCustomArtwork(context.Background(), "", "ARTWORK_TYPE_PRIMARY", strings.NewReader("img"), ".jpg")
+	rec, err := cmdSvc.AddCustomArtwork(context.Background(), "", domain.ArtworkTypePoster, strings.NewReader("img"), ".jpg")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty media item id")
 	assert.Nil(t, rec)
@@ -91,7 +91,7 @@ func TestAddCustomArtwork_EmptyExtDefaultsToJPG(t *testing.T) {
 	dataDir := t.TempDir()
 	WithAutoDownload(dataDir, false)(cmdSvc)
 
-	rec, err := cmdSvc.AddCustomArtwork(context.Background(), shared.MediaItemID("m1"), "ARTWORK_TYPE_PRIMARY", strings.NewReader("img"), "")
+	rec, err := cmdSvc.AddCustomArtwork(context.Background(), shared.MediaItemID("m1"), domain.ArtworkTypePoster, strings.NewReader("img"), "")
 	require.NoError(t, err)
 	require.NotNil(t, rec.LocalPath)
 	assert.Equal(t, ".jpg", filepath.Ext(*rec.LocalPath))
@@ -103,16 +103,16 @@ func TestAddCustomArtwork_EmptyExtDefaultsToJPG(t *testing.T) {
 func TestAddCustomArtwork_Success_WritesFileRecordsAndOutranksExisting(t *testing.T) {
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 	require.NoError(t, artworkRepo.Create(context.Background(), &domain.ArtworkRecord{
-		ID: "existing-poster", MediaItemID: "m1", Type: "ARTWORK_TYPE_PRIMARY", Provider: "tmdb", SortOrder: -1,
+		ID: "existing-poster", MediaItemID: "m1", Type: domain.ArtworkTypePoster, Provider: "tmdb", SortOrder: -1,
 	}))
 	require.NoError(t, artworkRepo.Create(context.Background(), &domain.ArtworkRecord{
-		ID: "existing-backdrop", MediaItemID: "m1", Type: "ARTWORK_TYPE_BACKDROP", Provider: "tmdb", SortOrder: -5,
+		ID: "existing-backdrop", MediaItemID: "m1", Type: domain.ArtworkTypeBackdrop, Provider: "tmdb", SortOrder: -5,
 	}))
 	cmdSvc := newArtworkCmdSvc(metafakes.NewFakeMetadataOverrideRepository(), artworkRepo)
 	dataDir := t.TempDir()
 	WithAutoDownload(dataDir, false)(cmdSvc)
 
-	rec, err := cmdSvc.AddCustomArtwork(context.Background(), shared.MediaItemID("m1"), "ARTWORK_TYPE_PRIMARY", strings.NewReader("poster-bytes"), ".png")
+	rec, err := cmdSvc.AddCustomArtwork(context.Background(), shared.MediaItemID("m1"), domain.ArtworkTypePoster, strings.NewReader("poster-bytes"), ".png")
 	require.NoError(t, err)
 	require.NotNil(t, rec)
 
@@ -152,7 +152,7 @@ func TestAddCustomArtwork_SourceExceedsMax_NoPartialFile(t *testing.T) {
 	WithAutoDownload(dataDir, false)(cmdSvc)
 
 	src := &sizedReader{remaining: maxCustomArtworkBytes + (1 << 20)} // 1MB past the cap
-	rec, err := cmdSvc.AddCustomArtwork(context.Background(), shared.MediaItemID("m-big"), "ARTWORK_TYPE_PRIMARY", src, ".jpg")
+	rec, err := cmdSvc.AddCustomArtwork(context.Background(), shared.MediaItemID("m-big"), domain.ArtworkTypePoster, src, ".jpg")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds")
 	assert.Nil(t, rec)
@@ -166,7 +166,7 @@ func TestAddCustomArtwork_ReadErrorMidStream_NoPartialFile(t *testing.T) {
 	dataDir := t.TempDir()
 	WithAutoDownload(dataDir, false)(cmdSvc)
 
-	rec, err := cmdSvc.AddCustomArtwork(context.Background(), shared.MediaItemID("m-err"), "ARTWORK_TYPE_PRIMARY", &errAfterFirstRead{}, ".jpg")
+	rec, err := cmdSvc.AddCustomArtwork(context.Background(), shared.MediaItemID("m-err"), domain.ArtworkTypePoster, &errAfterFirstRead{}, ".jpg")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "read failed mid-stream")
 	assert.Nil(t, rec)

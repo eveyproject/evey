@@ -175,9 +175,21 @@ streamInfo:
   decisionCopy: copied
   decisionTranscode: transcoded
   decisionWasm: client-decoded
+  waiting: "waiting for the first bytes"
+  track: "Track"
+  engine: "Engine"
+  player: "Player"
+  decoderWasm: "decoded by ac3go (wasm)"
+  decoderNative: "native decoder"
+  fromFile: "source file"
+  allTracks: "every track, the player picks"
+  mismatch: "Mismatch"
+  mismatchTrack: "the player plays track {{played}}, the server sends track {{served}}"
+  mismatchCodec: "the player decodes {{played}}, the server sends {{served}}"
   reason:
     video_codec_unsupported: Video codec this player cannot decode
     audio_codec_unsupported: Audio codec this player cannot decode
+    audio_decoded_in_browser: "Audio decoded in the browser (needs the segmented stream)"
     hdr_tonemapping_needed: HDR converted to SDR (tone-mapping)
     dovi_base_layer: "Dolby Vision base layer re-encoded (HDR kept)"
     hdr_copy_unavailable: "Copy unavailable, HDR kept through the re-encode"

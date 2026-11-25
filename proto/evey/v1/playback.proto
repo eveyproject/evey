@@ -5,6 +5,7 @@ package evey.v1;
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 import "evey/v1/library.proto";
+import "evey/v1/served.proto";
 
 option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
@@ -283,10 +284,18 @@ message ReportProgressRequest {
   // The position/pause fields above then describe the REMOTE playback.
   // Empty = playing on the session's own device (clears a previous value).
   string cast_device_name = 6;
+  // What the player decodes right now, the player's witness of the session.
+  // Absent from a client that does not report it.
+  PlayedState played = 7;
 }
 
 message ReportProgressResponse {
   string remote_command = 1;
+  // What the server sent the session last, per leg: the same served path the
+  // admin pages read, for the player's own stream panel. Absent until bytes
+  // were served.
+  ServedLeg served_video = 2;
+  ServedLeg served_audio = 3;
 }
 
 message GetWatchProgressRequest {

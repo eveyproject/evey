@@ -157,3 +157,23 @@ func TestScanTypeOf_ReadsBothProberVocabularies(t *testing.T) {
 	assert.Equal(t, library.ScanUnknown, (&library.MediaStream{}).ScanType())
 	assert.Equal(t, library.ScanInterlaced, (&library.MediaStream{FieldOrder: new("tt")}).ScanType())
 }
+
+func TestMediaStreamIsCommentary(t *testing.T) {
+	cases := []struct {
+		s    *library.MediaStream
+		want bool
+	}{
+		{&library.MediaStream{Commentary: true}, true},
+		{&library.MediaStream{Title: "Commentary"}, true},
+		{&library.MediaStream{Title: "Director's commentary"}, true},
+		{&library.MediaStream{Title: "Commentaire du réalisateur"}, true},
+		{&library.MediaStream{Title: "Stereo (AAC)"}, false},
+		{&library.MediaStream{}, false},
+		{nil, false},
+	}
+	for _, c := range cases {
+		if got := c.s.IsCommentary(); got != c.want {
+			t.Errorf("IsCommentary(%+v) = %v, want %v", c.s, got, c.want)
+		}
+	}
+}

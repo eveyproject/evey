@@ -165,6 +165,8 @@ var LockedAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC names with 
 	"/evey.v1.AdminMediaService/MatchOrphansInLibrary":    "library-wide provider calls",
 	"/evey.v1.AdminMediaService/GenerateAllTrickplays":    "library-wide ffmpeg",
 	"/evey.v1.AdminMediaService/DeleteMediaItem":          "removes a title for everyone",
+	"/evey.v1.AdminMediaService/TrashMediaItem":           "moves a media file off the shelf for everyone",
+	"/evey.v1.AdminMediaService/RestoreTrashedMedia":      "symmetric with the trash",
 	"/evey.v1.AdminMediaService/StartSeekIndexScan":       "walks the media files; the demo runs one itself after its seed",
 	"/evey.v1.AdminMediaService/CancelSeekIndexJob":       "symmetric with the start",
 	"/evey.v1.AdminMediaService/ReindexMediaSeekIndex":    "rewrites a media file's index in place",

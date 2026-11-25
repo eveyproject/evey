@@ -304,14 +304,14 @@ describe("GlobalAudioPlayer", () => {
       await renderPlayer();
       fireEvent.click(screen.getByRole("button", { name: "Queue" }));
 
-      expect(screen.getByRole("button", { name: /Song A/ })).toHaveAttribute("aria-current", "true");
-      expect(screen.getByRole("button", { name: /Song B/ })).not.toHaveAttribute("aria-current");
+      expect(screen.getByRole("button", { name: /^Song A/ })).toHaveAttribute("aria-current", "true");
+      expect(screen.getByRole("button", { name: /^Song B/ })).not.toHaveAttribute("aria-current");
     });
 
     it("jumps to a track when its row is clicked", async () => {
       await renderPlayer();
       fireEvent.click(screen.getByRole("button", { name: "Queue" }));
-      fireEvent.click(screen.getByRole("button", { name: /Song B/ }));
+      fireEvent.click(screen.getByRole("button", { name: /^Song B/ }));
 
       expect(useMusicPlayerStore.getState().playing?.ID).toBe("track-2");
       // Jumping must not drop the queue.
@@ -340,7 +340,15 @@ describe("GlobalAudioPlayer", () => {
       useMusicPlayerStore.setState({ queue: [] });
       await renderPlayer();
       fireEvent.click(screen.getByRole("button", { name: "Queue" }));
-      expect(screen.getByText("Queue empty")).toBeInTheDocument();
+      expect(screen.getByText(/Drag tracks, albums or playlists here/)).toBeInTheDocument();
+    });
+
+    it("moves a row with the arrow keys on its handle", async () => {
+      await renderPlayer();
+      fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+      fireEvent.keyDown(screen.getByRole("button", { name: "Move Song A" }), { key: "ArrowDown" });
+      expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["track-2", "track-1"]);
+      expect(useMusicPlayerStore.getState().playing?.ID).toBe("track-1");
     });
   });
 });

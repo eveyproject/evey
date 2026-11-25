@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/eveyproject/evey/internal/domain/library"
-	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
@@ -112,40 +111,35 @@ func TestResolveDelivery_LoudnormLeavesThePackagerAudio(t *testing.T) {
 	assert.Equal(t, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineFFmpeg}, got)
 }
 
-// The admin's serving path is a projection of the strategy, the route and
-// the fingerprint - the values the adapter used to build by hand per site.
-func TestDeliveryStrategy_ServingPath(t *testing.T) {
+// The planned path checkDelivery holds the adapter to: the strategy's
+// engines, the video a copy on the packager whatever the route says.
+func TestDeliveryStrategy_Planned(t *testing.T) {
 	cases := []struct {
 		name     string
 		delivery DeliveryStrategy
 		route    ResolvedRoute
-		fp       DecisionFingerprint
-		want     domainplayback.ServingPath
+		want     DeliveryPath
 	}{
-		{"packager presentation", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}, ResolvedRoute{Copy: true}, DecisionFingerprint{},
-			domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}},
-		{"hybrid", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineFFmpeg}, ResolvedRoute{Copy: true}, DecisionFingerprint{},
-			domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}},
-		{"ffmpeg copy with copied audio", DeliveryStrategy{Video: EngineFFmpeg, Audio: EngineFFmpeg}, ResolvedRoute{Copy: true}, DecisionFingerprint{AudioCopy: true},
-			domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "ffmpeg", AudioDecision: "copy", AudioEngine: "ffmpeg"}},
-		{"GPU transcode", DeliveryStrategy{Video: EngineFFmpeg, Audio: EngineFFmpeg}, ResolvedRoute{Backend: BackendSelection{Name: "qsv"}}, DecisionFingerprint{},
-			domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: "qsv", AudioDecision: "transcode", AudioEngine: "ffmpeg"}},
-		{"software transcode", DeliveryStrategy{Video: EngineFFmpeg, Audio: EngineFFmpeg}, ResolvedRoute{}, DecisionFingerprint{},
-			domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: "software", AudioDecision: "transcode", AudioEngine: "ffmpeg"}},
-		{"wasm audio", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineClient}, ResolvedRoute{Copy: true}, DecisionFingerprint{},
-			domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "wasm", AudioEngine: "client"}},
+		{"packager presentation", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}, ResolvedRoute{Copy: true},
+			DeliveryPath{VideoCopy: true, VideoEngine: EngineMkvgo, AudioEngine: EngineMkvgo}},
+		{"hybrid", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineFFmpeg}, ResolvedRoute{Copy: true},
+			DeliveryPath{VideoCopy: true, VideoEngine: EngineMkvgo, AudioEngine: EngineFFmpeg}},
+		{"ffmpeg copy rung", DeliveryStrategy{Video: EngineFFmpeg, Audio: EngineFFmpeg}, ResolvedRoute{Copy: true},
+			DeliveryPath{VideoCopy: true, VideoEngine: EngineFFmpeg, AudioEngine: EngineFFmpeg}},
+		{"transcode", DeliveryStrategy{Video: EngineFFmpeg, Audio: EngineFFmpeg}, ResolvedRoute{Backend: BackendSelection{Name: "qsv"}},
+			DeliveryPath{VideoEngine: EngineFFmpeg, AudioEngine: EngineFFmpeg}},
+		{"wasm audio", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineClient}, ResolvedRoute{Copy: true},
+			DeliveryPath{VideoCopy: true, VideoEngine: EngineMkvgo, AudioEngine: EngineClient}},
 		// The packager carries the video while the route, priced for the ffmpeg
 		// path behind it (no copy producer, or no cache room), says transcode:
 		// what is served is a copy, and the planned path must say so or the
 		// adapter is accused of re-deciding (measured 2026-09-26).
-		{"packager video on a transcode route", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}, ResolvedRoute{Backend: BackendSelection{Name: "vaapi"}}, DecisionFingerprint{},
-			domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}},
-		{"hybrid on a software transcode route", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineFFmpeg}, ResolvedRoute{}, DecisionFingerprint{},
-			domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}},
+		{"packager video on a transcode route", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}, ResolvedRoute{Backend: BackendSelection{Name: "vaapi"}},
+			DeliveryPath{VideoCopy: true, VideoEngine: EngineMkvgo, AudioEngine: EngineMkvgo}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, tc.delivery.ServingPath(tc.route, tc.fp))
+			assert.Equal(t, tc.want, tc.delivery.Planned(tc.route))
 		})
 	}
 }

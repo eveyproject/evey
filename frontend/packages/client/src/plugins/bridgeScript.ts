@@ -23,12 +23,28 @@ export interface EveyBridge {
   };
   media: {
     get(id: string): Promise<unknown>;
-    list(opts?: { libraryId?: string }): Promise<unknown>;
+    // One page of items: `{ items, total }`. A page is 500 items at most;
+    // `type` is a MediaItemType name such as "MEDIA_ITEM_TYPE_MOVIE". With
+    // the `media.files` permission, on an administrator's session, each item
+    // also carries `filePath` and `fileSize`.
+    list(opts?: { libraryId?: string; type?: string; page?: number; pageSize?: number }): Promise<unknown>;
     // The media's poster as a data: URL, usable directly as a WebGL/img
     // source - the sandbox CSP forbids external CDN images and its opaque
     // origin taints cross-origin textures, so a plugin cannot load library
     // posters any other way.
     poster(id: string): Promise<string>;
+    // Asks the host to move these media files to their library's trash. The
+    // host shows its own confirmation, built from the server's record of each
+    // item; the promise resolves to { trashed: [{ id, trashedPath }], failed:
+    // [{ id, message }] } once the administrator answered, and is rejected
+    // with "cancelled" on no. Only on an admin.nav page of a plugin granted
+    // media.trash; anywhere else it is rejected.
+    trash(ids: string[]): Promise<unknown>;
+    // Undoes trash: moves the files (the trashedPath values it returned) back
+    // where they were; the library is scanned and the titles come back as new
+    // entries. Resolves to { restored: [{ trashedPath, restoredPath }],
+    // failed: [{ trashedPath, message }] }. Same rule as trash.
+    restore(paths: string[]): Promise<unknown>;
   };
   // Reads one of the plugin's OWN web_root assets (by relative path) and
   // returns it as a data: URL. The host fetches it with the scoped plugin
@@ -79,7 +95,9 @@ export const BRIDGE_SCRIPT = `
     media: {
       get: function(id) { return rpc("media.get", { id: id }); },
       list: function(opts) { return rpc("media.list", opts || {}); },
-      poster: function(id) { return rpc("media.poster", { id: id }); }
+      poster: function(id) { return rpc("media.poster", { id: id }); },
+      trash: function(ids) { return rpc("media.trash", { ids: ids || [] }); },
+      restore: function(paths) { return rpc("media.restore", { paths: paths || [] }); }
     },
     assets: {
       read: function(path) { return rpc("assets.read", { path: path }); }

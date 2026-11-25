@@ -3,10 +3,11 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { eveyFetchRaw, formatTime, getFreshAccessToken } from "@evey/api";
 import { pollMusicRemoteCommands } from "@evey/client";
-import { toast, useAuthStore, useMusicPlayerStore, type MusicTrack, type MusicSource } from "@evey/store";
+import { toast, useAuthStore, useMusicPlayerStore } from "@evey/store";
 import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX, Shuffle, ListMusic } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { randomUUID } from "@/lib/randomId";
+import { QueueList } from "./QueueList";
 
 function MiniTrackArt({ trackID, coverArtURL, token }: { trackID: string; coverArtURL?: string; token?: string }) {
   const [error, setError] = useState(false);
@@ -42,19 +43,9 @@ function MiniTrackArt({ trackID, coverArtURL, token }: { trackID: string; coverA
   );
 }
 
-// QueuePanel mirrors the mobile app's queue sheet (mobile is the spec here: the
-// web player had the store but no UI to inspect/edit it). Kept intentionally
-// minimal - list, current-track highlight, jump, remove - matching what mobile
-// ships rather than adding drag-reorder mobile doesn't have either.
-interface QueuePanelProps {
-  queue: MusicTrack[];
-  playing: MusicTrack;
-  onJump: (track: MusicTrack) => void;
-  onRemove: (track: MusicTrack) => void;
-  onClose: () => void;
-}
-
-function QueuePanel({ queue, playing, onJump, onRemove, onClose }: QueuePanelProps) {
+// The mini player's queue: the same editable list as the music page's column
+// (jump, remove, drag to reorder, drop tracks in).
+function QueuePanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   return (
     <div
@@ -62,7 +53,7 @@ function QueuePanel({ queue, playing, onJump, onRemove, onClose }: QueuePanelPro
       aria-label={t("media.music.queue", "Queue")}
       className="absolute bottom-full right-0 mb-2 w-[min(90vw,320px)] max-h-96 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] shadow-lg"
     >
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] sticky top-0 bg-[var(--surface)]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] sticky top-0 bg-[var(--surface)] z-10">
         <span className="text-sm font-semibold text-[var(--text)]">{t("media.music.queue", "Queue")}</span>
         <button
           onClick={onClose}
@@ -72,35 +63,7 @@ function QueuePanel({ queue, playing, onJump, onRemove, onClose }: QueuePanelPro
           <X size={ICON.sm} aria-hidden="true" />
         </button>
       </div>
-      {queue.length === 0 ? (
-        <p className="text-sm text-[var(--text-muted)] text-center py-6 px-3">{t("media.music.queueEmpty", "Queue empty")}</p>
-      ) : (
-        <ul>
-          {queue.map((track) => {
-            const isCurrent = track.ID === playing.ID;
-            return (
-              <li key={track.ID} className="flex items-center border-b border-[var(--border)] last:border-b-0">
-                <button
-                  onClick={() => onJump(track)}
-                  aria-current={isCurrent ? "true" : undefined}
-                  className={`flex-1 min-w-0 text-left px-3 py-2 bg-transparent border-none cursor-pointer ${isCurrent ? "bg-[var(--surface-raised)]" : ""}`}
-                >
-                  <p className={`text-sm truncate ${isCurrent ? "font-semibold text-[var(--accent)]" : "text-[var(--text)]"}`}>{track.Title || "-"}</p>
-                  <p className="text-xs truncate text-[var(--text-muted)]">{track.Artist || "-"}</p>
-                </button>
-                <button
-                  onClick={() => onRemove(track)}
-                  className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast p-2 flex items-center shrink-0"
-                  aria-label={t("media.music.removeFromQueue", "Remove from queue")}
-                  title={t("media.music.removeFromQueue", "Remove from queue")}
-                >
-                  <X size={ICON.sm} aria-hidden="true" />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <QueueList zoneId="queue-mini-player" />
     </div>
   );
 }
@@ -132,39 +95,10 @@ export function GlobalAudioPlayer() {
   const next = useMusicPlayerStore((s) => s.next);
   const prev = useMusicPlayerStore((s) => s.prev);
   const close = useMusicPlayerStore((s) => s.close);
-  const play = useMusicPlayerStore((s) => s.play);
-  const setQueue = useMusicPlayerStore((s) => s.setQueue);
   const source = useMusicPlayerStore((s) => s.source);
   const [showQueue, setShowQueue] = useState(false);
   const navigate = useNavigate();
 
-  // Jumping within the queue must keep the queue and source intact - `play()`
-  // resets `source` to null unless it's re-passed, which would break the
-  // "back to album" link in the mini-player title after a queue jump.
-  const jumpToTrack = (track: MusicTrack, currentSource: MusicSource | null) => {
-    if (track.ID === playing?.ID) return;
-    play(track, queue, currentSource);
-  };
-
-  // No dedicated store action for removal (out of scope here), so this reuses
-  // the existing setQueue/play/close primitives. Removing the currently
-  // playing track advances to its former neighbour rather than leaving
-  // playback pointed at a track no longer in the queue - mirrors mobile's
-  // musicQueue.removeFromQueue behaviour.
-  const removeFromQueue = (track: MusicTrack, currentSource: MusicSource | null) => {
-    const idx = queue.findIndex((t) => t.ID === track.ID);
-    const newQueue = queue.filter((t) => t.ID !== track.ID);
-    if (playing?.ID === track.ID) {
-      const nextTrack = newQueue[idx] ?? newQueue[idx - 1];
-      if (nextTrack) {
-        play(nextTrack, newQueue, currentSource);
-      } else {
-        close();
-      }
-    } else {
-      setQueue(newQueue);
-    }
-  };
   // The audio element lives in the layout (outside the router Outlet), so this
   // navigation swaps the page content without remounting <audio> - playback is
   // never interrupted.
@@ -483,13 +417,7 @@ export function GlobalAudioPlayer() {
         <X size={ICON.lg} aria-hidden="true" />
       </button>
       {showQueue && (
-        <QueuePanel
-          queue={queue}
-          playing={playing}
-          onJump={(track) => jumpToTrack(track, source)}
-          onRemove={(track) => removeFromQueue(track, source)}
-          onClose={() => setShowQueue(false)}
-        />
+        <QueuePanel onClose={() => setShowQueue(false)} />
       )}
     </div>
   );

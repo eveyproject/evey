@@ -67,6 +67,9 @@ func newHarnessWithOpts(opts *harnessOpts) *cmdTestHarness {
 		search:     libfakes.NewFakeSearchIndex(),
 		bus:        sharedfakes.NewFakeEventBus(),
 	}
+	// One database: what the command side writes, the query side reads.
+	h.libCmd.OnCreate = h.libQuery.Seed
+	h.libCmd.OnUpdate = h.libQuery.Seed
 	h.svc = applib.NewCommandService(
 		h.libCmd, h.libQuery, h.mediaItems, h.streams,
 		libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),

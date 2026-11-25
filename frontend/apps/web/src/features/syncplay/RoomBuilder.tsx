@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMusicServiceGetAlbums, useMusicServiceListTracks } from "@evey/api";
 import {
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ICON } from "@/constants/iconSizes";
 import { coverArtSrc } from "../../lib/coverArtSrc";
+import { useDraggable, useDropZone, moveTargetIndex } from "@/lib/dnd";
 import {
   Music2,
   ListMusic,
@@ -48,6 +49,35 @@ interface RoomBuilderProps {
 }
 
 type Tab = "albums" | "tracks" | "playlists";
+
+// What the picker drags onto the queue, and a queue row being reordered.
+type RoomDragData =
+  | { kind: "room-items"; items: QueueItem[] }
+  | { kind: "room-album"; album: AlbumLite }
+  | { kind: "room-playlist"; id: string }
+  | { kind: "room-row"; index: number };
+
+function isRoomDrag(d: unknown): d is RoomDragData {
+  const k = (d as { kind?: string } | null)?.kind;
+  return k === "room-items" || k === "room-album" || k === "room-playlist" || k === "room-row";
+}
+
+// The queue with `items` added (no repeat, under the cap) and the newcomers
+// placed at `at` rather than at the end.
+function insertIntoRoomQueue(prev: QueueItem[], items: QueueItem[], at: number | null): QueueItem[] {
+  const appended = addToRoomQueue(prev, items);
+  if (at === null || at >= prev.length) return appended;
+  const fresh = appended.slice(prev.length);
+  return [...prev.slice(0, at), ...fresh, ...prev.slice(at)];
+}
+
+function moveRoomItem(prev: QueueItem[], from: number, to: number): QueueItem[] {
+  if (from === to || from < 0 || from >= prev.length || to < 0 || to >= prev.length) return prev;
+  const next = [...prev];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
 
 
 /**
@@ -105,8 +135,8 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
 
   const queueIds = useMemo(() => new Set(queue.map((q) => q.id)), [queue]);
 
-  const addItems = useCallback((items: QueueItem[]) => {
-    setQueue((prev) => addToRoomQueue(prev, items));
+  const addItems = useCallback((items: QueueItem[], at: number | null = null) => {
+    setQueue((prev) => insertIntoRoomQueue(prev, items, at));
   }, []);
 
   const removeItem = useCallback((id: string) => {
@@ -140,11 +170,11 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
   );
 
   const addAlbum = useCallback(
-    async (album: AlbumLite) => {
+    async (album: AlbumLite, at: number | null = null) => {
       if (!libraryId || !album.id) return;
       setBusy(true);
       try {
-        addItems(await albumRoomQueueItems(libraryId, album.id));
+        addItems(await albumRoomQueueItems(libraryId, album.id), at);
       } catch {
         // The queue stays unchanged - but the user asked for an action, so a
         // silent no-op reads as a broken button. Say it failed.
@@ -157,10 +187,10 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
   );
 
   const addPlaylist = useCallback(
-    async (playlistId: string) => {
+    async (playlistId: string, at: number | null = null) => {
       setBusy(true);
       try {
-        addItems(await playlistRoomQueueItems(playlistId));
+        addItems(await playlistRoomQueueItems(playlistId), at);
       } catch {
         toast.error(t("media.syncplay.addPlaylistFailed"));
       } finally {
@@ -169,6 +199,25 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
     },
     [addItems, t],
   );
+
+  // The basket takes what the picker drags at the spot it is dropped, and
+  // its own rows move.
+  const basket = useDropZone<RoomDragData>("room-basket", isRoomDrag, (d, index) => {
+    switch (d.kind) {
+      case "room-row":
+        setQueue((prev) => moveRoomItem(prev, d.index, moveTargetIndex(d.index, index ?? prev.length)));
+        return;
+      case "room-items":
+        addItems(d.items, index);
+        return;
+      case "room-album":
+        void addAlbum(d.album, index);
+        return;
+      case "room-playlist":
+        void addPlaylist(d.id, index);
+        return;
+    }
+  });
 
   const tabs: { key: Tab; label: string; icon: typeof Disc3 }[] = [
     { key: "albums", label: t("media.syncplay.tabAlbums"), icon: Disc3 },
@@ -226,8 +275,11 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2 max-h-80 overflow-y-auto pr-1">
                 {(albums ?? []).map((a) => (
-                  <div
+                  <Draggable
                     key={a.id}
+                    id={`room-album:${a.id}`}
+                    data={{ kind: "room-album", album: a }}
+                    label={a.title || "-"}
                     className="group relative rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] hover:border-[var(--accent)] transition-colors-fast"
                   >
                     <button
@@ -248,6 +300,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
                     </button>
                     <button
                       type="button"
+                      data-no-drag
                       onClick={(e) => { e.stopPropagation(); void addAlbum(a); }}
                       aria-label={t("media.syncplay.addAlbum")}
                       title={t("media.syncplay.addAlbum")}
@@ -255,7 +308,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
                     >
                       <Plus size={14} />
                     </button>
-                  </div>
+                  </Draggable>
                 ))}
                 {(!albums || albums.length === 0) && (
                   <div className="text-xs text-[var(--text-muted)] p-2 col-span-full">{t("media.syncplay.noAlbums")}</div>
@@ -287,8 +340,11 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
         {tab === "playlists" && (
           <div className="max-h-80 overflow-y-auto flex flex-col gap-1 border border-[var(--border)] rounded-[var(--radius-sm)] p-1">
             {(playlists ?? []).map((pl) => (
-              <div
+              <Draggable
                 key={pl.id}
+                id={`room-playlist:${pl.id}`}
+                data={{ kind: "room-playlist", id: pl.id }}
+                label={pl.name || "-"}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-raised)]"
               >
                 <ListMusic size={14} className="text-[var(--text-muted)] flex-shrink-0" />
@@ -302,7 +358,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
                 >
                   <Plus size={16} />
                 </button>
-              </div>
+              </Draggable>
             ))}
             {(!playlists || playlists.length === 0) && (
               <div className="text-xs text-[var(--text-muted)] p-2">{t("media.syncplay.noPlaylists")}</div>
@@ -330,15 +386,35 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
         </div>
 
         {queue.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-center text-xs text-[var(--text-muted)] border border-dashed border-[var(--border)] rounded-[var(--radius-md)] p-6 min-h-40">
+          <div
+            ref={basket.ref}
+            {...basket.props}
+            data-testid="room-basket"
+            className={`flex-1 flex items-center justify-center text-center text-xs text-[var(--text-muted)] border border-dashed rounded-[var(--radius-md)] p-6 min-h-40 transition-colors-fast ${
+              basket.over ? "border-[var(--accent)] bg-[var(--surface-raised)]" : basket.armed ? "border-[var(--accent)]" : "border-[var(--border)]"
+            }`}
+          >
             {t("media.syncplay.queueEmpty")}
           </div>
         ) : (
-          <div className="flex-1 max-h-80 overflow-y-auto flex flex-col gap-1 border border-[var(--border)] rounded-[var(--radius-sm)] p-1">
+          <div
+            ref={basket.ref}
+            {...basket.props}
+            data-testid="room-basket"
+            className={`flex-1 max-h-80 overflow-y-auto flex flex-col gap-1 border rounded-[var(--radius-sm)] p-1 transition-colors-fast ${
+              basket.over || basket.armed ? "border-[var(--accent)]" : "border-[var(--border)]"
+            }`}
+          >
             {queue.map((q, idx) => (
-              <div
+              <Draggable
                 key={q.id}
-                className="flex items-center gap-2 px-2 py-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-raised)]"
+                id={`room-row:${q.id}`}
+                data={{ kind: "room-row", index: idx }}
+                label={q.title || q.id}
+                dropIndex={idx}
+                className={`flex items-center gap-2 px-2 py-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-raised)] ${
+                  basket.index === idx ? "shadow-[inset_0_2px_0_var(--accent)]" : ""
+                } ${basket.index === queue.length && idx === queue.length - 1 ? "shadow-[inset_0_-2px_0_var(--accent)]" : ""}`}
               >
                 <span className="text-xs text-[var(--text-muted)] w-5 text-right flex-shrink-0">{idx + 1}</span>
                 <div className="flex-1 min-w-0">
@@ -374,7 +450,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
                 >
                   <X size={14} />
                 </button>
-              </div>
+              </Draggable>
             ))}
           </div>
         )}
@@ -396,7 +472,13 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
 function TrackRow({ item, inQueue, onAdd }: { item: QueueItem; inQueue: boolean; onAdd: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center gap-2 px-2 py-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-raised)]">
+    <Draggable
+      id={`room-track:${item.id}`}
+      data={{ kind: "room-items", items: [item] }}
+      label={item.title || item.id}
+      disabled={inQueue}
+      className="flex items-center gap-2 px-2 py-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-raised)]"
+    >
       <Music2 size={14} className="text-[var(--text-muted)] flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-sm truncate text-[var(--text)]">{item.title || item.id}</p>
@@ -412,6 +494,32 @@ function TrackRow({ item, inQueue, onAdd }: { item: QueueItem; inQueue: boolean;
       >
         <Plus size={16} />
       </button>
+    </Draggable>
+  );
+}
+
+// A picker entry or a queue row that drags onto the basket.
+function Draggable({
+  id,
+  data,
+  label,
+  disabled = false,
+  dropIndex,
+  className = "",
+  children,
+}: {
+  id: string;
+  data: RoomDragData;
+  label: string;
+  disabled?: boolean;
+  dropIndex?: number;
+  className?: string;
+  children: ReactNode;
+}) {
+  const drag = useDraggable(id, () => data, label, disabled);
+  return (
+    <div {...drag.props} data-drop-index={dropIndex} className={`${className} ${drag.dragging ? "opacity-40" : ""}`}>
+      {children}
     </div>
   );
 }

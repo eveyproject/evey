@@ -924,7 +924,7 @@
     },
     "/api/v1/public/media/{id}": {
       "get": {
-        "summary": "Public, non-sensitive projection of media items (id/title/type/year/poster/\noverview only - never file paths or provider ids). This is the read surface\na plugin may be granted via the `public` permission; regular users may call\nit too. Distinct from GetMediaItem/ListMediaItems, which return sensitive\nserver-side detail and are never exposed to plugin tokens.",
+        "summary": "Public, non-sensitive projection of media items (id/title/type/year/poster/\noverview, never provider ids). This is the read surface a plugin may be\ngranted via the `public` permission; regular users may call it too. The\nfile path and size are added only for a plugin token with `media.files`. Distinct from GetMediaItem/ListMediaItems, which return sensitive\nserver-side detail and are never exposed to plugin tokens.",
         "operationId": "LibraryService_GetPublicMediaItem",
         "responses": {
           "200": {
@@ -1474,6 +1474,10 @@
           "type": "integer",
           "format": "int32",
           "description": "Season number of an episode's season (0 elsewhere), so a client can build\nthe S01E03 code without fetching the season."
+        },
+        "hasIndexNumber": {
+          "type": "boolean",
+          "description": "has_index_number tells an episode or season without a number (a file of\na season folder whose name states none) from number 0 (an episode E00,\nthe specials season): index_number reads 0 for both. Additive rather\nthan making index_number optional, a cardinality change buf breaking\nrefuses."
         }
       }
     },
@@ -1609,6 +1613,24 @@
         },
         "level": {
           "type": "string"
+        },
+        "isCommentary": {
+          "type": "boolean",
+          "description": "Matroska/ffprobe disposition flags. Clients skip a commentary track when\npicking the default audio, as the server-side default selection does, and\nlabel commentary and accessibility tracks in the track picker."
+        },
+        "isHearingImpaired": {
+          "type": "boolean"
+        },
+        "isVisualImpaired": {
+          "type": "boolean"
+        },
+        "isOriginal": {
+          "type": "boolean"
+        },
+        "sourceTrackId": {
+          "type": "integer",
+          "format": "int32",
+          "description": "source_track_id: the number the file itself gives the track (Matroska\nTrackNumber, MP4 track_ID), the id a native player names the track by.\nUnset when the probe did not report it."
         }
       }
     },
@@ -1699,9 +1721,65 @@
         },
         "posterUrl": {
           "type": "string"
+        },
+        "filePath": {
+          "type": "string",
+          "description": "file_path and file_size are set only for a plugin token that carries the\n`media.files` scope, which is minted only on an administrator's session.\nEveryone else, a user session included, gets them empty."
+        },
+        "fileSize": {
+          "type": "string",
+          "format": "int64"
+        },
+        "quality": {
+          "$ref": "#/definitions/v1PublicMediaQuality",
+          "description": "quality describes the file, under the same rule as file_path."
         }
       },
-      "description": "PublicMediaItem is the non-sensitive projection exposed via the `public`\npermission. It deliberately omits file_path, file_size, provider_ids,\nstreams and any server-side detail."
+      "description": "PublicMediaItem is the non-sensitive projection exposed via the `public`\npermission. It omits provider_ids, streams and any server-side detail."
+    },
+    "v1PublicMediaQuality": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "videoCodec": {
+          "type": "string"
+        },
+        "hdrType": {
+          "type": "string",
+          "description": "hdr_type is the server's reading of the video (HDR10, HLG, Dolby Vision...),\nempty for SDR or unknown."
+        },
+        "bitDepth": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "bitrate": {
+          "type": "string",
+          "format": "int64",
+          "description": "bitrate is the container's overall bitrate, bits per second."
+        },
+        "durationMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "container": {
+          "type": "string"
+        },
+        "audioCodec": {
+          "type": "string"
+        },
+        "audioChannels": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "PublicMediaQuality is enough to tell two copies of a film apart: the first\nvideo track and the default (else first) audio track."
     },
     "v1Rating": {
       "type": "object",

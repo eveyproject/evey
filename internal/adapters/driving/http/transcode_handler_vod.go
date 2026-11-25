@@ -54,10 +54,6 @@ type hlsVODServe struct {
 	livePositions   positionHints[int]     // decision hash -> last segment served, for a later init
 	firstSegment    firstSegmentClock      // master -> first media segment, evey_hls_first_segment_seconds
 
-	// servingRecord: see SessionServingRecord; nil = not wired (tests).
-	servingRecord SessionServingRecord
-	// audioLegRecord: see SessionAudioLegRecord; nil = not wired (tests).
-	audioLegRecord SessionAudioLegRecord
 	// frameRateProbe + encoderReorderProbe: wired when the host can measure a
 	// transcoded video's timing; they gate the transcoded ladder's renditions.
 	frameRateProbe      func(ctx context.Context, path string) float64
@@ -499,31 +495,6 @@ func (h *hlsVODServe) dispatchAudioPlaylist(w http.ResponseWriter, r *http.Reque
 	trackIdx := atoiIndex(m[1])
 	copyCodec := h.audioRenditionCopyCodec(r, item, streams, trackIdx)
 	h.audio.servePlaylistFile(w, r, mediaID, trackIdx, renditionTimelineShiftSec, copyCodec)
-	h.recordAudioLeg(r, mediaID, streams, trackIdx, copyCodec)
-}
-
-// recordAudioLeg tells the session which audio this rendition serves. A track
-// switched in place on the player fetches only its rendition playlist, so the
-// master's record kept naming the track playback started on. A wasm player
-// decodes the track itself and reports that leg through its own beacons.
-func (h *hlsVODServe) recordAudioLeg(r *http.Request, mediaID string, streams []*domainlibrary.MediaStream, trackIdx int, copyCodec string) {
-	if h.audioLegRecord == nil || h.audio == nil || h.audio.wasmAudio(r) {
-		return
-	}
-	claims := HTTPClaimsFromContext(r.Context())
-	if claims == nil || claims.ProfileID == "" {
-		return
-	}
-	source := sourceAudioCodec(streams, trackIdx)
-	if copyCodec != "" {
-		h.audioLegRecord(r.Context(), claims.ProfileID, mediaID, "copy", "ffmpeg", source)
-		return
-	}
-	label := "aac"
-	if source != "" && source != "aac" {
-		label = source + "→aac"
-	}
-	h.audioLegRecord(r.Context(), claims.ProfileID, mediaID, "transcode", "ffmpeg", label)
 }
 
 func (h *hlsVODServe) dispatchAudioSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
@@ -734,16 +705,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		return
 	}
 
-	{
-		p := domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rp.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"}
-		if rp.IsCopy {
-			p.VideoDecision, p.VideoBackend = "copy", ""
-		}
-		if h.audioServedAsCopy(r, item, streams, rp.FP.AudioCopy, len(in.AudioRenditions) > 0, in.AudioTrack) {
-			p.AudioDecision = "copy"
-		}
-		h.recordServing(r, mediaID, rp, p, fallback)
-	}
+	h.checkDelivery(r, mediaID, rp, apptranscoding.DeliveryPath{VideoCopy: rp.IsCopy, VideoEngine: apptranscoding.EngineFFmpeg, AudioEngine: apptranscoding.EngineFFmpeg}, fallback)
 
 	setCORSHeaders(w, r, "")
 	// The ffmpeg pipeline family serves this master (its ladder may mix copy
@@ -776,59 +738,6 @@ func readsSubtitleRenditions(ua string) bool {
 	return !strings.Contains(ua, "CrKey")
 }
 
-// audioServedAsCopy reports whether the audio this master just advertised
-// reaches the player UNTOUCHED. Two ways it can, and only one of them was
-// being reported:
-//
-//   - MUXED variants: rp.FP.AudioCopy, i.e. AudioCopyEligible - which requires
-//     a SINGLE rung, because each muxed variant carries its own audio and one
-//     hash must yield one byte stream;
-//   - its own #EXT-X-MEDIA rendition: one audio playlist shared by every rung,
-//     so the rung count is irrelevant and the rendition path has copied
-//     natively since it shipped (audioRenditionCopyCodec).
-//
-// Reading only the first made the admin panel and the stream sheet say
-// "Audio transcodé ffmpeg" over a ladder whose ffmpeg was running `-c:a copy`.
-// Measured on prod (2026-09-19, a 4K remux on the living-room TV): three
-// AC-3 renditions spawned with `-map 0:a:N -c:a copy` under a 3-rung
-// tone-mapping ladder, reported as transcoded audio throughout. Nothing was
-// wrong with the decision - the observability was lying about it, which is the
-// kind of false signal that gets a working path "fixed".
-//
-// Re-asks audioRenditionCopyCodec rather than inferring from the advertised
-// codec name: it is the same call the master built its CODECS attribute from,
-// so the report agrees with the bytes by construction and not by inference (a
-// copied AAC track reads as AAC either way, and a name comparison would call
-// it transcoded).
-//
-// muxedCopy is rp.FP.AudioCopy; renditionAudio says this master advertised an
-// #EXT-X-MEDIA audio group, and audioTrack is the track it defaults to - the
-// one the viewer hears, and the only one whose verdict belongs on the session.
-func (h *hlsVODServe) audioServedAsCopy(r *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, muxedCopy, renditionAudio bool, audioTrack int) bool {
-	if muxedCopy {
-		return true
-	}
-	if !renditionAudio {
-		return false
-	}
-	return h.audioRenditionCopyCodec(r, item, streams, audioTrack) != ""
-}
-
-// recordServing tells the (profile, media) play session what this master
-// hands the player. The profile comes from the stream token, so a cast
-// receiver's master lands on the same session as the phone that started it.
-func (h *hlsVODServe) recordServing(r *http.Request, mediaID string, rp *requestPlan, p domainplayback.ServingPath, fallback string) {
-	h.checkDelivery(r, mediaID, rp, p, fallback)
-	if h.servingRecord == nil {
-		return
-	}
-	claims := HTTPClaimsFromContext(r.Context())
-	if claims == nil || claims.ProfileID == "" {
-		return
-	}
-	h.servingRecord(r.Context(), claims.ProfileID, mediaID, p)
-}
-
 // checkDelivery holds the adapter to the plan. The path SERVED is compared
 // with the strategy the plan DECIDED (PlaybackPlan.Delivery, projected as a
 // ServingPath):
@@ -838,13 +747,17 @@ func (h *hlsVODServe) recordServing(r *http.Request, mediaID string, rp *request
 //   - a difference with no fallback declared is an adapter that picked an
 //     engine on its own: an invariant violation, counted on a counter that
 //     must stay at zero.
-func (h *hlsVODServe) checkDelivery(r *http.Request, mediaID string, rp *requestPlan, served domainplayback.ServingPath, fallback string) {
+func (h *hlsVODServe) checkDelivery(r *http.Request, mediaID string, rp *requestPlan, served apptranscoding.DeliveryPath, fallback string) {
 	if rp == nil {
 		return
 	}
-	planned := rp.Plan.Delivery.ServingPath(rp.Plan.Route, rp.FP)
-	label := func(p domainplayback.ServingPath) string {
-		return p.VideoDecision + "/" + p.VideoEngine + "+" + p.AudioEngine
+	planned := rp.Plan.Delivery.Planned(rp.Plan.Route)
+	label := func(p apptranscoding.DeliveryPath) string {
+		v := "transcode"
+		if p.VideoCopy {
+			v = "copy"
+		}
+		return v + "/" + string(p.VideoEngine) + "+" + string(p.AudioEngine)
 	}
 	if fallback != "" {
 		metrics.HLSVODDeliveryFallbacks.WithLabelValues(fallback).Inc()
@@ -852,7 +765,7 @@ func (h *hlsVODServe) checkDelivery(r *http.Request, mediaID string, rp *request
 			slog.String("media_id", mediaID), slog.String("fallback", fallback), slog.String("planned", label(planned)), slog.String("served", label(served)))
 		return
 	}
-	if planned.VideoEngine == served.VideoEngine && planned.AudioEngine == served.AudioEngine && planned.VideoDecision == served.VideoDecision {
+	if planned == served {
 		return
 	}
 	metrics.HLSVODDeliveryDisagreements.WithLabelValues(label(planned), label(served)).Inc()
@@ -1295,6 +1208,8 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		}
 	}
 
+	h.stampLadderSegment(r, mediaID, rp, streams, variantIdx, isInit)
+
 	setCORSHeaders(w, r, "")
 	// Precise serving path per rung: the fingerprint knows whether this
 	// variant's bytes are a video copy (remux) or an encode.
@@ -1316,6 +1231,33 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	}
 	w.Header().Set("Cache-Control", "no-cache")
 	serveSegmentFile(w, r, path)
+}
+
+// stampLadderSegment declares what a ladder segment (or init) carries: the
+// video of rung variantIdx, by ffmpeg, copied when the rung the producer ran
+// is the copy rung, else encoded on the route's backend; the muxed audio of
+// the fingerprint's track, copied when the fingerprint says so. The init the
+// segment decodes with tells whether the rung carries audio at all (a
+// video-only rung beside an audio rendition does not).
+func (h *hlsVODServe) stampLadderSegment(r *http.Request, mediaID string, rp *requestPlan, streams []*domainlibrary.MediaStream, variantIdx int, isInit bool) {
+	st := deliveryStampOf(r)
+	if st == nil || rp == nil || variantIdx < 0 || variantIdx >= len(rp.FP.Profiles) {
+		return
+	}
+	copyRung := rp.FP.Profiles[variantIdx].Copy
+	backend := ""
+	if !copyRung {
+		backend = videoBackendLabel(rp.Plan.HWAccel)
+	}
+	st.stampVideo(mediaID, domainplayback.EngineFFmpeg, copyRung, backend, sourceVideoCodec(streams))
+	st.stampAudio(mediaID, domainplayback.EngineFFmpeg, rp.FP.AudioCopy, rp.AudioTrack, sourceAudioCodec(streams, rp.AudioTrack), false)
+	key := "ffmpeg:" + rp.FPHash + ":" + strconv.Itoa(variantIdx)
+	if isInit {
+		st.stampInit(key)
+		return
+	}
+	initPath := h.cache.Path(apptranscoding.SegmentKey{DecisionHash: rp.FPHash, VariantIdx: variantIdx, IsInit: true}, rp.FP.UseFMP4)
+	st.stampMedia(key, func(context.Context) ([]byte, error) { return os.ReadFile(initPath) })
 }
 
 // producerForRequest resolves the StreamProducer (software vs hardware) for the
@@ -1633,7 +1575,7 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 					http.Error(w, `{"message":"dash is not available for this presentation"}`, http.StatusNotFound)
 					return
 				}
-				h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo", AudioCodec: packagedAudioCodec(rp, streams)}, "")
+				h.checkDelivery(r, mediaID, rp, apptranscoding.DeliveryPath{VideoCopy: true, VideoEngine: apptranscoding.EngineMkvgo, AudioEngine: apptranscoding.EngineMkvgo}, "")
 				h.servePlanResourceData(w, r, mediaID, plan, planKeep(rp, streams), "manifest.mpd", span)
 				return
 			}
@@ -1688,16 +1630,7 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
-	{
-		p := domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rp.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"}
-		if rp.IsCopy {
-			p.VideoDecision, p.VideoBackend = "copy", ""
-		}
-		if h.audioServedAsCopy(r, item, streams, rp.FP.AudioCopy, len(in.AudioRenditions) > 0, in.AudioTrack) {
-			p.AudioDecision = "copy"
-		}
-		h.recordServing(r, mediaID, rp, p, fallback)
-	}
+	h.checkDelivery(r, mediaID, rp, apptranscoding.DeliveryPath{VideoCopy: rp.IsCopy, VideoEngine: apptranscoding.EngineFFmpeg, AudioEngine: apptranscoding.EngineFFmpeg}, fallback)
 	if !rp.IsCopy {
 		cause := apptranscoding.TranscodeCause(rp.Decision, streams)
 		metrics.HLSVODTranscodeSessions.WithLabelValues(cause).Inc()

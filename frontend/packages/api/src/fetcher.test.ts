@@ -63,6 +63,30 @@ describe("eveyFetch", () => {
     );
   });
 
+  // A FormData used to go through JSON.stringify and leave as "{}" labelled
+  // application/json, so every artwork upload reached the server empty.
+  it("sends a FormData body as itself, with no JSON Content-Type", async () => {
+    fetchMock.mockResolvedValue(mockResponse(201, { id: "a1" }));
+    const form = new FormData();
+    form.append("type", "poster");
+
+    await eveyFetch({ url: "/api/upload", method: "POST", data: form });
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit & { headers: Record<string, string> };
+    expect(init.body).toBe(form);
+    expect(init.headers["Content-Type"]).toBeUndefined();
+  });
+
+  it("still sends plain data as JSON", async () => {
+    fetchMock.mockResolvedValue(mockResponse(200, { ok: true }));
+
+    await eveyFetch({ url: "/api/json", method: "POST", data: { a: 1 } });
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit & { headers: Record<string, string> };
+    expect(init.body).toBe('{"a":1}');
+    expect(init.headers["Content-Type"]).toBe("application/json");
+  });
+
   it("asks the media lists for the trimmed item unless the call wants the whole one", async () => {
     fetchMock.mockResolvedValue(mockResponse(200, { items: [] }));
     await eveyFetch({ url: "/api/v1/media", method: "GET", params: { libraryId: "l" } });

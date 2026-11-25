@@ -277,7 +277,6 @@ func TestStartStream_PublishesStartedEvent(t *testing.T) {
 	assert.Equal(t, "s1", started.SessionID)
 	assert.Equal(t, shared.ProfileID("p1"), started.ProfileID)
 	assert.Equal(t, shared.MediaItemID("m1"), started.MediaItemID)
-	assert.Equal(t, "direct_play", started.PlayMethod)
 }
 
 func TestStopStream_SetsEndedAt(t *testing.T) {
@@ -1033,7 +1032,7 @@ func TestReportProgressAfterStop_DoesNotResurrectSession(t *testing.T) {
 
 // A player that never gets its picture going still ticks, at position 0, and
 // the freshest write wins: a failed start (codec refused, network gone) erased
-// the resume point. Measured in prod on 2026-09-23 - a start that stayed at
+// the resume point. Measured in prod - a start that stayed at
 // readyState 0 sent five ticks at 0 and an 8-minute resume point became 0.
 // Until a session has reported a positive position, a 0 is not a position.
 func TestReportProgressBySession_ZeroBeforeAnyPositionKeepsTheResumePoint(t *testing.T) {

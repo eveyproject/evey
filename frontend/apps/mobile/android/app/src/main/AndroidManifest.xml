@@ -21,6 +21,8 @@
        Android Cast client holds; the WifiLock is the extra belt. -->
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
   <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+  <!-- The Wi-Fi state permission would otherwise make Play require Wi-Fi hardware. -->
+  <uses-feature android:name="android.hardware.wifi" android:required="false"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
   <!-- The app never records audio (expo-camera is only used for QR barcode
        scanning, expo-audio only for playback) - but expo-audio and expo-camera

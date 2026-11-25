@@ -56,8 +56,14 @@ describe("StreamInfoPanel", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("describes the selected audio stream and the effective method", () => {
-    render(<StreamInfoPanel visible onClose={vi.fn()} streamInfo={session} audioStreamIndex={2} />);
+  // The two witnesses: the server copied the video and encoded track 2 (the
+  // AAC, index 2 in the file) to AAC; the method follows them.
+  const encodedAudio = {
+    servedVideo: { engine: "mkvgo", copy: true, codec: "hevc", height: 2160 },
+    servedAudio: { engine: "ffmpeg", copy: false, track: 1, codec: "aac", channels: 2 },
+  };
+  it("describes the served audio track and the method the bytes were", () => {
+    render(<StreamInfoPanel visible onClose={vi.fn()} streamInfo={session} audioStreamIndex={2} witness={encodedAudio as any} />);
     expect(screen.getByText("player.streamInfo.methodTranscode")).toBeTruthy();
     expect(screen.getByText("MKV")).toBeTruthy();
     expect(screen.getByText("12.5 Mbps")).toBeTruthy();
@@ -75,8 +81,12 @@ describe("StreamInfoPanel", () => {
     expect(screen.getByText("audio codec unsupported")).toBeTruthy();
   });
 
-  it("a remux heads its reasons with 'why not direct play' and defaults to the first audio stream", () => {
-    render(<StreamInfoPanel visible onClose={vi.fn()} streamInfo={{ ...session, audioDecision: "copy", transcodeReasons: ["container_not_supported"] }} />);
+  it("a remux heads its reasons with 'why not direct play' and describes the track sent", () => {
+    const copied = {
+      servedVideo: { engine: "mkvgo", copy: true, codec: "hevc" },
+      servedAudio: { engine: "mkvgo", copy: true, codec: "eac3", channels: 6 },
+    };
+    render(<StreamInfoPanel visible onClose={vi.fn()} streamInfo={{ ...session, transcodeReasons: ["container_not_supported"] }} witness={copied as any} />);
     expect(screen.getByText("player.streamInfo.methodDirectStream")).toBeTruthy();
     expect(screen.getByText("player.streamInfo.noDirectPlayReasons")).toBeTruthy();
     expect(screen.getByText("EAC3")).toBeTruthy();
@@ -86,17 +96,16 @@ describe("StreamInfoPanel", () => {
 
   // The television's own copy stopped at codec, channels and language, where
   // the phone and the web already showed these; one model feeds all four now.
-  it("shows what the phone showed: estimated video bitrate, profile, pixel format, served audio bitrate, sample rate", () => {
+  it("shows what the phone showed: estimated video bitrate, profile, pixel format, source audio bitrate, sample rate", () => {
     const probe = {
       ...session,
-      audioBitrate: "640000",
       mediaStreams: [
         { type: "MEDIA_STREAM_TYPE_VIDEO", codec: "hevc", width: 3840, height: 2160, profile: "Main 10", pixelFormat: "yuv420p10le" },
-        { index: 1, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "eac3", channels: 6, language: "fre", sampleRate: 48000 },
+        { index: 1, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "eac3", channels: 6, language: "fre", sampleRate: 48000, bitrate: "640000" },
       ],
     };
     render(<StreamInfoPanel visible onClose={() => {}} streamInfo={probe} audioStreamIndex={1} />);
-    expect(screen.getByText("≈ 12.5 Mbps")).toBeTruthy();
+    expect(screen.getByText("≈ 11.9 Mbps")).toBeTruthy();
     expect(screen.getByText("Main 10")).toBeTruthy();
     expect(screen.getByText("yuv420p10le")).toBeTruthy();
     expect(screen.getByText("640 Kbps")).toBeTruthy();

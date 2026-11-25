@@ -220,6 +220,13 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 			observeCastFetch(r, h.castProgress, durMs*start/item.File.Size)
 		}
 	}
+	if lister, ok := h.libSvc.(interface {
+		GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error)
+	}); ok {
+		deliveryStampOf(r).stampFile(mediaID, "file:"+mediaID+":"+item.File.Fingerprint, func(ctx context.Context) ([]*library.MediaStream, error) {
+			return lister.GetMediaStreams(ctx, mediaID)
+		})
+	}
 	serveFileLogged(w, r, mediaID, item.File.Path)
 }
 

@@ -13,6 +13,8 @@ type FakeLibraryCommandRepo struct {
 	// OnCreate, when set, sees every library Create stores: a test can mirror
 	// it into the query fake, as one database would.
 	OnCreate func(lib *library.Library)
+	// OnUpdate is the same mirror for Update and TouchLastScannedAt.
+	OnUpdate func(lib *library.Library)
 	mu       sync.RWMutex
 	items    map[string]*library.Library
 	Err      error
@@ -57,6 +59,9 @@ func (r *FakeLibraryCommandRepo) Update(_ context.Context, lib *library.Library)
 		return ErrNotFound
 	}
 	r.items[string(lib.ID)] = lib
+	if r.OnUpdate != nil {
+		r.OnUpdate(lib)
+	}
 	return nil
 }
 
@@ -70,7 +75,13 @@ func (r *FakeLibraryCommandRepo) TouchLastScannedAt(_ context.Context, id shared
 	if !ok {
 		return ErrNotFound
 	}
-	lib.LastScannedAt = &at
+	// A new row, never an edit of one a reader may hold.
+	c := *lib
+	c.LastScannedAt = &at
+	r.items[string(id)] = &c
+	if r.OnUpdate != nil {
+		r.OnUpdate(&c)
+	}
 	return nil
 }
 

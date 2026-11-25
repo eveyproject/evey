@@ -18,7 +18,6 @@ nav:
   mediaRequests: Solicitudes de contenido
   shareLinks: "Enlaces compartidos"
   integrations: Integraciones
-  pluginPages: "Páginas de plugins"
   plugins: Plugins
   webhooks: Webhooks
   apiKeys: "Claves API"
@@ -302,6 +301,12 @@ plugins:
   installedTitle: "Plugins instalados"
   pageBadge: "Plugin"
   pageProvidedBy: "Esta página la muestra un plugin, no Evey."
+  trash:
+    title_one: "¿Mover {{count}} archivo a la papelera?"
+    title_other: "¿Mover {{count}} archivos a la papelera?"
+    explain: "Un plugin pide quitar estos archivos de la biblioteca. Evey mueve cada uno, con sus subtítulos, a la carpeta .evey-trash en la raíz de su biblioteca y lo quita de Evey. No se borra nada del disco: vacía esa carpeta tú mismo cuando estés seguro."
+    confirm_one: "Mover a la papelera"
+    confirm_other: "Mover los {{count}} a la papelera"
   uploadFile: "Subir archivo"
   fromUrl: "Desde URL"
   installFromUrl: Instalar desde URL
@@ -633,9 +638,19 @@ sessions:
     audioCopied: "copiado"
     audioTranscoded: "transcodificado"
     audioClientDecoded: "decodificado por el reproductor"
+    trackN: "pista {{n}}"
+    allTracks: "todas las pistas, el reproductor elige"
+    fromFile: "archivo de origen"
+    player: "Reproductor"
+    decoderNative: "decodificador nativo"
+    decoderWasm: "decodificado por ac3go (wasm)"
+    waiting: "aún no se ha enviado ningún byte"
+    mismatchTrack: "Discrepancia: el reproductor reproduce la pista {{played}}, el servidor envía la pista {{served}}"
+    mismatchCodec: "Discrepancia: el reproductor decodifica {{played}}, el servidor envía {{served}}"
     engine:
       mkvgo: "mkvgo"
       ffmpeg: "ffmpeg"
+      file: "archivo"
       client: "ac3go en el reproductor"
     backend:
       software: "software (CPU)"

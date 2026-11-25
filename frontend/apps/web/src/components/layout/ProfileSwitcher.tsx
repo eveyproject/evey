@@ -120,11 +120,6 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
     await doSwitch(target);
   }, [active, doSwitch, switching]);
 
-  const handleManage = useCallback(() => {
-    setOpen(false);
-    void navigate({ to: "/profile/settings" });
-  }, [navigate]);
-
   const go = useCallback((to: string) => {
     setOpen(false);
     void navigate({ to });
@@ -213,7 +208,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-56 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-overlay animate-fade-in"
+          className="absolute right-0 top-full mt-2 w-max min-w-56 max-w-[calc(100vw-2rem)] rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-overlay animate-fade-in"
           role="menu"
           data-testid="profile-switcher-menu"
         >
@@ -226,7 +221,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
                 }}
                 role="menuitem"
                 data-testid="profile-switcher-switch"
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
+                className="w-full flex items-center gap-3 text-left px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
               >
                 <ArrowLeftRight size={16} className="text-[var(--text-muted)] shrink-0" />
                 {t("common.nav.switchProfile", "Switch profile")}
@@ -234,23 +229,13 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
               <div className="border-t border-[var(--border)] my-1" />
             </>
           )}
-          <button
-            onClick={handleManage}
-            role="menuitem"
-            data-testid="profile-switcher-manage"
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
-          >
-            <Users size={16} className="text-[var(--text-muted)] shrink-0" />
-            {t("common.nav.manageProfiles", "Manage Profiles")}
-          </button>
-          <div className="border-t border-[var(--border)] my-1" />
           {userItems.map((item) => (
             <button
               key={item.label}
               onClick={item.action}
               role="menuitem"
               data-testid={item.testid}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
+              className="w-full flex items-center gap-3 text-left px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
             >
               <span className="text-[var(--text-muted)] shrink-0">{item.icon}</span>
               {item.label}
@@ -261,7 +246,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
             onClick={handleLogout}
             role="menuitem"
             data-testid="logout-btn"
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--color-danger)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
+            className="w-full flex items-center gap-3 text-left px-3 py-2 text-sm text-[var(--color-danger)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
           >
             <LogOut size={16} className="shrink-0" />
             {t("common.nav.signOut")}

@@ -172,7 +172,7 @@ type playerEventDeps struct {
 	castSession     CastSessionTouch
 	castSessionEnd  CastSessionEnd
 	castCommand     CastCommandConsumer
-	castAudioMode   CastAudioModeTouch
+	played          PlayedRecorder
 
 	// qoe receives the native apps' qoe_sample beacons. Nil: the samples are
 	// accepted and dropped, like a browser's CMCD when QoE is not wired.
@@ -185,19 +185,9 @@ type playerEventDeps struct {
 	decoders *apptranscoding.DeviceDecoderMemory
 }
 
-// CastAudioModeTouch mirrors the receiver's audio_mode beacon ("aac", "wasm",
-// "aac-latched") onto the active session, so the admin badge follows the REAL
-// audio path in near real time. Fire-and-forget by contract.
-type CastAudioModeTouch func(ctx context.Context, profileID, mediaItemID, mode string)
-
-// SessionServingRecord records the served path of the (profile, media)
-// session at master render. Fire-and-forget by contract.
-type SessionServingRecord func(ctx context.Context, profileID, mediaItemID string, p domainplayback.ServingPath)
-
-// SessionAudioLegRecord records the audio leg alone (decision, engine, served
-// codec label) of the (profile, media) session, when a track switch fetches a
-// rendition the master render did not describe. Fire-and-forget by contract.
-type SessionAudioLegRecord func(ctx context.Context, profileID, mediaItemID, decision, engine, codecLabel string)
+// PlayedRecorder records what a player reports it decodes onto the (profile,
+// media) session (CommandService.RecordPlayed). Fire-and-forget by contract.
+type PlayedRecorder func(ctx context.Context, profileID, mediaItemID string, p domainplayback.Played)
 
 // CastCommandConsumer hands the receiver the pending admin remote command of
 // its session ("pause", "play", "stop", "message:<text>"), or "" when none.
@@ -261,9 +251,9 @@ func WithPlayerEventCastSessionEnd(end CastSessionEnd) PlayerEventOption {
 	return func(d *playerEventDeps) { d.castSessionEnd = end }
 }
 
-// WithPlayerEventCastAudioMode wires the audio-path mirror.
-func WithPlayerEventCastAudioMode(touch CastAudioModeTouch) PlayerEventOption {
-	return func(d *playerEventDeps) { d.castAudioMode = touch }
+// WithPlayerEventPlayed wires the player's witness (the "played" report).
+func WithPlayerEventPlayed(rec PlayedRecorder) PlayerEventOption {
+	return func(d *playerEventDeps) { d.played = rec }
 }
 
 // WithPlayerEventCastCommand makes the alive beacon's RESPONSE carry the
@@ -370,10 +360,19 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		// What the player decodes is state, not an incident: recorded on the
+		// session, never logged.
+		if body.Type == playerEventPlayed {
+			if !recordPlayed(r, &deps, mediaID, body.Details) {
+				http.Error(w, `{"message":"unparseable played report"}`, http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		recordDirectPlayRefusal(r, &deps, mediaID, body)
 		deps.decoders.ObservePlayerEvent(userID, r.UserAgent(), body.Type, body.Details)
 		notifyCastLiveness(r, &deps, mediaID, body.Type, body.PosSec, body.Paused)
-		notifyCastAudioMode(r, &deps, mediaID, body.Type, body.Details)
 
 		// Severity follows what the event IS. The route carries telemetry
 		// (liveness beats every 30s, load/model/shutdown markers) alongside
@@ -525,27 +524,72 @@ func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventTy
 	}
 }
 
-// notifyCastAudioMode forwards an audio-path transition to the session row:
-// the cast receiver's (cast stream token) or the web wasm player's (user JWT,
-// event "wasm_audio_mode"). The mode string rides in Details.
-func notifyCastAudioMode(r *http.Request, deps *playerEventDeps, mediaID, eventType, details string) {
-	if deps.castAudioMode == nil {
-		return
+// playerEventPlayed is the player's report of what it decodes, a JSON
+// playedReport in Details.
+const playerEventPlayed = "played"
+
+// playedReport is the wire form of a "played" report.
+type playedReport struct {
+	Source       string `json:"source"`
+	VideoCodec   string `json:"videoCodec"`
+	Width        int    `json:"width"`
+	Height       int    `json:"height"`
+	AudioTrack   *int   `json:"audioTrack"`
+	AudioCodec   string `json:"audioCodec"`
+	AudioDecoder string `json:"audioDecoder"`
+}
+
+// playedFieldMax bounds every string of a report: codec names and enum
+// values, never prose.
+const playedFieldMax = 40
+
+// recordPlayed hands a "played" report to the session. The profile is the
+// caller's (a user JWT) or the cast stream token's. false: the report does
+// not parse or names a value outside the vocabulary.
+func recordPlayed(r *http.Request, deps *playerEventDeps, mediaID, details string) bool {
+	var rep playedReport
+	if err := json.Unmarshal([]byte(details), &rep); err != nil {
+		return false
 	}
-	switch eventType {
-	case "cast_receiver_audio_mode":
-		st, ok := StreamTokenFromContext(r.Context())
-		if !ok || st == nil || !st.Cast {
-			return
-		}
-		deps.castAudioMode(r.Context(), string(st.ProfileID), mediaID, details)
-	case "wasm_audio_mode":
-		claims := HTTPClaimsFromContext(r.Context())
-		if claims == nil || claims.ProfileID == "" {
-			return
-		}
-		deps.castAudioMode(r.Context(), claims.ProfileID, mediaID, details)
+	switch rep.Source {
+	case domainplayback.PlayedHLS, domainplayback.PlayedFile:
+	default:
+		return false
 	}
+	switch rep.AudioDecoder {
+	case "", domainplayback.DecoderNative, domainplayback.DecoderWasm:
+	default:
+		return false
+	}
+	for _, f := range []string{rep.VideoCodec, rep.AudioCodec} {
+		if len(f) > playedFieldMax || strings.ContainsAny(f, "\r\n") {
+			return false
+		}
+	}
+	if rep.Width < 0 || rep.Height < 0 || rep.Width > 16384 || rep.Height > 16384 {
+		return false
+	}
+	p := domainplayback.Played{
+		Source: rep.Source, VideoCodec: rep.VideoCodec, Width: rep.Width, Height: rep.Height,
+		AudioTrack: -1, AudioCodec: rep.AudioCodec, AudioDecoder: rep.AudioDecoder,
+	}
+	if rep.AudioTrack != nil && *rep.AudioTrack >= 0 && *rep.AudioTrack < 1000 {
+		p.AudioTrack = *rep.AudioTrack
+	}
+	if deps.played == nil {
+		return true
+	}
+	profileID := ""
+	if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil {
+		profileID = string(st.ProfileID)
+	} else if claims := HTTPClaimsFromContext(r.Context()); claims != nil {
+		profileID = claims.ProfileID
+	}
+	if profileID == "" {
+		return true
+	}
+	deps.played(r.Context(), profileID, mediaID, p)
+	return true
 }
 
 // pendingCastCommand consumes the session's remote command for a cast

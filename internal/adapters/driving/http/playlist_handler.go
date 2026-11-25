@@ -32,8 +32,12 @@ type playlistArchiveSource interface {
 
 // playlistGenerator builds a taste-weighted music playlist for a profile.
 type playlistGenerator interface {
-	Generate(ctx context.Context, profileID string, libraryID shared.LibraryID, size int, name string) (*playlist.Playlist, error)
+	GenerateFor(ctx context.Context, profileID string, libraryID shared.LibraryID, size int, name string, genres []string) (*playlist.Playlist, error)
+	Options(ctx context.Context, profileID string, libraryID shared.LibraryID) (appplaylist.GenOptions, error)
 }
+
+// maxMixGenres bounds the styles one mix request may name.
+const maxMixGenres = 30
 
 // musicTrackResolver fetches a music track (its id lives in music_tracks, not
 // media_items), used to add a playlist's music entries to the download ZIP.
@@ -71,6 +75,7 @@ func registerPlaylistRoutes(mux *http.ServeMux, plSvc *appplaylist.Service, gen 
 	// Generating scans the whole music library + the user's playlists - also
 	// heavier than a normal call, so it shares the rate limiter.
 	mux.HandleFunc("POST /api/v1/playlists/generate", ratelimit.MiddlewareFunc(rl, authMw(h.generatePlaylist)))
+	mux.HandleFunc("GET /api/v1/playlists/generate/options", authMw(h.generateOptions))
 	// The proto only declares Add/Remove for playlist items - no reorder RPC -
 	// so the mobile app's drag-to-reorder screen has 404'd since it shipped.
 	// The domain already tracks item order (sort_order + a Reorder repo method
@@ -150,8 +155,50 @@ func (h *playlistHandler) reorderItems(w http.ResponseWriter, r *http.Request) {
 	jsonEncodeResponse(w, map[string]string{"message": "reordered"})
 }
 
+// generateOptions tells a mix form what it can offer: the library's genres
+// (split out of multi-genre tags, with their track counts) and whether the
+// caller's listening history will weigh on the mix.
+// Query: ?libraryId=... Answer: {"genres":[{"name":"Rock","count":12}],"hasHistory":true}.
+func (h *playlistHandler) generateOptions(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.playlist.GenerateOptions")
+	defer span.End()
+	r = r.WithContext(ctx)
+	claims := HTTPClaimsFromContext(r.Context())
+	if claims == nil {
+		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	libraryID := r.URL.Query().Get("libraryId")
+	if libraryID == "" {
+		http.Error(w, `{"message":"libraryId is required"}`, http.StatusBadRequest)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, shared.LibraryID(libraryID), h.libChecker) {
+		span.SetStatus(otelcodes.Error, "library access denied")
+		return
+	}
+	opts, err := h.gen.Options(r.Context(), claims.ProfileID, shared.LibraryID(libraryID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "generate options failed")
+		slog.ErrorContext(r.Context(), "playlist generate options", slog.Any("err", err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	type genre struct {
+		Name  string `json:"name"`
+		Count int    `json:"count"`
+	}
+	genres := make([]genre, 0, len(opts.Genres))
+	for _, g := range opts.Genres {
+		genres = append(genres, genre{Name: g.Name, Count: g.Count})
+	}
+	jsonEncodeResponse(w, map[string]any{"genres": genres, "hasHistory": opts.HasHistory})
+}
+
 // generatePlaylist builds and persists a taste-weighted music playlist for the
-// caller. Body: {"libraryId":"...","size":50,"name":"..."}. The caller must
+// caller. Body: {"libraryId":"...","size":50,"name":"...","genres":["Rock"]};
+// genres, when given, limit the mix to their tracks. The caller must
 // have access to the library; the playlist is owned by the caller.
 func (h *playlistHandler) generatePlaylist(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.playlist.Generate")
@@ -164,9 +211,10 @@ func (h *playlistHandler) generatePlaylist(w http.ResponseWriter, r *http.Reques
 	}
 
 	var body struct {
-		LibraryID string `json:"libraryId"`
-		Size      int    `json:"size"`
-		Name      string `json:"name"`
+		LibraryID string   `json:"libraryId"`
+		Size      int      `json:"size"`
+		Name      string   `json:"name"`
+		Genres    []string `json:"genres"`
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.LibraryID == "" {
@@ -182,7 +230,18 @@ func (h *playlistHandler) generatePlaylist(w http.ResponseWriter, r *http.Reques
 	// taken, which is what makes pressing generate twice work at all.
 	name := strings.TrimSpace(body.Name)
 
-	pl, err := h.gen.Generate(r.Context(), claims.ProfileID, shared.LibraryID(body.LibraryID), body.Size, name)
+	var genres []string
+	for _, g := range body.Genres {
+		if g = strings.TrimSpace(g); g != "" && len(g) <= 100 {
+			genres = append(genres, g)
+		}
+	}
+	if len(genres) > maxMixGenres {
+		http.Error(w, `{"message":"too many genres"}`, http.StatusBadRequest)
+		return
+	}
+
+	pl, err := h.gen.GenerateFor(r.Context(), claims.ProfileID, shared.LibraryID(body.LibraryID), body.Size, name, genres)
 	if errors.Is(err, appplaylist.ErrNoTracks) {
 		span.SetStatus(otelcodes.Error, "no tracks")
 		http.Error(w, `{"message":"no tracks to generate from"}`, http.StatusUnprocessableEntity)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eveyproject/evey/internal/app/presence"
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	shared "github.com/eveyproject/evey/internal/domain/shared"
 	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
@@ -479,58 +480,74 @@ func TestPlayerEvent_CastAliveBeaconCarriesPendingCommand(t *testing.T) {
 	}
 }
 
-// The relay's leg transition must reach the session row: the admin badge
-// shows "transcodage" during the AAC leg and flips once the TV's wasm takes
-// over (the server's ffmpeg dies at idle seconds later).
-func TestPlayerEvent_CastAudioModeReachesTheSession(t *testing.T) {
-	var got []string
-	touch := func(_ context.Context, profileID, mediaID, mode string) {
-		got = append(got, profileID+"|"+mediaID+"|"+mode)
+// The player's witness: a "played" report reaches the session of the caller's
+// profile (a user JWT) or of the cast token's, and nothing is logged for it.
+func TestPlayerEvent_PlayedReachesTheSession(t *testing.T) {
+	type rec struct {
+		profile, media string
+		p              domainplayback.Played
 	}
-	post := func(body string, castToken bool) {
+	var got []rec
+	recorder := func(_ context.Context, profileID, mediaID string, p domainplayback.Played) {
+		got = append(got, rec{profileID, mediaID, p})
+	}
+	post := func(body string, castToken bool) int {
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event", strings.NewReader(body))
 		req.SetPathValue("id", "media-1")
+		ctx := req.Context()
 		if castToken {
-			ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+			ctx = context.WithValue(ctx, streamTokenCtxKey, &shared.StreamToken{
 				UserID: "usr-cast", ProfileID: "prof-cast", MediaItemID: "media-1", Scope: "stream", Cast: true,
 			})
-			req = req.WithContext(ctx)
+		} else {
+			ctx = context.WithValue(ctx, httpClaimsCtxKey{}, &domainuser.Claims{UserID: "usr-1", ProfileID: "prof-web"})
 		}
-		rec := httptest.NewRecorder()
-		logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
-		playerEventHandler(logger, WithPlayerEventCastAudioMode(touch))(rec, req)
-		if rec.Code != http.StatusNoContent {
-			t.Fatalf("status = %d (body=%s)", rec.Code, rec.Body.String())
+		w := httptest.NewRecorder()
+		var logs bytes.Buffer
+		playerEventHandler(slog.New(slog.NewJSONHandler(&logs, nil)), WithPlayerEventPlayed(recorder))(w, req.WithContext(ctx))
+		if w.Code == http.StatusNoContent && logs.Len() > 0 {
+			t.Errorf("a played report is state, not an incident: logged %s", logs.String())
 		}
+		return w.Code
 	}
-	post(`{"type":"cast_receiver_audio_mode","details":"wasm"}`, true)
-	post(`{"type":"cast_receiver_alive","details":"mode=wasm"}`, true) // not an audio_mode event
-	post(`{"type":"cast_receiver_audio_mode","details":"aac"}`, false) // JWT caller: ignored
-	if len(got) != 1 || got[0] != "prof-cast|media-1|wasm" {
-		t.Fatalf("touches = %v, want exactly the cast audio_mode one", got)
-	}
-}
 
-// The web player's own wasm beacon (user JWT, no stream token) reaches the
-// session too: without it a browser decoding AC-3 itself stayed labelled as
-// a server transcode on the admin panel.
-func TestPlayerEvent_WebWasmAudioModeReachesTheSession(t *testing.T) {
-	var got []string
-	touch := func(_ context.Context, profileID, mediaID, mode string) {
-		got = append(got, profileID+"|"+mediaID+"|"+mode)
+	web := `{"type":"played","details":"{\"source\":\"hls\",\"videoCodec\":\"avc1.640028\",\"height\":1080,\"audioTrack\":1,\"audioCodec\":\"mp4a.40.2\",\"audioDecoder\":\"native\"}"}`
+	if code := post(web, false); code != http.StatusNoContent {
+		t.Fatalf("status = %d", code)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
-		strings.NewReader(`{"type":"wasm_audio_mode","details":"aac-latched"}`))
-	req.SetPathValue("id", "media-1")
-	ctx := context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "usr-1", ProfileID: "prof-web"})
-	rec := httptest.NewRecorder()
-	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
-	playerEventHandler(logger, WithPlayerEventCastAudioMode(touch))(rec, req.WithContext(ctx))
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("status = %d (body=%s)", rec.Code, rec.Body.String())
+	cast := `{"type":"played","details":"{\"source\":\"hls\",\"audioTrack\":0,\"audioCodec\":\"ac-3\",\"audioDecoder\":\"wasm\"}"}`
+	if code := post(cast, true); code != http.StatusNoContent {
+		t.Fatalf("status = %d", code)
 	}
-	if len(got) != 1 || got[0] != "prof-web|media-1|aac-latched" {
-		t.Fatalf("touches = %v, want the web wasm_audio_mode one", got)
+	if len(got) != 2 {
+		t.Fatalf("got %d reports, want 2", len(got))
+	}
+	if got[0].profile != "prof-web" || got[0].p.AudioTrack != 1 || got[0].p.Height != 1080 || got[0].p.AudioDecoder != domainplayback.DecoderNative {
+		t.Errorf("web report = %+v", got[0])
+	}
+	if got[1].profile != "prof-cast" || got[1].p.AudioDecoder != domainplayback.DecoderWasm || got[1].p.AudioTrack != 0 {
+		t.Errorf("cast report = %+v", got[1])
+	}
+
+	// Outside the vocabulary: refused, never written.
+	for _, bad := range []string{
+		`{"type":"played","details":"not json"}`,
+		`{"type":"played","details":"{\"source\":\"somewhere\"}"}`,
+		`{"type":"played","details":"{\"source\":\"hls\",\"audioDecoder\":\"magic\"}"}`,
+	} {
+		if code := post(bad, false); code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", bad, code)
+		}
+	}
+	if len(got) != 2 {
+		t.Errorf("a refused report reached the session: %d reports", len(got))
+	}
+	// No track named: the session reads -1, not track 0.
+	if code := post(`{"type":"played","details":"{\"source\":\"file\"}"}`, false); code != http.StatusNoContent {
+		t.Fatalf("status = %d", code)
+	}
+	if got[2].p.AudioTrack != -1 {
+		t.Errorf("unnamed track = %d, want -1", got[2].p.AudioTrack)
 	}
 }
 

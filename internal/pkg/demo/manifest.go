@@ -71,6 +71,7 @@ var RetiredMedia = []string{
 	"movies/Spring (2019).webm",
 	"movies/Sprite Fright (2021).mkv",
 	"movies/Elephants Dream (2006).webm",
+	"movies/Matroska Test 5 - Multiple Audio and Subtitles (2006).mkv",
 }
 
 // Library is one of the four demo libraries: its display name, the library
@@ -300,15 +301,9 @@ var Manifest = []MediaFile{
 	}},
 
 	// Matroska's own test suite (IETF CELLAR, github.com/ietf-wg-cellar/
-	// matroska-test-files): Elephants Dream, CC-BY, cut to exercise the parser.
-	// test5 has two audio tracks (the commentary in AAC+ SBR) and subtitles in
-	// seven languages. The damaged test7 and test8 stay in the integration
-	// tests, never in the demo. test4 (a live recording: Clusters of unknown
-	// size, no Duration) is held back: the packager cannot read it yet and the
-	// server has no duration to build its playlist from, so it would show a
-	// film that does not start. test5 is served without its seek index: it
-	// still plays, and Media health has one file it can offer to repair.
-	{URL: "https://raw.githubusercontent.com/ietf-wg-cellar/matroska-test-files/master/test_files/test5.mkv", Path: "movies/Matroska Test 5 - Multiple Audio and Subtitles (2006).mkv", Defect: DefectNoSeekIndex},
+	// matroska-test-files) stays in the integration tests, never in the demo:
+	// a parser test clip is no film to show, and test5's unlabelled main track
+	// beside an English commentary made a poor first impression.
 
 	// Films - public domain classics (archive.org, public-domain marked items)
 	{URL: "https://archive.org/download/his_girl_friday/his_girl_friday.mp4", Path: "movies/His Girl Friday (1940).mp4"},

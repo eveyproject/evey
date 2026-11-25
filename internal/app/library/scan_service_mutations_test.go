@@ -46,6 +46,9 @@ func newScanHarness() *scanHarness {
 		search:       libfakes.NewFakeSearchIndex(),
 		bus:          sharedfakes.NewFakeEventBus(),
 	}
+	// One database: what the command side writes, the query side reads.
+	h.libCmd.OnCreate = h.libQuery.Seed
+	h.libCmd.OnUpdate = h.libQuery.Seed
 	h.svc = applib.NewScanService(
 		h.libCmd, h.libQuery, h.media, h.streams, h.persons, h.mediaPersons,
 		h.scanner, h.prober, h.search, h.bus,
@@ -272,9 +275,10 @@ func TestScanService_FinalizeScan_UpdateLibrarySuccessNoLog(t *testing.T) {
 		require.NoError(t, err)
 	})
 	assert.NotContains(t, logs, "update library last scanned failed")
-	// libQuery seed and ScanService share the same *Library pointer, which is mutated.
-	require.NotNil(t, lib.LastScannedAt)
-	assert.WithinDuration(t, time.Now(), *lib.LastScannedAt, 2*time.Second)
+	got, err := h.libQuery.GetByID(context.Background(), "lib-1")
+	require.NoError(t, err)
+	require.NotNil(t, got.LastScannedAt)
+	assert.WithinDuration(t, time.Now(), *got.LastScannedAt, 2*time.Second)
 }
 
 // --- scan_service.go:287 publish LibraryScanCompleted err ---

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { resetOutputChannelsProbe } from "@/utils/outputChannels";
 import { castProfileFor, pickCastProfile } from "@evey/media-caps/cast";
-import { startPlayback, planCastLoad, planRendererLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
+import { startPlayback, planCastLoad, planRendererLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, levelInAudioGroup, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
 import { forwardBufferSeconds, pickTranscodeResumeSec } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
@@ -254,6 +254,40 @@ describe("resolveDefaultAudio", () => {
     ];
     const result = resolveDefaultAudio(titleStreams, undefined, () => null, () => "french");
     expect(result).toEqual(titleStreams[1]);
+  });
+
+  // The demo's Big Buck Bunny: MP3 and AC-3 flagged default, the built AAC
+  // stereo not. The server judges the AAC (the track a browser plays as is);
+  // the player picking the file's flag re-asked for the MP3, which it encodes.
+  const bunny = [
+    { index: 1, trackIndex: 0, isDefault: true },
+    { index: 2, trackIndex: 1, isDefault: true },
+    { index: 3, trackIndex: 2, title: "Stereo (AAC)", isDefault: false },
+  ];
+
+  it("takes the server's track over the file's default flag", () => {
+    expect(resolveDefaultAudio(bunny, undefined, () => null, () => null, undefined, 3)).toEqual(bunny[2]);
+    expect(resolveDefaultAudio(bunny, undefined, () => null, () => null)).toEqual(bunny[0]);
+  });
+
+  it("takes the server's track when it is of the profile's language", () => {
+    const twoEnglish = [
+      { index: 1, trackIndex: 0, language: "eng", isDefault: true },
+      { index: 2, trackIndex: 1, language: "fre" },
+      { index: 3, trackIndex: 2, language: "eng" },
+    ];
+    expect(resolveDefaultAudio(twoEnglish, undefined, () => null, () => null, ["en"], 3)).toEqual(twoEnglish[2]);
+    // A server track of another language does not beat the profile's.
+    expect(resolveDefaultAudio(twoEnglish, undefined, () => null, () => null, ["fr"], 3)).toEqual(twoEnglish[1]);
+  });
+
+  it("keeps the series and device picks the server does not know", () => {
+    expect(resolveDefaultAudio(audioStreams, "s1", () => ({ audioLang: "jpn" }), () => null, undefined, 0)).toEqual(audioStreams[2]);
+    expect(resolveDefaultAudio(audioStreams, undefined, () => null, () => "fre", undefined, 0)).toEqual(audioStreams[1]);
+  });
+
+  it("ignores a server track the file does not list", () => {
+    expect(resolveDefaultAudio(audioStreams, undefined, () => null, () => null, undefined, 9)).toEqual(audioStreams[0]);
   });
 
   it("ignores series pref when seriesId is undefined", () => {
@@ -559,7 +593,7 @@ describe("planRendererLoad", () => {
 });
 
 // --- Cast button safety net -------------------------------------------------
-// The cast button broke silently twice in prod (2026-07-22, 2026-07-24). These
+// The cast button broke silently twice in prod. These
 // tests lock its two contracts: the tap routing (one tap = one path) and the
 // fling element's preload (Chromium refuses to open the picker while the
 // element's duration is NaN). If one of these fails, the button is broken on a
@@ -579,7 +613,7 @@ describe("pickCastTapPath (cast button routing)", () => {
 
   it("Android (preferFling) goes to the fling even when the SDK claims ready", () => {
     // Chrome Android reports the SDK as ready but cannot complete a session
-    // (measured in prod 2026-07-22: sdk=true then session error, same phone
+    // (measured in prod: sdk=true then session error, same phone
     // connects fine in desktop-site mode). The fling is the only mobile path.
     expect(pickCastTapPath({ ...base, preferFling: true, castSdkReady: true })).toBe("fling");
     expect(pickCastTapPath({ ...base, preferFling: true })).toBe("fling");
@@ -595,7 +629,7 @@ describe("castVideoPreload (fling element preload)", () => {
   it("loads metadata where the fling is the tap's path", () => {
     // Chromium's remote_playback.cc drops every availability URL while the
     // element's duration is NaN, and prompt() then rejects INSTANTLY with
-    // NotAllowedError - no picker, 18ms, measured in prod 2026-07-24. With
+    // NotAllowedError - no picker, 18ms, measured in prod. With
     // preload="none" the metadata never loaded, so the fling was structurally
     // dead on Android. This value is the fix; do not "optimize" it back.
     expect(castVideoPreload(true)).toBe("metadata");
@@ -636,8 +670,7 @@ describe("pickTranscodeAudioSwitchPath (audio switch = client-side rendition sel
     hasHls: true,
     wasmActiveNow: false,
     wasmActiveForTarget: false,
-    audioRenditionCount: 2,
-    targetTrackIndex: 1,
+    targetRenditionFound: true,
   };
 
   it("switches client-side when hls.js already has the target rendition", () => {
@@ -660,10 +693,31 @@ describe("pickTranscodeAudioSwitchPath (audio switch = client-side rendition sel
     expect(pickTranscodeAudioSwitchPath({ ...base, wasmActiveNow: true, wasmActiveForTarget: true })).toBe("wasm-engine");
   });
 
-  it("restarts when the rendition is missing from the parsed manifest", () => {
-    expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: 2 })).toBe("restart");
-    expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: -1 })).toBe("restart");
-    expect(pickTranscodeAudioSwitchPath({ ...base, audioRenditionCount: 0 })).toBe("restart");
+  it("restarts when no rendition of the parsed manifest carries the target track", () => {
+    expect(pickTranscodeAudioSwitchPath({ ...base, targetRenditionFound: false })).toBe("restart");
+  });
+});
+
+// The demo's packager master (measured): one 2160p variant per audio
+// group, MP3 first, AC-3, then AAC.
+const GROUPED = [
+  { height: 2160, audioGroups: ["aud-mp4a.40.34"] },
+  { height: 2160, audioGroups: ["aud-ac-3"] },
+  { height: 2160, audioGroups: ["aud-mp4a.40.2"] },
+];
+
+describe("pinning a master grouped by audio codec", () => {
+  it("keeps the variant playing when the pin lands on its height", () => {
+    // The viewer moved to the MP3 group (variant 0): re-pinning "the top"
+    // took them back to the AAC group.
+    expect(pickPinnedLevel({ levelHeights: GROUPED.map((l) => l.height), desiredHeight: 0, prefer: 0 })).toBe(0);
+    expect(pickPinnedLevel({ levelHeights: [720, 1080], desiredHeight: 720, prefer: 1 })).toBe(0);
+  });
+  it("starts on the variant of the wanted track's group", () => {
+    expect(levelInAudioGroup(GROUPED, 2, "aud-mp4a.40.34")).toBe(0);
+    expect(levelInAudioGroup(GROUPED, 2, "aud-mp4a.40.2")).toBe(2);
+    expect(levelInAudioGroup(GROUPED, 2, undefined)).toBe(2);
+    expect(levelInAudioGroup(GROUPED, 2, "nowhere")).toBe(2);
   });
 });
 
@@ -672,7 +726,7 @@ describe("pickPinnedLevel", () => {
   // set INSIDE MANIFEST_PARSED. In between, hls.js starts loading on free ABR
   // and fetches level 0 (the lowest) - a SECOND ffmpeg on the same hash. On a
   // NAS calibrated for one concurrent encode the two 4K decodes starve each
-  // other and the first segment never lands (prod 2026-07-25: 480p + 1080p
+  // other and the first segment never lands (prod: 480p + 1080p
   // spawned 43 ms apart, segment 0 still missing 9.5 s later).
   it("pins the TOP rung in Auto", () => {
     expect(pickPinnedLevel({ levelHeights: [480, 720, 1080], desiredHeight: 0 })).toBe(2);

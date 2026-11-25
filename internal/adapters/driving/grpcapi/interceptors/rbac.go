@@ -88,6 +88,8 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminMediaService/MatchOrphansInLibrary":              RoleAdmin,
 			"/evey.v1.AdminMediaService/GenerateAllTrickplays":              RoleAdmin,
 			"/evey.v1.AdminMediaService/DeleteMediaItem":                    RoleAdmin,
+			"/evey.v1.AdminMediaService/TrashMediaItem":                     RoleAdmin,
+			"/evey.v1.AdminMediaService/RestoreTrashedMedia":                RoleAdmin,
 			"/evey.v1.AdminMediaService/ScanSeekIndex":                      RoleAdmin,
 			"/evey.v1.AdminMediaService/StartSeekIndexScan":                 RoleAdmin,
 			"/evey.v1.AdminMediaService/GetSeekIndexJob":                    RoleAdmin,
