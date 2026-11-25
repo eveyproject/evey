@@ -822,3 +822,53 @@ func TestAutoUpdate_ASpentQuotaStopsTheRun(t *testing.T) {
 	assert.Equal(t, plugindomain.UpdateFailed, st.Outcome)
 	assert.Contains(t, st.Reason, "rate limit")
 }
+
+// A server with no admin to approve (the public demo) takes a held release for
+// the plugins it vouches for, the way an admin's approval would: installed,
+// nobody paged. One it does not vouch for still waits; a refused release is
+// never taken.
+func TestAutoUpdate_AHeldReleaseIsTakenForAPluginTheServerVouchesFor(t *testing.T) {
+	newHeld := func(t *testing.T, rig *autoRig) {
+		t.Helper()
+		m := goManifestVersioned("thing", "1.1.0")
+		m.Permissions = []string{"network"}
+		m.ExternalFetch = []string{"api.example.com"}
+		rig.publish(t, m, rig.signed(t, "v110"))
+	}
+	t.Run("vouched for", func(t *testing.T) {
+		rig := newAutoRig(t, "warn")
+		var asked []string
+		rig.upd.WithHeldUpdateApprover(func(p *plugindomain.Plugin) bool { asked = append(asked, p.Name); return true })
+		p := rig.installFromRepo(t, &rig.key)
+		newHeld(t, rig)
+
+		st := rig.check(t, p.ID)
+		assert.Equal(t, plugindomain.UpdateApplied, st.Outcome, st.Reason)
+		assert.Contains(t, st.Reason, "permission:network", "the record says what was taken")
+		assert.Equal(t, "1.1.0", rig.stored(t, p.ID).Version)
+		assert.Equal(t, testRepo, rig.stored(t, p.ID).UpdateSource, "it still follows its repository")
+		assert.Equal(t, plugindomain.UpdateApplied, rig.stored(t, p.ID).UpdateState.Outcome)
+		assert.Empty(t, rig.attention(), "nobody is paged for a release that was taken")
+		assert.Equal(t, []string{"thing"}, asked)
+	})
+	t.Run("not vouched for", func(t *testing.T) {
+		rig := newAutoRig(t, "warn")
+		rig.upd.WithHeldUpdateApprover(func(*plugindomain.Plugin) bool { return false })
+		p := rig.installFromRepo(t, &rig.key)
+		newHeld(t, rig)
+
+		assert.Equal(t, plugindomain.UpdateHeld, rig.check(t, p.ID).Outcome)
+		assert.Equal(t, "1.0.0", rig.stored(t, p.ID).Version)
+	})
+	t.Run("refused", func(t *testing.T) {
+		rig := newAutoRig(t, "warn")
+		rig.upd.WithHeldUpdateApprover(func(*plugindomain.Plugin) bool { return true })
+		p := rig.installFromRepo(t, &rig.key)
+		rig.analyzer.Report = &plugindomain.AnalysisReport{Safe: false, RawFindings: []plugindomain.PluginFinding{
+			{Category: "shell_exec", Severity: "CRITICAL", File: "main.py", Line: 3}}}
+		rig.publish(t, goManifestVersioned("thing", "1.0.1"), rig.signed(t, "evil"))
+
+		assert.Equal(t, plugindomain.UpdateRefused, rig.check(t, p.ID).Outcome)
+		assert.Equal(t, "1.0.0", rig.stored(t, p.ID).Version, "refused code is never taken")
+	})
+}

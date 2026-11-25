@@ -342,6 +342,29 @@ var Plugins = []Plugin{
 	},
 }
 
+// ProjectKeyFingerprint is the key the Evey project signs its plugin releases
+// with (trusted out of the box by migration 000196).
+const ProjectKeyFingerprint = "sha256:c29eb603b19d99a50f3fa6c94b7e92c41710779261e73e0fa31d53a78902e09a"
+
+// TakesHeldUpdate says whether the demo takes, without an admin, a release
+// the hourly check held for an installed plugin. A held release waits for an
+// admin, and the demo has none who can take it (every visitor's writes are
+// locked): its weather stayed on the version of its first boot. Only a plugin
+// the demo lists, following the repository it names, whose installed version
+// is signed by the project key; the update itself still goes through the
+// install pipeline, on the bytes judged, under the same key.
+func TakesHeldUpdate(name, updateSource, publisherKeyFingerprint string) bool {
+	if publisherKeyFingerprint != ProjectKeyFingerprint {
+		return false
+	}
+	for _, p := range Plugins {
+		if p.Name == name && p.Repository != "" && p.Repository == updateSource {
+			return true
+		}
+	}
+	return false
+}
+
 // RetiredPlugins were seeded by an earlier demo and are uninstalled at boot
 // when found, so an upgraded demo does not show two weather widgets.
 var RetiredPlugins = []string{"weather-v2"}

@@ -1293,7 +1293,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			pluginInstallerSvc:         pluginInstallerSvc,
 			pluginRuntimeSvc:           pluginRuntimeSvc,
 			pluginQuerySvc:             pluginQuerySvc,
-			pluginAutoUpdater:          appplugin.NewAutoUpdater(pluginInstallerSvc),
+			pluginAutoUpdater:          newPluginAutoUpdater(cfg, pluginInstallerSvc),
 			pluginTokenSvc:             pluginTokenSvc,
 			pluginHostServer:           pluginHostSrv,
 			pluginSecurityDashboardSvc: pluginSecurityDashboardSvc,
