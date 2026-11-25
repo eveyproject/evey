@@ -349,6 +349,9 @@ contextMenu:
   markUnwatched: Als ungesehen markieren
   noProfileSelected: Kein Profil ausgewählt
   markedWatched: Als gesehen markiert
+  markSeriesWatched: "Ganze Serie als gesehen markieren"
+  markedSeriesWatched: "Serie als gesehen markiert"
+  markSeriesError: "Die Serie konnte nicht als gesehen markiert werden"
   markedUnwatched: Als ungesehen markiert
   markError: "Markierung als {{status}} fehlgeschlagen"
 music:

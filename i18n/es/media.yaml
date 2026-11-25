@@ -349,6 +349,9 @@ contextMenu:
   markUnwatched: Marcar como no visto
   noProfileSelected: No profile selected # TODO: translate
   markedWatched: Marcado como visto
+  markSeriesWatched: "Marcar toda la serie como vista"
+  markedSeriesWatched: "Serie marcada como vista"
+  markSeriesError: "No se pudo marcar la serie como vista"
   markedUnwatched: Marcado como no visto
   markError: "Error al marcar como {{status}}"
 music:

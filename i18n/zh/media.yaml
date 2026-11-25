@@ -349,6 +349,9 @@ contextMenu:
   markUnwatched: 标记为未看
   noProfileSelected: No profile selected # TODO: translate
   markedWatched: 已标记为已看
+  markSeriesWatched: "将整部剧集标记为已看"
+  markedSeriesWatched: "剧集已标记为已看"
+  markSeriesError: "无法将剧集标记为已看"
   markedUnwatched: 已标记为未看
   markError: "标记为{{status}}失败"
 music:

@@ -4,7 +4,7 @@ import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
+import { libraryServiceGetMediaItem, playbackServiceMarkAsWatched, usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
 import { useDemoLock } from "@/hooks/useDemoMode";
@@ -15,8 +15,11 @@ export const CardContextMenu = memo(function CardContextMenu({
   position,
   onAddToPlaylist,
   onAddToCollection,
+  episodeSeasonId,
 }: {
   mediaId: string;
+  /** The season of an episode card: offers to mark its whole series watched. */
+  episodeSeasonId?: string;
   onClose: () => void;
   position: { x: number; y: number };
   onAddToPlaylist: () => void;
@@ -53,6 +56,22 @@ export const CardContextMenu = memo(function CardContextMenu({
       },
     },
   });
+  // An episode card (Continue Watching above all) knows its season, not its
+  // series: the season names it. Marking the series marks every episode under
+  // it on the server, so the whole show leaves the row in one action.
+  const markSeriesWatched = async () => {
+    if (!profileId || !episodeSeasonId) return;
+    try {
+      const season = await libraryServiceGetMediaItem(episodeSeasonId);
+      const seriesId = season.parentId;
+      if (!seriesId) throw new Error("season without a series");
+      await playbackServiceMarkAsWatched(seriesId, { profileId });
+      invalidateWatchedState(queryClient, seriesId);
+      toast.success(t("media.contextMenu.markedSeriesWatched"));
+    } catch {
+      toast.error(t("media.contextMenu.markSeriesError"));
+    }
+  };
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({
     mutation: {
       onSuccess: () => {
@@ -128,6 +147,19 @@ export const CardContextMenu = memo(function CardContextMenu({
         markWatched.mutate({ mediaItemId: mediaId, params: { profileId } });
       },
     },
+    ...(episodeSeasonId
+      ? [
+          {
+            key: "mark-series-watched",
+            label: t("media.contextMenu.markSeriesWatched"),
+            onClick: () => {
+              if (!profileId) { toast.error(t("media.contextMenu.noProfileSelected")); onClose(); return; }
+              onClose();
+              void markSeriesWatched();
+            },
+          },
+        ]
+      : []),
     {
       key: "mark-unwatched",
       label: t("media.contextMenu.markUnwatched"),

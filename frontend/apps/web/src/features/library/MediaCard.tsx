@@ -35,6 +35,8 @@ interface MediaCardItem {
   // seriesTitle is the stamp the server puts on episode/season payloads.
   indexNumber?: number;
   seriesTitle?: string;
+  // An episode's season: the context menu reaches the series through it.
+  parentId?: string;
   overview?: string;
   communityRating?: number;
   genres?: string[];
@@ -187,6 +189,7 @@ export const MediaCard = memo(function MediaCard({
         onClose={() => setCtxMenu(null)}
         onAddToPlaylist={() => item.id && onRequestAddToPlaylist?.(item.id)}
         onAddToCollection={() => item.id && onRequestAddToCollection?.(item.id)}
+        episodeSeasonId={item.type === "MEDIA_ITEM_TYPE_EPISODE" ? item.parentId : undefined}
       />
     )}
     <Link

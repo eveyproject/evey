@@ -42,7 +42,11 @@ vi.mock("@/lib/invalidateWatchedState", () => ({
   invalidateWatchedState: (...a: unknown[]) => mockInvalidateWatchedState(...a),
 }));
 
+const mockGetMediaItem = vi.fn();
+const mockMarkAsWatched = vi.fn();
 vi.mock("@evey/api", () => ({
+  libraryServiceGetMediaItem: (...a: unknown[]) => mockGetMediaItem(...a),
+  playbackServiceMarkAsWatched: (...a: unknown[]) => mockMarkAsWatched(...a),
   usePlaybackServiceMarkAsWatched: (opts: {
     mutation?: { onSuccess?: () => void; onError?: () => void };
   }) => {
@@ -87,6 +91,7 @@ function renderMenu(props: {
   onAddToPlaylist?: () => void;
   onAddToCollection?: () => void;
   position?: { x: number; y: number };
+  episodeSeasonId?: string;
 }) {
   const onClose = props.onClose ?? vi.fn();
   const onAddToPlaylist = props.onAddToPlaylist ?? vi.fn();
@@ -98,6 +103,7 @@ function renderMenu(props: {
       position={props.position ?? DEFAULT_POSITION}
       onAddToPlaylist={onAddToPlaylist}
       onAddToCollection={onAddToCollection}
+      episodeSeasonId={props.episodeSeasonId}
     />,
     { wrapper: createWrapper() },
   );
@@ -411,5 +417,36 @@ describe("CardContextMenu", () => {
 
     expect(container).not.toContainElement(menu);
     expect(menu.parentElement).toBe(document.body);
+  });
+
+  // ── Mark the whole series watched (an episode card) ──────────────────────────
+
+  it("offers the series mark on an episode card only", () => {
+    renderMenu({});
+    expect(screen.queryByTestId("media-context-menu-mark-series-watched")).toBeNull();
+  });
+
+  it("marks the episode's series watched, through its season, and refreshes", async () => {
+    const { toast } = await import("@evey/store");
+    mockGetMediaItem.mockResolvedValue({ id: "season-1", parentId: "series-1" });
+    mockMarkAsWatched.mockResolvedValue({});
+    const onClose = vi.fn();
+    renderMenu({ mediaId: "ep-3", episodeSeasonId: "season-1", onClose });
+    fireEvent.click(screen.getByTestId("media-context-menu-mark-series-watched"));
+    expect(onClose).toHaveBeenCalled();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Series marked as watched"));
+    expect(mockGetMediaItem).toHaveBeenCalledWith("season-1");
+    expect(mockMarkAsWatched).toHaveBeenCalledWith("series-1", { profileId: "prof-1" });
+    expect(mockInvalidateWatchedState).toHaveBeenCalledWith(expect.anything(), "series-1");
+    expect(mockMarkWatchedMutate).not.toHaveBeenCalled();
+  });
+
+  it("says so when the series cannot be marked", async () => {
+    const { toast } = await import("@evey/store");
+    mockGetMediaItem.mockResolvedValue({ id: "season-1" });
+    renderMenu({ mediaId: "ep-3", episodeSeasonId: "season-1" });
+    fireEvent.click(screen.getByTestId("media-context-menu-mark-series-watched"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not mark the series as watched"));
+    expect(mockMarkAsWatched).not.toHaveBeenCalled();
   });
 });
