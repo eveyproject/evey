@@ -34,6 +34,7 @@ import {
   RESUME_PROGRESS_QUERY,
   buildWatchProgressMaps,
   invalidateWatchedState,
+  itemShowsWatched,
   feedItemsToCards,
   personTypeLabelKey,
   resolvePlayTarget,
@@ -213,7 +214,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
   const [visibleEpisodes, setVisibleEpisodes] = useState(EPISODE_PAGE_SIZE);
   useEffect(() => { setVisibleEpisodes(EPISODE_PAGE_SIZE); }, [mediaId]);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
-  const watched = watchedOverride ?? (watchProgress?.played === true);
+  const watched = watchedOverride ?? media?.userData?.played ?? (watchProgress?.played === true);
   const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
   const [pendingPlay, setPendingPlay] = useState<{ id: string; restart: boolean } | null>(null);
   const [trackPick, setTrackPick] = useState<TrackPick>({});
@@ -284,11 +285,14 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
   const [episodeMarks, setEpisodeMarks] = useState<ReadonlyMap<string, boolean>>(new Map());
   // Same map back when there is nothing to drop, so a re-render is not one.
   useEffect(() => setEpisodeMarks((m) => (m.size === 0 ? m : new Map())), [episodeHistory]);
-  const episodeWatched = useMemo(() => {
-    const { watchedMap } = buildWatchProgressMaps(episodeHistory?.items ?? []);
-    for (const [epId, played] of episodeMarks) watchedMap.set(epId, played);
-    return watchedMap;
-  }, [episodeHistory, episodeMarks]);
+  const legacyEpisodeWatched = useMemo(
+    () => buildWatchProgressMaps(episodeHistory?.items ?? []).watchedMap,
+    [episodeHistory],
+  );
+  // A mark just made wins; then the episode's own user_data; the overlay only
+  // answers for a server that sends none.
+  const isEpisodeWatched = (ep: V1MediaItem): boolean =>
+    ep.id && episodeMarks.has(ep.id) ? episodeMarks.get(ep.id) === true : itemShowsWatched(ep, legacyEpisodeWatched);
   const onEpisodeMarked = (epId: string, played: boolean) => {
     setEpisodeMarks((m) => new Map(m).set(epId, played));
     invalidateWatchedState(qc, epId);
@@ -309,7 +313,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
   const toggleEpisodeWatched = (ep: V1MediaItem) => {
     if (!ep.id || !profileId || episodeMarkPending) return;
     const vars = { mediaItemId: ep.id, params: { profileId } };
-    if (episodeWatched.get(ep.id)) markEpisodeUnwatched.mutate(vars);
+    if (isEpisodeWatched(ep)) markEpisodeUnwatched.mutate(vars);
     else markEpisodeWatched.mutate(vars);
   };
   // A series plays where the profile is in it (the server's answer); the
@@ -453,7 +457,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
             <div className="episode-list">
               {episodes.slice(0, visibleEpisodes).map((ep) => {
                 const name = ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : (ep.title ?? "");
-                const watched = ep.id ? episodeWatched.get(ep.id) === true : false;
+                const watched = isEpisodeWatched(ep);
                 const markLabel = watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched");
                 return (
                   <div key={ep.id} className="episode-line">

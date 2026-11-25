@@ -4,12 +4,12 @@ import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, displayTitle, itemLabel } from "@evey/api";
-import { useImageRetry, useMediaPrefetch } from "@evey/client";
-import type { V1Artwork } from "@evey/api";
+import { useImageRetry, useItemShowsWatched, useMediaPrefetch } from "@evey/client";
+import { QualityChips, qualityOf } from "./QualityChips";
+import type { V1Artwork, V1MediaStream } from "@evey/api";
 import { Blurhash } from "react-blurhash";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
-import { useIsWatched } from "@/hooks/useWatchedMap";
 import { typeLabel } from "@/utils/typeLabel";
 import { HoverPreview } from "./MediaCardHoverPreview";
 import { CardContextMenu } from "./MediaCardContextMenu";
@@ -36,6 +36,11 @@ interface MediaCardItem {
   // seriesTitle is the stamp the server puts on episode/season payloads.
   indexNumber?: number;
   seriesTitle?: string;
+  // An episode's season: the context menu reaches the series through it.
+  parentId?: string;
+  // The title's streams (its video one at least, on every home rail): the
+  // resolution and HDR badges read it.
+  streams?: V1MediaStream[];
   overview?: string;
   communityRating?: number;
   genres?: string[];
@@ -72,8 +77,6 @@ export interface MediaCardProps {
   onRequestAddToPlaylist?: (mediaId: string) => void;
   onRequestAddToCollection?: (mediaId: string) => void;
 }
-
-const formatResolution = (r: string) => (r === "2160p" ? "4K" : r);
 
 export const MediaCard = memo(function MediaCard({
   item,
@@ -145,7 +148,9 @@ export const MediaCard = memo(function MediaCard({
       ? Math.min(100, Math.max(0, Math.round(progressPercent)))
       : undefined;
 
-  const watchedFromData = useIsWatched(item.id);
+  // The server stamps the mark on the title (user_data); the overlay only
+  // answers for a server too old to send it.
+  const watchedFromData = useItemShowsWatched(item);
   const watchedFromProps = isWatched || watchedFromData || (pct !== undefined && pct >= WATCHED_THRESHOLD_PCT);
   const [watchedLocal, setWatchedLocal] = useState<boolean | null>(null);
   const watched = watchedLocal ?? watchedFromProps;
@@ -176,6 +181,8 @@ export const MediaCard = memo(function MediaCard({
   );
 
   const hasProgressBar = showProgress && pct !== undefined;
+  // The badges read the title's own video stream; the props only override it.
+  const quality = qualityOf(item.streams, resolution, isHdr);
 
   return (
     <div className="relative w-fit">
@@ -186,6 +193,7 @@ export const MediaCard = memo(function MediaCard({
         onClose={() => setCtxMenu(null)}
         onAddToPlaylist={() => item.id && onRequestAddToPlaylist?.(item.id)}
         onAddToCollection={() => item.id && onRequestAddToCollection?.(item.id)}
+        episodeSeasonId={item.type === "MEDIA_ITEM_TYPE_EPISODE" ? item.parentId : undefined}
       />
     )}
     <Link
@@ -304,12 +312,12 @@ export const MediaCard = memo(function MediaCard({
 
         {item.communityRating != null && item.communityRating > 0 && (
           <span
-            className="absolute z-badge flex items-center gap-0.5 text-xs font-bold px-1 py-0.5 leading-none"
+            className="evey-rating absolute z-badge flex items-center gap-0.5 text-xs font-bold px-1 py-0.5 leading-none transition-opacity-fast group-hover:opacity-0 group-focus-within:opacity-0"
             style={{
               bottom: hasProgressBar ? "0.75rem" : "0.5rem",
               right: "0.5rem",
-              backgroundColor: "var(--overlay-bg-strong)",
-              color: "var(--badge-imdb-bg)",
+              backgroundColor: "var(--overlay-bg-strong, rgba(0,0,0,0.75))",
+              color: "var(--badge-imdb-bg, #f5c518)",
               borderRadius: "var(--radius-sm)",
             }}
           >
@@ -318,39 +326,12 @@ export const MediaCard = memo(function MediaCard({
           </span>
         )}
 
-        {(resolution || isHdr) && (
-          <div
-            className="absolute z-badge flex items-center gap-1"
-            style={{ bottom: hasProgressBar ? "0.75rem" : "0.5rem", left: "0.5rem" }}
-          >
-            {resolution && (
-              <span
-                className="text-xs font-bold px-1.5 py-0.5 leading-none"
-                style={{
-                  backgroundColor: "var(--overlay-bg-strong)",
-                  color: "var(--overlay-text)",
-                  borderRadius: "var(--radius-sm)",
-                }}
-                data-testid="resolution-badge"
-              >
-                {formatResolution(resolution)}
-              </span>
-            )}
-            {isHdr && (
-              <span
-                className="text-xs font-bold px-1.5 py-0.5 leading-none"
-                style={{
-                  backgroundColor: "var(--badge-hdr-bg)",
-                  color: "var(--badge-hdr-text)",
-                  borderRadius: "var(--radius-sm)",
-                }}
-                data-testid="hdr-badge"
-              >
-                HDR
-              </span>
-            )}
-          </div>
-        )}
+        {/* Faded on hover: the hover overlay writes the title along the bottom. */}
+        <QualityChips
+          res={quality.res}
+          hdr={quality.hdr}
+          className={`absolute z-badge left-2 ${hasProgressBar ? "bottom-3" : "bottom-2"} transition-opacity-fast group-hover:opacity-0 group-focus-within:opacity-0`}
+        />
 
         {item.id && (onSelect || selectionMode) ? (
           <button
@@ -449,15 +430,19 @@ export const MediaCard = memo(function MediaCard({
       </div>
     </Link>
     {item.id && (
+      // Anchored to the poster, above the rating: placed from the card's
+      // bottom, it moved with the lines under the poster and landed on the
+      // rating wherever a card shows its type.
+      <div className="pointer-events-none absolute left-0 top-0 w-full aspect-[2/3]">
       <button
         {...lock}
         type="button"
-        className={`tap-hit absolute z-badge flex items-center justify-center w-6 h-6 rounded-full transition-colors-fast cursor-pointer ${
+        className={`evey-watched-toggle pointer-events-auto tap-hit absolute z-badge flex items-center justify-center w-6 h-6 rounded-full transition-colors-fast cursor-pointer ${
           watched
             ? "bg-[var(--color-success)] text-white"
             : "bg-black/60 text-white/60"
         }`}
-        style={{ bottom: hasProgressBar ? "4.5rem" : "3.5rem", right: "0.5rem" }}
+        style={{ bottom: hasProgressBar ? "2.5rem" : "2.25rem", right: "0.5rem" }}
         data-testid="watched-badge"
         title={watched ? t("media.contextMenu.markUnwatched") : t("media.contextMenu.markWatched")}
         aria-label={watched ? t("media.contextMenu.markUnwatched") : t("media.contextMenu.markWatched")}
@@ -469,6 +454,7 @@ export const MediaCard = memo(function MediaCard({
       >
         <Check size={ICON.sm} strokeWidth={3}  aria-hidden="true" />
       </button>
+      </div>
     )}
     </div>
   );

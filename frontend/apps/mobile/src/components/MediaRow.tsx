@@ -5,7 +5,7 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
-import { useWatchProgressMaps } from "../hooks/useWatchedMap";
+import { itemShowsWatched, useWatchProgressMaps } from "../hooks/useWatchedMap";
 import { MediaCard } from "./MediaCard";
 import { RowTitle } from "./RowTitle";
 import { FONT_SIZE } from "@evey/theme";
@@ -48,7 +48,7 @@ export const MediaRow = memo(function MediaRow({ title, seeAllHref, items, onIte
         onPress={() => onItemPress?.(item)}
         onLongPress={onItemLongPress ? () => onItemLongPress(item) : undefined}
         watchPercent={watchPercents?.[item.id ?? ""]}
-        watched={item.id ? watchedMap.get(item.id) === true : false}
+        watched={item.id ? itemShowsWatched(item, watchedMap) : false}
       />
     ),
     [onItemPress, onItemLongPress, watchPercents, watchedMap],

@@ -17,6 +17,13 @@ type WatchHistoryCursor struct {
 type ProgressQueryRepo interface {
 	GetByProfileAndMedia(ctx context.Context, profileID, mediaItemID string) (*WatchProgress, error)
 	GetByProfile(ctx context.Context, profileID string, limit, offset int) ([]*WatchProgress, error)
+	// GetWatchStates is every row of the profile, newest first, played or
+	// marked: what a client reads "already seen" from. GetByProfile is the
+	// history and leaves the marked rows out.
+	GetWatchStates(ctx context.Context, profileID string, limit int) ([]*WatchProgress, error)
+	// UserData answers for each id, in one read: every id is in the map, a
+	// title never touched reads as the zero UserData.
+	UserData(ctx context.Context, profileID string, mediaItemIDs []string) (map[string]UserData, error)
 	// GetByProfileCursor returns up to `limit` items whose last_watched_at
 	// is strictly older than the cursor (DESC). nil cursor = most recent
 	// page.

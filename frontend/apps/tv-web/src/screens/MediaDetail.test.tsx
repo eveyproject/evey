@@ -173,6 +173,12 @@ describe("the title page", () => {
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ name: "player", mediaId: "m-1" }));
   });
 
+  it("offers to mark unwatched a title whose user data says played", () => {
+    getMediaItem.mockReturnValue({ data: { ...MOVIE, userData: { played: true, playCount: 1 } }, isLoading: false, isError: false });
+    render(<MediaDetailScreen mediaId="m-1" />);
+    expect(screen.getByText("media.detail.markUnwatched")).toBeTruthy();
+  });
+
   it("marks watched against the profile in front of the viewer", () => {
     render(<MediaDetailScreen mediaId="m-1" />);
     fireEvent.click(screen.getByText("media.detail.markWatched"));
@@ -203,6 +209,19 @@ describe("the season's episode watched toggle", () => {
     fireEvent.click(screen.getByLabelText("media.detail.markWatched: 2. Second"));
     expect(markWatched).toHaveBeenCalledWith({ mediaItemId: "ep-2", params: { profileId: "prf-1" } });
     expect(screen.getByLabelText("media.detail.markUnwatched: 2. Second")).toBeTruthy();
+  });
+
+  it("reads an episode's own user data, absent from the overlay", () => {
+    watchHistory = { data: { items: [] } };
+    listMediaItems.mockReturnValue({
+      data: { items: [
+        { id: "ep-1", indexNumber: 1, title: "Pilot", userData: { played: true, playCount: 1, percentComplete: 100 } },
+        { id: "ep-2", indexNumber: 2, title: "Second", userData: { played: false, playCount: 0 } },
+      ] },
+    });
+    render(<MediaDetailScreen mediaId="se-1" />);
+    expect(screen.getByLabelText("media.detail.markUnwatched: 1. Pilot")).toBeTruthy();
+    expect(screen.getByLabelText("media.detail.markWatched: 2. Second")).toBeTruthy();
   });
 
   it("offers no toggle on the demo", () => {

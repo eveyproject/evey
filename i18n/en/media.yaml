@@ -349,6 +349,9 @@ contextMenu:
   markUnwatched: Mark as unwatched
   noProfileSelected: No profile selected
   markedWatched: Marked as watched
+  markSeriesWatched: "Mark the whole series as watched"
+  markedSeriesWatched: "Series marked as watched"
+  markSeriesError: "Could not mark the series as watched"
   markedUnwatched: Marked as unwatched
   markError: "Failed to mark as {{status}}"
 music:

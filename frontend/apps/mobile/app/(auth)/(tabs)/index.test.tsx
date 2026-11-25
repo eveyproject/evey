@@ -55,7 +55,9 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 // --- misc hooks/components not under test ------------------------------------------
 vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-server" }));
 vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({ useAuthHeaders: () => ({ Authorization: "Bearer jwt" }) }));
-vi.mock("../../../src/hooks/useWatchedMap", () => ({ useWatchedMap: () => ({ get: () => false }) }));
+vi.mock("../../../src/hooks/useWatchedMap", () => ({ useWatchedMap: () => ({ get: () => false }),
+  filterUnwatched: (items: any[]) => items.filter((i) => i.userData?.played !== true),
+}));
 vi.mock("../../../src/features/plugins/PluginSlot", () => ({ PluginSlot: () => null }));
 vi.mock("../../../src/components/Skeleton", () => ({
   Skeleton: () => React.createElement("div", { "data-testid": "skeleton" }),
@@ -66,7 +68,9 @@ vi.mock("../../../src/components/Skeleton", () => ({
 // below stays honest without dragging in MediaCard/expo-image/watched-map.
 vi.mock("../../../src/components/MediaRow", () => ({
   MediaRow: ({ title, items }: any) =>
-    items && items.length > 0 ? React.createElement("div", null, title) : null,
+    items && items.length > 0
+      ? React.createElement("div", null, title, items.map((i: any) => React.createElement("i", { key: i.id }, `item:${i.id}`)))
+      : null,
 }));
 vi.mock("../../../src/components/CollectionRow", () => ({
   CollectionRow: ({ title, collections }: any) =>
@@ -125,6 +129,8 @@ let installedPlugins: { plugins?: { id: string; name: string; frontend: { slot: 
 // --- @evey/api ----------------------------------------------------------------------------
 const emptySettled = { data: { items: [] }, isLoading: false, isError: false, refetch: vi.fn() };
 const resetMutateAsync = vi.fn().mockResolvedValue({});
+let railItems: { id: string; userData?: { played: boolean } }[] = [];
+const listMediaParams: unknown[] = [];
 let feedLibraries: { id: string; name: string; type: string }[] = [];
 let feedConfigsOverride: { feedType: string; enabled: boolean; displayOrder: number }[] | null = null;
 vi.mock("@evey/api", () => ({
@@ -134,7 +140,10 @@ vi.mock("@evey/api", () => ({
   useFeedServiceUpdateProfileFeedConfig: () => ({ mutateAsync: vi.fn() }),
   useFeedServiceResetProfileFeedConfig: () => ({ mutateAsync: resetMutateAsync }),
   useLibraryServiceListLibraries: () => ({ data: { libraries: feedLibraries } }),
-  useLibraryServiceListMediaItems: () => ({ data: { items: [] }, isLoading: false }),
+  useLibraryServiceListMediaItems: (params: unknown) => {
+    listMediaParams.push(params);
+    return { data: { items: railItems }, isLoading: false };
+  },
   // The shared useMostPopular (@evey/client) reads the generated hook and maps
   // its items through `select`; the popular state above feeds it here.
   useActivityServiceGetPopularMedia: (_params: unknown, opts?: { query?: { select?: (d: unknown) => unknown } }) => ({
@@ -297,5 +306,20 @@ describe("HomeScreen - customize panel reset to defaults", () => {
     await Promise.resolve();
 
     expect(resetMutateAsync).toHaveBeenCalled();
+  });
+});
+
+describe("HomeScreen - library rail hides what the server says is watched", () => {
+  it("asks for unwatched titles only and drops a played title the overlay does not know", () => {
+    feedLibraries = [{ id: "l1", name: "Films", type: "LIBRARY_TYPE_MOVIES" }];
+    feedConfigsOverride = [{ feedType: "library:l1", enabled: true, displayOrder: 0 }];
+    railItems = [{ id: "seen", userData: { played: true } }, { id: "fresh", userData: { played: false } }, { id: "old" }];
+    listMediaParams.length = 0;
+    render(<HomeScreen />);
+    expect(listMediaParams.some((p: any) => p.unwatchedOnly === true)).toBe(true);
+    expect(screen.queryByText("item:seen")).toBeNull();
+    expect(screen.getByText("item:fresh")).toBeTruthy();
+    expect(screen.getByText("item:old")).toBeTruthy();
+    railItems = [];
   });
 });

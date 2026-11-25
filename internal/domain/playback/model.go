@@ -47,6 +47,16 @@ type WatchProgress struct {
 	LastPlayedAt time.Time
 }
 
+// UserData is what a profile did with one title, as every read that returns
+// the title reports it. Played is media_watched (migration 000200): a series
+// or a season once every episode is completed. Position and PlayCount are the
+// title's own progress row, zero for a series or a season.
+type UserData struct {
+	Played    bool
+	Position  shared.Duration
+	PlayCount int
+}
+
 type PlaySession struct {
 	ID          string
 	ProfileID   shared.ProfileID

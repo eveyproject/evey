@@ -1108,10 +1108,15 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 			cursor = &playback.WatchHistoryCursor{LastPlayedAt: c.t, MediaItemID: c.id}
 		}
 	}
+	// A bare limit is the watched overlay (home rails, library grids): it
+	// needs the titles marked by hand, which the paged history leaves out.
 	var items []*playback.WatchProgress
-	if cursor != nil {
+	switch {
+	case req.Pagination == nil:
+		items, err = h.query.GetWatchStates(ctx, shared.ProfileID(profileID), limit)
+	case cursor != nil:
 		items, err = h.query.GetWatchHistoryCursor(ctx, shared.ProfileID(profileID), cursor, limit)
-	} else {
+	default:
 		items, err = h.query.GetWatchHistory(ctx, shared.ProfileID(profileID), limit, offset)
 	}
 	if err != nil {

@@ -446,6 +446,9 @@ func TestWatchProgressRepo_Cursor_Resume_Delete(t *testing.T) {
 	offsetPage, err := wpRepo.GetByProfile(ctx, string(p.ID), 10, 0)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"wpc-d", "wpc-c", "wpc-a"}, ids(offsetPage), "the offset listing answers the same rows")
+	states, err := wpRepo.GetWatchStates(ctx, string(p.ID), 10)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"wpc-a", "wpc-b", "wpc-c", "wpc-d", "wpc-e"}, ids(states), "the watched overlay keeps the marked row")
 
 	resume, err := wpRepo.GetResumeItems(ctx, string(p.ID), 10)
 	require.NoError(t, err)

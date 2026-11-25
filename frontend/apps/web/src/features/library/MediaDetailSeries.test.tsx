@@ -148,6 +148,25 @@ describe("SeasonEpisodesSection", () => {
     expect(screen.getByText("E3")).toBeInTheDocument();
   });
 
+  // An episode wears its resolution and HDR like every title card.
+  it("shows each episode's quality badges", () => {
+    mockListMediaItems.mockReturnValue({
+      data: {
+        items: [
+          { id: "ep1", indexNumber: 1, title: "Pilot", streams: [{ type: "MEDIA_STREAM_TYPE_VIDEO", width: 3840, height: 2160, colorTransfer: "smpte2084" }] },
+          { id: "ep2", indexNumber: 2, title: "No stream" },
+        ],
+      },
+    });
+    render(
+      <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
+      { wrapper: Wrapper },
+    );
+    expect(screen.getAllByTestId("quality-chips")).toHaveLength(1);
+    expect(screen.getByTestId("resolution-badge")).toHaveTextContent("4K");
+    expect(screen.getByTestId("hdr-badge")).toHaveTextContent("HDR");
+  });
+
   it("renders episode duration", () => {
     mockListMediaItems.mockReturnValue({
       data: {

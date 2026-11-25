@@ -3,6 +3,7 @@ syntax = "proto3";
 package evey.v1;
 
 import "google/api/annotations.proto";
+import "evey/v1/library.proto";
 
 option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
@@ -105,6 +106,10 @@ message FeedItem {
   // Audience score, same scale as MediaItem.community_rating (0 when
   // unknown), printed on the card like the library grid does.
   double community_rating = 12;
+  // The title's video stream, for the card's resolution and HDR badges (empty
+  // for a series, which has none of its own). Filled for every answer by the
+  // server's card interceptor (MediaCardStreamsUnary).
+  MediaStream video_stream = 13;
 }
 
 message MergedFeedConfig {

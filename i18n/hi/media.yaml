@@ -349,6 +349,9 @@ contextMenu:
   markUnwatched: नहीं देखा चिह्नित करें
   noProfileSelected: No profile selected # TODO: translate
   markedWatched: देखा हुआ चिह्नित किया
+  markSeriesWatched: "पूरी सीरीज़ देखी हुई चिह्नित करें"
+  markedSeriesWatched: "सीरीज़ देखी हुई चिह्नित की गई"
+  markSeriesError: "सीरीज़ को देखा हुआ चिह्नित नहीं किया जा सका"
   markedUnwatched: नहीं देखा चिह्नित किया
   markError: "{{status}} चिह्नित करने में विफल"
 music:

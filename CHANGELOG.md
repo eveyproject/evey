@@ -7,7 +7,20 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+### Fixed
+- Media trash: on pooled disks (mergerfs, unRAID) moving a file to the trash
+  failed with an internal error, the trash folder having been created on
+  another disk than the file. The file now crosses the way `mv` does: copied,
+  checked, then removed, the original untouched until the copy is whole.
+
 ### Added
+- Every title card shows its resolution and HDR badges: the home rows
+  (Continue Watching, Recommended, Most popular, the library rows), the
+  search, the favourites, a collection's titles and the episode rows, on the
+  web and both televisions. Every resolution wears the same badge; HDR (or
+  HLG) stands out in amber. Themes can restyle them.
+- Continue Watching (web and mobile): the menu of an episode (right click,
+  long press) marks its whole series watched.
 - Plugins: a `media.files` permission adds each media item's file path and
   size to what `evey.media.list` and `evey.media.get` return. The plugin
   token carries it only when the person looking is an administrator.
@@ -36,10 +49,16 @@ line - earlier history lives in git.
   queue, which reorders by dragging.
 
 ### Changed
+- A home collection card (web) is as wide as the other cards.
+- The web card's watched button sits above the rating instead of over it.
 - The web profile menu no longer lists "Manage profiles", which opened the
   same page as Settings, and its entries no longer wrap.
 
 ### Fixed
+- A title marked watched by hand stayed on the home's library rows. What a
+  profile has watched is now decided once, on the server, for every list
+  and card: a series counts once every episode is watched, and an old title
+  no longer comes back after a long series is marked.
 - An open music playlist showed only the tracks the page had already
   loaded; it now shows all of them.
 - Listening history weighs on a mix genre by genre: plays of a track tagged

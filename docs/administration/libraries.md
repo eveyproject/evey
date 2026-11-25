@@ -137,6 +137,12 @@ move it to where it was and scan the library.
 Evey never reads that folder. A library on a read-only mount cannot use the
 trash: the move is refused and the title stays.
 
+On pooled disks (mergerfs, unRAID) the trash folder can sit on another disk
+than the file. The file then gets there the way `mv` does it: copied, checked,
+then removed from its old place. For a large film that takes the time of a
+copy, a few minutes on spinning disks; the original stays untouched until the
+copy is whole.
+
 ## Music libraries
 
 The scanner reads MP3, FLAC, M4A, OGG, Opus, WAV and AAC files, and takes each

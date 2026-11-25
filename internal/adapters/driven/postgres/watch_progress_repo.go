@@ -306,6 +306,81 @@ func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID st
 	return progress, nil
 }
 
+// GetWatchStates reads every row, the marked ones included: the watched
+// overlay, not the history.
+func (r *WatchProgressRepository) GetWatchStates(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetWatchStates")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
+		 FROM watch_progress WHERE profile_id = $1
+		 ORDER BY last_played_at DESC, id DESC LIMIT $2`, profileID, limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("WatchProgressRepo.GetWatchStates: %w", err)
+	}
+	defer rows.Close()
+	progress, err := r.scanWatchProgressRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return progress, nil
+}
+
+// UserData reads the watched rule and the progress row of a page of titles in
+// one query.
+func (r *WatchProgressRepository) UserData(ctx context.Context, profileID string, mediaItemIDs []string) (map[string]playback.UserData, error) {
+	out := make(map[string]playback.UserData, len(mediaItemIDs))
+	if len(mediaItemIDs) == 0 {
+		return out, nil
+	}
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.UserData")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID), attribute.Int("items", len(mediaItemIDs)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT ids.id, media_watched($1, ids.id), COALESCE(wp.position_ms, 0), COALESCE(wp.play_count, 0)
+		 FROM unnest($2::text[]) AS ids(id)
+		 LEFT JOIN watch_progress wp ON wp.profile_id = $1 AND wp.media_item_id = ids.id`,
+		profileID, pq.Array(mediaItemIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("WatchProgressRepo.UserData: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			itemID    string
+			ud        playback.UserData
+			posMs     int64
+			playCount int64
+		)
+		if err := rows.Scan(&itemID, &ud.Played, &posMs, &playCount); err != nil {
+			return nil, fmt.Errorf("WatchProgressRepo.UserData: %w", err)
+		}
+		ud.Position = scanWatchProgressPosition(itemID, posMs)
+		ud.PlayCount = int(playCount)
+		out[itemID] = ud
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("WatchProgressRepo.UserData: %w", err)
+	}
+	for _, id := range mediaItemIDs {
+		if _, ok := out[id]; !ok {
+			out[id] = playback.UserData{}
+		}
+	}
+	return out, nil
+}
+
 func (r *WatchProgressRepository) GetByProfileCursor(ctx context.Context, profileID string, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetByProfileCursor")
 	defer span.End()

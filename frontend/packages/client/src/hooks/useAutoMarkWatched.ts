@@ -27,7 +27,7 @@ export function useAutoMarkWatched(mediaId: string, positionSec: number, duratio
   );
   const qc = useQueryClient();
   const { mutate } = usePlaybackServiceMarkAsWatched({
-    mutation: { onSuccess: () => invalidateWatchedState(qc, mediaId) },
+    mutation: { onSuccess: () => invalidateWatchedState(qc, mediaId, { playingId: mediaId }) },
   });
   const firedRef = useRef(false);
   useEffect(() => { firedRef.current = false; }, [mediaId]);

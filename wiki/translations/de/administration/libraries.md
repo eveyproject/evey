@@ -1,5 +1,5 @@
 ---
-source_sha: afbc7464f75fabbfac5fcb4804f737e9889ec38f19241b7f9688b5a9c07b01ca
+source_sha: a25e43948fb1b1ca28d3c5960a75173e6c08ac3b031384c3720d73f2a4734cc8
 reviewed: true
 ---
 # Bibliotheken und Metadaten { #libraries-and-metadata }
@@ -158,6 +158,12 @@ der Plugin-Seite, oder verschieben Sie sie an ihren Platz und scannen die
 Bibliothek. Evey liest diesen Ordner nie. Eine
 schreibgeschützt eingebundene Bibliothek kann den Papierkorb nicht nutzen:
 das Verschieben wird abgelehnt und der Titel bleibt.
+
+Bei zusammengefassten Platten (mergerfs, unRAID) kann der Papierkorb auf einer
+anderen Platte liegen als die Datei. Die Datei kommt dann so dorthin, wie `mv`
+es macht: kopiert, geprüft und danach an ihrem alten Platz entfernt. Bei einem
+großen Film dauert das so lange wie eine Kopie, auf drehenden Platten einige
+Minuten; das Original bleibt unangetastet, bis die Kopie vollständig ist.
 
 ## Musikbibliotheken { #music-libraries }
 

@@ -27,8 +27,9 @@ import type {
   LibraryServiceSearchMediaSortOrder,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import { buildWatchProgressMaps, videoStream, isHdrStream, resolutionLabel } from "@evey/client";
+import { buildWatchProgressMaps, itemShowsWatched, itemPercent, videoStream, isHdrStream, resolutionLabel } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { QualityBadges } from "../../../src/components/QualityBadges";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
 import { PosterImage } from "../../../src/components/PosterImage";
@@ -207,9 +208,6 @@ const LibraryGridCard = memo(function LibraryGridCard({
   // other grids, so the image cache serves it.
   const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
   const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
-  const vStream = videoStream(item.streams);
-  const resLabel = resolutionLabel(vStream);
-  const hdr = isHdrStream(vStream);
   const rating = item.communityRating ?? 0;
   const hasProgress = percent != null && percent > 0;
   return (
@@ -241,20 +239,7 @@ const LibraryGridCard = memo(function LibraryGridCard({
           </View>
         )}
 
-        {(resLabel || hdr) && (
-          <View style={[styles.techBadgeRow, { bottom: hasProgress ? 14 : 6, left: 6 }]} pointerEvents="none">
-            {resLabel && (
-              <View style={[styles.techBadge, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
-                <Text style={[styles.techBadgeText, { color: theme.colors.text }]} numberOfLines={1}>{resLabel}</Text>
-              </View>
-            )}
-            {hdr && (
-              <View style={[styles.techBadge, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm }]}>
-                <Text style={[styles.techBadgeText, { color: theme.colors.onAccent }]} numberOfLines={1}>HDR</Text>
-              </View>
-            )}
-          </View>
-        )}
+        <QualityBadges streams={item.streams} bottom={hasProgress ? 14 : 6} />
 
         {item.id && (
           <View
@@ -549,8 +534,8 @@ export default function LibraryDetailScreen() {
       <LibraryGridCard
         item={item}
         index={index}
-        watched={item.id ? watchedMap.get(item.id) === true : false}
-        percent={item.id ? percentMap.get(item.id) : undefined}
+        watched={itemShowsWatched(item, watchedMap)}
+        percent={itemPercent(item, percentMap) || undefined}
         cardWidth={cardWidth}
         titleBlock={titleBlock}
         serverUrl={serverUrl}
@@ -838,7 +823,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   techBadgeText: { fontSize: 11, fontWeight: "700", flexShrink: 1 },
-  techBadgeRow: { position: "absolute", flexDirection: "row", gap: 4 },
   watchedBadge: {
     position: "absolute",
     top: 6,

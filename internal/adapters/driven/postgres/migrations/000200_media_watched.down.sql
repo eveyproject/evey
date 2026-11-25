@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS media_watched(TEXT, TEXT);

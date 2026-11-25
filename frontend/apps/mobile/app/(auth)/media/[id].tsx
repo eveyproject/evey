@@ -66,7 +66,7 @@ import { MetadataEditSheet } from "../../../src/components/media/MetadataEditShe
 import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { RESUME_PROGRESS_QUERY, compareEpisodeIndex, invalidateWatchedState, resumableMs, showsWatched, useSeriesPlayTarget } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, compareEpisodeIndex, invalidateWatchedState, itemPercent, itemShowsWatched, resumableMs, showsWatched, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { StarIcons } from "../../../src/components/media/StarIcons";
 import { personKeyExtractor, renderCastItem } from "../../../src/components/media/CastCard";
@@ -234,7 +234,7 @@ export default function MediaDetailScreen() {
     if (editParam === "1" && isAdmin) setMetadataSheetOpen(true);
   }, [editParam, isAdmin]);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
-  const watched = watchedOverride ?? (watchProgress?.played === true);
+  const watched = watchedOverride ?? (media?.userData ? media.userData.played === true : watchProgress?.played === true);
 
   const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -350,11 +350,14 @@ export default function MediaDetailScreen() {
       if (!w.mediaItemId) continue;
       map.set(w.mediaItemId, { percent: w.percentComplete ?? 0, played: showsWatched(w) });
     }
+    for (const ep of episodes) {
+      if (ep.id && ep.userData) map.set(ep.id, { percent: itemPercent(ep), played: itemShowsWatched(ep) });
+    }
     for (const [epId, played] of episodeMarks) {
       map.set(epId, { percent: map.get(epId)?.percent ?? 0, played });
     }
     return map;
-  }, [episodeHistory, episodeMarks]);
+  }, [episodeHistory, episodeMarks, episodes]);
 
   // The season list's own marks, separate from the page item's (which feed
   // watchedOverride): marking an episode must not flip the season's button.

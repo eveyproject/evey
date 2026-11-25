@@ -15,12 +15,17 @@ vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({}) }));
 const markWatched = vi.hoisted(() => vi.fn());
 const markUnwatched = vi.hoisted(() => vi.fn());
+const getMediaItem = vi.hoisted(() => vi.fn());
+const markAsWatched = vi.hoisted(() => vi.fn());
 vi.mock("@evey/api", () => ({
   displayTitle: (i: { title?: string }) => i.title ?? "",
+  libraryServiceGetMediaItem: (...a: unknown[]) => getMediaItem(...a),
+  playbackServiceMarkAsWatched: (...a: unknown[]) => markAsWatched(...a),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: markWatched }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: markUnwatched }),
 }));
-vi.mock("@evey/client", () => ({ invalidateWatchedState: vi.fn() }));
+const invalidateWatchedState = vi.hoisted(() => vi.fn());
+vi.mock("@evey/client", () => ({ invalidateWatchedState }));
 const auth = vi.hoisted(() => ({ profileId: "prf-1", isAdmin: false, demoMode: false }));
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -106,5 +111,33 @@ describe("MediaActionsSheet", () => {
     expect(edit.disabled).toBeFalsy();
     fireEvent.click(edit);
     expect(router.push).toHaveBeenCalledWith("/media/m1?edit=1");
+  });
+
+  it("offers the series mark on an episode only", () => {
+    render(<MediaActionsSheet item={item} onClose={() => {}} />);
+    expect(screen.queryByTestId("media-actions-mark-series-watched")).toBeNull();
+  });
+
+  it("marks an episode's whole series watched through its season", async () => {
+    const { toast } = await import("@evey/store");
+    getMediaItem.mockResolvedValue({ id: "season-1", parentId: "series-1" });
+    markAsWatched.mockResolvedValue({});
+    const onClose = vi.fn();
+    render(<MediaActionsSheet item={{ id: "ep-3", title: "Ep", type: "MEDIA_ITEM_TYPE_EPISODE", parentId: "season-1" }} onClose={onClose} />);
+    fireEvent.click(screen.getByTestId("media-actions-mark-series-watched"));
+    expect(onClose).toHaveBeenCalled();
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("media.contextMenu.markedSeriesWatched"));
+    expect(getMediaItem).toHaveBeenCalledWith("season-1");
+    expect(markAsWatched).toHaveBeenCalledWith("series-1", { profileId: "prf-1" });
+    expect(invalidateWatchedState).toHaveBeenCalledWith(expect.anything(), "series-1");
+    expect(markWatched).not.toHaveBeenCalled();
+  });
+
+  it("says so when the series cannot be marked", async () => {
+    const { toast } = await import("@evey/store");
+    getMediaItem.mockResolvedValue({ id: "season-1" });
+    render(<MediaActionsSheet item={{ id: "ep-3", title: "Ep", type: "MEDIA_ITEM_TYPE_EPISODE", parentId: "season-1" }} onClose={() => {}} />);
+    fireEvent.click(screen.getByTestId("media-actions-mark-series-watched"));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("media.contextMenu.markSeriesError"));
   });
 });

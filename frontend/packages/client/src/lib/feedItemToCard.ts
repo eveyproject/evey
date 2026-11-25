@@ -1,4 +1,4 @@
-import type { V1MediaItem } from "@evey/api";
+import type { V1MediaItem, V1MediaStream } from "@evey/api";
 
 /** The fields of a feed item (recommended, similar, recently added, popular) a card reads. */
 export interface FeedItemLike {
@@ -8,6 +8,8 @@ export interface FeedItemLike {
   year?: number;
   primaryBlurhash?: string;
   communityRating?: number;
+  /** The title's video stream: the card's resolution and HDR badges. */
+  videoStream?: V1MediaStream;
 }
 
 /** A feed item projected onto the card shape every app renders. */
@@ -25,6 +27,7 @@ export function feedItemToCard(fi: FeedItemLike): FeedCard {
     year: fi.year || undefined,
     communityRating: fi.communityRating || undefined,
     artwork: fi.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: fi.primaryBlurhash }] : undefined,
+    streams: fi.videoStream ? [fi.videoStream] : undefined,
   } as FeedCard;
 }
 
