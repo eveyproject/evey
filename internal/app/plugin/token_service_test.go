@@ -170,14 +170,14 @@ func TestIssueToken_MediaFilesOnlyForAdmin(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, repo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg1", Name: "p", Enabled: true,
-		Permissions: []string{"public", "media.files", "prefs"},
+		Permissions: []string{"public", "media.files", "media.gaps", "prefs"},
 	}))
 
 	_, err := svc.IssueToken(ctx, "u", "", "plg1", false)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"public", "prefs"}, iss.lastScopes, "a non-admin viewer must not get media.files")
+	assert.Equal(t, []string{"public", "prefs"}, iss.lastScopes, "a non-admin viewer must not get media.files nor media.gaps")
 
 	_, err = svc.IssueToken(ctx, "u", "", "plg1", true)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"public", "media.files", "prefs"}, iss.lastScopes)
+	assert.Equal(t, []string{"public", "media.files", "media.gaps", "prefs"}, iss.lastScopes)
 }

@@ -38,11 +38,22 @@ var AllowedPluginScopes = map[string]bool{
 	// public projection. Kept on the token only when the viewer is an
 	// administrator (TokenService.IssueToken strips it otherwise).
 	MediaFilesScope: true,
+	// media.gaps: what the libraries miss (episodes, saga films), worked out
+	// by the server. Administrators only, like media.files.
+	MediaGapsScope: true,
 }
 
 // MediaFilesScope lets a plugin's interface read where each media item lives
 // on disk. Administrator sessions only: a path names the server's folders.
 const MediaFilesScope = "media.files"
+
+// MediaGapsScope lets a plugin's interface read what the libraries miss.
+// Administrator sessions only: it lists the whole collection.
+const MediaGapsScope = "media.gaps"
+
+// AdminOnlyScopes are the scopes a token carries only when the viewer is an
+// administrator; the token service drops them for anyone else.
+var AdminOnlyScopes = map[string]bool{MediaFilesScope: true, MediaGapsScope: true}
 
 // ForbiddenPluginScopePrefixes: scopes starting with any of these are rejected even
 // if they slip into the manifest. admin.*/auth.*/system.*/user.write/library.write.

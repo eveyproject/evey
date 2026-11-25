@@ -13,6 +13,7 @@ import (
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	appactivity "github.com/eveyproject/evey/internal/app/activity"
 	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	appcatalog "github.com/eveyproject/evey/internal/app/catalog"
 	appcollection "github.com/eveyproject/evey/internal/app/collection"
 	appconfig "github.com/eveyproject/evey/internal/app/config"
 	appfavorite "github.com/eveyproject/evey/internal/app/favorite"
@@ -100,8 +101,11 @@ type GRPCServerDeps struct {
 	// HLSVODRemover fans RemoveSession across the software AND hardware
 	// producers, so an explicit StopStream or admin force-kill tears down a
 	// software stream too (the bare orchestrator only knows its HW sessions).
-	HLSVODRemover   *apptranscoding.ProducerSelector
-	Scheduler       *applibrary.Scheduler
+	HLSVODRemover *apptranscoding.ProducerSelector
+	Scheduler     *applibrary.Scheduler
+	// Catalog works out what the libraries miss (episodes, saga films); nil
+	// leaves GetCatalogGaps unimplemented.
+	Catalog         *appcatalog.Service
 	LogDir          string
 	ServerCtx       context.Context
 	Translator      *eveyi18n.Translator
@@ -214,7 +218,7 @@ func (s *GRPCServer) RegisterServices() {
 	// Operator remote-access bitrate cap, read live from cfg.RemoteAccess (the
 	// admin PUT writes it under the same lock). nil cfg (tests) leaves it off.
 	playbackRemoteAccess := remoteAccessFromConfig(d.Cfg)
-	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, scheduler: d.Scheduler, translator: d.Translator})
+	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, scheduler: d.Scheduler, translator: d.Translator, catalog: d.Catalog})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg, settings: d.SettingsNotifier})
 	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, deviceDecoders: d.DeviceDecoders, remoteAccess: playbackRemoteAccess, serverLang: serverLanguageFromConfig(d.Cfg), hours: d.ProfileHours, rescanLibrary: backgroundLibraryRescan(d.LibCmd)}
 	eveyv1.RegisterPlaybackServiceServer(s.server, s.playback)
