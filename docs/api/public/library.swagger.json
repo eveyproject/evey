@@ -506,6 +506,13 @@
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "unwatchedOnly",
+            "description": "Keep only what the requesting profile has not watched (MediaUserData\nplayed): what a home rail shows.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -851,6 +858,29 @@
         ]
       }
     },
+    "/api/v1/public/catalog-gaps": {
+      "get": {
+        "summary": "GetCatalogGaps lists what the libraries miss: aired episodes of the\nseries they hold (from the catalog source, else from the gaps in their\nown numbering) and released films of the sagas they started. Worked out\nfrom what the server stored; it never calls the catalog source itself.\nAdministrators only: a plugin token with the media.gaps scope, which is\nminted on an administrator's session alone.",
+        "operationId": "LibraryService_GetCatalogGaps",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCatalogGapsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "LibraryService"
+        ]
+      }
+    },
     "/api/v1/public/media": {
       "get": {
         "operationId": "LibraryService_ListPublicMediaItems",
@@ -1111,6 +1141,25 @@
         "hasMore": {
           "type": "boolean",
           "description": "Whether rows remain past next_offset."
+        }
+      }
+    },
+    "v1GetCatalogGapsResponse": {
+      "type": "object",
+      "properties": {
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SeriesGaps"
+          }
+        },
+        "sagas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SagaGaps"
+          }
         }
       }
     },
@@ -1478,6 +1527,10 @@
         "hasIndexNumber": {
           "type": "boolean",
           "description": "has_index_number tells an episode or season without a number (a file of\na season folder whose name states none) from number 0 (an episode E00,\nthe specials season): index_number reads 0 for both. Additive rather\nthan making index_number optional, a cardinality change buf breaking\nrefuses."
+        },
+        "userData": {
+          "$ref": "#/definitions/v1MediaUserData",
+          "description": "What the requesting profile did with this title, filled on every read\nthat returns a MediaItem. Clients read the watched mark and the progress\nhere, never from a list of their own."
         }
       }
     },
@@ -1645,6 +1698,67 @@
       ],
       "default": "MEDIA_STREAM_TYPE_UNSPECIFIED"
     },
+    "v1MediaUserData": {
+      "type": "object",
+      "properties": {
+        "played": {
+          "type": "boolean"
+        },
+        "positionMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "durationMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "percentComplete": {
+          "type": "number",
+          "format": "double"
+        },
+        "playCount": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "played is the server's one rule (media_watched): a film or an episode by\nits completed row, a series or a season once every episode is completed.\nposition_ms, duration_ms and percent_complete are the item's own progress\nrow (0 for a series or a season)."
+    },
+    "v1MissingEpisode": {
+      "type": "object",
+      "properties": {
+        "episode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "title": {
+          "type": "string"
+        },
+        "airDate": {
+          "type": "string",
+          "description": "air_date is YYYY-MM-DD, empty when unknown."
+        }
+      }
+    },
+    "v1MissingSeason": {
+      "type": "object",
+      "properties": {
+        "season": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "whole": {
+          "type": "boolean"
+        },
+        "episodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MissingEpisode"
+          }
+        }
+      },
+      "description": "MissingSeason groups a series' missing episodes. whole: not one episode of\nthe season is held (episodes may then be empty when its size is unknown)."
+    },
     "v1PaginationRequest": {
       "type": "object",
       "properties": {
@@ -1799,6 +1913,44 @@
         }
       }
     },
+    "v1SagaGaps": {
+      "type": "object",
+      "properties": {
+        "collectionId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "owned": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SagaPart"
+          }
+        }
+      },
+      "description": "SagaGaps is a saga the libraries started and its released films they lack."
+    },
+    "v1SagaPart": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "releaseDate": {
+          "type": "string",
+          "description": "release_date is YYYY-MM-DD."
+        },
+        "posterUrl": {
+          "type": "string"
+        }
+      }
+    },
     "v1ScanPhase": {
       "type": "string",
       "enum": [
@@ -1883,6 +2035,32 @@
         }
       },
       "description": "Aggregate runtime for a series: sum of every episode's duration across all\nseasons that are actually present in the library. Computed live (not\ndenormalized) via a recursive CTE."
+    },
+    "v1SeriesGaps": {
+      "type": "object",
+      "properties": {
+        "seriesId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "fromCatalog": {
+          "type": "boolean"
+        },
+        "seasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MissingSeason"
+          }
+        }
+      },
+      "description": "SeriesGaps is what one series misses. from_catalog: worked out from the\ncatalog source; otherwise from the gaps in the library's own numbering."
     },
     "v1SortOrder": {
       "type": "string",

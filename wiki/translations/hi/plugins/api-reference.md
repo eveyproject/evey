@@ -1,5 +1,5 @@
 ---
-source_sha: 27a961b5b1dd852456317390eed14d854994fa8913a49d3698c3343bf7a21430
+source_sha: 88b25d5013bee4a453fc1acd638af277264419566f6746aea48dd160a29a2b7e
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -272,6 +272,28 @@ const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pag
 
 `poster` एक `data:` URL लौटाता है, क्योंकि फ़्रेम की नीति सर्वर से सीधे तस्वीर
 लोड करने से मना करती है; इसे `<img>` के स्रोत या texture की तरह इस्तेमाल करें।
+
+### `evey.media.gaps()` (अनुमति `media.gaps`) { #eveymediagaps-permission-mediagaps }
+
+लाइब्रेरी में क्या कम है, Evey का निकाला हुआ: मौजूद सीरीज़ के पहले से प्रसारित
+एपिसोड जो नहीं हैं, और शुरू की गई सीरीज़-फ़िल्मों (saga) की रिलीज़ हो चुकी फ़िल्में
+जो नहीं हैं। कोई सीरीज़ या saga क्या रखती है, यह Evey ख़ुद TMDB से अपनी रफ़्तार
+से जानता है (सहेजा जवाब एक हफ़्ते बाद नया होता है); प्लगइन कभी TMDB को कॉल नहीं
+करता, वह नतीजा पढ़ता है।
+
+```js
+const { series, sagas } = await evey.media.gaps();
+// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
+//   episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+```
+
+सिर्फ़ जो आ चुका है वही गिना जाता है: बिना तारीख़ का या आज के बाद की तारीख़ वाला
+एपिसोड या फ़िल्म अभी कम नहीं है, और स्पेशल (सीज़न 0) अलग रखे जाते हैं। जिस
+सीरीज़ को TMDB नहीं जानता, वह अपनी ही नंबरिंग के छेदों से दिखती है
+(`fromCatalog` false): सबसे ऊँचे मौजूद एपिसोड से नीचे के कम एपिसोड, सबसे ऊँचे
+मौजूद सीज़न से नीचे के कम सीज़न (`whole`, बिना एपिसोड सूची)। सिर्फ़ एडमिन के
+सेशन पर, `media.files` की तरह।
 
 ### `evey.media.trash(ids)` (अनुमति `media.trash`, सिर्फ़ स्लॉट `admin.nav`) { #eveymediatrashids }
 

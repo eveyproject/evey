@@ -44,6 +44,9 @@ var KnownPermissions = map[string]bool{
 	// returns, and only on an administrator's session (the token issuer
 	// drops the scope for anyone else).
 	"media.files": true,
+	// media.gaps: what the libraries miss, worked out by the server from the
+	// catalog it stored. Administrators only (dropped from anyone else's token).
+	"media.gaps": true,
 	// media.trash lets the interface of an admin.nav page ask the host to move
 	// media files to the library trash. The host, not the plugin, shows the
 	// confirmation and calls the admin endpoint on the administrator's own

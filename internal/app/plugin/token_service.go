@@ -59,7 +59,7 @@ func (s *TokenService) IssueToken(ctx context.Context, userID, profileID, plugin
 	if !isAdmin {
 		kept := scopes[:0]
 		for _, sc := range scopes {
-			if sc != auth.MediaFilesScope {
+			if !auth.AdminOnlyScopes[sc] {
 				kept = append(kept, sc)
 			}
 		}

@@ -10,6 +10,7 @@ import (
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	appcatalog "github.com/eveyproject/evey/internal/app/catalog"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
 	appmetadata "github.com/eveyproject/evey/internal/app/metadata"
 	appuser "github.com/eveyproject/evey/internal/app/user"
@@ -32,6 +33,7 @@ type libraryHandler struct {
 	userQuery   *appuser.QueryService
 	translator  *eveyi18n.Translator
 	scheduler   *applibrary.Scheduler
+	catalog     *appcatalog.Service
 }
 
 // scanNewLibrary reads the folder of a library that was just created without

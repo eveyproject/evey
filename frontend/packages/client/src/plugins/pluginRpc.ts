@@ -116,6 +116,8 @@ export function pluginRequestFor(pluginId: string, method: string, args: Record<
       return { path: `/api/v1/public/media/${enc(String(args.id ?? ""))}`, method: "GET", authToken: token };
     case "media.list":
       return { path: `/api/v1/public/media${mediaListQuery(args)}`, method: "GET", authToken: token };
+    case "media.gaps":
+      return { path: "/api/v1/public/catalog-gaps", method: "GET", authToken: token };
     case "media.poster":
       return { path: `/api/v1/media/${enc(String(args.id ?? ""))}/artwork/poster`, method: "GET" };
     case "assets.read": {
