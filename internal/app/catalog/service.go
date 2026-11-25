@@ -77,11 +77,11 @@ func (s *Service) RefreshOnce(ctx context.Context) {
 		slog.WarnContext(ctx, "catalog: list series to check", slog.Any("err", err))
 	}
 	for _, sr := range series {
-		eps, err := s.source.SeriesEpisodes(ctx, sr.TmdbID)
-		if err != nil {
-			slog.WarnContext(ctx, "catalog: series episodes", slog.String("series", sr.ItemID), slog.Any("err", err))
-		} else if err := s.repo.ReplaceSeriesEpisodes(ctx, sr.ItemID, eps, s.now()); err != nil {
-			slog.WarnContext(ctx, "catalog: store series episodes", slog.String("series", sr.ItemID), slog.Any("err", err))
+		eps, ferr := s.source.SeriesEpisodes(ctx, sr.TmdbID)
+		if ferr != nil {
+			slog.WarnContext(ctx, "catalog: series episodes", slog.String("series", sr.ItemID), slog.Any("err", ferr))
+		} else if serr := s.repo.ReplaceSeriesEpisodes(ctx, sr.ItemID, eps, s.now()); serr != nil {
+			slog.WarnContext(ctx, "catalog: store series episodes", slog.String("series", sr.ItemID), slog.Any("err", serr))
 		}
 		if !s.sleep(ctx, pace) {
 			return
@@ -92,11 +92,11 @@ func (s *Service) RefreshOnce(ctx context.Context) {
 		slog.WarnContext(ctx, "catalog: list sagas to check", slog.Any("err", err))
 	}
 	for _, c := range sagas {
-		parts, err := s.source.CollectionParts(ctx, c.TmdbID)
-		if err != nil {
-			slog.WarnContext(ctx, "catalog: saga parts", slog.String("collection", c.ID), slog.Any("err", err))
-		} else if err := s.repo.ReplaceCollectionParts(ctx, c.ID, parts, s.now()); err != nil {
-			slog.WarnContext(ctx, "catalog: store saga parts", slog.String("collection", c.ID), slog.Any("err", err))
+		parts, ferr := s.source.CollectionParts(ctx, c.TmdbID)
+		if ferr != nil {
+			slog.WarnContext(ctx, "catalog: saga parts", slog.String("collection", c.ID), slog.Any("err", ferr))
+		} else if serr := s.repo.ReplaceCollectionParts(ctx, c.ID, parts, s.now()); serr != nil {
+			slog.WarnContext(ctx, "catalog: store saga parts", slog.String("collection", c.ID), slog.Any("err", serr))
 		}
 		if !s.sleep(ctx, pace) {
 			return

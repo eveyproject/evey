@@ -20,14 +20,14 @@ func TestSeriesEpisodes_BatchesSeasons(t *testing.T) {
 		app := r.URL.Query().Get("append_to_response")
 		if app == "" {
 			var seasons []string
-			for n := 0; n <= 23; n++ {
+			for n := range 24 {
 				seasons = append(seasons, fmt.Sprintf(`{"season_number":%d}`, n))
 			}
 			fmt.Fprintf(w, `{"id":1399,"seasons":[%s]}`, strings.Join(seasons, ","))
 			return
 		}
 		var parts []string
-		for _, s := range strings.Split(app, ",") {
+		for s := range strings.SplitSeq(app, ",") {
 			var n int
 			_, _ = fmt.Sscanf(s, "season/%d", &n)
 			parts = append(parts, fmt.Sprintf(`"%s":{"episodes":[{"episode_number":1,"name":"S%dE1","air_date":"2011-04-17"},{"episode_number":2,"name":"S%dE2","air_date":""}]}`, s, n, n))

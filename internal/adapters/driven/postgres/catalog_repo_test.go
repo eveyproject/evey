@@ -14,8 +14,6 @@ import (
 	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
-func intp(v int) *int { return &v }
-
 // The catalog repo against a real schema: what is due, what is stored, what
 // the libraries own (an episode's season through its parent), and the films
 // of a started saga.
@@ -40,9 +38,9 @@ func TestCatalogRepo_RoundTrip(t *testing.T) {
 		require.NoError(t, items.Create(ctx, it))
 	}
 	mk("got", library.Series, "", nil, "1399")
-	mk("got-s1", library.Season, "got", intp(1), "")
-	mk("got-s1e1", library.Episode, "got-s1", intp(1), "")
-	mk("got-s1e3", library.Episode, "got-s1", intp(3), "")
+	mk("got-s1", library.Season, "got", new(1), "")
+	mk("got-s1e1", library.Episode, "got-s1", new(1), "")
+	mk("got-s1e3", library.Episode, "got-s1", new(3), "")
 	mk("got-s1ex", library.Episode, "got-s1", nil, "") // no number: never counted
 	mk("local", library.Series, "", nil, "")           // no TMDB id: never due
 	mk("rocky", library.MovieItem, "", nil, "1366")
@@ -80,7 +78,7 @@ func TestCatalogRepo_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, none)
 
-	saga := &library.Collection{ID: "c-rocky", TmdbID: intp(1575), Name: "Rocky"}
+	saga := &library.Collection{ID: "c-rocky", TmdbID: new(1575), Name: "Rocky"}
 	require.NoError(t, cols.Upsert(ctx, saga))
 	require.NoError(t, cols.LinkItem(ctx, saga.ID, "rocky", 0))
 	require.NoError(t, cols.LinkItem(ctx, saga.ID, "rocky2", 1))

@@ -72,7 +72,7 @@ func (r *CatalogRepo) ReplaceSeriesEpisodes(ctx context.Context, seriesID string
 	if err != nil {
 		return fmt.Errorf("CatalogRepo.ReplaceSeriesEpisodes begin: %w", err)
 	}
-	defer tx.Rollback() //nolint:errcheck // no-op after Commit
+	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `DELETE FROM series_expected_episodes WHERE series_item_id = $1`, seriesID); err != nil {
 		return fmt.Errorf("CatalogRepo.ReplaceSeriesEpisodes delete: %w", err)
 	}
@@ -129,7 +129,7 @@ func (r *CatalogRepo) ReplaceCollectionParts(ctx context.Context, collectionID s
 	if err != nil {
 		return fmt.Errorf("CatalogRepo.ReplaceCollectionParts begin: %w", err)
 	}
-	defer tx.Rollback() //nolint:errcheck // no-op after Commit
+	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `DELETE FROM collection_parts WHERE collection_id = $1`, collectionID); err != nil {
 		return fmt.Errorf("CatalogRepo.ReplaceCollectionParts delete: %w", err)
 	}
