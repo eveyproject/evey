@@ -92,6 +92,14 @@ func (s *QueryService) GetWatchStates(ctx context.Context, profileID shared.Prof
 	return s.progress.GetWatchStates(ctx, string(profileID), limit)
 }
 
+// UserData is the watched mark and progress of a page of titles, for every
+// read that returns them.
+func (s *QueryService) UserData(ctx context.Context, profileID shared.ProfileID, mediaItemIDs []string) (map[string]playback.UserData, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.UserData")
+	defer span.End()
+	return s.progress.UserData(ctx, string(profileID), mediaItemIDs)
+}
+
 func (s *QueryService) GetWatchHistoryCursor(ctx context.Context, profileID shared.ProfileID, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.GetWatchHistoryCursor")
 	defer span.End()

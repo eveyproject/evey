@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/eveyproject/evey/internal/domain/library"
 	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 	"github.com/eveyproject/evey/internal/domain/ratings"
@@ -334,6 +335,12 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	}
 	pf := h.resolveParentalFilter(ctx)
 	filter.AllowedRatings = pf.allowedRatings
+	// The caller's own profile only: the token says whose "watched" this is.
+	if req.GetUnwatchedOnly() {
+		if c := interceptors.ClaimsFromContext(ctx); c != nil && c.ProfileID != "" {
+			filter.UnwatchedBy = c.ProfileID
+		}
+	}
 
 	total, err := h.query.CountMediaItems(ctx, filter)
 	if err != nil {
