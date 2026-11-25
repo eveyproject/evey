@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { QualityChips, qualityOf } from "./QualityChips";
 import { ICON } from "@/constants/iconSizes";
 import { Check, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -93,6 +94,8 @@ function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number
   const [marked, setMarked] = useState<boolean | null>(null);
   useEffect(() => setMarked(null), [watched]);
   const isWatched = marked ?? watched;
+  const quality = qualityOf(ep.streams);
+  const hasProgress = !isWatched && percent > 0;
   const stillUrl = ep.id ? artworkUrl(ep.id, "backdrop", ep) : undefined;
   const stillSrcSet = stillUrl
     ? `${stillUrl}${stillUrl.includes("?") ? "&" : "?"}w=342 342w, ${stillUrl}${stillUrl.includes("?") ? "&" : "?"}w=500 500w`
@@ -123,6 +126,12 @@ function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number
         <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity-fast">
           <Play size={ICON["2xl"]} fill="currentColor" className="text-white" />
         </span>
+        {/* The episode's own resolution and HDR, as on every title card. */}
+        <QualityChips
+          res={quality.res}
+          hdr={quality.hdr}
+          className={`absolute left-1.5 ${hasProgress ? "bottom-3" : "bottom-1.5"} transition-opacity-fast group-hover:opacity-0 group-focus-visible:opacity-0`}
+        />
         {isWatched && (
           <span
             data-testid="episode-watched"
@@ -133,7 +142,7 @@ function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number
             <Check size={ICON.sm} strokeWidth={3} aria-hidden="true" />
           </span>
         )}
-        {!isWatched && percent > 0 && (
+        {hasProgress && (
           <span
             data-testid="episode-progress"
             role="progressbar"
