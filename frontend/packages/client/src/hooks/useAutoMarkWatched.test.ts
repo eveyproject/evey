@@ -14,8 +14,11 @@ vi.mock("@evey/api", () => ({
 vi.mock("@evey/store", () => ({
   useAuthStore: (sel: (s: { profileId: string | null }) => unknown) => sel({ profileId: "p1" }),
 }));
-const invalidateQueries = vi.fn();
-vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries }) }));
+const invalidateWatchedState = vi.fn();
+vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({}) }));
+vi.mock("../lib/invalidateWatchedState", () => ({
+  invalidateWatchedState: (...a: unknown[]) => invalidateWatchedState(...a),
+}));
 
 import { useAutoMarkWatched } from "./useAutoMarkWatched";
 
@@ -33,7 +36,8 @@ describe("useAutoMarkWatched", () => {
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate).toHaveBeenCalledWith({ mediaItemId: "m1", params: { profileId: "p1" } });
     onSuccess?.();
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["/api/v1/media/m1"] });
+    // Everything refreshes but the playing title's own page, held under the player.
+    expect(invalidateWatchedState).toHaveBeenCalledWith({}, "m1", { playingId: "m1" });
   });
 
   it("leaves a title the server already knows as played alone", () => {

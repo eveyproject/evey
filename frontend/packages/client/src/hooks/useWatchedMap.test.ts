@@ -115,3 +115,24 @@ describe("the watched mark on a title being watched again", () => {
     expect(result.current.get("m1")).toBe(true);
   });
 });
+
+describe("the server's watched mark (user_data)", () => {
+  it("wins over the overlay, which only answers for a title without it", async () => {
+    const { itemPlayed, itemShowsWatched, filterUnwatched, itemPercent } = await import("./useWatchedMap");
+    const legacy = new Map([["old", true], ["new-unwatched", true]]);
+    // The overlay says watched, the server says not: the server is right.
+    expect(itemPlayed({ id: "new-unwatched", userData: { played: false } }, legacy)).toBe(false);
+    // A title marked by hand, missing from the overlay's window: still watched.
+    expect(itemPlayed({ id: "marked", userData: { played: true } }, new Map())).toBe(true);
+    // An old server sends no user_data: the overlay answers.
+    expect(itemPlayed({ id: "old" }, legacy)).toBe(true);
+    expect(itemPlayed({ id: "other" }, legacy)).toBe(false);
+    expect(filterUnwatched([
+      { id: "a", userData: { played: true } }, { id: "b", userData: { played: false } }, { id: "old" }, { id: "c" },
+    ], legacy).map((i) => i.id)).toEqual(["b", "c"]);
+    // A second viewing in progress shows its progress, not the mark.
+    expect(itemShowsWatched({ id: "r", userData: { played: true, positionMs: "1800000", durationMs: "6000000" } })).toBe(false);
+    expect(itemShowsWatched({ id: "r", userData: { played: true } })).toBe(true);
+    expect(itemPercent({ id: "p", userData: { percentComplete: 142 } })).toBe(100);
+  });
+});

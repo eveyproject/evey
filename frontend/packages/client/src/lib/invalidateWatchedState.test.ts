@@ -1,59 +1,79 @@
-import { describe, it, expect, vi } from "vitest";
-import { invalidateWatchedState } from "./invalidateWatchedState";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import { flushWatchedState, invalidateWatchedState } from "./invalidateWatchedState";
 
-function fakeQC() {
-  const calls: unknown[] = [];
-  const qc = {
-    invalidateQueries: vi.fn((arg: unknown) => { calls.push(arg); }),
-  };
-  return { qc: qc as never, calls, spy: qc.invalidateQueries };
+// A query on screen: an observer keeps it active, fetches counts its refetches.
+function onScreen(qc: QueryClient, key: string) {
+  const counter = { fetches: 0 };
+  const observer = new QueryObserver(qc, {
+    queryKey: [key],
+    queryFn: async () => { counter.fetches++; return { at: counter.fetches }; },
+    staleTime: Infinity,
+  });
+  const unsubscribe = observer.subscribe(() => {});
+  return { counter, unsubscribe };
 }
 
-// The predicate must accept every watched-sensitive feed: one missing from it
-// left a finished title stuck in its row for the 5-minute cache.
+async function settle() {
+  await vi.advanceTimersByTimeAsync(500);
+}
+
 describe("invalidateWatchedState", () => {
-  function predicateFor(calls: unknown[]) {
-    const withPredicate = calls.find(
-      (c): c is { predicate: (q: { queryKey: unknown[] }) => boolean } =>
-        typeof (c as { predicate?: unknown }).predicate === "function",
-    );
-    if (!withPredicate) throw new Error("no predicate invalidation issued");
-    return (key: string) => withPredicate.predicate({ queryKey: [key] });
-  }
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
 
-  it("invalidates the home feeds and Most Popular", () => {
-    const { qc, calls } = fakeQC();
+  // Every key, not a chosen list: a key missing from the old list (Continue
+  // Watching, Most Popular, the library rails) kept a watched title on screen.
+  it("refreshes every query on screen, whatever its key", async () => {
+    const qc = new QueryClient();
+    const keys = ["/api/v1/media", "/api/v1/feeds/recommended", "/api/v1/playback/resume", "/api/v1/some/future/list"];
+    const shown = keys.map((k) => onScreen(qc, k));
+    await settle();
     invalidateWatchedState(qc, "mi-1");
-    const matches = predicateFor(calls);
-    expect(matches("/api/v1/feeds/recommended")).toBe(true);
-    expect(matches("/api/v1/feeds/resume-playback")).toBe(true);
-    expect(matches("/api/v1/popular")).toBe(true);
-    expect(matches("/api/v1/playback/series/show-1/play-target")).toBe(true);
-    expect(matches("/api/v1/libraries")).toBe(false);
-  });
-
-  // The Continue Watching row of all four homes reads /api/v1/playback/resume,
-  // not a /feeds/ key: a title finished in the player stayed in it for the
-  // cache's lifetime, longer on a television whose home tab never unmounts.
-  it("invalidates the Continue Watching row", () => {
-    const { qc, calls } = fakeQC();
-    invalidateWatchedState(qc, "mi-1");
-    expect(predicateFor(calls)("/api/v1/playback/resume")).toBe(true);
-  });
-
-  it("invalidates the item + its progress when a mediaId is given", () => {
-    const { qc, spy } = fakeQC();
-    invalidateWatchedState(qc, "mi-1");
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["/api/v1/media/mi-1"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["/api/v1/playback/mi-1/progress"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["/api/v1/playback/history"] });
-  });
-
-  it("skips the item keys when no mediaId is given", () => {
-    const { qc, spy } = fakeQC();
+    await settle();
+    for (const s of shown) expect(s.counter.fetches).toBe(2);
+    qc.setQueryData(["/api/v1/off-screen"], { x: 1 });
     invalidateWatchedState(qc);
-    const keys = spy.mock.calls.map((c) => (c[0] as { queryKey?: string[] }).queryKey?.[0]).filter(Boolean);
-    expect(keys).toContain("/api/v1/playback/history");
-    expect(keys).not.toContain("/api/v1/media/undefined");
+    await settle();
+    expect(qc.getQueryState(["/api/v1/off-screen"])?.isInvalidated).toBe(true);
+    shown.forEach((s) => s.unsubscribe());
+  });
+
+  // A bulk mark fires one mutation per title: their refreshes share one pass,
+  // so fifty marks do not become fifty rounds of every query on screen.
+  it("coalesces a burst of marks into one refresh", async () => {
+    const qc = new QueryClient();
+    const shown = onScreen(qc, "/api/v1/media");
+    await settle();
+    for (let i = 0; i < 50; i++) invalidateWatchedState(qc, `mi-${i}`);
+    await settle();
+    expect(shown.counter.fetches).toBe(2);
+    shown.unsubscribe();
+  });
+
+  // The title a player shows is marked stale, not refetched under it.
+  it("leaves the playing title's own page alone until it is shown again", async () => {
+    const qc = new QueryClient();
+    const playing = onScreen(qc, "/api/v1/media/mi-1");
+    const rail = onScreen(qc, "/api/v1/media");
+    await settle();
+    invalidateWatchedState(qc, "mi-1", { playingId: "mi-1" });
+    await settle();
+    expect(playing.counter.fetches).toBe(1);
+    expect(qc.getQueryState(["/api/v1/media/mi-1"])?.isInvalidated).toBe(true);
+    expect(rail.counter.fetches).toBe(2);
+    playing.unsubscribe();
+    rail.unsubscribe();
+  });
+
+  it("flushes on demand", async () => {
+    const qc = new QueryClient();
+    const shown = onScreen(qc, "/api/v1/media");
+    await settle();
+    invalidateWatchedState(qc);
+    flushWatchedState(qc);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(shown.counter.fetches).toBe(2);
+    shown.unsubscribe();
   });
 });

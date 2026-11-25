@@ -3,7 +3,7 @@ import { progressPercent } from "../lib/progressPercent";
 import { showsWatched } from "../lib/resumePosition";
 import type { V1WatchProgress } from "@evey/api";
 import { usePlaybackServiceGetWatchHistory, WATCH_HISTORY_OVERLAY_LIMIT } from "@evey/api";
-import type { V1GetWatchHistoryResponse } from "@evey/api";
+import type { V1GetWatchHistoryResponse, V1MediaUserData } from "@evey/api";
 
 // useIsWatched is the per-card subscription: it shares the same history query
 // as useWatchedMap but selects a single boolean, so a refetch only re-renders
@@ -11,7 +11,7 @@ import type { V1GetWatchHistoryResponse } from "@evey/api";
 // subscriber a NEW Map on each resolution - fine for one list-level filter,
 // pathological for 100+ mounted cards. It answers for the card's mark
 // (showsWatched), not for the stored flag.
-export function useIsWatched(id: string | undefined) {
+export function useIsWatched(id: string | undefined, enabled = true) {
   const select = useCallback(
     (data: V1GetWatchHistoryResponse) =>
       !!id && (data?.items ?? []).some((it) => it.mediaItemId === id && showsWatched(it)),
@@ -19,9 +19,45 @@ export function useIsWatched(id: string | undefined) {
   );
   const { data } = usePlaybackServiceGetWatchHistory(
     { limit: WATCH_HISTORY_OVERLAY_LIMIT },
-    { query: { staleTime: 30_000, select } },
+    { query: { staleTime: 30_000, select, enabled } },
   );
   return data === true;
+}
+
+// The watched mark of a title is the server's: every title it returns carries
+// user_data (MediaUserData), read by one rule (a series once every episode is
+// done). The watch-history overlay below is only the answer of a server too
+// old to send it - a title without user_data - and it lost titles past its
+// 500-row window.
+type WithUserData = { id?: string; userData?: V1MediaUserData | null };
+
+/** Whether a list should count the title as seen (the stored flag). */
+export function itemPlayed(item: WithUserData, legacy?: ReadonlyMap<string, boolean>): boolean {
+  if (item.userData) return item.userData.played === true;
+  return !!item.id && legacy?.get(item.id) === true;
+}
+
+/** Whether the title's card wears the watched mark (see showsWatched). */
+export function itemShowsWatched(item: WithUserData, legacy?: ReadonlyMap<string, boolean>): boolean {
+  if (item.userData) return showsWatched(item.userData);
+  return !!item.id && legacy?.get(item.id) === true;
+}
+
+/** The title's progress in percent, 0 when none. */
+export function itemPercent(item: WithUserData, legacy?: ReadonlyMap<string, number>): number {
+  if (item.userData) return progressPercent(item.userData.percentComplete ?? 0);
+  return (item.id && legacy?.get(item.id)) || 0;
+}
+
+/** What a list hides as already seen: the server's flag, or the overlay's. */
+export function filterUnwatched<T extends WithUserData>(items: readonly T[], legacy?: ReadonlyMap<string, boolean>): T[] {
+  return items.filter((it) => !itemPlayed(it, legacy));
+}
+
+/** A card's mark, reading the overlay only for a title without user_data. */
+export function useItemShowsWatched(item: WithUserData): boolean {
+  const legacy = useIsWatched(item.id, !item.userData);
+  return item.userData ? showsWatched(item.userData) : legacy;
 }
 
 // useWatchedMap is the stored flag: what a list filters "already seen" by.
