@@ -287,7 +287,9 @@ func copyThenRemove(ctx context.Context, from, to string) (err error) {
 	// A partial left by a copy a shutdown cut short is ours (only Evey writes
 	// in the trash); it would block this copy for good.
 	if st, serr := os.Lstat(partial); serr == nil && st.Mode().IsRegular() {
-		_ = os.Remove(partial) //nolint:gosec // G703 FP: a .evey-partial file inside the trash folder, written by Evey alone
+		if rmErr := os.Remove(partial); rmErr != nil { //nolint:gosec // G703 FP: a .evey-partial file inside the trash folder, written by Evey alone
+			return fmt.Errorf("clear a partial copy left behind: %w", rmErr)
+		}
 	}
 	dst, err := os.OpenFile(partial, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm()) //nolint:gosec // G304 FP: next to a destination under the library root
 	if err != nil {
