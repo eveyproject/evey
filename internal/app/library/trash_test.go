@@ -177,3 +177,21 @@ func TestMoveToTrash_AcrossDisks_FailedCopyKeepsOriginal(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, exists(video), "the original stays when the copy fails")
 }
+
+// A copy never follows a link: a symlink planted in a library, pointing at a
+// server secret, must not have that secret copied into the trash.
+func TestMoveToTrash_AcrossDisks_RefusesSymlink(t *testing.T) {
+	crossDevice(t)
+	root := t.TempDir()
+	secret := filepath.Join(t.TempDir(), "secret.key")
+	require.NoError(t, os.WriteFile(secret, []byte("private"), 0o600))
+	link := filepath.Join(root, "films", "Dune.mkv")
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+	require.NoError(t, os.Symlink(secret, link))
+
+	_, err := moveToTrash(root, link)
+	require.Error(t, err)
+	copied, _ := os.ReadFile(filepath.Join(root, TrashDirName, "films", "Dune.mkv"))
+	assert.NotContains(t, string(copied), "private", "the secret must not reach the library")
+	assert.True(t, exists(secret))
+}

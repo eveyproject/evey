@@ -166,7 +166,10 @@ func moveFile(from, to string) error {
 }
 
 func copyThenRemove(from, to string) (err error) {
-	src, err := os.Open(from) //nolint:gosec // G304 FP: a library media file the trash already resolved under its library root
+	// O_NOFOLLOW and a regular file only: a copy, unlike a rename, reads what
+	// a link points at, and a link planted in a library could otherwise bring
+	// a server secret into it.
+	src, err := os.OpenFile(from, os.O_RDONLY|syscall.O_NOFOLLOW, 0) //nolint:gosec // G304 FP: a library media file the trash already resolved under its library root
 	if err != nil {
 		return err
 	}
@@ -174,6 +177,9 @@ func copyThenRemove(from, to string) (err error) {
 	info, err := src.Stat()
 	if err != nil {
 		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("copy across disks: %s is not a regular file", from)
 	}
 	partial := to + partialSuffix
 	dst, err := os.OpenFile(partial, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm()) //nolint:gosec // G304 FP: next to a destination under the library root
