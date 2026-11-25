@@ -33,6 +33,12 @@ export interface EveyBridge {
     // origin taints cross-origin textures, so a plugin cannot load library
     // posters any other way.
     poster(id: string): Promise<string>;
+    // What the libraries miss, worked out by the server from what it stored
+    // of TMDB: { series: [{ seriesId, title, year, fromCatalog, seasons: [{
+    // season, whole, episodes: [{ episode, title, airDate }] }] }], sagas: [{
+    // collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }] }.
+    // Permission media.gaps, on an administrator's session only.
+    gaps(): Promise<unknown>;
     // Asks the host to move these media files to their library's trash. The
     // host shows its own confirmation, built from the server's record of each
     // item; the promise resolves to { trashed: [{ id, trashedPath }], failed:
@@ -96,6 +102,7 @@ export const BRIDGE_SCRIPT = `
       get: function(id) { return rpc("media.get", { id: id }); },
       list: function(opts) { return rpc("media.list", opts || {}); },
       poster: function(id) { return rpc("media.poster", { id: id }); },
+      gaps: function() { return rpc("media.gaps", {}); },
       trash: function(ids) { return rpc("media.trash", { ids: ids || [] }); },
       restore: function(paths) { return rpc("media.restore", { paths: paths || [] }); }
     },

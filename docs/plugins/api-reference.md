@@ -271,6 +271,28 @@ belong.
 `poster` returns a `data:` URL because the frame's policy forbids loading an
 image from the server directly; use it as an `<img>` source or a texture.
 
+### `evey.media.gaps()` (permission `media.gaps`)
+
+What the libraries miss, worked out by Evey: the aired episodes of the
+series they hold that are not there, and the released films of the sagas
+they started. Evey learns what a series or a saga contains from TMDB on its
+own, at its own pace (a stored answer is renewed after a week); a plugin never
+calls TMDB, it reads the result.
+
+```js
+const { series, sagas } = await evey.media.gaps();
+// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
+//   episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+```
+
+Only what is out counts: an episode or a film without a date, or dated after
+today, is not missing yet, and specials (season 0) are left out. A series TMDB
+does not know is listed from the holes in its own numbering (`fromCatalog`
+false): episodes missing below the highest held, seasons missing below the
+highest held (`whole`, with no episode list). On an administrator's session
+only, like `media.files`.
+
 ### `evey.media.trash(ids)` (permission `media.trash`, slot `admin.nav` only)
 
 Asks Evey to move media files to the trash of their library. The plugin only

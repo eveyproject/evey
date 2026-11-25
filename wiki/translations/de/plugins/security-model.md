@@ -1,5 +1,5 @@
 ---
-source_sha: c65f3c0022c382ccdcdeb528b421c080edcf8bde1382a04fde320dbe9fca3701
+source_sha: 1b3b5ce7c086e1f2a42545c9d6c6895b8fcdf7c5f78287e1ea52cecfe7cd45a4
 reviewed: true
 ---
 # Berechtigungen und Slots { #permissions-and-slots }
@@ -83,6 +83,7 @@ unter `capabilities` angegeben: siehe
 | `notification.sender` | Für `SendNotification` reserviert, heute nicht bedient. |
 | `public` | Die Oberfläche darf eine sichere Projektion der Medien lesen (id, Titel, Typ, Jahr, Inhaltsangabe, Poster), nie Pfade oder Streams. Siehe [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `media.files` | Fügt dem, was `public` liefert, Dateipfad und Größe jedes Mediums hinzu. Das Token trägt sie nur, wenn die ansehende Person Administrator ist; für alle anderen wird sie beim Ausstellen des Tokens entfernt. Ein Pfad nennt die Ordner des Servers, daher sieht der Administrator sie in der Installationszustimmung. |
+| `media.gaps` | Die Oberfläche darf lesen, was den Bibliotheken fehlt (ausgestrahlte Episoden vorhandener Serien, erschienene Filme begonnener Reihen), von Evey aus dem berechnet, was es von TMDB gespeichert hat. Nie ein Aufruf von TMDB durch das Plugin. Das Token trägt sie nur, wenn die ansehende Person Administrator ist. |
 | `media.trash` | Auf ihrer `admin.nav`-Seite darf die Oberfläche Evey bitten, Mediendateien in den Papierkorb der Bibliothek zu verschieben. Nie ein Token-Scope: Die Host-Seite zeigt Eveys eigene Bestätigung aus Eveys Datensätzen, und nur das Ja des Administrators dort ruft den Admin-Endpunkt auf, mit dessen Sitzung. Dateien werden nach `.evey-trash` verschoben, nie gelöscht. |
 | `prefs` | Die Oberfläche darf die Einstellungen des aktuellen Benutzers im eigenen Namensraum des Plugins lesen und schreiben. Siehe [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |
 | `hardware.gpu` | Der Prozess bekommt den DRM-Render-Knoten des Hosts (den echten `renderD1xx`, nie einen Card-Knoten). Das ist eine Angriffsfläche auf den Kernel-Treiber und eine GPU-Speichergrenze, die er mit dem Transcoder teilt: Eine hängende GPU kann die Transkodierung blockieren. Ohne diese Berechtigung sind GPU-Knoten ganz aus der Landlock-Freigabeliste ausgeschlossen. Mit ihr fügt der Launcher eine `IOCTL_DEV`-Regel hinzu, die nur für diese eine Datei gilt (Landlock ABI 5 oder neuer; bei älteren Kerneln erlaubt schon der Lese- und Schreibzugriff, Befehle abzuschicken). Das Sicherheits-Dashboard zeigt eine kritische Warnung, sobald das Plugin installiert ist. Gewähren Sie sie nur Plugins, die Sie auch ohne Sandbox laufen lassen würden. |

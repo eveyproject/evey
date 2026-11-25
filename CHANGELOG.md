@@ -7,6 +7,15 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+### Added
+- Missing episodes and saga films: the server learns from TMDB what each
+  series and saga contains (one call per series for up to 20 seasons, one per
+  saga, at most one every half second, renewed weekly) and stores it
+  (migration 000201). `GET /api/v1/public/catalog-gaps` and the plugin bridge
+  `evey.media.gaps()` (permission `media.gaps`, administrators only) list the
+  aired episodes and released films a library lacks; a series TMDB does not
+  know is read from the holes in its own numbering. Plugins never call TMDB.
+
 ### Fixed
 - Media trash: on pooled disks (mergerfs, unRAID) moving a file to the trash
   failed with an internal error, the trash folder having been created on

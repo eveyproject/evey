@@ -1,5 +1,5 @@
 ---
-source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
+source_sha: c5a6e328a581a7ee91f06bf5ab358435d8699a0c280a7161b22a0879f70c4d5a
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -229,6 +229,22 @@ const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pag
 展示给所有人的模块不能依赖它们，它们该出现在 `admin.nav` 插槽里。
 
 `poster` 返回 `data:` URL，是因为框架的策略禁止直接从服务器加载图片；可以把它用作 `<img>` 的来源，或者当作纹理。
+
+### `evey.media.gaps()`（权限 `media.gaps`） { #eveymediagaps-permission-mediagaps }
+
+媒体库缺了什么，由 Evey 计算：已有剧集中已播出但没有的单集，以及已开始收藏的系列电影中已上映但没有的影片。
+一部剧或一个系列包含什么，由 Evey 自己按节奏向 TMDB 查询（保存的结果一周后更新）；插件从不调用 TMDB，只读取结果。
+
+```js
+const { series, sagas } = await evey.media.gaps();
+// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
+//   episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+```
+
+只计算已经发布的内容：没有日期或日期晚于今天的单集或电影还不算缺失，特别篇（第 0 季）不计入。
+TMDB 不认识的剧集按其自身编号中的空缺列出（`fromCatalog` 为 false）：低于已有最高集号的缺失单集、低于已有最高季号的缺失整季（`whole`，不带单集列表）。
+仅限管理员会话，与 `media.files` 相同。
 
 ### `evey.media.trash(ids)`（权限 `media.trash`，仅限插槽 `admin.nav`） { #eveymediatrashids }
 

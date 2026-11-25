@@ -1,5 +1,5 @@
 ---
-source_sha: 0e25a7ce4564f72e546c82bf5267be11dfe026546cf64b72e66ca3b73d2d088b
+source_sha: c5a6e328a581a7ee91f06bf5ab358435d8699a0c280a7161b22a0879f70c4d5a
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -282,6 +282,29 @@ debe contar con ellos, su sitio es el slot `admin.nav`.
 `poster` devuelve una URL `data:` porque la política del marco prohíbe cargar
 una imagen directamente desde el servidor; úsala como fuente de un `<img>` o
 como textura.
+
+### `evey.media.gaps()` (permiso `media.gaps`) { #eveymediagaps-permission-mediagaps }
+
+Lo que les falta a las bibliotecas, calculado por Evey: los episodios ya
+emitidos de las series presentes que no están, y las películas ya estrenadas
+de las sagas empezadas. Evey averigua lo que contiene una serie o una saga en
+TMDB por su cuenta, a su ritmo (una respuesta guardada se renueva al cabo de
+una semana); un plugin nunca llama a TMDB, lee el resultado.
+
+```js
+const { series, sagas } = await evey.media.gaps();
+// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
+//   episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+```
+
+Solo cuenta lo que ya ha salido: un episodio o una película sin fecha, o con
+fecha posterior a hoy, todavía no falta, y los especiales (temporada 0) quedan
+fuera. Una serie que TMDB no conoce se lista según los huecos de su propia
+numeración (`fromCatalog` falso): episodios que faltan por debajo del más alto
+presente, temporadas que faltan por debajo de la más alta presente (`whole`,
+sin lista de episodios). Solo en la sesión de un administrador, como
+`media.files`.
 
 ### `evey.media.trash(ids)` (permiso `media.trash`, solo en el slot `admin.nav`) { #eveymediatrashids }
 
