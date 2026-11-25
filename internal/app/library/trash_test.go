@@ -3,6 +3,7 @@ package library
 import (
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/eveyproject/evey/internal/domain/library"
@@ -113,4 +114,66 @@ func TestRestoreTarget_Refusals(t *testing.T) {
 	touch(t, filepath.Join(root, "Taken.mkv"))
 	_, _, err := restoreTarget(libs, filepath.Join(root, TrashDirName, "Taken.mkv"))
 	require.ErrorIs(t, err, ErrRestoreTaken)
+}
+
+// crossDevice makes every rename between two different folders fail like a
+// move between disks (a mergerfs pool, two mounts), as rename(2) does; a
+// rename inside one folder works.
+func crossDevice(t *testing.T) {
+	t.Helper()
+	prev := rename
+	rename = func(from, to string) error {
+		if filepath.Dir(from) != filepath.Dir(to) {
+			return &os.LinkError{Op: "rename", Old: from, New: to, Err: syscall.EXDEV}
+		}
+		return os.Rename(from, to)
+	}
+	t.Cleanup(func() { rename = prev })
+}
+
+// Across disks the trash still works, as mv does: the file and its subtitles
+// are copied into .evey-trash, the originals removed, nothing partial left.
+func TestMoveToTrash_AcrossDisks_CopiesThenRemoves(t *testing.T) {
+	crossDevice(t)
+	root := t.TempDir()
+	video := filepath.Join(root, "films", "Dune.mkv")
+	require.NoError(t, os.MkdirAll(filepath.Dir(video), 0o755))
+	require.NoError(t, os.WriteFile(video, []byte("the whole film"), 0o640))
+	touch(t, filepath.Join(root, "films", "Dune.fr.srt"))
+
+	dest, err := moveToTrash(root, video)
+	require.NoError(t, err)
+
+	assert.Equal(t, filepath.Join(root, TrashDirName, "films", "Dune.mkv"), dest)
+	got, err := os.ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, "the whole film", string(got))
+	assert.False(t, exists(video), "the original is removed once the copy is whole")
+	assert.True(t, exists(filepath.Join(root, TrashDirName, "films", "Dune.fr.srt")))
+	assert.False(t, exists(filepath.Join(root, "films", "Dune.fr.srt")))
+	entries, err := os.ReadDir(filepath.Join(root, TrashDirName, "films"))
+	require.NoError(t, err)
+	for _, e := range entries {
+		assert.NotContains(t, e.Name(), partialSuffix, "no partial copy left behind")
+	}
+}
+
+// A copy that cannot finish leaves the original where it was, and no partial
+// file in the trash.
+func TestMoveToTrash_AcrossDisks_FailedCopyKeepsOriginal(t *testing.T) {
+	crossDevice(t)
+	root := t.TempDir()
+	video := filepath.Join(root, "films", "Dune.mkv")
+	touch(t, video)
+	trashDir := filepath.Join(root, TrashDirName, "films")
+	require.NoError(t, os.MkdirAll(trashDir, 0o755))
+	require.NoError(t, os.Chmod(trashDir, 0o555)) // the copy cannot be written
+	t.Cleanup(func() { _ = os.Chmod(trashDir, 0o755) })
+	if os.Getuid() == 0 {
+		t.Skip("root writes through a read-only folder")
+	}
+
+	_, err := moveToTrash(root, video)
+	require.Error(t, err)
+	assert.True(t, exists(video), "the original stays when the copy fails")
 }
