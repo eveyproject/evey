@@ -16,7 +16,7 @@ import {
   getCollectionServiceGetCollectionItemsQueryKey,
   getCollectionServiceListCollectionsForMediaItemQueryKey,
 } from "@evey/api";
-import type { V1CollectionProto } from "@evey/api";
+import type { V1CollectionProto, V1MediaStream } from "@evey/api";
 
 // The collections of every client. The web kept its own layer beside this one
 // until 2026-09-24 (generated API, no toast) while the phone and the
@@ -54,6 +54,8 @@ export interface CollectionItem {
   overview?: string;
   communityRating?: number;
   genres?: string[];
+  /** The title's video stream as a card reads it (resolution, HDR badges). */
+  streams?: V1MediaStream[];
 }
 
 function mapCollection(c: V1CollectionProto): Collection {
@@ -73,7 +75,7 @@ function mapCollection(c: V1CollectionProto): Collection {
   };
 }
 
-function mapItem(i: { id?: string; title?: string; type?: string; year?: number; overview?: string; communityRating?: number; genres?: string[] }): CollectionItem {
+function mapItem(i: { id?: string; title?: string; type?: string; year?: number; overview?: string; communityRating?: number; genres?: string[]; videoStream?: V1MediaStream }): CollectionItem {
   return {
     id: i.id ?? "",
     title: i.title ?? "",
@@ -82,6 +84,7 @@ function mapItem(i: { id?: string; title?: string; type?: string; year?: number;
     overview: i.overview,
     communityRating: i.communityRating,
     genres: i.genres,
+    streams: i.videoStream ? [i.videoStream] : undefined,
   };
 }
 

@@ -262,7 +262,7 @@ function FavoritesPage() {
           {filtered.map((fav) => (
             <MediaCard
               key={fav.mediaItemId}
-              item={{ id: fav.mediaItemId, title: fav.title, type: fav.type }}
+              item={{ id: fav.mediaItemId, title: fav.title, type: fav.type, streams: fav.videoStream ? [fav.videoStream] : undefined }}
               selected={isSelected(fav.mediaItemId)}
               selectionMode={bulkMode}
               onSelect={bulkMode ? handleSelect : undefined}

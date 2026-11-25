@@ -1,4 +1,4 @@
-import { useActivityServiceGetPopularMedia } from "@evey/api";
+import { useActivityServiceGetPopularMedia, type V1MediaStream } from "@evey/api";
 
 export interface PopularItem {
   mediaItemId: string;
@@ -7,6 +7,8 @@ export interface PopularItem {
   year?: number;
   primaryBlurhash?: string;
   communityRating?: number;
+  /** The card's resolution and HDR badges (see feedItemToCard). */
+  videoStream?: V1MediaStream;
   playCount: number;
 }
 
@@ -24,6 +26,9 @@ export function useMostPopular(limit = 20, enabled = true) {
             year: it.year || undefined,
             primaryBlurhash: it.primaryBlurhash || undefined,
             communityRating: it.communityRating || undefined,
+            // Dropped here, the popular row was the one home rail without
+            // badges while the server sent them.
+            videoStream: it.videoStream,
             playCount: it.playCount ?? 0,
           })),
         staleTime: 5 * 60_000,

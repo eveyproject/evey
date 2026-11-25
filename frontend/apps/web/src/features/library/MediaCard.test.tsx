@@ -194,6 +194,25 @@ describe("MediaCard", () => {
     expect(screen.getByTestId("hdr-badge")).toHaveTextContent("HDR");
   });
 
+  // Every home rail hands the card its title's video stream: the badges come
+  // from it, with no prop to pass (none of the rails ever passed one).
+  it("reads the badges off the title's video stream", () => {
+    const item = { ...baseItem, streams: [
+      { type: "MEDIA_STREAM_TYPE_AUDIO" as const },
+      { type: "MEDIA_STREAM_TYPE_VIDEO" as const, width: 3840, height: 2160, colorTransfer: "smpte2084" },
+    ] };
+    render(<MediaCard item={item} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("resolution-badge")).toHaveTextContent("4K");
+    expect(screen.getByTestId("hdr-badge")).toHaveTextContent("HDR");
+  });
+
+  it("shows no HDR badge on an SDR stream", () => {
+    const item = { ...baseItem, streams: [{ type: "MEDIA_STREAM_TYPE_VIDEO" as const, width: 1920, height: 1080, colorTransfer: "bt709" }] };
+    render(<MediaCard item={item} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("resolution-badge")).toHaveTextContent("1080p");
+    expect(screen.queryByTestId("hdr-badge")).not.toBeInTheDocument();
+  });
+
   it("does not show resolution/HDR badges when not provided", () => {
     render(<MediaCard item={baseItem} />, { wrapper: Wrapper });
     expect(screen.queryByTestId("resolution-badge")).not.toBeInTheDocument();

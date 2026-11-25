@@ -32,6 +32,16 @@ const baseCollection: Collection = {
 };
 
 describe("CollectionCard", () => {
+  // A home row of collections sits between rows of title cards: same width,
+  // or it reads as a row of smaller posters.
+  it("is as wide as a title card", async () => {
+    const { CollectionCard } = await import("./CollectionCard");
+    render(<CollectionCard collection={baseCollection} />);
+    const cls = screen.getByTestId("collection-card").className;
+    expect(cls).toContain("w-40");
+    expect(cls).toContain("sm:w-48");
+  });
+
   it("renders collection name and link to collection page", async () => {
     const { CollectionCard } = await import("./CollectionCard");
     render(<CollectionCard collection={baseCollection} />);

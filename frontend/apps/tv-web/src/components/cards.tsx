@@ -11,6 +11,18 @@ function CardImage({ url, fallback }: { url?: string; fallback: ReactNode }) {
   return <img src={src} alt="" loading="lazy" onError={onError} onLoad={onLoad} />;
 }
 
+// The resolution and HDR badges of a poster: one rendering for the home rows
+// and the library grid, so the two cannot drift apart.
+function TechBadges({ resolution, hdr, raised }: { resolution?: string | null; hdr?: boolean; raised?: boolean }) {
+  if (!resolution && !hdr) return null;
+  return (
+    <span className={`tech-row ${raised ? "raised" : ""}`}>
+      {resolution ? <span className="tech-badge">{resolution}</span> : null}
+      {hdr ? <span className="tech-badge hdr">HDR</span> : null}
+    </span>
+  );
+}
+
 interface PosterCardProps {
   title: string;
   subtitle?: string;
@@ -19,6 +31,8 @@ interface PosterCardProps {
   width: number;
   aspect?: "poster" | "square";
   rating?: number;
+  resolution?: string | null;
+  hdr?: boolean;
   /** How far in, 0 to 100: the bar under the picture. */
   percent?: number;
   onPress: () => void;
@@ -28,7 +42,7 @@ interface PosterCardProps {
 }
 
 /** The Android television's poster card; the ring and the 5 % lift are FocusableCard's. */
-function PosterCardImpl({ title, subtitle, imageUrl, width, aspect = "poster", rating, percent, onPress, focusKey, autoFocus, onFocus }: PosterCardProps) {
+function PosterCardImpl({ title, subtitle, imageUrl, width, aspect = "poster", rating, resolution, hdr, percent, onPress, focusKey, autoFocus, onFocus }: PosterCardProps) {
   const w = width / 10;
   const h = aspect === "poster" ? w * POSTER_RATIO : w;
   return (
@@ -38,6 +52,7 @@ function PosterCardImpl({ title, subtitle, imageUrl, width, aspect = "poster", r
         {rating != null && rating > 0 ? (
           <span className="rating-badge"><Icon name="star" size={12} />{rating.toFixed(1)}</span>
         ) : null}
+        <TechBadges resolution={resolution} hdr={hdr} />
       </span>
       {percent != null && percent > 0 ? (
         <span className="card-progress"><i style={{ width: `${Math.min(100, percent)}%` }} /></span>
@@ -77,12 +92,7 @@ function GridCardImpl({ title, subtitle, imageUrl, rating, resolution, hdr, watc
         {rating != null && rating > 0 ? (
           <span className={`tech-badge rating ${low}`}><Icon name="star" size={11} />{rating.toFixed(1)}</span>
         ) : null}
-        {resolution || hdr ? (
-          <span className={`tech-row ${low}`}>
-            {resolution ? <span className="tech-badge">{resolution}</span> : null}
-            {hdr ? <span className="tech-badge hdr">HDR</span> : null}
-          </span>
-        ) : null}
+        <TechBadges resolution={resolution} hdr={hdr} raised={hasProgress} />
         {watched !== undefined ? (
           <span className={`watched-mark ${watched ? "on" : ""}`}><Icon name="checkmark" size={12} /></span>
         ) : null}
