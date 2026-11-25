@@ -24,6 +24,11 @@ line - earlier history lives in git.
   longer depends on the page staying open.
 
 ### Fixed
+- Now playing: a paused film whose player went quiet for more than 2 minutes
+  (a computer asleep) was ended by the stale sweep, and it never came back to
+  the admin's now-playing list once playback resumed, though its progress
+  kept being saved. The player's next progress tick now reopens it; a session
+  stopped by its player or by an administrator stays ended.
 - Media trash: on pooled disks (mergerfs, unRAID) moving a file to the trash
   failed with an internal error, the trash folder having been created on
   another disk than the file. The file now crosses the way `mv` does: copied,

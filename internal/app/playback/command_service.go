@@ -375,16 +375,17 @@ func (s *CommandService) reportProgress(ctx context.Context, sessionID string, p
 	if err != nil {
 		return nil, fmt.Errorf("update session position: %w", err)
 	}
-	// A restart ends every open session, but a web player keeps streaming and
-	// ticking on the same id without ever starting a new one: it vanished from
-	// now-playing for the rest of the film (prod).
+	// A restart, or the stale sweep after a player went quiet for 2 minutes,
+	// ends the session, but the player keeps ticking on the same id without
+	// ever starting a new one: it vanished from now-playing for the rest of
+	// the film (prod, both).
 	if !updated {
-		reopened, err := s.sessions.ReopenEndedBefore(ctx, sessionID, s.startedAt, safePositionMs, isPaused, castDeviceName)
+		reopened, err := s.sessions.ReopenNotStopped(ctx, sessionID, s.startedAt, safePositionMs, isPaused, castDeviceName)
 		if err != nil {
 			return nil, fmt.Errorf("reopen session: %w", err)
 		}
 		if reopened {
-			slog.InfoContext(ctx, "reopened play session ended by a restart", slog.String("sessionID", sessionID))
+			slog.InfoContext(ctx, "reopened play session nobody stopped", slog.String("sessionID", sessionID))
 		}
 	}
 	// Auto-completion: when a duration source is wired and the position
@@ -815,7 +816,7 @@ func (s *CommandService) SetCastReceiverCommand(ctx context.Context, profileID, 
 // only 2 minutes after their last heartbeat - so a restart handed the operator
 // a now-playing list full of viewers who had been disconnected by the restart
 // itself. A client that keeps playing across the restart gets its session
-// back on its next progress tick (ReopenEndedBefore).
+// back on its next progress tick (ReopenNotStopped).
 func (s *CommandService) EndAllSessions(ctx context.Context) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.EndAllSessions")
 	defer span.End()
