@@ -271,6 +271,8 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		impersonationGuard.Unary(),
 		// Every MediaItem an answer carries gets the caller's watched mark here.
 		grpcapi.MediaUserDataUnary(grpcDeps.PlaybackQuery),
+		// Every card an answer carries gets its video stream (resolution, HDR).
+		grpcapi.MediaCardStreamsUnary(grpcDeps.LibQuery),
 		// Innermost: it sees the handler's own refusals, with their message key.
 		grpcapi.AccountAuditUnary(deps.engagement.activityCmdSvc),
 	}

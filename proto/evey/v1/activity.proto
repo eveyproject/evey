@@ -282,6 +282,9 @@ message PopularMediaItem {
   string primary_blurhash = 6;
   // Audience score, same scale as MediaItem.community_rating, 0 when unknown.
   double community_rating = 7;
+  // The title's video stream, for the card's resolution and HDR badges, as on
+  // FeedItem.
+  MediaStream video_stream = 8;
 }
 
 message GetPopularMediaRequest {
