@@ -17,7 +17,7 @@ function TechBadges({ resolution, hdr, raised }: { resolution?: string | null; h
   if (!resolution && !hdr) return null;
   return (
     <span className={`tech-row ${raised ? "raised" : ""}`}>
-      {resolution ? <span className={`tech-badge ${resolution === "4K" ? "uhd" : ""}`}>{resolution}</span> : null}
+      {resolution ? <span className="tech-badge">{resolution}</span> : null}
       {hdr ? <span className="tech-badge hdr">HDR</span> : null}
     </span>
   );

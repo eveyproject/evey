@@ -12,11 +12,14 @@ describe("QualityChips", () => {
     expect(qualityOf(undefined)).toEqual({ res: null, hdr: null });
   });
 
-  it("sets 4K apart from the other resolutions", () => {
+  // One chip for every resolution: 4K and 1080p differ by their text only.
+  it("dresses every resolution the same", () => {
     const { rerender } = render(<QualityChips res="4K" hdr="HDR" />);
-    expect(screen.getByTestId("resolution-badge").className).toContain("evey-quality-4k");
+    const uhd = screen.getByTestId("resolution-badge");
+    const look = [uhd.className, uhd.getAttribute("style")];
     rerender(<QualityChips res="1080p" hdr={null} />);
-    expect(screen.getByTestId("resolution-badge").className).not.toContain("evey-quality-4k");
+    const fhd = screen.getByTestId("resolution-badge");
+    expect([fhd.className, fhd.getAttribute("style")]).toEqual(look);
     expect(screen.queryByTestId("hdr-badge")).toBeNull();
   });
 
