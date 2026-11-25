@@ -44,6 +44,10 @@ push:
     title: "Plugin update awaiting your approval: {plugin}"
   plugin_update_refused:
     title: "Plugin update refused: {plugin}"
+  media_trashed:
+    title: "Moved to the trash: {title}"
+  media_trash_failed:
+    title: "Could not move to the trash: {title}"
   # Push bodies for the media request events: the stored Message is a
   # machine value the clients translate; the push is rendered here.
   media_type:

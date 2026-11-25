@@ -50,13 +50,18 @@ const (
 	// admin. TypePluginUpdateRefused: its code was refused. Admin-only.
 	TypePluginUpdateHeld    Type = "plugin_update_held"
 	TypePluginUpdateRefused Type = "plugin_update_refused"
+	// TypeMediaTrashed / TypeMediaTrashFailed close a move to the trash that
+	// had to copy the file to another disk, in the background. Admin-only.
+	TypeMediaTrashed     Type = "media_trashed"
+	TypeMediaTrashFailed Type = "media_trash_failed"
 )
 
 func (t Type) IsValid() bool {
 	switch t {
 	case TypeNewMovie, TypeNewEpisode, TypeNewSeason, TypeNewSeries, TypeNewAlbum,
 		TypeLibraryScanned, TypeBackupFailed, TypePluginError, TypeCacheFull, TypeCustom, TypePruneSuspended,
-		TypeMediaRequest, TypeRequestAnswered, TypePluginUpdateHeld, TypePluginUpdateRefused:
+		TypeMediaRequest, TypeRequestAnswered, TypePluginUpdateHeld, TypePluginUpdateRefused,
+		TypeMediaTrashed, TypeMediaTrashFailed:
 		return true
 	}
 	return false
@@ -75,7 +80,7 @@ func (t Type) IsValid() bool {
 func (t Type) IsAdminOnly() bool {
 	switch t {
 	case TypeBackupFailed, TypePluginError, TypeCacheFull, TypePruneSuspended, TypeMediaRequest,
-		TypePluginUpdateHeld, TypePluginUpdateRefused:
+		TypePluginUpdateHeld, TypePluginUpdateRefused, TypeMediaTrashed, TypeMediaTrashFailed:
 		return true
 	}
 	return false

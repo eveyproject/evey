@@ -22,6 +22,7 @@ type CommandServiceOption func(*CommandService)
 
 func WithShutdownCtx(ctx context.Context) CommandServiceOption {
 	return func(s *CommandService) {
+		s.trashCtx = ctx
 		if s.trickplay != nil {
 			s.trickplay.WithShutdownCtx(ctx)
 		}
@@ -57,6 +58,16 @@ func WithFileSettle(window time.Duration) CommandServiceOption {
 const DefaultFileSettle = time.Minute
 
 type CommandService struct {
+	// The trash's cross-disk copies: one worker, started on first use
+	// (enqueueTrash), stopped with trashCtx; trashPending maps an item id to
+	// its trash path while its copy waits or runs. trashHold lets a test hold
+	// the worker before it copies.
+	trashOnce    sync.Once
+	trashQueue   chan trashJob
+	trashPending sync.Map
+	trashCtx     context.Context
+	trashHold    chan struct{}
+
 	libraries  library.LibraryCommandRepo
 	mediaItems library.MediaItemCommandRepo
 	events     shared.EventBus

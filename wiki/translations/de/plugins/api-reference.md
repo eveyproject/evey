@@ -1,5 +1,5 @@
 ---
-source_sha: c5a6e328a581a7ee91f06bf5ab358435d8699a0c280a7161b22a0879f70c4d5a
+source_sha: 88b25d5013bee4a453fc1acd638af277264419566f6746aea48dd160a29a2b7e
 reviewed: true
 ---
 # Plugin-API-Referenz { #plugin-api-reference }
@@ -321,7 +321,7 @@ Administrator dort Ja sagt.
 
 ```js
 const res = await evey.media.trash([id1, id2]);
-// { trashed: [{ id, trashedPath }], failed: [{ id, message }] }
+// { trashed: [{ id, trashedPath, pending }], failed: [{ id, message }] }
 ```
 
 Bei Ja wandert jede Datei, mit Untertiteln und `.nfo`, nach `.evey-trash` im
@@ -333,7 +333,10 @@ Promise wird mit `cancelled` abgelehnt, wenn der Administrator Nein sagt, und
 mit `method not permitted` überall außer auf einer `admin.nav`-Seite eines
 Plugins mit `media.trash` im Browser (die Handy- und TV-Apps bieten es noch
 nicht an). Eine Ablehnung pro Datei (schreibgeschütztes Laufwerk, Datei schon
-weg) kommt in `failed` zurück.
+weg) kommt in `failed` zurück. `pending` ist wahr, wenn die Datei im
+Hintergrund in einen Papierkorb auf einer anderen Platte kopiert wird: Der
+Eintrag bleibt in `evey.media.list`, bis die Kopie vollständig ist, und die
+Administratoren werden in jedem Fall benachrichtigt.
 
 `evey.media.restore(paths)` macht das rückgängig, unter derselben Regel: Aus
 den `trashedPath`-Werten legt Evey jede Datei samt Untertiteln an ihren Platz

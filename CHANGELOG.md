@@ -16,6 +16,13 @@ line - earlier history lives in git.
   aired episodes and released films a library lacks; a series TMDB does not
   know is read from the holes in its own numbering. Plugins never call TMDB.
 
+### Changed
+- Media trash: a move that has to copy the file to another disk runs in the
+  background. The request answers at once with `pending`, one copy runs at a
+  time, and the administrators get a notification when it is done or why the
+  file stayed (`media_trashed`, `media_trash_failed`). The audit entry no
+  longer depends on the page staying open.
+
 ### Fixed
 - Media trash: on pooled disks (mergerfs, unRAID) moving a file to the trash
   failed with an internal error, the trash folder having been created on

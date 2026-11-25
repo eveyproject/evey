@@ -44,6 +44,10 @@ push:
     title: "Mise à jour de plugin en attente de votre accord : {plugin}"
   plugin_update_refused:
     title: "Mise à jour de plugin refusée : {plugin}"
+  media_trashed:
+    title: "Mis à la corbeille : {title}"
+  media_trash_failed:
+    title: "Mise à la corbeille impossible : {title}"
   # Push bodies for the media request events: the stored Message is a
   # machine value the clients translate; the push is rendered here.
   media_type:

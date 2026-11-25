@@ -19,6 +19,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "media.marked.watched",
   "media.request.answered",
   "media.request.created",
+  "media.trash.finished",
   "metadata.artwork.downloaded",
   "metadata.override.removed",
   "metadata.override.set",

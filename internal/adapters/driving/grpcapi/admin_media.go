@@ -253,20 +253,23 @@ func (d *adminMediaHandler) TrashMediaItem(ctx context.Context, req *eveyv1.Tras
 		span.SetStatus(otelcodes.Error, "service not configured")
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	}
-	dest, err := d.libCmd.TrashMediaItem(ctx, req.Id)
+	res, err := d.libCmd.TrashMediaItem(ctx, req.Id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		switch {
 		case errors.Is(err, shared.ErrNotFound):
 			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
-		case applibrary.IsTrashError(err) && dest == "":
+		case applibrary.IsTrashError(err) && res.TrashedPath == "":
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		}
 		return nil, internalError(ctx, "trash media item", err)
 	}
-	d.audit(ctx, "trash_media_item", "media", req.Id, map[string]any{"trashed_path": dest})
-	return &eveyv1.TrashMediaItemResponse{TrashedPath: dest}, nil
+	// The audit row outlives the request: an administrator who closed the page
+	// still trashed the file.
+	d.audit(context.WithoutCancel(ctx), "trash_media_item", "media", req.Id,
+		map[string]any{"trashed_path": res.TrashedPath, "pending": res.Pending})
+	return &eveyv1.TrashMediaItemResponse{TrashedPath: res.TrashedPath, Pending: res.Pending}, nil
 }
 
 // RestoreTrashedMedia moves a trashed file back and scans its library.
@@ -286,7 +289,7 @@ func (d *adminMediaHandler) RestoreTrashedMedia(ctx context.Context, req *eveyv1
 		}
 		return nil, internalError(ctx, "restore trashed media", err)
 	}
-	d.audit(ctx, "restore_trashed_media", "media", "", map[string]any{"from": req.TrashedPath, "to": dest})
+	d.audit(context.WithoutCancel(ctx), "restore_trashed_media", "media", "", map[string]any{"from": req.TrashedPath, "to": dest})
 	return &eveyv1.RestoreTrashedMediaResponse{RestoredPath: dest}, nil
 }
 
