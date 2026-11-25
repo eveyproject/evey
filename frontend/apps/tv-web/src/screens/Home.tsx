@@ -21,6 +21,9 @@ import {
   POSTER_RATIO,
   buildHomeSections,
   feedItemsToCards,
+  isHdrStream,
+  resolutionLabel,
+  videoStream,
   homeWidgetBudget,
   mediaTypeLabelKey,
   placedPluginIds,
@@ -106,6 +109,8 @@ function MediaRow({ rowKey, title, items, watchPercents, focusFirst, onOpen }: {
               subtitle={item.year ? String(item.year) : typeKey ? t(typeKey) : undefined}
               imageUrl={posterSrc(item.id, "poster", CARD_WIDTH_FEATURED * 2)}
               rating={item.communityRating}
+              resolution={resolutionLabel(videoStream(item.streams))}
+              hdr={isHdrStream(videoStream(item.streams))}
               percent={item.id ? watchPercents?.[item.id] : undefined}
               focusKey={`home:${rowKey}:${item.id}`}
               autoFocus={focusFirst && i === 0}

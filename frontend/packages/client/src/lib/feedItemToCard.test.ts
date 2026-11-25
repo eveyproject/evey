@@ -41,4 +41,10 @@ describe("feedItemToCard", () => {
     expect(feedItemsToCards([{ mediaItemId: "a" }, { title: "no id" }, { mediaItemId: "b" }]).map((c) => c.id)).toEqual(["a", "b"]);
     expect(feedItemsToCards(undefined)).toEqual([]);
   });
+
+  it("hands the card the title's video stream, for its badges", () => {
+    const v = { type: "MEDIA_STREAM_TYPE_VIDEO" as const, width: 3840, height: 2160 };
+    expect(feedItemToCard({ mediaItemId: "m1", videoStream: v }).streams).toEqual([v]);
+    expect(feedItemToCard({ mediaItemId: "s1" }).streams).toBeUndefined();
+  });
 });

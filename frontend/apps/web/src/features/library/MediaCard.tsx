@@ -4,8 +4,8 @@ import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, displayTitle, itemLabel } from "@evey/api";
-import { useImageRetry, useItemShowsWatched, useMediaPrefetch } from "@evey/client";
-import type { V1Artwork } from "@evey/api";
+import { isHdrStream, resolutionLabel, useImageRetry, useItemShowsWatched, useMediaPrefetch, videoStream } from "@evey/client";
+import type { V1Artwork, V1MediaStream } from "@evey/api";
 import { Blurhash } from "react-blurhash";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
@@ -37,6 +37,9 @@ interface MediaCardItem {
   seriesTitle?: string;
   // An episode's season: the context menu reaches the series through it.
   parentId?: string;
+  // The title's streams (its video one at least, on every home rail): the
+  // resolution and HDR badges read it.
+  streams?: V1MediaStream[];
   overview?: string;
   communityRating?: number;
   genres?: string[];
@@ -179,6 +182,10 @@ export const MediaCard = memo(function MediaCard({
   );
 
   const hasProgressBar = showProgress && pct !== undefined;
+  // The badges read the title's own video stream; the props only override it.
+  const video = videoStream(item.streams);
+  const resolutionShown = resolution ? formatResolution(resolution) : resolutionLabel(video);
+  const hdrShown = isHdr ?? isHdrStream(video);
 
   return (
     <div className="relative w-fit">
@@ -322,12 +329,12 @@ export const MediaCard = memo(function MediaCard({
           </span>
         )}
 
-        {(resolution || isHdr) && (
+        {(resolutionShown || hdrShown) && (
           <div
             className="absolute z-badge flex items-center gap-1"
             style={{ bottom: hasProgressBar ? "0.75rem" : "0.5rem", left: "0.5rem" }}
           >
-            {resolution && (
+            {resolutionShown && (
               <span
                 className="text-xs font-bold px-1.5 py-0.5 leading-none"
                 style={{
@@ -337,10 +344,10 @@ export const MediaCard = memo(function MediaCard({
                 }}
                 data-testid="resolution-badge"
               >
-                {formatResolution(resolution)}
+                {resolutionShown}
               </span>
             )}
-            {isHdr && (
+            {hdrShown && (
               <span
                 className="text-xs font-bold px-1.5 py-0.5 leading-none"
                 style={{

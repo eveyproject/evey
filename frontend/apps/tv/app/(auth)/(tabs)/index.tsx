@@ -33,6 +33,7 @@ import { PosterImage, type PosterPriority } from "../../../src/components/Poster
 import { ScreenState } from "../../../src/components/ScreenState";
 import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { QualityBadges } from "../../../src/components/QualityBadges";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, GRID_GAP, homeWidgetBudget } from "../../../src/lib/tvLayout";
 import { HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
@@ -172,6 +173,7 @@ function MediaCardImpl({
             <Text style={{ color: theme.colors.textMuted }}>?</Text>
           </View>
         )}
+        <QualityBadges streams={item.streams} />
         {item.communityRating != null && item.communityRating > 0 && (
           <View style={[styles.ratingBadge, { backgroundColor: theme.colors.warning }]}>
             <Ionicons name="star" size={12} color={theme.colors.onWarning} />
