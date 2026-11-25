@@ -170,7 +170,7 @@ func copyThenRemove(from, to string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer src.Close() //nolint:errcheck // read-only
+	defer src.Close()
 	info, err := src.Stat()
 	if err != nil {
 		return err
@@ -183,7 +183,9 @@ func copyThenRemove(from, to string) (err error) {
 	defer func() {
 		if err != nil {
 			_ = dst.Close()
-			_ = os.Remove(partial)
+			if rmErr := os.Remove(partial); rmErr != nil { //nolint:gosec // G703 FP: the partial copy this function created next to a destination under the library root
+				slog.Warn("library: partial copy left behind", slog.String("file", partial), slog.Any("err", rmErr))
+			}
 		}
 	}()
 	n, err := io.CopyBuffer(dst, src, make([]byte, 4<<20))
@@ -199,11 +201,13 @@ func copyThenRemove(from, to string) (err error) {
 	if err = dst.Close(); err != nil {
 		return fmt.Errorf("copy across disks: %w", err)
 	}
-	_ = os.Chtimes(partial, info.ModTime(), info.ModTime())
+	if tErr := os.Chtimes(partial, info.ModTime(), info.ModTime()); tErr != nil {
+		slog.Debug("library: copy keeps its own date", slog.String("file", partial), slog.Any("err", tErr))
+	}
 	if err = rename(partial, to); err != nil {
 		return err
 	}
-	if rmErr := os.Remove(from); rmErr != nil {
+	if rmErr := os.Remove(from); rmErr != nil { //nolint:gosec // G703 FP: the media file the trash resolved under its library root, removed only once its copy is whole
 		// The copy is whole and in place; the original could not go. Leave
 		// both rather than lose either, and say so.
 		slog.Warn("library: moved by copy, the original could not be removed", slog.String("file", from), slog.Any("err", rmErr))
