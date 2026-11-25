@@ -1,5 +1,5 @@
 ---
-source_sha: afbc7464f75fabbfac5fcb4804f737e9889ec38f19241b7f9688b5a9c07b01ca
+source_sha: a25e43948fb1b1ca28d3c5960a75173e6c08ac3b031384c3720d73f2a4734cc8
 reviewed: true
 ---
 # Bibliothèques et métadonnées { #libraries-and-metadata }
@@ -158,6 +158,12 @@ pour récupérer un fichier, utilisez **Annuler** sur la page du plugin juste
 après, ou remettez-le à sa place et scannez la bibliothèque.
 Evey ne lit jamais ce dossier. Une bibliothèque montée en lecture seule ne
 peut pas utiliser la corbeille : le déplacement est refusé et le titre reste.
+
+Sur des disques en pool (mergerfs, unRAID), le dossier corbeille peut se
+trouver sur un autre disque que le fichier. Le fichier y va alors comme avec
+`mv` : copié, vérifié, puis retiré de son ancienne place. Pour un gros film
+cela prend le temps d'une copie, quelques minutes sur des disques mécaniques ;
+l'original reste intact tant que la copie n'est pas complète.
 
 ## Bibliothèques de musique { #music-libraries }
 

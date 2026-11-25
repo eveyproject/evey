@@ -7,6 +7,12 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+### Fixed
+- Media trash: on pooled disks (mergerfs, unRAID) moving a file to the trash
+  failed with an internal error, the trash folder having been created on
+  another disk than the file. The file now crosses the way `mv` does: copied,
+  checked, then removed, the original untouched until the copy is whole.
+
 ### Added
 - Plugins: a `media.files` permission adds each media item's file path and
   size to what `evey.media.list` and `evey.media.get` return. The plugin

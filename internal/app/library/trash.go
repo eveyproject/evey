@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
@@ -20,6 +22,12 @@ import (
 // dot-folder, so nothing in it is indexed again. Emptying it is the
 // administrator's call, by hand.
 const TrashDirName = ".evey-trash"
+
+// rename is os.Rename; tests swap it to stand in for two disks.
+var rename = os.Rename
+
+// partialSuffix marks a copy still being written into the trash.
+const partialSuffix = ".evey-partial"
 
 // ErrTrashNoFile is a media item with no file of its own: a series, a season
 // or an album is a folder, never moved to the trash as a whole.
@@ -34,7 +42,9 @@ var ErrTrashOutsideLibrary = errors.New("media file is outside its library's fol
 // its name (subtitles, .nfo), to <library root>/.evey-trash/<same relative
 // path>, then removes the item from Evey the way an admin delete does. The
 // file is moved, never deleted: getting it back is a move in the other
-// direction and a scan. It returns where the file now is.
+// direction and a scan. When the trash folder is on another disk than the
+// file (a pooled library), the move is a copy then a removal, as mv does. It
+// returns where the file now is.
 //
 // The move comes first: if it fails (a read-only mount, a file already gone)
 // the item stays in Evey untouched.
@@ -56,6 +66,9 @@ func (s *CommandService) TrashMediaItem(ctx context.Context, id string) (string,
 	if root == "" {
 		return "", fmt.Errorf("CommandService.TrashMediaItem: %w", ErrTrashOutsideLibrary)
 	}
+	// Across disks the move is a copy, minutes for a large film: once begun it
+	// finishes, and the item is removed, even if the caller hangs up.
+	ctx = context.WithoutCancel(ctx)
 	dest, err := moveToTrash(root, item.File.Path)
 	if err != nil {
 		return "", fmt.Errorf("CommandService.TrashMediaItem: %w", err)
@@ -102,7 +115,7 @@ func moveToTrash(root, path string) (string, error) {
 		return "", fmt.Errorf("create trash folder: %w", err)
 	}
 	dest := freeName(filepath.Join(destDir, filepath.Base(path)))
-	if err := os.Rename(path, dest); err != nil {
+	if err := moveFile(path, dest); err != nil {
 		return "", fmt.Errorf("move to trash: %w", err)
 	}
 	moveCompanions(path, destDir)
@@ -126,7 +139,7 @@ func moveCompanions(path, destDir string) {
 			continue
 		}
 		from := filepath.Join(filepath.Dir(path), name)
-		if mvErr := os.Rename(from, freeName(filepath.Join(destDir, name))); mvErr != nil {
+		if mvErr := moveFile(from, freeName(filepath.Join(destDir, name))); mvErr != nil {
 			slog.Warn("library: companion file left in place", slog.String("file", from), slog.Any("err", mvErr))
 		}
 	}
@@ -136,6 +149,76 @@ func moveCompanions(path, destDir string) {
 var companionExt = map[string]bool{
 	".srt": true, ".ass": true, ".ssa": true, ".vtt": true, ".sub": true,
 	".idx": true, ".sup": true, ".nfo": true,
+}
+
+// moveFile moves a file as mv does. A rename when it can; when the two places
+// are on different disks (a mergerfs or unRAID pool, two mounts) rename(2)
+// refuses with EXDEV, and the file is copied then removed: written under a
+// partial name next to its destination, flushed to disk, its size checked,
+// renamed into place, and only then the original removed. A copy that fails
+// leaves the original untouched and no partial file behind.
+func moveFile(from, to string) error {
+	err := rename(from, to)
+	if err == nil || !errors.Is(err, syscall.EXDEV) {
+		return err
+	}
+	return copyThenRemove(from, to)
+}
+
+func copyThenRemove(from, to string) (err error) {
+	// O_NOFOLLOW and a regular file only: a copy, unlike a rename, reads what
+	// a link points at, and a link planted in a library could otherwise bring
+	// a server secret into it.
+	src, err := os.OpenFile(from, os.O_RDONLY|syscall.O_NOFOLLOW, 0) //nolint:gosec // G304 FP: a library media file the trash already resolved under its library root
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	info, err := src.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("copy across disks: %s is not a regular file", from)
+	}
+	partial := to + partialSuffix
+	dst, err := os.OpenFile(partial, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm()) //nolint:gosec // G304 FP: next to a destination under the library root
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = dst.Close()
+			if rmErr := os.Remove(partial); rmErr != nil { //nolint:gosec // G703 FP: the partial copy this function created next to a destination under the library root
+				slog.Warn("library: partial copy left behind", slog.String("file", partial), slog.Any("err", rmErr))
+			}
+		}
+	}()
+	n, err := io.CopyBuffer(dst, src, make([]byte, 4<<20))
+	if err != nil {
+		return fmt.Errorf("copy across disks: %w", err)
+	}
+	if n != info.Size() {
+		return fmt.Errorf("copy across disks: wrote %d of %d bytes", n, info.Size())
+	}
+	if err = dst.Sync(); err != nil {
+		return fmt.Errorf("copy across disks: %w", err)
+	}
+	if err = dst.Close(); err != nil {
+		return fmt.Errorf("copy across disks: %w", err)
+	}
+	if tErr := os.Chtimes(partial, info.ModTime(), info.ModTime()); tErr != nil {
+		slog.Debug("library: copy keeps its own date", slog.String("file", partial), slog.Any("err", tErr))
+	}
+	if err = rename(partial, to); err != nil {
+		return err
+	}
+	if rmErr := os.Remove(from); rmErr != nil { //nolint:gosec // G703 FP: the media file the trash resolved under its library root, removed only once its copy is whole
+		// The copy is whole and in place; the original could not go. Leave
+		// both rather than lose either, and say so.
+		slog.Warn("library: moved by copy, the original could not be removed", slog.String("file", from), slog.Any("err", rmErr))
+	}
+	return nil
 }
 
 func freeName(p string) string {
@@ -180,7 +263,7 @@ func (s *CommandService) RestoreTrashedFile(ctx context.Context, trashedPath str
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return "", "", fmt.Errorf("CommandService.RestoreTrashedFile: %w", err)
 	}
-	if err := os.Rename(clean, dest); err != nil {
+	if err := moveFile(clean, dest); err != nil {
 		return "", "", fmt.Errorf("CommandService.RestoreTrashedFile: %w", err)
 	}
 	moveCompanions(clean, filepath.Dir(dest))
