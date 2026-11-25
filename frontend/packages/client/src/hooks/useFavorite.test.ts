@@ -112,7 +112,7 @@ describe("useFavoritesList", () => {
   // The favourites grid's cards read their badges off this stream.
   it("carries each title's video stream", async () => {
     const v = { type: "MEDIA_STREAM_TYPE_VIDEO", width: 3840, height: 2160 };
-    mockListFavorites.mockResolvedValueOnce({ items: [{ mediaItemId: "m-1", createdAt: "2026-01-01", videoStream: v }] });
+    mockListFavorites.mockResolvedValueOnce({ items: [{ mediaItemId: "m-1", videoStream: v }] });
     const { useFavoritesList } = await import("./useFavorite");
     const { result } = renderHook(() => useFavoritesList(), { wrapper: wrap() });
     await waitFor(() => expect(result.current.data).toHaveLength(1));
