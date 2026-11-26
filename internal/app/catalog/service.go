@@ -8,6 +8,7 @@ import (
 	"context"
 	"log/slog"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
@@ -126,6 +127,8 @@ type SeriesGaps struct {
 	SeriesID    string
 	Title       string
 	Year        int
+	TmdbID      int
+	ImdbID      string
 	FromCatalog bool
 	Seasons     []MissingSeason
 }
@@ -135,6 +138,7 @@ type SeriesGaps struct {
 type SagaGaps struct {
 	CollectionID string
 	Name         string
+	TmdbID       int
 	Owned        int
 	Missing      []library.CollectionPart
 }
@@ -184,6 +188,8 @@ func (s *Service) Gaps(ctx context.Context, libraryIDs []shared.LibraryID) (Gaps
 			continue
 		}
 		g.SeriesID, g.Title, g.Year = sr.ItemID, sr.Title, sr.Year
+		g.TmdbID, _ = strconv.Atoi(sr.TmdbID)
+		g.ImdbID = sr.ImdbID
 		out.Series = append(out.Series, g)
 	}
 
@@ -212,7 +218,7 @@ func (s *Service) Gaps(ctx context.Context, libraryIDs []shared.LibraryID) (Gaps
 			missing = append(missing, p)
 		}
 		if len(missing) > 0 {
-			out.Sagas = append(out.Sagas, SagaGaps{CollectionID: c.ID, Name: c.Name, Owned: len(held), Missing: missing})
+			out.Sagas = append(out.Sagas, SagaGaps{CollectionID: c.ID, Name: c.Name, TmdbID: c.TmdbID, Owned: len(held), Missing: missing})
 		}
 	}
 	return out, nil

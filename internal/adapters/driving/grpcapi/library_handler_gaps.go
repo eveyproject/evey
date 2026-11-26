@@ -49,7 +49,7 @@ func ymd(t *time.Time) string {
 func catalogGapsToProto(g appcatalog.Gaps) *eveyv1.GetCatalogGapsResponse {
 	out := &eveyv1.GetCatalogGapsResponse{}
 	for _, s := range g.Series {
-		ps := &eveyv1.SeriesGaps{SeriesId: s.SeriesID, Title: s.Title, Year: int32(s.Year), FromCatalog: s.FromCatalog}
+		ps := &eveyv1.SeriesGaps{SeriesId: s.SeriesID, Title: s.Title, Year: int32(s.Year), FromCatalog: s.FromCatalog, TmdbId: int32(s.TmdbID), ImdbId: s.ImdbID}
 		for _, se := range s.Seasons {
 			ms := &eveyv1.MissingSeason{Season: int32(se.Season), Whole: se.Whole}
 			for _, e := range se.Episodes {
@@ -60,9 +60,9 @@ func catalogGapsToProto(g appcatalog.Gaps) *eveyv1.GetCatalogGapsResponse {
 		out.Series = append(out.Series, ps)
 	}
 	for _, sg := range g.Sagas {
-		pg := &eveyv1.SagaGaps{CollectionId: sg.CollectionID, Name: sg.Name, Owned: int32(sg.Owned)}
+		pg := &eveyv1.SagaGaps{CollectionId: sg.CollectionID, Name: sg.Name, Owned: int32(sg.Owned), TmdbId: int32(sg.TmdbID)}
 		for _, p := range sg.Missing {
-			pg.Missing = append(pg.Missing, &eveyv1.SagaPart{Title: p.Title, ReleaseDate: ymd(p.ReleaseDate), PosterUrl: p.PosterURL})
+			pg.Missing = append(pg.Missing, &eveyv1.SagaPart{Title: p.Title, ReleaseDate: ymd(p.ReleaseDate), PosterUrl: p.PosterURL, TmdbId: int32(p.TmdbID)})
 		}
 		out.Sagas = append(out.Sagas, pg)
 	}

@@ -490,6 +490,10 @@ message PublicMediaItem {
   int64 file_size = 8;
   // quality describes the file, under the same rule as file_path.
   PublicMediaQuality quality = 9;
+  // tmdb_id and imdb_id are the public catalog ids of a film or a series,
+  // 0 and empty when unknown.
+  int32 tmdb_id = 10;
+  string imdb_id = 11;
 }
 
 // PublicMediaQuality is enough to tell two copies of a film apart: the first
@@ -705,6 +709,9 @@ message SeriesGaps {
   int32 year = 3;
   bool from_catalog = 4;
   repeated MissingSeason seasons = 5;
+  // tmdb_id and imdb_id are the series' public catalog ids, 0 and empty when unknown.
+  int32 tmdb_id = 6;
+  string imdb_id = 7;
 }
 
 // MissingSeason groups a series' missing episodes. whole: not one episode of
@@ -728,6 +735,8 @@ message SagaGaps {
   string name = 2;
   int32 owned = 3;
   repeated SagaPart missing = 4;
+  // tmdb_id is the saga's TMDB collection id.
+  int32 tmdb_id = 5;
 }
 
 message SagaPart {
@@ -735,4 +744,6 @@ message SagaPart {
   // release_date is YYYY-MM-DD.
   string release_date = 2;
   string poster_url = 3;
+  // tmdb_id is the film's TMDB id.
+  int32 tmdb_id = 4;
 }
