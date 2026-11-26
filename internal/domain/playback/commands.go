@@ -84,10 +84,12 @@ type SessionCommandRepo interface {
 	// claiming to be playing for two more minutes after the restart.
 	// Returns the number of sessions ended.
 	CloseAllActive(ctx context.Context) (int, error)
-	// ReopenEndedBefore revives a session ended before `before` (the current
-	// process start, so by the previous process's shutdown) with this tick's
-	// state. A session ended since, by a StopStream, stays ended.
-	ReopenEndedBefore(ctx context.Context, sessionID string, before time.Time, positionMs int64, isPaused bool, castDeviceName string) (bool, error)
+	// ReopenNotStopped revives, with this tick's state, a session nobody
+	// stopped: one ended before `before` (the current process start, so by
+	// the previous process's shutdown) or by the stale sweep (its player went
+	// quiet, a laptop asleep on a paused film). A session a StopStream or an
+	// admin ended stays ended.
+	ReopenNotStopped(ctx context.Context, sessionID string, before time.Time, positionMs int64, isPaused bool, castDeviceName string) (bool, error)
 	// PurgeEndedBefore deletes finished sessions (ended_at set) whose ended_at
 	// is older than the cutoff, bounding the table's growth. Active sessions
 	// (ended_at NULL) are never touched. Returns the number of rows removed.

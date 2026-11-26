@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Prod 2026-10-05: a restart ended a web session whose player kept streaming
+// Prod: a restart ended a web session whose player kept streaming
 // and ticking; every tick answered OK and the film never came back to
 // now-playing. The first tick after the restart must reopen it.
 func TestReportProgressBySession_ReopensSessionEndedByRestart(t *testing.T) {
@@ -68,4 +68,57 @@ func TestReportProgressBySession_StopAfterReopenStaysEnded(t *testing.T) {
 	stored, err := sr.GetByID(ctx, "s1")
 	require.NoError(t, err)
 	assert.NotNil(t, stored.EndedAt, "a tick racing this process's StopStream must not resurrect it")
+}
+
+// Prod: a paused film whose player went quiet for 3 minutes (the computer
+// asleep) was ended by the stale sweep; the player woke and ticked on the
+// same id for the rest of the evening, every tick answered OK, and the film
+// never came back to now-playing. The first tick after the sweep reopens it.
+func TestReportProgressBySession_ReopensSessionEndedBySweep(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pr := pbfakes.NewFakeWatchProgressRepository()
+	sr := pbfakes.NewFakePlaySessionRepository()
+	ur := userfakes.NewFakeUserRepository()
+	pfr := userfakes.NewFakeProfileRepository()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	cmd := appplayback.NewCommandService(pr, sr, sr, ur, pfr, sharedfakes.NewFakeEventBus())
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	time.Sleep(2 * time.Millisecond)
+	n, err := cmd.CleanupStaleSessions(ctx, time.Millisecond)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 2_100_000, true, ""))
+
+	stored, err := sr.GetByID(ctx, "s1")
+	require.NoError(t, err)
+	assert.Nil(t, stored.EndedAt, "the tick after the sweep must reopen the session")
+	require.NotNil(t, stored.Position)
+	assert.Equal(t, int64(2_100_000), stored.Position.Milliseconds())
+}
+
+// The symmetric case: a session swept then stopped by its player stays
+// stopped; the sweep's mark does not outlive a real stop.
+func TestReportProgressBySession_StopAfterSweepStaysEnded(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pr := pbfakes.NewFakeWatchProgressRepository()
+	sr := pbfakes.NewFakePlaySessionRepository()
+	ur := userfakes.NewFakeUserRepository()
+	pfr := userfakes.NewFakeProfileRepository()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	cmd := appplayback.NewCommandService(pr, sr, sr, ur, pfr, sharedfakes.NewFakeEventBus())
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	time.Sleep(2 * time.Millisecond)
+	_, err := cmd.CleanupStaleSessions(ctx, time.Millisecond)
+	require.NoError(t, err)
+	require.NoError(t, cmd.StopStream(ctx, "s1"))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 63_000, false, ""))
+
+	stored, err := sr.GetByID(ctx, "s1")
+	require.NoError(t, err)
+	assert.NotNil(t, stored.EndedAt, "a tick after a real stop must not resurrect a swept session")
 }

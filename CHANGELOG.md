@@ -17,6 +17,9 @@ line - earlier history lives in git.
   know is read from the holes in its own numbering. Plugins never call TMDB.
 
 ### Changed
+- Demo: the demo's own plugins update on their own: the hourly check takes a
+  held release when it is signed by the project key, since no visitor can
+  approve one.
 - Media trash: a move that has to copy the file to another disk runs in the
   background. The request answers at once with `pending`, one copy runs at a
   time, and the administrators get a notification when it is done or why the
@@ -30,6 +33,11 @@ line - earlier history lives in git.
   to the shared pool: every API call of every client that reused it was
   refused with "context canceled" for minutes. The body read deadline now
   applies only to requests that carry a body.
+- Now playing: a film whose progress ticks were refused for more than 2
+  minutes was ended by the stale sweep, and it never came back to the admin's
+  now-playing list once the ticks went through again, though its progress
+  kept being saved. The player's next progress tick now reopens it; a session
+  stopped by its player or by an administrator stays ended.
 - Media trash: on pooled disks (mergerfs, unRAID) moving a file to the trash
   failed with an internal error, the trash folder having been created on
   another disk than the file. The file now crosses the way `mv` does: copied,

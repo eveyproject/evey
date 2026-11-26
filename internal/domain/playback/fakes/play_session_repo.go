@@ -18,7 +18,10 @@ type FakePlaySessionRepository struct {
 	// commands holds one pending remote command per session, mirroring the
 	// real repo's set-then-destructive-consume contract.
 	commands map[string]string
-	Err      error
+	// swept holds the sessions the stale sweep ended, the real repo's
+	// ended_by_sweep: their next tick reopens them.
+	swept map[string]bool
+	Err   error
 	// LockCalls counts AcquireUserStreamLock invocations so tests can assert the
 	// count-then-create path serializes - e.g. that the device-cap branch takes
 	// the advisory lock too, not only the stream-cap branch.
@@ -39,6 +42,13 @@ func (r *FakePlaySessionRepository) Create(_ context.Context, session *playback.
 	return nil
 }
 
+func (r *FakePlaySessionRepository) markSwept(id string) {
+	if r.swept == nil {
+		r.swept = map[string]bool{}
+	}
+	r.swept[id] = true
+}
+
 func (r *FakePlaySessionRepository) Update(_ context.Context, session *playback.PlaySession) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -49,6 +59,7 @@ func (r *FakePlaySessionRepository) Update(_ context.Context, session *playback.
 		return ErrNotFound
 	}
 	r.items[session.ID] = session
+	delete(r.swept, session.ID)
 	return nil
 }
 
@@ -72,17 +83,18 @@ func (r *FakePlaySessionRepository) UpdateProgress(_ context.Context, sessionID 
 	return true, nil
 }
 
-func (r *FakePlaySessionRepository) ReopenEndedBefore(_ context.Context, sessionID string, before time.Time, positionMs int64, isPaused bool, castDeviceName string) (bool, error) {
+func (r *FakePlaySessionRepository) ReopenNotStopped(_ context.Context, sessionID string, before time.Time, positionMs int64, isPaused bool, castDeviceName string) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.Err != nil {
 		return false, r.Err
 	}
 	s, ok := r.items[sessionID]
-	if !ok || s.EndedAt == nil || !s.EndedAt.Before(before) {
+	if !ok || s.EndedAt == nil || (!s.EndedAt.Before(before) && !r.swept[sessionID]) {
 		return false, nil
 	}
 	s.EndedAt = nil
+	delete(r.swept, sessionID)
 	if pos, err := shared.NewDurationMs(positionMs); err == nil {
 		s.Position = &pos
 	}
@@ -178,6 +190,7 @@ func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time
 		if s.EndedAt == nil && s.StartedAt.Before(cutoff) {
 			now := time.Now()
 			s.EndedAt = &now
+			r.markSwept(s.ID)
 			closed++
 		}
 	}
@@ -198,6 +211,7 @@ func (r *FakePlaySessionRepository) CloseStaleReturning(_ context.Context, older
 		if s.EndedAt == nil && s.StartedAt.Before(cutoff) {
 			now := time.Now()
 			s.EndedAt = &now
+			r.markSwept(s.ID)
 			if d, err := shared.NewDurationMs(now.Sub(s.StartedAt).Milliseconds()); err == nil {
 				s.Duration = &d
 			}
