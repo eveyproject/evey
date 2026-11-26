@@ -29,7 +29,8 @@ export interface EveyBridge {
     // One page of items: `{ items, total }`. A page is 500 items at most;
     // `type` is a MediaItemType name such as "MEDIA_ITEM_TYPE_MOVIE". With
     // the `media.files` permission, on an administrator's session, each item
-    // also carries `filePath` and `fileSize`.
+    // also carries `filePath` and `fileSize`. Every item carries its public
+    // `tmdbId` and `imdbId` (0 / "" when unknown).
     list(opts?: { libraryId?: string; type?: string; page?: number; pageSize?: number }): Promise<unknown>;
     // The media's poster as a data: URL, usable directly as a WebGL/img
     // source - the sandbox CSP forbids external CDN images and its opaque
@@ -37,9 +38,10 @@ export interface EveyBridge {
     // posters any other way.
     poster(id: string): Promise<string>;
     // What the libraries miss, worked out by the server from what it stored
-    // of TMDB: { series: [{ seriesId, title, year, fromCatalog, seasons: [{
-    // season, whole, episodes: [{ episode, title, airDate }] }] }], sagas: [{
-    // collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }] }.
+    // of TMDB: { series: [{ seriesId, title, year, fromCatalog, tmdbId, imdbId,
+    // seasons: [{ season, whole, episodes: [{ episode, title, airDate }] }] }],
+    // sagas: [{ collectionId, name, owned, tmdbId, missing: [{ title,
+    // releaseDate, posterUrl, tmdbId }] }] }. An unknown id is 0 or "".
     // Permission media.gaps, on an administrator's session only.
     gaps(): Promise<unknown>;
     // Asks the host to move these media files to their library's trash. The
