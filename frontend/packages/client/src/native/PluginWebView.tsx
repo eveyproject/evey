@@ -309,6 +309,10 @@ export function PluginWebView({
       case "navigate":
         onNavigate?.(msg.path);
         return;
+      case "external":
+        // Web only: a native host has no click to tie the opening to, so
+        // a plugin could open pages on its own.
+        return;
       case "toast":
         limitedToast(msg.level, msg.message);
         return;

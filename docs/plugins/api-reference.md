@@ -210,6 +210,15 @@ Moves the host application to `path`. Only `/home`, `/library`, `/media`,
 `/player`, `/settings` and `/search` prefixes are followed; anything else
 (the admin area, sign-in, an absolute URL) is dropped silently.
 
+### `evey.openExternal(url)`
+
+Opens a public catalog page in a new browser tab: an `https` address on
+`themoviedb.org` or `imdb.com`, nothing else (any other address is dropped
+silently). The tab opens only from a click in the plugin's frame, so a plugin
+cannot open pages on its own. Web only: the phone and TV apps ignore it. An
+older Evey has no such call; test `typeof evey.openExternal === "function"`
+before showing a link.
+
 ### `evey.toast(level, message)`
 
 Shows a toast in the host interface. `level` is `"success"`, `"error"` or
@@ -241,8 +250,10 @@ await evey.prefs.delete("units");
 ### `evey.media.*` (permission `public`)
 
 A safe projection of media items: id, title, type, year, overview, poster
-URL. Never a provider id or a stream, and no file path or size unless the
-plugin also holds `media.files` (below).
+URL, and the public catalog ids of a film or a series (`tmdbId`, `0` when
+unknown, and `imdbId`, empty when unknown) so a plugin can link to its TMDB or
+IMDb page. Never a stream, and no file path or size unless the plugin also
+holds `media.files` (below).
 
 ```js
 const item  = await evey.media.get(id);
@@ -281,9 +292,10 @@ calls TMDB, it reads the result.
 
 ```js
 const { series, sagas } = await evey.media.gaps();
-// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
-//   episodes: [{ episode, title, airDate }] }] }]
-// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+// series: [{ seriesId, title, year, tmdbId, imdbId, fromCatalog, seasons: [{ season,
+//   whole, episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, tmdbId, owned,
+//   missing: [{ title, releaseDate, posterUrl, tmdbId }] }]
 ```
 
 Only what is out counts: an episode or a film without a date, or dated after
@@ -292,6 +304,10 @@ does not know is listed from the holes in its own numbering (`fromCatalog`
 false): episodes missing below the highest held, seasons missing below the
 highest held (`whole`, with no episode list). On an administrator's session
 only, like `media.files`.
+
+`tmdbId` (a series, a saga, each missing film) and `imdbId` (a series) are the
+public catalog ids, `0` or empty when unknown, so a finding can link to its
+TMDB or IMDb page.
 
 ### `evey.media.trash(ids)` (permission `media.trash`, slot `admin.nav` only)
 

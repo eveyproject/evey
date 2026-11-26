@@ -9,6 +9,9 @@
 // So the same plugin code runs unchanged on web, mobile and TV.
 export interface EveyBridge {
   navigate(path: string): void;
+  // Opens a public catalog page (https TMDB or IMDb) in a new tab, on a
+  // click; any other address is ignored by the host.
+  openExternal(url: string): void;
   toast(level: "success" | "error" | "info", message: string): void;
   resize(height: number): void;
   onInit(callback: (data: { context: Record<string, unknown>; locale: string; theme: string }) => void): void;
@@ -93,6 +96,7 @@ export const BRIDGE_SCRIPT = `
   }
   window.evey = {
     navigate: function(path) { send({ type: "navigate", path: path }); },
+    openExternal: function(url) { send({ type: "external", url: String(url) }); },
     toast: function(level, message) { send({ type: "toast", level: level, message: message }); },
     resize: function(height) { send({ type: "resize", height: height }); },
     prefs: {

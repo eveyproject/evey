@@ -1,5 +1,5 @@
 ---
-source_sha: 1b3b5ce7c086e1f2a42545c9d6c6895b8fcdf7c5f78287e1ea52cecfe7cd45a4
+source_sha: a1de84dea91860a7535fcc1955cfb979226912021d29fef6996df4ec4ac6e065
 reviewed: true
 ---
 # अनुमतियाँ और स्लॉट { #permissions-and-slots }
@@ -140,8 +140,9 @@ config लिखता है, और कुछ नहीं, एडमिन �
 
 bridge सीमित करता है कि फ़्रेम पेज से क्या माँग सकता है: `evey.toast` एक सेकंड में
 ज़्यादा से ज़्यादा 3 संदेश, 200 अक्षर, कोई HTML नहीं; `evey.navigate` सिर्फ़
-`/home`, `/library`, `/media`, `/player`, `/settings` और `/search`; `evey.resize`
-50-800 px के बीच। फ़्रेम के पास कोई token नहीं होता: `public` और `prefs` कॉल के
+`/home`, `/library`, `/media`, `/player`, `/settings` और `/search`;
+`evey.openExternal` सिर्फ़ `themoviedb.org` और `imdb.com` के https पेज, नए टैब
+में, फ़्रेम में क्लिक के बाद (सिर्फ़ वेब); `evey.resize` 50-800 px के बीच। फ़्रेम के पास कोई token नहीं होता: `public` और `prefs` कॉल के
 लिए होस्ट (प्लगइन, उपयोगकर्ता) तक सीमित पाँच मिनट का एक token बनाता है, और सर्वर
 डिफ़ॉल्ट रूप से हर वह method मना करता है जिसका नाम उस token में नहीं है।
 

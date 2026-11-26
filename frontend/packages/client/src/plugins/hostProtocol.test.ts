@@ -8,6 +8,7 @@ import {
   clampSlotHeight,
   createToastLimiter,
   inlineScriptSafe,
+  isAllowedExternalUrl,
   isAllowedNavPath,
   isLightBackground,
   isValidPluginId,
@@ -114,6 +115,29 @@ describe("parseHostMessage", () => {
     expect(parseHostMessage("not json{")).toBeNull();
     expect(parseHostMessage(null)).toBeNull();
     expect(parseHostMessage({ type: "steal" })).toBeNull();
+    expect(parseHostMessage({ type: "external", url: "https://www.imdb.com/title/tt0017136/" })).toEqual({ type: "external", url: "https://www.imdb.com/title/tt0017136/" });
+    expect(parseHostMessage({ type: "external" })).toBeNull();
+  });
+});
+
+describe("isAllowedExternalUrl", () => {
+  it("opens the public TMDB and IMDb pages over https", () => {
+    expect(isAllowedExternalUrl("https://www.themoviedb.org/movie/19")).toBe(true);
+    expect(isAllowedExternalUrl("https://www.themoviedb.org/tv/6357/season/2/episode/4")).toBe(true);
+    expect(isAllowedExternalUrl("https://themoviedb.org/collection/1")).toBe(true);
+    expect(isAllowedExternalUrl("https://www.imdb.com/title/tt0017136/")).toBe(true);
+    expect(isAllowedExternalUrl("https://m.imdb.com/title/tt0017136/")).toBe(true);
+  });
+
+  it("refuses any other address", () => {
+    expect(isAllowedExternalUrl("http://www.imdb.com/title/tt1/")).toBe(false);
+    expect(isAllowedExternalUrl("https://evil.example/www.imdb.com")).toBe(false);
+    expect(isAllowedExternalUrl("https://www.imdb.com.evil.example/")).toBe(false);
+    expect(isAllowedExternalUrl("https://user:pw@www.imdb.com/")).toBe(false);
+    expect(isAllowedExternalUrl("https://www.imdb.com:8443/")).toBe(false);
+    expect(isAllowedExternalUrl("javascript:alert(1)")).toBe(false);
+    expect(isAllowedExternalUrl("/media/1")).toBe(false);
+    expect(isAllowedExternalUrl("https://www.imdb.com/" + "a".repeat(2100))).toBe(false);
   });
 });
 
