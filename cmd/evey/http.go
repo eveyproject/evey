@@ -64,7 +64,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	// has approved its code) is not a login attempt: the code it carries is
 	// the long unguessable one the TV was handed, and the answer is "pending"
 	// until a logged-in user approves. It used to share LoginRL, whose prod
-	// default (10/min) refused every other poll of one TV (2026-09-19). Sized
+	// default (10/min) refused every other poll of one TV. Sized
 	// from the poll cadence, the same on every environment, no knob: a few
 	// televisions behind one NAT fit, a flood does not.
 	quickConnectPollRL := ratelimit.New(quickConnectPollPerMinute)
@@ -396,6 +396,9 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 			slog.WarnContext(ctx, "backup retention cleanup", slog.Any("err", err))
 		}
 	}()
+
+	// Before the first request: the gateway must already count as remote.
+	recordRelays(ctx, cfg.EffectiveTrustedProxies())
 
 	// The LAN list is read live, like the on/off switch: Admin -> Remote Access
 	// changes both, and the gate follows without a restart.

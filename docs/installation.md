@@ -54,7 +54,7 @@ services:
     image: eveyproject/evey:latest # (1)!
     container_name: evey-server
     ports:
-      - "9091:9091" # (2)!
+      - "0.0.0.0:9091:9091" # (2)!
     volumes:
       - ./evey-data:/data # (3)!
       - evey-cache:/cache # (4)!
@@ -71,6 +71,9 @@ volumes:
    [Backups and updates](backups.md#updating-evey).
 2. The port. The number on the left is the one you will type in the browser
    and in the apps. Keep `9091` unless another program already uses it.
+   `0.0.0.0:` publishes it on IPv4 only, so that Evey always sees the real
+   address of each device: see
+   [Docker and IPv6](administration/remote-access.md#docker-and-ipv6).
 3. Evey's own data: database, keys, generated passwords, search index,
    artwork, logs, backups, plugins. **This is the folder to back up.**
 4. A cache of converted video, resized photos and music covers. It can be

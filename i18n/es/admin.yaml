@@ -1042,6 +1042,8 @@ remoteAccess:
   lockoutRiskTitle: "Todos los usuarios remotos están bloqueados"
   lockoutRiskMessage: "Este servidor es accesible desde Internet, pero el acceso remoto está desactivado. Cualquiera fuera de su red local recibe un error 403 en todas las páginas. Active el acceso remoto arriba para solucionar esto."
   publishedInfo: "El acceso remoto está activado y este servidor es accesible desde Internet."
+  relayedClientsTitle: "Algunos clientes llegan a este servidor a través de su puerta de enlace"
+  relayedClientsMessage: "Llegan solicitudes desde la propia puerta de enlace de este servidor, que oculta la dirección real del cliente. Se tratan como remotas: se rechazan mientras el acceso remoto está desactivado y se limitan al bitrate remoto máximo. Con Docker, la causa habitual es un puerto publicado en IPv6 para una red sin IPv6: publícalo como \"0.0.0.0:9091:9091\" en tu archivo compose. Un proxy inverso que se ejecuta en el host va en los proxies de confianza."
 
 systemHealth:
   iowaitSub: "de los cuales {{percent}} % esperando a los discos"

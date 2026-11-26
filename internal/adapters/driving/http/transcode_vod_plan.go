@@ -221,8 +221,8 @@ func (h *hlsVODServe) probePlan(r *http.Request, mediaID string, item *domainlib
 // and the copy rung. The scan does not build it (only the ingest plan does,
 // off by default) and the paced backfill yields to playback, so a freshly
 // added, copy-eligible file used to be TRANSCODED for its whole first viewing
-// - measured 2026-09-24 on dev: first master at 23:38 as transcode, index
-// landed at 23:46, once the session had idled out. The warmer is bounded
+// - measured on dev: first master as transcode, the index landing eight
+// minutes later, once the session had idled out. The warmer is bounded
 // (KeyframeOnDemand.TryIndex: a Cues read answers in milliseconds, a cue-less
 // walk detaches past its budget) and stands down while someone is watching,
 // so this never stalls a player. On success the streams are re-read so this
@@ -248,7 +248,7 @@ func (h *hlsVODServe) warmKeyframesInline(r *http.Request, mediaID string, item 
 // the abandoned encoder keeps its slot until the paused/idle sweeps reap it
 // minutes later. On a box calibrated at one concurrent encode that made the
 // switch fail with "too many streams" - refused by the viewer's own dead
-// encoder (observed live 2026-07-25: two fingerprints for one media, a:0 then
+// encoder (observed live: two fingerprints for one media, a:0 then
 // a:1, the second shed while the first held the only slot for 58 s).
 //
 // Only fires for a hash NO other stream is on (see StreamHashRegistry), and
@@ -313,10 +313,15 @@ func (h *hlsVODServe) userBitrateLimitFor(ctx context.Context, userID string) in
 // link-local address, or from one of the admin's LAN Networks - the same rule
 // Stream info applies (grpcapi playback_handler), so both agree on who is capped.
 // An unknown address counts as LAN: the cap must never bite on a missing signal.
+// A relay (the server's own gateway) is the exception: its address is private
+// but it hides clients from anywhere, so it is capped like the remote side.
 func lanClient(r *http.Request, lanNetworks []string) bool {
 	ip := network.ClientIP(r)
 	if ip == nil {
 		return true
+	}
+	if network.IsRelay(ip) {
+		return false
 	}
 	if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
 		return true

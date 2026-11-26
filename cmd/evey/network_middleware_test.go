@@ -243,3 +243,40 @@ func TestPlaybackSkipSeconds_SnapshotIsRaceFree(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// An IPv6 client relayed by docker-proxy reaches the server as the bridge
+// gateway, a private address inside the default LAN list. The gate must refuse
+// it like any remote client, say why in the log, and flag it for the panel.
+func TestNetworkMiddleware_GatewayRelayIsRemote(t *testing.T) {
+	network.SetRelays([]net.IP{net.ParseIP("172.17.0.1")})
+	t.Cleanup(func() { network.SetRelays(nil) })
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	rec := httptest.NewRecorder()
+	gateHandler(false, logger).ServeHTTP(rec, fromBoundary("/api/v1/auth/login", "172.17.0.1"))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("relayed client with remote access OFF: status = %d, want 403", rec.Code)
+	}
+	if !strings.Contains(buf.String(), "own gateway") || !strings.Contains(buf.String(), "0.0.0.0:9091:9091") {
+		t.Errorf("the relay is not explained in the log: %q", buf.String())
+	}
+	if !network.RelayedSeen() {
+		t.Error("the relay was not recorded for the admin panel")
+	}
+
+	// Another container on the same bridge is not the gateway: still LAN.
+	rec = httptest.NewRecorder()
+	gateHandler(false, logger).ServeHTTP(rec, fromBoundary("/api/v1/auth/login", "172.17.0.5"))
+	if rec.Code != http.StatusOK {
+		t.Errorf("neighbour container: status = %d, want 200", rec.Code)
+	}
+
+	// Remote access ON: served, but as remote.
+	rec = httptest.NewRecorder()
+	gateHandler(true, logger).ServeHTTP(rec, fromBoundary("/api/v1/auth/login", "172.17.0.1"))
+	if rec.Code != http.StatusOK || rec.Header().Get("X-Evey-Network") != "wan" {
+		t.Errorf("relayed client with remote access ON: status %d, network %q, want 200 wan", rec.Code, rec.Header().Get("X-Evey-Network"))
+	}
+}

@@ -1,8 +1,8 @@
 ---
-source_sha: b8448a636921ec7091b9ab98200600dd596b087d5b5d02b1d71230f1dbda6d3d
+source_sha: 0014f2b4d6fd34c806d0e09d8798d1255dc6f5082cbae209faa82a7e2808b97c
 reviewed: true
 ---
-# Fernzugriff und HTTPS
+# Fernzugriff und HTTPS { #remote-access-and-https }
 
 Zu Hause ist Evey unter einer Adresse wie `http://192.168.1.20:9091`
 erreichbar. Um von unterwegs zu schauen, brauchen Sie zwei weitere Dinge:
@@ -17,7 +17,7 @@ erreichbar. Um von unterwegs zu schauen, brauchen Sie zwei weitere Dinge:
 Diese Seite zeigt, wie Sie den Server veröffentlichen, und danach, was jede
 Einstellung bewirkt.
 
-## Den Server in drei Schritten veröffentlichen
+## Den Server in drei Schritten veröffentlichen { #publish-the-server-in-three-steps }
 
 1. **Richten Sie einen Reverse Proxy ein**, der HTTPS übernimmt und alles an
    Eveys Port `9091` weiterleitet. Sie können die Caddy-Einrichtung nehmen,
@@ -35,7 +35,7 @@ Zur Kontrolle führen Sie `docker exec evey-server evey admin doctor` aus. Der
 Befehl zeigt die verwendeten vertrauenswürdigen Proxys und warnt, wenn ein
 veröffentlichter Server Leute von außen abweist.
 
-## Der Fernzugriff ergibt sich aus der öffentlichen Adresse
+## Der Fernzugriff ergibt sich aus der öffentlichen Adresse { #remote-access-is-decided-from-the-public-address }
 
 Solange Sie nicht selbst entscheiden, entscheidet Evey beim Start:
 
@@ -64,7 +64,7 @@ Stellen:
   Abweisung mit der Adresse, von der sie kam;
 - `evey admin doctor` meldet es als Fehler.
 
-## Einstellungen
+## Einstellungen { #settings }
 
 Alle unter **Verwaltung → Fernzugriff**. Jede Einstellung gilt ohne Neustart:
 Netzwerkeinstellungen ab der nächsten Anfrage, die Bitrate ab der nächsten
@@ -83,7 +83,7 @@ Wiedergabe.
 | **LAN-Netzwerke (CIDR, kommagetrennt)** | Die Adressbereiche, die Evey als „zu Hause“ behandelt. Private Bereiche sind standardmäßig eingetragen. Nutzen Sie ein VPN (Tailscale, WireGuard) und sollen dessen Nutzer als zu Hause gelten, tragen Sie seinen Bereich hier ein. |
 | **Max. Remote-Bitrate (Kbps, 0 = unbegrenzt)** | Eine Qualitätsgrenze für Leute außerhalb Ihres Heimnetzes. Eine private Adresse wird nie begrenzt. Legt **Verwaltung → Transkodierung** ebenfalls eine Grenze für entfernte Zuschauer fest, gilt die niedrigere. Siehe [Wie über die Wiedergabe entschieden wird](../playback/how-playback-is-decided.md#limits-on-the-session). |
 
-## Was Evey über den Proxy wissen muss
+## Was Evey über den Proxy wissen muss { #what-evey-needs-to-know-about-the-proxy }
 
 Evey antwortet mit einfachem HTTP auf Port 9091. Der Reverse Proxy übernimmt
 HTTPS. Evey muss zwei Dinge über ihn wissen, beide unter **Verwaltung →
@@ -104,7 +104,7 @@ Fernzugriff**:
     und `evey admin doctor` lehnen das beide ab. Tragen Sie stattdessen die
     eigene Adresse oder das Netz des Proxys ein.
 
-### Stattdessen in der Umgebung einstellen
+### Stattdessen in der Umgebung einstellen { #setting-it-in-the-environment-instead }
 
 Die Variablen `EVEY_SERVER_BASE_URL` und `EVEY_TRUSTED_PROXIES` tun dasselbe
 aus der Compose-Datei heraus. Das passt zu einer Einrichtung, die ganz in
@@ -117,7 +117,7 @@ einfaches HTTP ist, und eine gespeicherte Proxy-Liste ersetzt die Variable.
 Leeren Sie das Feld, um die Entscheidung wieder der Variable zu überlassen.
 Siehe [Server und Netzwerk](../environment/server.md#remote-access).
 
-## Die echte Adresse des Clients
+## Die echte Adresse des Clients { #the-real-client-address }
 
 Damit der Fernzugriff und die Qualitätsgrenze für unterwegs funktionieren,
 muss Evey die echte Adresse jedes Besuchers sehen. Zwei Einstellungen arbeiten
@@ -140,6 +140,46 @@ Wirkung, und keine Grenze für unterwegs greift.
     verwendete Liste und woher sie kommt, warnt vor einem öffentlichen
     Bereich und schlägt bei einem Bereich fehl, der alle Adressen abdeckt.
 
+### Docker und IPv6 { #docker-and-ipv6 }
+
+Docker veröffentlicht einen Port über IPv4 mit einer Firewall-Regel, die die
+Adresse des Besuchers beibehält. Über IPv6 nutzt Docker stattdessen ein Relay,
+wenn das Netzwerk des Containers kein IPv6 hat: Jeder IPv6-Besucher erreicht
+Evey dann vom Gateway des Netzwerks aus, einer privaten Adresse, ganz gleich,
+wo er wirklich ist. Evey kann nicht erkennen, wer hinter seinem eigenen
+Gateway steht, und zählt eine solche Anfrage deshalb als „unterwegs“:
+abgelehnt, solange der Fernzugriff deaktiviert ist, und an die
+Qualitätsgrenze für unterwegs gebunden. **Fernzugriff** zeigt eine Warnung,
+sobald eine solche Anfrage eintrifft.
+
+Die Compose-Dateien dieser Dokumentation veröffentlichen den Port nur über
+IPv4 (`0.0.0.0:9091:9091`), sodass das Relay nie startet. Um auch IPv6 zu
+bedienen, geben Sie dem Docker-Netzwerk IPv6: Docker leitet IPv6 dann wie
+IPv4 weiter, einschließlich der echten Adresse.
+
+```yaml
+services:
+  evey:
+    ports:
+      - "9091:9091"
+    networks: [evey]
+
+networks:
+  evey:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:e7e7::/64
+```
+
+Ältere Docker-Versionen müssen außerdem `ip6tables` in der
+Daemon-Konfiguration aktivieren: siehe die IPv6-Dokumentation von Docker.
+
+Ein Reverse-Proxy, der auf dem Host außerhalb von Docker läuft, erreicht Evey
+über dasselbe Gateway. Tragen Sie ihn bei den vertrauenswürdigen Proxys ein,
+und veröffentlichen Sie den Port von Evey auf `127.0.0.1`, damit auf diesem
+Weg nichts anderes ankommen kann.
+
 <!-- sources
 inference and explicit choice: docs/adr/0026-remote-access-inferred-from-a-published-url.md ; internal/config/remote_access_resolve.go - ResolveRemoteAccess, IsPubliclyReachableURL
 gate, live switch and LAN list: cmd/evey/gateway.go - networkMiddleware ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_LANListChangeAppliesWithoutRestart
@@ -147,6 +187,7 @@ remote cap live: internal/adapters/driving/grpcapi/playback_remote_bitrate_test.
 labels: i18n admin.remoteAccess.* (enableRemoteAccess, externalUrl, trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle)
 proxy settings: docs/reverse-proxy.md
 https mode and trusted proxies live: internal/config/network_live.go - EffectiveHTTPS, EffectiveTrustedProxies ; internal/adapters/driving/http/access_handler_live_test.go
+docker gateway relay: internal/pkg/network/relay.go - DefaultGateways, IsRelay ; internal/pkg/network/relay_test.go - TestDetectIP_RelayIsWANEvenInsideTheLANList ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_GatewayRelayIsRemote ; i18n admin.remoteAccess.relayedClientsTitle
 catch-all range refused: internal/config/trusted_proxies.go - IsCatchAllProxyRange ; internal/config/network_live.go
 doctor check: cmd/evey/admin_ops.go - checkTrustedProxies
 exact field labels: i18n admin.remoteAccess.trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle ; apps message: i18n auth.remoteAccess.title

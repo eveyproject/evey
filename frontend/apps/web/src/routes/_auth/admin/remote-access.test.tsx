@@ -169,4 +169,13 @@ describe("RemoteAccessPage", () => {
     render(React.createElement(Page), { wrapper: createWrapper() });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("warns when requests arrive through the server's own gateway", async () => {
+    mockUseRA.mockReturnValue({ data: { ...mockConfig, relayedClients: true }, isLoading: false });
+    mockUseNet.mockReturnValue({ data: undefined });
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.getByText("Some clients reach this server through its gateway")).toBeInTheDocument();
+    expect(screen.getByText(/0\.0\.0\.0:9091:9091/)).toBeInTheDocument();
+  });
 });
