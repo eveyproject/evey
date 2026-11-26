@@ -1,5 +1,5 @@
 ---
-source_sha: 1b3b5ce7c086e1f2a42545c9d6c6895b8fcdf7c5f78287e1ea52cecfe7cd45a4
+source_sha: a1de84dea91860a7535fcc1955cfb979226912021d29fef6996df4ec4ac6e065
 reviewed: true
 ---
 # Berechtigungen und Slots { #permissions-and-slots }
@@ -155,7 +155,9 @@ das generierte Formular. Der Host beantwortet ihn nur in diesem Slot.
 Die Brücke begrenzt, was ein Frame von der Seite verlangen darf:
 `evey.toast` höchstens 3 Nachrichten pro Sekunde, 200 Zeichen, kein HTML;
 `evey.navigate` nur `/home`, `/library`, `/media`, `/player`, `/settings`
-und `/search`; `evey.resize` auf 50 bis 800 px begrenzt. Der Frame erhält
+und `/search`; `evey.openExternal` nur https-Seiten von `themoviedb.org` und
+`imdb.com`, in einem neuen Tab, nach einem Klick im Frame (nur im Web);
+`evey.resize` auf 50 bis 800 px begrenzt. Der Frame erhält
 keinen Token: Der Host stellt für die Aufrufe `public` und `prefs` einen
 Token für fünf Minuten aus, begrenzt auf (Plugin, Benutzer), und der Server
 lehnt standardmäßig jede Methode ab, die dieser Token nicht nennt.

@@ -1,5 +1,5 @@
 ---
-source_sha: 88b25d5013bee4a453fc1acd638af277264419566f6746aea48dd160a29a2b7e
+source_sha: 3c53c703905fd2f00b009c44b39fbc9ac215bbc99556a2b57fda6856122bdae1
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -183,6 +183,12 @@ evey.onInit(function (data) {
 让宿主应用跳转到 `path`。只有 `/home`、`/library`、`/media`、`/player`、`/settings` 和 `/search` 开头的路径会被执行；
 其他路径（管理区域、登录页、绝对 URL）都会被直接丢弃，不给任何提示。
 
+### `evey.openExternal(url)` { #eveyopenexternalurl }
+
+在浏览器的新标签页中打开一个公开的影视目录页面：只能是 `themoviedb.org` 或 `imdb.com` 上的 `https` 地址（其他地址都会被直接丢弃，不给任何提示）。
+只有在插件框架内点击之后才会打开标签页，所以插件不能自行打开页面。仅限网页端：手机和电视应用会忽略这个调用。
+旧版本的 Evey 没有这个调用；显示链接之前请先检查 `typeof evey.openExternal === "function"`。
+
 ### `evey.toast(level, message)` { #eveytoastlevel-message }
 
 在宿主界面里显示一条提示消息。`level` 取 `"success"`、`"error"` 或 `"info"`；`message` 是纯文本，超过 200 个字符的部分会被截掉；
@@ -208,7 +214,7 @@ await evey.prefs.delete("units");
 
 ### `evey.media.*`（权限 `public`） { #eveymedia-permission-public }
 
-媒体条目的一个安全投影：id、标题、类型、年份、简介、海报 URL。永远不会有提供方 id 或流；除非插件还持有 `media.files`（见下文），也不会有文件路径和文件大小。
+媒体条目的一个安全投影：id、标题、类型、年份、简介、海报 URL，以及电影或剧集的公开目录 id（`tmdbId`，未知时为 `0`；`imdbId`，未知时为空），方便插件链接到其 TMDB 或 IMDb 页面。永远不会有流；除非插件还持有 `media.files`（见下文），也不会有文件路径和文件大小。
 
 ```js
 const item  = await evey.media.get(id);
@@ -237,14 +243,17 @@ const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pag
 
 ```js
 const { series, sagas } = await evey.media.gaps();
-// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
-//   episodes: [{ episode, title, airDate }] }] }]
-// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+// series: [{ seriesId, title, year, tmdbId, imdbId, fromCatalog, seasons: [{ season,
+//   whole, episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, tmdbId, owned,
+//   missing: [{ title, releaseDate, posterUrl, tmdbId }] }]
 ```
 
 只计算已经发布的内容：没有日期或日期晚于今天的单集或电影还不算缺失，特别篇（第 0 季）不计入。
 TMDB 不认识的剧集按其自身编号中的空缺列出（`fromCatalog` 为 false）：低于已有最高集号的缺失单集、低于已有最高季号的缺失整季（`whole`，不带单集列表）。
 仅限管理员会话，与 `media.files` 相同。
+
+`tmdbId`（剧集、系列、每部缺失的电影）和 `imdbId`（剧集）是公开的目录 id，未知时为 `0` 或空，方便一条发现链接到其 TMDB 或 IMDb 页面。
 
 ### `evey.media.trash(ids)`（权限 `media.trash`，仅限插槽 `admin.nav`） { #eveymediatrashids }
 

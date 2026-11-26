@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"strconv"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -91,6 +92,12 @@ func publicMediaItemToProto(item *library.MediaItem, posterURL string, files boo
 	}
 	if item.Catalog != nil && item.Catalog.Year != nil {
 		pb.Year = int32(*item.Catalog.Year)
+	}
+	if item.Catalog != nil {
+		if id, err := strconv.Atoi(item.Catalog.ProviderIDs["tmdb"]); err == nil {
+			pb.TmdbId = int32(id)
+		}
+		pb.ImdbId = item.Catalog.ProviderIDs["imdb"]
 	}
 	if files && item.File != nil {
 		pb.FilePath = item.File.Path

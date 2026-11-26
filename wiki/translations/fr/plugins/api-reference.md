@@ -1,5 +1,5 @@
 ---
-source_sha: 88b25d5013bee4a453fc1acd638af277264419566f6746aea48dd160a29a2b7e
+source_sha: 3c53c703905fd2f00b009c44b39fbc9ac215bbc99556a2b57fda6856122bdae1
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -220,6 +220,16 @@ Déplace l'application hôte vers `path`. Seuls les préfixes `/home`,
 le reste (la zone d'administration, la connexion, une URL absolue) est ignoré
 en silence.
 
+### `evey.openExternal(url)` { #eveyopenexternalurl }
+
+Ouvre une page publique de catalogue dans un nouvel onglet du navigateur : une
+adresse `https` sur `themoviedb.org` ou `imdb.com`, rien d'autre (toute autre
+adresse est ignorée en silence). L'onglet ne s'ouvre qu'après un clic dans le
+cadre du plugin : un plugin ne peut pas ouvrir de pages de lui-même. Web
+seulement : les apps téléphone et TV l'ignorent. Un Evey plus ancien n'a pas
+cet appel ; testez `typeof evey.openExternal === "function"` avant d'afficher
+un lien.
+
 ### `evey.toast(level, message)` { #eveytoastlevel-message }
 
 Affiche une notification dans l'interface hôte. `level` vaut `"success"`,
@@ -251,7 +261,9 @@ await evey.prefs.delete("units");
 ### `evey.media.*` (permission `public`) { #eveymedia-permission-public }
 
 Une projection sûre des médias : identifiant, titre, type, année, résumé, URL
-d'affiche. Jamais un identifiant de fournisseur ni un flux, et ni chemin ni
+d'affiche, et les identifiants publics de catalogue d'un film ou d'une série
+(`tmdbId`, `0` si inconnu, et `imdbId`, vide si inconnu), pour qu'un plugin
+puisse renvoyer vers sa page TMDB ou IMDb. Jamais un flux, et ni chemin ni
 taille de fichier sauf si le plugin détient aussi `media.files` (plus bas).
 
 ```js
@@ -293,9 +305,10 @@ semaine) ; un plugin n'appelle jamais TMDB, il lit le résultat.
 
 ```js
 const { series, sagas } = await evey.media.gaps();
-// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
-//   episodes: [{ episode, title, airDate }] }] }]
-// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+// series: [{ seriesId, title, year, tmdbId, imdbId, fromCatalog, seasons: [{ season,
+//   whole, episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, tmdbId, owned,
+//   missing: [{ title, releaseDate, posterUrl, tmdbId }] }]
 ```
 
 Seul ce qui est sorti compte : un épisode ou un film sans date, ou daté après
@@ -304,6 +317,10 @@ Une série que TMDB ne connaît pas est listée d'après les trous de sa propre
 numérotation (`fromCatalog` faux) : épisodes manquants sous le plus haut
 présent, saisons manquantes sous la plus haute présente (`whole`, sans liste
 d'épisodes). Sur la session d'un administrateur seulement, comme `media.files`.
+
+`tmdbId` (une série, une saga, chaque film manquant) et `imdbId` (une série)
+sont les identifiants publics de catalogue, `0` ou vides si inconnus, pour
+qu'un constat puisse renvoyer vers sa page TMDB ou IMDb.
 
 ### `evey.media.trash(ids)` (permission `media.trash`, emplacement `admin.nav` seulement) { #eveymediatrashids }
 

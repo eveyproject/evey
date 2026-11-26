@@ -1,5 +1,5 @@
 ---
-source_sha: 88b25d5013bee4a453fc1acd638af277264419566f6746aea48dd160a29a2b7e
+source_sha: 3c53c703905fd2f00b009c44b39fbc9ac215bbc99556a2b57fda6856122bdae1
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -213,6 +213,15 @@ evey.onInit(function (data) {
 `/player`, `/settings` और `/search` से शुरू होने वाले रास्ते माने जाते हैं; बाकी
 सब (एडमिन वाला हिस्सा, साइन-इन, पूरा URL) चुपचाप छोड़ दिया जाता है।
 
+### `evey.openExternal(url)` { #eveyopenexternalurl }
+
+किसी सार्वजनिक कैटलॉग पेज को ब्राउज़र के नए टैब में खोलता है: `themoviedb.org` या
+`imdb.com` का कोई `https` पता, इसके अलावा कुछ नहीं (कोई और पता चुपचाप छोड़ दिया
+जाता है)। टैब सिर्फ़ प्लगइन के फ़्रेम में क्लिक के बाद खुलता है, इसलिए कोई प्लगइन
+अपने आप पेज नहीं खोल सकता। सिर्फ़ वेब पर: फ़ोन और TV ऐप इसे अनदेखा करते हैं।
+पुराने Evey में यह कॉल नहीं है; लिंक दिखाने से पहले
+`typeof evey.openExternal === "function"` जाँच लें।
+
 ### `evey.toast(level, message)` { #eveytoastlevel-message }
 
 होस्ट इंटरफ़ेस में एक toast दिखाता है। `level` `"success"`, `"error"` या `"info"`
@@ -244,8 +253,10 @@ await evey.prefs.delete("units");
 ### `evey.media.*` (अनुमति `public`) { #eveymedia-permission-public }
 
 मीडिया आइटम की एक सुरक्षित झलक: id, टाइटल, टाइप, साल, सारांश, पोस्टर का URL।
-कभी provider id या stream नहीं, और फ़ाइल का रास्ता या आकार भी नहीं, जब तक प्लगइन
-के पास `media.files` भी न हो (नीचे देखें)।
+साथ में फ़िल्म या सीरीज़ की सार्वजनिक कैटलॉग id (`tmdbId`, अज्ञात हो तो `0`, और
+`imdbId`, अज्ञात हो तो खाली), ताकि प्लगइन उसके TMDB या IMDb पेज का लिंक दे सके।
+कभी stream नहीं, और फ़ाइल का रास्ता या आकार भी नहीं, जब तक प्लगइन के पास
+`media.files` भी न हो (नीचे देखें)।
 
 ```js
 const item  = await evey.media.get(id);
@@ -283,9 +294,10 @@ const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pag
 
 ```js
 const { series, sagas } = await evey.media.gaps();
-// series: [{ seriesId, title, year, fromCatalog, seasons: [{ season, whole,
-//   episodes: [{ episode, title, airDate }] }] }]
-// sagas: [{ collectionId, name, owned, missing: [{ title, releaseDate, posterUrl }] }]
+// series: [{ seriesId, title, year, tmdbId, imdbId, fromCatalog, seasons: [{ season,
+//   whole, episodes: [{ episode, title, airDate }] }] }]
+// sagas: [{ collectionId, name, tmdbId, owned,
+//   missing: [{ title, releaseDate, posterUrl, tmdbId }] }]
 ```
 
 सिर्फ़ जो आ चुका है वही गिना जाता है: बिना तारीख़ का या आज के बाद की तारीख़ वाला
@@ -294,6 +306,9 @@ const { series, sagas } = await evey.media.gaps();
 (`fromCatalog` false): सबसे ऊँचे मौजूद एपिसोड से नीचे के कम एपिसोड, सबसे ऊँचे
 मौजूद सीज़न से नीचे के कम सीज़न (`whole`, बिना एपिसोड सूची)। सिर्फ़ एडमिन के
 सेशन पर, `media.files` की तरह।
+
+`tmdbId` (सीरीज़, सागा, हर कम फ़िल्म) और `imdbId` (सीरीज़) सार्वजनिक कैटलॉग id हैं,
+अज्ञात हों तो `0` या खाली, ताकि कोई निष्कर्ष अपने TMDB या IMDb पेज से जोड़ा जा सके।
 
 ### `evey.media.trash(ids)` (अनुमति `media.trash`, सिर्फ़ स्लॉट `admin.nav`) { #eveymediatrashids }
 
