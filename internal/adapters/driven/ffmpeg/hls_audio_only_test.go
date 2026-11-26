@@ -50,3 +50,37 @@ func TestBuildFFmpegAudioOnlyArgs_DropsThePrimingTheShiftCannotAbsorb(t *testing
 		t.Errorf("a passthrough has no priming: atrim %q", got)
 	}
 }
+
+// A seeked copy drops the packets the demuxer hands out before the target, or
+// the rebase stamps audio from the previous keyframe as starting on the target.
+// A cold copy has nothing before it, and a re-encode is trimmed by its seek.
+func TestBuildFFmpegAudioOnlyArgs_ASeekedCopyStartsOnTheTarget(t *testing.T) {
+	drops := func(o transcoding.AudioProcessOpts) bool {
+		a := BuildFFmpegAudioOnlyArgs(o)
+		for i := 0; i+1 < len(a); i++ {
+			if a[i] == "-copypriorss" {
+				return a[i+1] == "0"
+			}
+		}
+		return false
+	}
+	base := transcoding.AudioProcessOpts{FilePath: "/m.mkv", OutputDir: "/tmp/o", AudioCodec: "copy", MaxAudioChannels: 6, SourceAudioChannels: 6}
+	seeked := base
+	seeked.StartSec, seeked.StartNumber = 5180.175, 1725
+	if !drops(seeked) {
+		t.Error("a seeked copy keeps the packets before its target")
+	}
+	if drops(base) {
+		t.Error("a cold copy asks to drop packets before 0")
+	}
+	reencode := seeked
+	reencode.AudioCodec = "aac"
+	if drops(reencode) {
+		t.Error("a re-encode carries a copy option")
+	}
+	silence := seeked
+	silence.SilenceDurationSec = 4
+	if drops(silence) {
+		t.Error("a silence tail carries a copy option")
+	}
+}
