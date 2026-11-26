@@ -1,8 +1,8 @@
 ---
-source_sha: b8448a636921ec7091b9ab98200600dd596b087d5b5d02b1d71230f1dbda6d3d
+source_sha: 0014f2b4d6fd34c806d0e09d8798d1255dc6f5082cbae209faa82a7e2808b97c
 reviewed: true
 ---
-# 远程访问和 HTTPS
+# 远程访问和 HTTPS { #remote-access-and-https }
 
 在家里，Evey 的地址类似 `http://192.168.1.20:9091`。要在家庭网络以外的地方观看，您还需要两样东西：
 
@@ -11,7 +11,7 @@ reviewed: true
 
 本页先讲如何把服务器发布出去，再讲每项设置的作用。
 
-## 三步发布服务器
+## 三步发布服务器 { #publish-the-server-in-three-steps }
 
 1. **设置一个反向代理**，由它处理 HTTPS，并把所有请求转发到 Evey 的端口 `9091`。您可以使用 Evey 自带的 Caddy 配置，也可以用您已经在运行的代理。现成的配置见[反向代理配置](../reverse-proxy.md)。
 2. **在 Evey 中进行设置**，位置是**管理 → 远程访问**：
@@ -21,7 +21,7 @@ reviewed: true
 
 要检查一下，请运行 `docker exec evey-server evey admin doctor`。它会显示正在使用的受信任代理；如果一台已发布的服务器正在拒绝来自家庭网络以外的人，它也会发出警告。
 
-## 远程访问由公网地址决定
+## 远程访问由公网地址决定 { #remote-access-is-decided-from-the-public-address }
 
 除非您自己选择，否则 Evey 会在启动时决定：
 
@@ -38,7 +38,7 @@ reviewed: true
 - 服务器日志在启动时会提到这一点，之后每次拒绝都会记录请求来自哪个地址；
 - `evey admin doctor` 会把它报告为失败。
 
-## 设置
+## 设置 { #settings }
 
 都在**管理 → 远程访问**里。每项设置都无需重启就会生效：网络设置从下一个请求开始，码率从下一次播放开始。
 
@@ -55,7 +55,7 @@ reviewed: true
 | **LAN 网络（CIDR，逗号分隔）** | Evey 视为“家庭网络”的地址范围。默认已列出私有地址范围。如果您使用 VPN（Tailscale、WireGuard），并希望它的用户也算作家庭网络，请把它的地址范围加在这里。 |
 | **最大远程码率（Kbps，0 = 无限制）** | 对家庭网络以外的人设定的质量上限。私有地址永远不受限制。如果**管理 → 转码**也为远程观众设了上限，就采用较低的那个。见[播放方式是如何决定的](../playback/how-playback-is-decided.md#limits-on-the-session)。 |
 
-## Evey 需要了解代理的哪些情况
+## Evey 需要了解代理的哪些情况 { #what-evey-needs-to-know-about-the-proxy }
 
 Evey 在端口 9091 上用普通 HTTP 应答，HTTPS 由反向代理处理。关于代理，Evey 需要知道两件事，都在**管理 → 远程访问**里设置：
 
@@ -65,13 +65,13 @@ Evey 在端口 9091 上用普通 HTTP 应答，HTTPS 由反向代理处理。关
 !!! warning "覆盖所有地址的范围会被拒绝"
     把 `0.0.0.0/0` 或 `::/0` 设为受信任代理，会让任何访客都能冒充来自任意地址。管理面板和 `evey admin doctor` 都会拒绝它。请改为填写代理自己的地址或网络。
 
-### 改用环境变量设置
+### 改用环境变量设置 { #setting-it-in-the-environment-instead }
 
 变量 `EVEY_SERVER_BASE_URL` 和 `EVEY_TRUSTED_PROXIES` 可以在 compose 文件里完成同样的设置。如果您的整套配置都写在文件里，或者服务器从第一次启动起就必须通过 HTTPS 应答，这种方式比较合适。
 
 两边都设置时，以管理面板为准。即使基础 URL 是普通 HTTP，`https://` 开头的**外部 URL** 也会开启 HTTPS 模式；保存过的代理列表会取代变量。清空这一栏，就改为使用变量的值。见[服务器与网络](../environment/server.md#remote-access)。
 
-## 客户端的真实地址
+## 客户端的真实地址 { #the-real-client-address }
 
 要让远程访问和远程质量上限起作用，Evey 必须看到每个访客的真实地址。有两项设置一起起作用：
 
@@ -83,6 +83,31 @@ Evey 在端口 9091 上用普通 HTTP 应答，HTTPS 由反向代理处理。关
 !!! note "修正代理设置会改变哪些人被视为远程"
     如果远程访问原本是关闭的，那么从代理开始转发真实地址的那一刻起，家庭网络以外的人就会被拒绝。修改代理设置后，请运行 `evey admin doctor`：它会显示正在使用的列表及其来源，对公网地址范围发出警告，并对覆盖所有地址的范围报告失败。
 
+### Docker 与 IPv6 { #docker-and-ipv6 }
+
+Docker 在 IPv4 上通过一条防火墙规则发布端口，这条规则会保留访客的地址。在 IPv6 上，如果容器所在的网络没有 IPv6，Docker 会改用一个中继：每个 IPv6 访客都从该网络的网关到达 Evey，而网关是一个私有地址，无论访客实际身在何处。Evey 无法知道自己的网关后面是谁，因此把这样的请求算作远程：远程访问关闭时会被拒绝，并受远程质量上限约束。一旦出现这样的请求，**远程访问**页面就会显示警告。
+
+本文档中的 compose 文件只在 IPv4 上发布端口（`0.0.0.0:9091:9091`），因此中继永远不会启动。如果也要提供 IPv6，请为 Docker 网络启用 IPv6：这样 Docker 会像转发 IPv4 一样转发 IPv6，真实地址也会保留。
+
+```yaml
+services:
+  evey:
+    ports:
+      - "9091:9091"
+    networks: [evey]
+
+networks:
+  evey:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:e7e7::/64
+```
+
+较旧的 Docker 版本还需要在守护进程配置中开启 `ip6tables`：请参阅 Docker 的 IPv6 文档。
+
+在主机上、Docker 之外运行的反向代理，也是通过同一个网关到达 Evey。请把它加入受信任的代理，并把 Evey 的端口发布在 `127.0.0.1` 上，这样就不会有其他请求从这条路进来。
+
 <!-- sources
 inference and explicit choice: docs/adr/0026-remote-access-inferred-from-a-published-url.md ; internal/config/remote_access_resolve.go - ResolveRemoteAccess, IsPubliclyReachableURL
 gate, live switch and LAN list: cmd/evey/gateway.go - networkMiddleware ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_LANListChangeAppliesWithoutRestart
@@ -90,6 +115,7 @@ remote cap live: internal/adapters/driving/grpcapi/playback_remote_bitrate_test.
 labels: i18n admin.remoteAccess.* (enableRemoteAccess, externalUrl, trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle)
 proxy settings: docs/reverse-proxy.md
 https mode and trusted proxies live: internal/config/network_live.go - EffectiveHTTPS, EffectiveTrustedProxies ; internal/adapters/driving/http/access_handler_live_test.go
+docker gateway relay: internal/pkg/network/relay.go - DefaultGateways, IsRelay ; internal/pkg/network/relay_test.go - TestDetectIP_RelayIsWANEvenInsideTheLANList ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_GatewayRelayIsRemote ; i18n admin.remoteAccess.relayedClientsTitle
 catch-all range refused: internal/config/trusted_proxies.go - IsCatchAllProxyRange ; internal/config/network_live.go
 doctor check: cmd/evey/admin_ops.go - checkTrustedProxies
 exact field labels: i18n admin.remoteAccess.trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle ; apps message: i18n auth.remoteAccess.title

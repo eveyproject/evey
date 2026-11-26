@@ -1,8 +1,8 @@
 ---
-source_sha: b8448a636921ec7091b9ab98200600dd596b087d5b5d02b1d71230f1dbda6d3d
+source_sha: 0014f2b4d6fd34c806d0e09d8798d1255dc6f5082cbae209faa82a7e2808b97c
 reviewed: true
 ---
-# रिमोट एक्सेस और HTTPS
+# रिमोट एक्सेस और HTTPS { #remote-access-and-https }
 
 घर पर Evey `http://192.168.1.20:9091` जैसे पते पर चलता है। घर के बाहर से
 देखने के लिए आपको दो चीज़ें और चाहिए:
@@ -17,7 +17,7 @@ reviewed: true
 यह पेज पहले बताता है कि सर्वर को बाहर कैसे खोलें, फिर यह कि हर सेटिंग क्या
 करती है।
 
-## तीन कदम में सर्वर को बाहर खोलें
+## तीन कदम में सर्वर को बाहर खोलें { #publish-the-server-in-three-steps }
 
 1. **एक रिवर्स प्रॉक्सी सेट करें** जो HTTPS संभाले और सब कुछ Evey के पोर्ट
    `9091` पर भेजे। आप Evey के साथ आने वाला Caddy सेटअप इस्तेमाल कर सकते हैं,
@@ -35,7 +35,7 @@ reviewed: true
 हो रहे विश्वसनीय प्रॉक्सी दिखाता है, और चेतावनी देता है जब बाहर खुला सर्वर
 बाहर के लोगों को मना कर रहा हो।
 
-## रिमोट एक्सेस सार्वजनिक पते से तय होता है
+## रिमोट एक्सेस सार्वजनिक पते से तय होता है { #remote-access-is-decided-from-the-public-address }
 
 जब तक आप खुद नहीं चुनते, Evey शुरू होते समय तय करता है:
 
@@ -63,7 +63,7 @@ reviewed: true
   जहाँ से वह आया;
 - `evey admin doctor` इसे विफलता के रूप में दिखाता है।
 
-## सेटिंग्स
+## सेटिंग्स { #settings }
 
 सब **एडमिन → रिमोट एक्सेस** में हैं। हर सेटिंग बिना रीस्टार्ट के लागू होती
 है: नेटवर्क सेटिंग्स अगले अनुरोध से, बिटरेट अगले प्लेबैक से।
@@ -81,7 +81,7 @@ reviewed: true
 | **LAN नेटवर्क (CIDR, अल्पविराम से अलग)** | वे पते जिन्हें Evey "घर" मानता है। प्राइवेट रेंज डिफ़ॉल्ट रूप से सूची में हैं। अगर आप VPN (Tailscale, WireGuard) इस्तेमाल करते हैं और चाहते हैं कि उसके उपयोगकर्ता घर में गिने जाएँ, तो उसकी रेंज यहाँ जोड़ें। |
 | **अधिकतम रिमोट बिटरेट (Kbps, 0 = असीमित)** | आपके घर के नेटवर्क के बाहर के लोगों के लिए क्वालिटी की सीमा। प्राइवेट पते पर कभी सीमा नहीं लगती। अगर **एडमिन → ट्रांसकोडिंग** भी रिमोट दर्शकों के लिए सीमा तय करता है, तो दोनों में से कम वाली लागू होती है। देखें [प्लेबैक कैसे तय होता है](../playback/how-playback-is-decided.md#limits-on-the-session)। |
 
-## Evey को प्रॉक्सी के बारे में क्या जानना है
+## Evey को प्रॉक्सी के बारे में क्या जानना है { #what-evey-needs-to-know-about-the-proxy }
 
 Evey पोर्ट 9091 पर सादे HTTP में जवाब देता है। HTTPS रिवर्स प्रॉक्सी संभालता
 है। Evey को इसके बारे में दो बातें जाननी हैं, दोनों **एडमिन → रिमोट एक्सेस**
@@ -100,7 +100,7 @@ Evey पोर्ट 9091 पर सादे HTTP में जवाब दे
     किसी भी जगह से आने का दिखावा कर सकता। पैनल और `evey admin doctor` दोनों
     इसे मना करते हैं। इसकी जगह प्रॉक्सी का अपना पता या नेटवर्क लिखें।
 
-### इसकी जगह environment में सेट करना
+### इसकी जगह environment में सेट करना { #setting-it-in-the-environment-instead }
 
 वेरिएबल `EVEY_SERVER_BASE_URL` और `EVEY_TRUSTED_PROXIES` यही काम compose
 फ़ाइल से करते हैं। यह उस सेटअप के लिए ठीक है जो पूरा फ़ाइलों में लिखा है, या
@@ -111,7 +111,7 @@ HTTPS मोड चालू कर देता है, भले ही base U
 सूची वेरिएबल की जगह ले लेती है। वेरिएबल का मान फिर से लागू करने के लिए फ़ील्ड
 खाली करें। देखें [सर्वर और नेटवर्क](../environment/server.md#remote-access)।
 
-## क्लाइंट का असली पता
+## क्लाइंट का असली पता { #the-real-client-address }
 
 रिमोट एक्सेस और रिमोट क्वालिटी की सीमा काम करें, इसके लिए Evey को हर विज़िटर
 का असली पता दिखना चाहिए। दो सेटिंग्स मिलकर काम करती हैं:
@@ -132,6 +132,43 @@ HTTPS मोड चालू कर देता है, भले ही base U
     दिखाता है, सार्वजनिक रेंज पर चेतावनी देता है, और हर पते को ढकने वाली रेंज
     पर विफल होता है।
 
+### Docker और IPv6 { #docker-and-ipv6 }
+
+Docker IPv4 पर पोर्ट एक फ़ायरवॉल नियम से प्रकाशित करता है, जो विज़िटर का पता
+बनाए रखता है। IPv6 पर, जब कंटेनर के नेटवर्क में IPv6 नहीं होता, तो Docker इसकी
+जगह एक रिले का इस्तेमाल करता है: हर IPv6 विज़िटर Evey तक नेटवर्क के गेटवे से
+पहुँचता है, जो एक प्राइवेट पता है, चाहे वह असल में कहीं भी हो। Evey यह नहीं
+जान सकता कि उसके अपने गेटवे के पीछे कौन है, इसलिए वह ऐसे अनुरोध को रिमोट
+गिनता है: रिमोट एक्सेस बंद होने पर अस्वीकार, और रिमोट क्वालिटी की सीमा के
+अधीन। ऐसा अनुरोध आते ही **रिमोट एक्सेस** एक चेतावनी दिखाता है।
+
+इस दस्तावेज़ की compose फ़ाइलें पोर्ट को सिर्फ़ IPv4 पर प्रकाशित करती हैं
+(`0.0.0.0:9091:9091`), इसलिए रिले कभी शुरू नहीं होता। IPv6 भी सर्व करने के
+लिए Docker नेटवर्क को IPv6 दें: तब Docker IPv6 को भी IPv4 की तरह आगे भेजता
+है, असली पते के साथ।
+
+```yaml
+services:
+  evey:
+    ports:
+      - "9091:9091"
+    networks: [evey]
+
+networks:
+  evey:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:e7e7::/64
+```
+
+Docker के पुराने वर्ज़न में daemon की कॉन्फ़िगरेशन में `ip6tables` भी चालू
+करना पड़ता है: Docker का IPv6 दस्तावेज़ देखें।
+
+होस्ट पर, Docker के बाहर चलने वाला रिवर्स प्रॉक्सी भी Evey तक उसी गेटवे से
+पहुँचता है। उसे विश्वसनीय प्रॉक्सी में जोड़ें, और Evey का पोर्ट `127.0.0.1`
+पर प्रकाशित करें, ताकि उस रास्ते से और कुछ न आ सके।
+
 <!-- sources
 inference and explicit choice: docs/adr/0026-remote-access-inferred-from-a-published-url.md ; internal/config/remote_access_resolve.go - ResolveRemoteAccess, IsPubliclyReachableURL
 gate, live switch and LAN list: cmd/evey/gateway.go - networkMiddleware ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_LANListChangeAppliesWithoutRestart
@@ -139,6 +176,7 @@ remote cap live: internal/adapters/driving/grpcapi/playback_remote_bitrate_test.
 labels: i18n admin.remoteAccess.* (enableRemoteAccess, externalUrl, trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle)
 proxy settings: docs/reverse-proxy.md
 https mode and trusted proxies live: internal/config/network_live.go - EffectiveHTTPS, EffectiveTrustedProxies ; internal/adapters/driving/http/access_handler_live_test.go
+docker gateway relay: internal/pkg/network/relay.go - DefaultGateways, IsRelay ; internal/pkg/network/relay_test.go - TestDetectIP_RelayIsWANEvenInsideTheLANList ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_GatewayRelayIsRemote ; i18n admin.remoteAccess.relayedClientsTitle
 catch-all range refused: internal/config/trusted_proxies.go - IsCatchAllProxyRange ; internal/config/network_live.go
 doctor check: cmd/evey/admin_ops.go - checkTrustedProxies
 exact field labels: i18n admin.remoteAccess.trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle ; apps message: i18n auth.remoteAccess.title

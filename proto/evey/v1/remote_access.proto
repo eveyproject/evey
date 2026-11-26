@@ -37,8 +37,8 @@ message RemoteAccessConfig {
   //
   // published: this instance has a publicly reachable address configured.
   // lockout_risk: published AND remote access off - every client outside the
-  // local network is being refused on every route. That state was invisible
-  // everywhere on 2026-07-29 and took two days to find, which is why it is part
+  // local network is being refused on every route. That state was once
+  // invisible everywhere and took two days to find, which is why it is part
   // of the contract rather than something an operator has to infer.
   bool published = 6;
   bool lockout_risk = 7;
@@ -47,6 +47,11 @@ message RemoteAccessConfig {
   repeated string trusted_proxies = 8;
   // True when the list above comes from the panel rather than the environment.
   bool trusted_proxies_from_panel = 9;
+  // Derived, read-only: a request has arrived since boot from this server's own
+  // gateway, which hides the real client (typically Docker relaying IPv6 to an
+  // IPv4-only network). Such requests count as remote; the panel says how to
+  // let the real address through.
+  bool relayed_clients = 10;
 }
 
 message UpdateRemoteAccessRequest {

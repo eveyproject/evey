@@ -174,6 +174,50 @@ func TestRecordServed_AResponseThatBeganEarlierIsOlderNews(t *testing.T) {
 	assert.Equal(t, playback.EngineFile, got.Served.Audio.Engine)
 }
 
+// Measured on the demo: a sender page's hidden cast element loaded the cast
+// URL and pulled the first audio rendition (track 0) while the player was
+// playing track 2. Those bytes are not the playback; a receiver that really
+// plays is, once the player's own fetches have stopped.
+func TestRecordServedCast_YieldsToThePlayersOwnFreshBytes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	svc, sessions := newWitnessSvc(t)
+	require.NoError(t, sessions.Create(ctx, activeSession("s-1", "prof-1", "media-1", "")))
+
+	t0 := time.Now().Add(-time.Minute)
+	own := playback.ServedLeg{Engine: playback.EngineMkvgo, Copy: true, Track: 2, Codec: "aac", At: t0}
+	preload := playback.ServedLeg{Engine: playback.EngineMkvgo, Copy: true, Track: 0, Codec: "mp3", At: t0.Add(2 * time.Second)}
+	require.NoError(t, svc.RecordServed(ctx, "prof-1", "media-1", playback.LegAudio, own))
+	require.NoError(t, svc.RecordServedCast(ctx, "prof-1", "media-1", playback.LegAudio, preload))
+
+	got, err := sessions.GetByID(ctx, "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, 2, got.Served.Audio.Track, "the hidden element's bytes do not replace the player's")
+
+	receiver := preload
+	receiver.At = t0.Add(30 * time.Second)
+	require.NoError(t, svc.RecordServedCast(ctx, "prof-1", "media-1", playback.LegAudio, receiver))
+	got, err = sessions.GetByID(ctx, "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, 0, got.Served.Audio.Track, "the player went quiet: the cast bytes are the playback")
+}
+
+// A cast with no player behind it (the sender is gone, or never fetched this
+// leg) is the only playback there is.
+func TestRecordServedCast_AloneIsRecorded(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	svc, sessions := newWitnessSvc(t)
+	require.NoError(t, sessions.Create(ctx, activeSession("s-1", "prof-1", "media-1", "TV")))
+
+	l := playback.ServedLeg{Engine: playback.EngineFFmpeg, Track: 1, Codec: "aac", SourceCodec: "ac3"}
+	require.NoError(t, svc.RecordServedCast(ctx, "prof-1", "media-1", playback.LegAudio, l))
+	got, err := sessions.GetByID(ctx, "s-1")
+	require.NoError(t, err)
+	require.NotNil(t, got.Served.Audio)
+	assert.Equal(t, 1, got.Served.Audio.Track)
+}
+
 // A new start on the same device reuses the live row: it is another playback,
 // and the audio the previous one was served is not what this one plays.
 func TestStartStream_AReusedRowStartsWithNothingServed(t *testing.T) {

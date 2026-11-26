@@ -264,10 +264,12 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 	// detector - so it never throttles an obviously-local viewer even if the
 	// admin forgot to list a private range in LANNetworks. An unresolved IP fails
 	// open (no cap), so an IP-plumbing hiccup can't wrongly throttle a LAN user.
+	// A relay (the server's own gateway) is private but hides clients from
+	// anywhere, so it is capped: same rule as lanClient on the HLS side.
 	if h.remoteAccess != nil {
 		if remoteCap, lan := h.remoteAccess(); remoteCap > 0 {
 			if ip := net.ParseIP(interceptors.ClientIPFromCtx(ctx)); ip != nil &&
-				!ip.IsPrivate() && network.NewDetector(lan).DetectIP(ip) == network.WAN {
+				(network.IsRelay(ip) || !ip.IsPrivate()) && network.NewDetector(lan).DetectIP(ip) == network.WAN {
 				if maxBitrateKbps == 0 || remoteCap < maxBitrateKbps {
 					maxBitrateKbps = remoteCap
 				}
