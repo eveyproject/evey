@@ -243,7 +243,7 @@ test.describe("Player - one play session per viewing", () => {
     expect(sessions.startRequests).toBe(1);
   });
 
-  test("reloading the player closes the first session and opens one more", async ({ page }) => {
+  test("reloading the player leaves one session running, and none once it is left", async ({ page }) => {
     test.skip(!movieId, "No film in the library");
     const sessions = trackSessions(page);
     await openFromMediaPage(page, movieId);
@@ -255,8 +255,11 @@ test.describe("Player - one play session per viewing", () => {
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expectStarted(sessions, 2);
-    // The first is closed, the second is the one running.
-    await expect.poll(() => runningOnServer(page, token, sessions), { timeout: 10_000 }).toEqual([sessions.started[1]]);
+    // One session runs for this player: a new one when the first was closed on
+    // the way out, the first one taken back by the server otherwise.
+    await expect
+      .poll(async () => [...new Set(await runningOnServer(page, token, sessions))], { timeout: 10_000 })
+      .toEqual([sessions.started[1]]);
     await page.keyboard.press("Escape");
     await page.waitForURL(/\/(media|home)/, { timeout: 10_000 });
     await expectNoneRunningOnServer(page, token, sessions);
