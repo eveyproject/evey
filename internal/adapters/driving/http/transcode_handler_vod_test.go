@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1367,4 +1368,174 @@ func TestHLSVOD_VariantPlaylist_BusyHostStillShedsAsTooManyStreams(t *testing.T)
 
 	assert.Equal(t, ErrCodeTooManyStreams, w.Header().Get("X-Evey-Error"))
 	assert.Equal(t, "5", w.Header().Get("Retry-After"))
+}
+
+func doPrewarmRequestWithCaps(h *hlsVODServe, mediaID, rawQuery string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/"+mediaID+"/prewarm-next?"+rawQuery, nil)
+	req.SetPathValue("id", mediaID)
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.servePrewarmNext(w, req)
+	return w
+}
+
+// countingProducer counts the segments it is asked to make ready.
+type countingProducer struct {
+	sentinelProducer
+	ensured  int
+	variants []int
+}
+
+func (c *countingProducer) EnsureSegmentRange(_ context.Context, _ apptranscoding.DecisionFingerprint, variantIdx, _ int) error {
+	c.ensured++
+	c.variants = append(c.variants, variantIdx)
+	return nil
+}
+
+// A browser that plays the next episode's file as it is never asks for one of
+// its segments: warming them ran a remux, or a whole encode, into a cache
+// nobody read.
+func TestPrewarmNext_NextEpisodePlaysAsAFile_WarmsNothing(t *testing.T) {
+	const browser = "videoCodecs=h264&audioCodecs=aac&containers=mp4"
+	w, hgt, stereo := 1280, 720, 2
+	fileStreams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264", Width: &w, Height: &hgt},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Channels: &stereo, IsDefault: true},
+	}
+	cur := newEpisode("ep-a", "lib-a")
+	prewarm := func(t *testing.T, container string) (*httptest.ResponseRecorder, *countingProducer) {
+		t.Helper()
+		next := newEpisode("ep-b", "lib-a")
+		next.File.ContainerFormat = container
+		libSvc := &prewarmStreamsGetter{items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next}, streams: fileStreams, next: next}
+		h, _ := buildVODHandler(t, libSvc, allowAll(), testFakeParentalChecker{})
+		producer := &countingProducer{}
+		h.selector = apptranscoding.NewProducerSelector(producer, producer)
+		return doPrewarmRequestWithCaps(h, "ep-a", browser), producer
+	}
+
+	t.Run("an MP4 the browser plays itself", func(t *testing.T) {
+		res, producer := prewarm(t, "mp4")
+		require.Equal(t, http.StatusOK, res.Code)
+		assert.Contains(t, res.Body.String(), `"next_media_item_id":"ep-b"`)
+		assert.Zero(t, producer.ensured, "no segment for an episode that will be read as a file")
+	})
+
+	t.Run("the same tracks in a container it cannot open", func(t *testing.T) {
+		res, producer := prewarm(t, "matroska")
+		require.Equal(t, http.StatusOK, res.Code)
+		assert.Equal(t, 1, producer.ensured, "segments will be asked for: they are warmed")
+	})
+}
+
+// The web player pins the top rung of the ladder: the first segment it asks
+// for is that rung's, so that is the one to warm. Rung 0 stays the answer for
+// a client that does not say where it starts.
+func TestPrewarmNext_WarmsTheRungThePlayerOpensOn(t *testing.T) {
+	const browser = "videoCodecs=h264&audioCodecs=aac&containers=mp4&screenHeight=1080"
+	cur := newEpisode("ep-a", "lib-a")
+	prewarm := func(t *testing.T, query string) (*hlsVODServe, *countingProducer, *domainlibrary.MediaItem, []*domainlibrary.MediaStream) {
+		t.Helper()
+		next, streams := supersede4KItem(t)
+		next.ID, next.Type = "ep-b", "episode"
+		libSvc := &prewarmStreamsGetter{items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next}, streams: streams, next: next}
+		h, _ := buildVODHandler(t, libSvc, allowAll(), testFakeParentalChecker{})
+		producer := &countingProducer{}
+		h.selector = apptranscoding.NewProducerSelector(producer, producer)
+		require.Equal(t, http.StatusOK, doPrewarmRequestWithCaps(h, "ep-a", query).Code)
+		return h, producer, next, streams
+	}
+
+	t.Run("a player that starts at the top", func(t *testing.T) {
+		h, producer, next, streams := prewarm(t, browser+"&startRung=top")
+		req := httptest.NewRequest(http.MethodPost, "/x?"+browser, nil)
+		rp, err := h.probePlan(withHTTPClaims(req, testClaims(false)), "ep-b", next, streams)
+		require.NoError(t, err)
+		require.Greater(t, len(rp.Profiles), 1, "the case needs a ladder")
+		assert.Equal(t, []int{len(rp.Profiles) - 1}, producer.variants)
+	})
+
+	// A player that keeps its rung from one episode to the next (the phone's)
+	// names the picture it is playing: the rung of that height is the one it
+	// opens the next episode on.
+	t.Run("a player that says the height it is playing", func(t *testing.T) {
+		h, _, next, streams := prewarm(t, browser)
+		req := httptest.NewRequest(http.MethodPost, "/x?"+browser, nil)
+		rp, err := h.probePlan(withHTTPClaims(req, testClaims(false)), "ep-b", next, streams)
+		require.NoError(t, err)
+		require.Greater(t, len(rp.Profiles), 2, "the case needs a middle rung")
+		middle := len(rp.Profiles) - 2
+		require.Less(t, rp.Profiles[middle].Height, rp.Profiles[middle+1].Height, "fixture: rungs ordered by height")
+
+		_, producer, _, _ := prewarm(t, browser+"&startHeight="+strconv.Itoa(rp.Profiles[middle].Height))
+		assert.Equal(t, []int{middle}, producer.variants, "the rung of that height")
+
+		_, producer, _, _ = prewarm(t, browser+"&startHeight="+strconv.Itoa(rp.Profiles[middle+1].Height-2))
+		assert.Equal(t, []int{middle}, producer.variants, "between two rungs: the one below")
+
+		_, producer, _, _ = prewarm(t, browser+"&startHeight=1")
+		assert.Equal(t, []int{0}, producer.variants, "below the ladder: its first rung")
+
+		_, producer, _, _ = prewarm(t, browser+"&startHeight=abc")
+		assert.Equal(t, []int{0}, producer.variants, "not a height: as if it had not said")
+	})
+
+	t.Run("a client that does not say", func(t *testing.T) {
+		_, producer, _, _ := prewarm(t, browser)
+		assert.Equal(t, []int{0}, producer.variants)
+	})
+}
+
+// The packager cuts its segments straight off the file, with no process to
+// start: an ffmpeg remux warmed for such an episode fills a cache its playback
+// never opens.
+func TestPrewarmNext_PackagerServesTheNextEpisode_WarmsNothing(t *testing.T) {
+	const browser = "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4"
+	cur := newEpisode("ep-a", "lib-a")
+	next := newEpisode("ep-b", "lib-a")
+	next.File.Size = 1 << 20
+	streams := copyEligibleAV()
+	libSvc := &prewarmStreamsGetter{items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next}, streams: streams, next: next}
+	h, _ := buildVODHandler(t, libSvc, allowAll(), testFakeParentalChecker{})
+	h.copyProducer = newCopyTestHandler(t).copyProducer
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	producer := &countingProducer{}
+	h.selector = apptranscoding.NewProducerSelector(producer, producer)
+
+	req := httptest.NewRequest(http.MethodPost, "/x?"+browser, nil)
+	rp, err := h.probePlan(withHTTPClaims(req, testClaims(false)), "ep-b", next, streams)
+	require.NoError(t, err)
+	require.Equal(t, apptranscoding.EngineMkvgo, rp.Plan.Delivery.Video, "fixture: the packager carries the next episode")
+	require.NotEqual(t, "direct_play", rp.Decision.PlayMethod, "fixture: segments, not the file")
+
+	res := doPrewarmRequestWithCaps(h, "ep-a", browser)
+	require.Equal(t, http.StatusOK, res.Code)
+	assert.Zero(t, producer.ensured)
+}
+
+// The plan gives the video to the packager, but the packager cannot read the
+// file (a transport stream): ffmpeg serves that plan, so its first segment is
+// still worth making ready.
+func TestPrewarmNext_PackagerCannotBuildTheNextEpisode_Warms(t *testing.T) {
+	const browser = "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4"
+	cur := newEpisode("ep-a", "lib-a")
+	next := newEpisode("ep-b", "lib-a")
+	next.File.Size = 1 << 20
+	streams := copyEligibleAV()
+	libSvc := &prewarmStreamsGetter{items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next}, streams: streams, next: next}
+	h, _ := buildVODHandler(t, libSvc, allowAll(), testFakeParentalChecker{})
+	// The plan's route is a copy: the copy producer is the one asked.
+	producer := &countingProducer{}
+	h.copyProducer = producer
+	h.onDemand = &fakeOnDemandPackager{err: os.ErrInvalid}
+	h.selector = apptranscoding.NewProducerSelector(&countingProducer{}, &countingProducer{})
+
+	req := httptest.NewRequest(http.MethodPost, "/x?"+browser, nil)
+	rp, err := h.probePlan(withHTTPClaims(req, testClaims(false)), "ep-b", next, streams)
+	require.NoError(t, err)
+	require.Equal(t, apptranscoding.EngineMkvgo, rp.Plan.Delivery.Video, "fixture: the plan gives the video to the packager")
+
+	res := doPrewarmRequestWithCaps(h, "ep-a", browser)
+	require.Equal(t, http.StatusOK, res.Code)
+	assert.Equal(t, 1, producer.ensured)
 }

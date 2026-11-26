@@ -96,6 +96,32 @@ describe("maxAudioChannels reaches the stream URL", () => {
     return result.current.streamUrl as string;
   }
 
+  // The next-episode warm-up sends this: the device's side of the master URL,
+  // so the server judges the next episode for this phone and not for a
+  // default browser.
+  it("exposes what the device plays, as its own master declares it", async () => {
+    getAudioProbeMock.mockResolvedValue(audioProbe({ outputDeviceTypes: [2, 4, 8] }));
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+    eveyFetchMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.streamUrl).not.toBeNull());
+
+    const declared = new URLSearchParams(result.current.capabilityQuery ?? "");
+    expect(declared.get("videoCodecs")).toBeTruthy();
+    expect(declared.get("containers")).toBeTruthy();
+    expect(declared.get("maxAudioChannels")).toBe("2");
+    // Nothing that belongs to the title being played.
+    for (const key of ["token", "audioTrack", "subtitleTrack", "startSec"]) expect(declared.has(key)).toBe(false);
+    // And, when the stream is a master, exactly its device parameters.
+    const stream = new URL(result.current.streamUrl as string);
+    if (stream.pathname.endsWith("master.m3u8")) {
+      for (const [key, value] of declared) expect(stream.searchParams.get(key)).toBe(value);
+    }
+  });
+
   it("declares the stereo ceiling of a phone (speaker + headphones + Bluetooth)", async () => {
     getAudioProbeMock.mockResolvedValue(audioProbe({ outputDeviceTypes: [2, 4, 8] }));
     expect(new URL(await negotiatedUrl()).searchParams.get("maxAudioChannels")).toBe("2");
@@ -186,6 +212,16 @@ describe("buildStreamUrl", () => {
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_STREAM" }, "tok", { audioTrack: 1, subtitleTrack: 0 });
     expect(url).toContain("audioTrack=1");
     expect(url).toContain("subtitleTrack=0");
+  });
+
+  it("declares the device without the title: every master parameter but the token, the tracks and the start", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const { streamCapabilityQuery } = await import("@evey/client/native/playSession");
+    const opts = { supportsHdr: true, maxAudioChannels: 6, maxHeight: 1080, screenHeight: 1080, networkType: "cellular" as const, maxBitrateKbps: 4000 };
+    const master = new URL(buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", { ...opts, audioTrack: 1, subtitleTrack: 0, startSec: 90 }));
+    const expected = new URLSearchParams(master.search);
+    for (const key of ["token", "audioTrack", "subtitleTrack", "startSec"]) expected.delete(key);
+    expect(streamCapabilityQuery({ ...opts, audioTrack: 1, subtitleTrack: 0, startSec: 90 })).toBe(expected.toString());
   });
 
   it("returns HLS URL for PLAY_METHOD_TRANSCODE with codec params", async () => {

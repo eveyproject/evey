@@ -1491,12 +1491,26 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	// identically to what the player will request (it earlier drifted -
 	// HDRTonemap/ForceSidecarSubs hardcoded - so HDR/sidecar prewarms missed the
 	// cache). One source of truth now also carries HWTonemap.
-	fp, err := h.buildFingerprint(r, string(nextItem.ID), nextItem, streams)
+	rp, err := h.probePlan(r, string(nextItem.ID), nextItem, streams)
 	if err != nil {
 		slog.WarnContext(r.Context(), "prewarm: fingerprint build failed", slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
 		http.Error(w, `{"message":"prewarm fingerprint failed"}`, http.StatusInternalServerError)
 		return
 	}
+	// A client that plays the next episode's file as it is never asks for a
+	// segment, and one the packager serves reads them straight off the file,
+	// with no process to start: warming either spends a remux or an encode on
+	// a cache nobody reads.
+	if reason := h.prewarmNotNeeded(r, nextItem, streams, rp); reason != "" {
+		slog.Info("prewarm: skipped, "+reason,
+			slog.String("current_id", currentID),
+			slog.String("next_id", string(nextItem.ID)))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, `{"next_media_item_id":%q}`+"\n", string(nextItem.ID))
+		return
+	}
+	fp := rp.FP
 
 	// Route the warm-up through the SAME producer the player will use for this
 	// next episode (software vs hardware) so the warmed segments land in the
@@ -1509,7 +1523,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, `{"next_media_item_id":%q}`+"\n", string(nextItem.ID))
 		return
 	}
-	if err := producer.EnsureSegmentRange(r.Context(), fp, 0, 0); err != nil {
+	if err := producer.EnsureSegmentRange(r.Context(), fp, prewarmStartVariant(r, rp.Profiles), 0); err != nil {
 		// Don't fail the response - the player will reach a cold cache
 		// on switch, just no faster than before.
 		if errors.Is(err, apptranscoding.ErrVideoCapacityExhausted) {
@@ -1532,6 +1546,56 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = fmt.Fprintf(w, `{"next_media_item_id":%q}`+"\n", string(nextItem.ID))
+}
+
+// prewarmNotNeeded says why a plan has no segment worth making ready ahead of
+// its playback, or "" when it has.
+func (h *hlsVODServe) prewarmNotNeeded(r *http.Request, next *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) string {
+	switch {
+	case rp.Decision.PlayMethod == "direct_play":
+		return "the next episode plays as a file"
+	case rp.Plan.Delivery.Video == apptranscoding.EngineMkvgo && h.packagerBuilds(r, next, streams, rp):
+		return "the packager serves the next episode off the file"
+	}
+	return ""
+}
+
+// packagerBuilds reports whether the packager can serve the plan that names
+// it. A file it cannot read (a transport stream) is served by ffmpeg for the
+// same plan, and that one has a first segment to make ready. Building the
+// plan here also readies it for the playback to come.
+func (h *hlsVODServe) packagerBuilds(r *http.Request, next *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) bool {
+	if h.onDemand == nil {
+		return false
+	}
+	_, err := h.buildPlan(r, string(next.ID), next, streams, rp)
+	return err == nil
+}
+
+// prewarmStartVariant is the rung the client will open the next episode on.
+// A player that pins the top of the ladder (the web player, on Auto) says so
+// with ?startRung=top. One that carries its rung from an episode to the next
+// (the phone's, which keeps its measure of the network) names the height it
+// is playing with ?startHeight: the highest rung no taller than it. Warming
+// rung 0 for either readied the lowest picture while the first segment it
+// asked for was still to encode. Any other client keeps rung 0, the only rung
+// of a copy.
+func prewarmStartVariant(r *http.Request, profiles []domaintranscoding.HLSProfile) int {
+	q := r.URL.Query()
+	if q.Get("startRung") == "top" && len(profiles) > 1 {
+		return len(profiles) - 1
+	}
+	playing, err := strconv.Atoi(q.Get("startHeight"))
+	if err != nil {
+		return 0
+	}
+	start := 0
+	for i, p := range profiles {
+		if p.Height <= playing && p.Height >= profiles[start].Height {
+			start = i
+		}
+	}
+	return start
 }
 
 // serveManifestMPD serves manifest.mpd for the plan this request resolves.

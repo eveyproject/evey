@@ -30,6 +30,14 @@ line - earlier history lives in git.
   longer depends on the page staying open.
 
 ### Fixed
+- Web player: leaving the player (the close button, Escape or the browser's
+  back button) opened a second play session that was stopped at once, so the
+  administrator counted two plays for one. One viewing is one session again.
+- Next episode: the warm-up sent near the end of an episode started a remux
+  nobody read when the next episode plays as a file or straight off the file
+  through the packager. It now runs only where a first segment has to be made,
+  for what the device plays, and on the rung the player opens on. The
+  television app sends it too.
 - Server: a request sent without a body that took more than 30 seconds (a
   move to the trash copying a large film across disks) cut its own
   connection's context, and behind a reverse proxy that connection went back

@@ -249,6 +249,56 @@ describe("shouldTriggerPrewarm (pure rule)", () => {
 });
 
 describe("useProgressReporter prewarm-next wiring", () => {
+  // Asked bare, the server judged a default browser: a remux or an encode for
+  // an episode this device plays as a file.
+  it("sends what the device plays with the warm-up", async () => {
+    renderHook(() =>
+      useProgressReporter("s1", () => 8600, undefined, undefined, undefined, undefined, {
+        mediaId: "ep1",
+        isEpisode: true,
+        getDurationMs: () => 10_000,
+        capabilities: "videoCodecs=h264%2Chevc&containers=mp4%2Cmkv",
+      }),
+    );
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    expect(eveyFetchMock).toHaveBeenCalledWith({
+      url: "/api/v1/media/ep1/prewarm-next?videoCodecs=h264%2Chevc&containers=mp4%2Cmkv",
+      method: "POST",
+    });
+  });
+
+  it("names the picture height it is playing with the warm-up, read when the warm-up leaves", async () => {
+    let playing: number | null = 480;
+    renderHook(() =>
+      useProgressReporter("s1", () => 8600, undefined, undefined, undefined, undefined, {
+        mediaId: "ep1",
+        isEpisode: true,
+        getDurationMs: () => 10_000,
+        capabilities: "videoCodecs=h264",
+        getPlayingHeight: () => playing,
+      }),
+    );
+    playing = 1080;
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    expect(eveyFetchMock).toHaveBeenCalledWith({
+      url: "/api/v1/media/ep1/prewarm-next?videoCodecs=h264&startHeight=1080",
+      method: "POST",
+    });
+  });
+
+  it("says no height when the player does not know the one it is playing", async () => {
+    renderHook(() =>
+      useProgressReporter("s1", () => 8600, undefined, undefined, undefined, undefined, {
+        mediaId: "ep1",
+        isEpisode: true,
+        getDurationMs: () => 10_000,
+        getPlayingHeight: () => null,
+      }),
+    );
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/media/ep1/prewarm-next", method: "POST" });
+  });
+
   it("POSTs prewarm-next exactly once when crossing the threshold, never again for the same media", async () => {
     let pos = 8600; // 86% of a 10s (10_000ms) episode
     renderHook(() =>

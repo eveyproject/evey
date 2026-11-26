@@ -3,6 +3,23 @@ import { QueryClientContext } from "@tanstack/react-query";
 import { playbackServiceReportProgress, reportProgressWithWitness, eveyFetch, type V1PlayedState, type V1ServedLeg } from "@evey/api";
 import { toast } from "@evey/store";
 import { PREWARM_PROGRESS_THRESHOLD, refreshProgressViews } from "@evey/client";
+import { appendCodecParams } from "@evey/client/web/hlsCodecParams";
+import { canWasmDecodeAC3 } from "@/utils/codec";
+
+// What this browser plays, declared the way the player declares it on the
+// master URL: the server warms the plan the next episode will really ask for,
+// and warms nothing when that episode plays as a file. Sent bare, the request
+// was judged for a default browser - another cache entry, a remux or an
+// encode nobody read.
+function prewarmCapabilities(): string {
+  const params = new URLSearchParams();
+  if (canWasmDecodeAC3()) params.set("wasmAudio", "1");
+  appendCodecParams(params);
+  // This player opens a ladder on its top rung (pickPinnedLevel): that is the
+  // rung whose first segment it will ask for.
+  params.set("startRung", "top");
+  return params.toString();
+}
 
 /**
  * Live cast (Chromecast) playback state, relayed by the sender page. While
@@ -162,7 +179,7 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
         ) {
           prewarmedForRef.current = mediaId;
           eveyFetch<{ next_media_item_id?: string }>({
-            url: `/api/v1/media/${encodeURIComponent(mediaId)}/prewarm-next`,
+            url: `/api/v1/media/${encodeURIComponent(mediaId)}/prewarm-next?${prewarmCapabilities()}`,
             method: "POST",
           }).catch((err) => {
             // 204 (series finale) lands as a no-content response and

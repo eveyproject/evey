@@ -149,9 +149,14 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
   const { fetchStreamToken: mintStreamToken } = useStreamToken();
   // A cast token is a parallel one for the receiver: the local player's
   // token is only replaced by a local mint.
+  const mediaIdRef = useRef(mediaId);
+  mediaIdRef.current = mediaId;
   const fetchStreamToken = useCallback(async (forMediaId: string, opts?: { cast?: boolean; native?: boolean }): Promise<string> => {
     const token = await mintStreamToken(forMediaId, opts);
-    if (!opts?.cast) setTokenFor({ mediaId: forMediaId, token });
+    // A token minted for a title the viewer has since left must not take the
+    // place of the current title's: it landed late and blanked the token of
+    // the episode now playing.
+    if (!opts?.cast && forMediaId === mediaIdRef.current) setTokenFor({ mediaId: forMediaId, token });
     return token;
   }, [mintStreamToken]);
 
@@ -289,6 +294,10 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
           prefersNativeHLS() ? { native: true } : undefined,
         );
         if (gen === startGenRef.current) streamTokenRef.current = token;
+        // The player was left, or moved to another title, while the token was
+        // minted: a session opened now would only be closed again, and it
+        // would still count as a play.
+        if (stopped.current || gen !== startGenRef.current) return;
         const session = await playbackServiceStartStream({
           mediaItemId: forMediaId,
           playMethod,

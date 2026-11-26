@@ -126,6 +126,20 @@ describe("usePlaySession", () => {
     });
   });
 
+  // Leaving for another site, reloading, closing the tab: the page is told
+  // with pagehide, and the unmount that may follow must not stop it twice.
+  it("stops the session once when the page is left, and not again on unmount", async () => {
+    const usePlaySession = await loadHook("");
+    let unmountFn!: () => void;
+    await act(async () => {
+      unmountFn = renderHook(() => usePlaySession("media-leave")).unmount;
+    });
+    act(() => { window.dispatchEvent(new Event("pagehide")); });
+    expect(stopCalls()).toHaveLength(1);
+    act(() => { unmountFn(); });
+    expect(stopCalls()).toHaveLength(1);
+  });
+
   it("stops the session on unmount even after the player mode changed (no mini-player handoff)", async () => {
     // Leaving the player always ends the session now - there is no mini-player
     // that keeps the stream (and its admin "Now Playing" entry) alive in the
@@ -372,6 +386,40 @@ describe("usePlaySession", () => {
     const calls = stopCalls();
     expect(calls).toHaveLength(1);
     expect(calls[0][1]).toMatchObject({ body: JSON.stringify({ sessionId: "session-late" }) });
+  });
+
+  // Left that early, the start had not been sent yet: sending it opened a
+  // session only to close it, and the admin counted a play nobody watched.
+  it("opens no session when the player was left before its token was minted", async () => {
+    const usePlaySession = await loadHook("");
+    let resolveToken!: (t: string) => void;
+    fetchStreamTokenFn.mockImplementationOnce(() => new Promise<string>((r) => { resolveToken = r; }));
+    let unmountFn!: () => void;
+    await act(async () => {
+      const { unmount } = renderHook(() => usePlaySession("media-early"));
+      unmountFn = unmount;
+    });
+    act(() => { unmountFn(); });
+    await act(async () => { resolveToken("stream-tok-late"); });
+    expect(startStreamFn).not.toHaveBeenCalled();
+    expect(stopCalls()).toHaveLength(0);
+  });
+
+  it("opens no session for a title the viewer already moved on from while its token was minted", async () => {
+    const usePlaySession = await loadHook("");
+    let resolveTokenA!: (t: string) => void;
+    fetchStreamTokenFn
+      .mockImplementationOnce(() => new Promise<string>((r) => { resolveTokenA = r; }))
+      .mockImplementationOnce(() => Promise.resolve("stream-tok-B"));
+    let hook!: ReturnType<typeof renderHook<ReturnType<typeof usePlaySession>, { id: string }>>;
+    await act(async () => {
+      hook = renderHook(({ id }) => usePlaySession(id), { initialProps: { id: "media-A" } });
+    });
+    await act(async () => { hook.rerender({ id: "media-B" }); });
+    await act(async () => { resolveTokenA("stream-tok-A"); });
+    expect(startStreamFn).toHaveBeenCalledTimes(1);
+    expect(startStreamFn.mock.calls[0][0]).toMatchObject({ mediaItemId: "media-B" });
+    expect(hook.result.current.streamToken).toBe("stream-tok-B");
   });
 
   it("reads any other refused verdict as an error, without spinning", async () => {
