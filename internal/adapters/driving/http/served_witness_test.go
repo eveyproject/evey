@@ -15,6 +15,7 @@ import (
 
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // The served witness's fixtures are real ffmpeg inits (lavfi test patterns):
@@ -30,6 +31,7 @@ type recordedLeg struct {
 	profile, media string
 	leg            domainplayback.Leg
 	l              domainplayback.ServedLeg
+	viaCast        bool
 }
 
 type legRecorder struct {
@@ -37,10 +39,10 @@ type legRecorder struct {
 	legs []recordedLeg
 }
 
-func (r *legRecorder) record(_ context.Context, profileID, mediaID string, leg domainplayback.Leg, l domainplayback.ServedLeg) error {
+func (r *legRecorder) record(_ context.Context, profileID, mediaID string, leg domainplayback.Leg, l domainplayback.ServedLeg, viaCast bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.legs = append(r.legs, recordedLeg{profileID, mediaID, leg, l})
+	r.legs = append(r.legs, recordedLeg{profileID, mediaID, leg, l, viaCast})
 	return nil
 }
 
@@ -91,6 +93,24 @@ func TestServedWitness_ReadsTheInitThatWentOut(t *testing.T) {
 	assert.Equal(t, 1, audio[0].Track)
 	assert.Equal(t, "p1", rec.legs[0].profile)
 	assert.Equal(t, "m1", rec.legs[0].media)
+}
+
+// A response fetched under a cast token is recorded as such, so the session
+// can rank it against the player's own bytes; any other token is the player's.
+func TestServedWitness_ACastTokenResponseIsMarked(t *testing.T) {
+	for _, cast := range []bool{true, false} {
+		rec := &legRecorder{}
+		sw := &servedWitness{record: rec.record}
+		h := sw.wrap(func(w http.ResponseWriter, r *http.Request) {
+			deliveryStampOf(r).stampAudio("m1", domainplayback.EngineFFmpeg, true, 0, "", false)
+			_, _ = w.Write([]byte("moof+mdat"))
+		})
+		req := witnessRequest(http.MethodGet)
+		req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{Cast: cast}))
+		h(httptest.NewRecorder(), req)
+		require.Len(t, rec.legs, 1)
+		assert.Equal(t, cast, rec.legs[0].viaCast)
+	}
 }
 
 // A segment is described by the init it decodes with: read once when the
