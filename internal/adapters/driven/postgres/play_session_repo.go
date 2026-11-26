@@ -189,7 +189,7 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE play_sessions SET device_name=$1, device_type=$2, client_ip=$3, play_method=$4,
 		 video_codec=$5, audio_codec=$6, resolution=$7, bandwidth_bps=$8, ended_at=$9, duration_ms=$10, position_ms=$11,
-		 is_paused=$12, cast_device_name=$13, updated_at=NOW()
+		 is_paused=$12, cast_device_name=$13, ended_by_sweep=false, updated_at=NOW()
 		 WHERE id=$14`,
 		s.DeviceName, s.DeviceType, s.ClientIP, s.PlayMethod,
 		s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
@@ -365,7 +365,7 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 	defer cancel()
 	cutoff := time.Now().Add(-olderThan)
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE play_sessions SET ended_at = NOW()
+		`UPDATE play_sessions SET ended_at = NOW(), ended_by_sweep = true
 		 WHERE ended_at IS NULL AND updated_at < $1`, cutoff)
 	if err != nil {
 		span.RecordError(err)
@@ -391,6 +391,7 @@ func (r *PlaySessionRepository) CloseStaleReturning(ctx context.Context, olderTh
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`UPDATE play_sessions
 		 SET ended_at = updated_at,
+		     ended_by_sweep = true,
 		     duration_ms = GREATEST(0, (EXTRACT(EPOCH FROM (updated_at - started_at)) * 1000)::bigint)
 		 WHERE ended_at IS NULL AND updated_at < $1
 		 RETURNING id, profile_id, media_item_id, started_at, ended_at, duration_ms, position_ms`, cutoff)
@@ -430,25 +431,25 @@ func (r *PlaySessionRepository) CloseStaleReturning(ctx context.Context, olderTh
 	return ended, nil
 }
 
-func (r *PlaySessionRepository) ReopenEndedBefore(ctx context.Context, sessionID string, before time.Time, positionMs int64, isPaused bool, castDeviceName string) (bool, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.ReopenEndedBefore")
+func (r *PlaySessionRepository) ReopenNotStopped(ctx context.Context, sessionID string, before time.Time, positionMs int64, isPaused bool, castDeviceName string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.ReopenNotStopped")
 	defer span.End()
 	span.SetAttributes(attribute.String("play_session.id", sessionID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE play_sessions SET ended_at=NULL, position_ms=$3, is_paused=$4, cast_device_name=$5, updated_at=NOW()
-		 WHERE id=$1 AND ended_at IS NOT NULL AND ended_at < $2`,
+		`UPDATE play_sessions SET ended_at=NULL, ended_by_sweep=false, position_ms=$3, is_paused=$4, cast_device_name=$5, updated_at=NOW()
+		 WHERE id=$1 AND ended_at IS NOT NULL AND (ended_at < $2 OR ended_by_sweep)`,
 		sessionID, before, positionMs, isPaused, castDeviceName,
 	)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return false, fmt.Errorf("PlaySessionRepo.ReopenEndedBefore: %w", err)
+		return false, fmt.Errorf("PlaySessionRepo.ReopenNotStopped: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("PlaySessionRepo.ReopenEndedBefore: rows affected: %w", err)
+		return false, fmt.Errorf("PlaySessionRepo.ReopenNotStopped: rows affected: %w", err)
 	}
 	return n > 0, nil
 }

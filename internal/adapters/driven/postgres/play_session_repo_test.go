@@ -423,7 +423,7 @@ func TestPlaySessionStatsReader_GetActiveSessionsBitrate(t *testing.T) {
 // A session ended by the previous process's shutdown comes back on its
 // client's next tick, all the way to the now-playing list; one ended after
 // the current process started (a StopStream) does not.
-func TestPlaySessionRepo_ReopenEndedBefore(t *testing.T) {
+func TestPlaySessionRepo_ReopenNotStopped_Restart(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 	ctx := context.Background()
@@ -442,12 +442,12 @@ func TestPlaySessionRepo_ReopenEndedBefore(t *testing.T) {
 	require.NoError(t, err)
 
 	// Before the shutdown: nothing to reopen.
-	reopened, err := repo.ReopenEndedBefore(ctx, "ps-ro", time.Now().Add(-time.Hour), 1000, false, "")
+	reopened, err := repo.ReopenNotStopped(ctx, "ps-ro", time.Now().Add(-time.Hour), 1000, false, "")
 	require.NoError(t, err)
 	assert.False(t, reopened)
 
 	restartedAt := time.Now().Add(time.Second)
-	reopened, err = repo.ReopenEndedBefore(ctx, "ps-ro", restartedAt, 2_100_000, true, "")
+	reopened, err = repo.ReopenNotStopped(ctx, "ps-ro", restartedAt, 2_100_000, true, "")
 	require.NoError(t, err)
 	assert.True(t, reopened)
 	active, err := repo.ListActiveSessions(ctx)
@@ -458,9 +458,58 @@ func TestPlaySessionRepo_ReopenEndedBefore(t *testing.T) {
 	assert.EqualValues(t, 2_100_000, active[0].Position.Milliseconds())
 
 	// An open session is UpdateProgress's, never this statement's.
-	reopened, err = repo.ReopenEndedBefore(ctx, "ps-ro", restartedAt, 3000, false, "")
+	reopened, err = repo.ReopenNotStopped(ctx, "ps-ro", restartedAt, 3000, false, "")
 	require.NoError(t, err)
 	assert.False(t, reopened)
+}
+
+// A session the stale sweep ended comes back on its player's next tick, even
+// long after the process started; one stopped after the sweep (an Update with
+// ended_at set, as StopStream does) stays ended.
+func TestPlaySessionRepo_ReopenNotStopped_Sweep(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("psu-sw")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("psp-sw", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("pslib-sw")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	item := newTestMediaItem("psmi-sw", lib.ID)
+	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
+	repo := postgres.NewPlaySessionRepository(db)
+	processStart := time.Now().Add(-time.Hour)
+
+	require.NoError(t, repo.Create(ctx, newTestPlaySession("ps-sw", string(p.ID), string(item.ID))))
+	_, err := db.ExecContext(ctx, `UPDATE play_sessions SET updated_at = NOW() - INTERVAL '3 minutes' WHERE id = 'ps-sw'`)
+	require.NoError(t, err)
+	ended, err := repo.CloseStaleReturning(ctx, 2*time.Minute)
+	require.NoError(t, err)
+	require.Len(t, ended, 1)
+
+	reopened, err := repo.ReopenNotStopped(ctx, "ps-sw", processStart, 2_100_000, true, "")
+	require.NoError(t, err)
+	assert.True(t, reopened, "a swept session reopens on its next tick")
+	active, err := repo.ListActiveSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, active, 1)
+	assert.Equal(t, "ps-sw", active[0].SessionID)
+	assert.EqualValues(t, 2_100_000, active[0].Position.Milliseconds())
+
+	// Swept again, then stopped: the stop clears the sweep's mark.
+	_, err = db.ExecContext(ctx, `UPDATE play_sessions SET updated_at = NOW() - INTERVAL '3 minutes' WHERE id = 'ps-sw'`)
+	require.NoError(t, err)
+	_, err = repo.CloseStaleReturning(ctx, 2*time.Minute)
+	require.NoError(t, err)
+	s, err := repo.GetByID(ctx, "ps-sw")
+	require.NoError(t, err)
+	now := time.Now()
+	s.EndedAt = &now
+	require.NoError(t, repo.Update(ctx, s))
+	reopened, err = repo.ReopenNotStopped(ctx, "ps-sw", processStart, 2_200_000, false, "")
+	require.NoError(t, err)
+	assert.False(t, reopened, "a stopped session stays ended")
 }
 
 // The stale sweep ends a session at its last heartbeat, measures the duration
