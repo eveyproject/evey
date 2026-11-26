@@ -24,6 +24,12 @@ line - earlier history lives in git.
   longer depends on the page staying open.
 
 ### Fixed
+- Server: a request sent without a body that took more than 30 seconds (a
+  move to the trash copying a large film across disks) cut its own
+  connection's context, and behind a reverse proxy that connection went back
+  to the shared pool: every API call of every client that reused it was
+  refused with "context canceled" for minutes. The body read deadline now
+  applies only to requests that carry a body.
 - Media trash: on pooled disks (mergerfs, unRAID) moving a file to the trash
   failed with an internal error, the trash folder having been created on
   another disk than the file. The file now crosses the way `mv` does: copied,
