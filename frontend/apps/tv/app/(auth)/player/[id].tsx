@@ -146,7 +146,7 @@ export default function PlayerScreen() {
   useEffect(() => {
     useMusicQueueStore.getState().clear();
   }, [mediaId]);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, refuseDirectPlay, progress, restartPositionMs } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, capabilityQuery, refuseDirectPlay, progress, restartPositionMs } =
     usePlaySession(mediaId, {
       ...(trackPick.audio === undefined ? {} : { audioStreamIndex: trackPick.audio }),
       // The encoder is pre-warmed where the player will start: over, or at
@@ -1465,7 +1465,18 @@ export default function PlayerScreen() {
     [player, handleBack, nativeGetPlayed],
   );
 
-  useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted, remoteCallbacks);
+  // The next episode is made ready near the end of this one, so the hand-off
+  // does not wait on a cold start.
+  useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted, remoteCallbacks, {
+    mediaId,
+    isEpisode: isEpisodePlaying,
+    getDurationMs: () => (media?.durationMs ? Number(media.durationMs) : durationRef.current * 1000),
+    capabilities: capabilityQuery,
+    // This player opens the next episode on the rung it is playing.
+    getPlayingHeight: () => {
+      try { return player?.videoTrack?.size?.height ?? null; } catch { return null; /* released */ }
+    },
+  });
 
   // Server-side load shed (HTTP 503): distinct from isError below - nothing is
   // broken, the server just isn't ready to serve THIS request yet, for one of

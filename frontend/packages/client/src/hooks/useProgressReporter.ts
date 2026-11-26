@@ -66,6 +66,27 @@ interface PrewarmNextOptions {
   isEpisode?: boolean;
   /** Total duration of the current item, in milliseconds. */
   getDurationMs?: () => number;
+  /**
+   * What the device plays, as a query string (streamCapabilityQuery): the
+   * server warms the plan the next episode will ask for, and nothing when it
+   * plays as a file. Without it the request is judged for a default browser.
+   */
+  capabilities?: string | null;
+  /**
+   * Height of the picture playing now, for a player that opens the next
+   * episode on the rung it is on (it keeps its measure of the network): the
+   * server warms that rung. Read when the warm-up leaves.
+   */
+  getPlayingHeight?: () => number | null;
+}
+
+// What the warm-up tells the server about the player: what the device plays,
+// and the picture height it is on when it knows it.
+function prewarmQuery(pn: PrewarmNextOptions): string {
+  const parts = pn.capabilities ? [pn.capabilities] : [];
+  const playing = pn.getPlayingHeight?.();
+  if (playing && playing > 0) parts.push(`startHeight=${Math.round(playing)}`);
+  return parts.length ? `?${parts.join("&")}` : "";
 }
 
 export function useProgressReporter(
@@ -155,7 +176,7 @@ export function useProgressReporter(
           ) {
             prewarmedMediaIdRef.current = pn.mediaId;
             eveyFetch<{ next_media_item_id?: string }>({
-              url: `/api/v1/media/${encodeURIComponent(pn.mediaId)}/prewarm-next`,
+              url: `/api/v1/media/${encodeURIComponent(pn.mediaId)}/prewarm-next${prewarmQuery(pn)}`,
               method: "POST",
             }).catch((err) => log.warn("prewarm-next failed (non-fatal)", err));
           }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, screen, act, waitFor } from "@testing-library/react";
 import * as SecureStore from "expo-secure-store";
 import type { SubtitleStyle } from "../../../src/lib/subtitleStyle";
@@ -180,6 +180,7 @@ vi.mock("../../../src/hooks/usePlaySession", () => ({
     isAuthError: sessionState.isAuthError,
     stopSession: stopSessionMock,
     restartWithTracks: restartWithTracksMock,
+    capabilityQuery: "videoCodecs=h264",
     progress: sessionState.progress,
   }),
 }));
@@ -195,10 +196,18 @@ vi.mock("../../../src/hooks/useDecoderTelemetry", () => ({
 }));
 vi.mock("../../../src/hooks/useAudioCapsBeacon", () => ({ useAudioCapsBeacon: () => {} }));
 vi.mock("../../../src/hooks/useQoEBeacon", () => ({ useQoEBeacon: () => {} }));
-const progressGetters: { getPositionMs?: () => number } = {};
+interface WarmUp {
+  mediaId?: string;
+  isEpisode?: boolean;
+  getDurationMs?: () => number;
+  capabilities?: string | null;
+  getPlayingHeight?: () => number | null;
+}
+const progressGetters: { getPositionMs?: () => number; warmUp?: WarmUp } = {};
 vi.mock("../../../src/hooks/useProgressReporter", () => ({
-  useProgressReporter: (_sessionId: unknown, getPositionMs: () => number) => {
+  useProgressReporter: (_sessionId: unknown, getPositionMs: () => number, ...rest: unknown[]) => {
     progressGetters.getPositionMs = getPositionMs;
+    progressGetters.warmUp = rest[4] as WarmUp | undefined;
   },
 }));
 vi.mock("../../../src/hooks/usePlaybackSettings", () => ({
@@ -644,6 +653,42 @@ describe("audio decoder failure (TV)", () => {
     });
     expect(refuseAudioCodecMock).not.toHaveBeenCalled();
     expect(screen.getByText("Failed to load stream")).toBeTruthy();
+  });
+});
+
+// Near the end of an episode the next one is made ready: the television tells
+// the server what it plays and the picture height it is on, the rung it opens
+// the next episode on.
+describe("next-episode warm-up (TV)", () => {
+  afterEach(() => {
+    delete (playerMock as { videoTrack?: unknown }).videoTrack;
+  });
+
+  it("hands the reporter the episode, its length, what the device plays and the height playing", () => {
+    getMediaItemMock.mockReturnValue({
+      data: { id: "ep-1", type: "MEDIA_ITEM_TYPE_EPISODE", title: "Episode 1", durationMs: "1500000" },
+    });
+    (playerMock as { videoTrack?: unknown }).videoTrack = { size: { width: 1920, height: 1080 } };
+    render(<PlayerScreen />);
+    const warmUp = progressGetters.warmUp;
+    expect(warmUp?.mediaId).toBe("ep-1");
+    expect(warmUp?.isEpisode).toBe(true);
+    expect(warmUp?.getDurationMs?.()).toBe(1_500_000);
+    expect(warmUp?.capabilities).toBe("videoCodecs=h264");
+    expect(warmUp?.getPlayingHeight?.()).toBe(1080);
+  });
+
+  it("says no height before the player knows its picture, and falls back on the player's own length", () => {
+    playerMock.duration = 0;
+    render(<PlayerScreen />);
+    expect(progressGetters.warmUp?.getPlayingHeight?.()).toBeNull();
+    expect(progressGetters.warmUp?.getDurationMs?.()).toBe(0);
+  });
+
+  it("warms nothing for a film", () => {
+    getMediaItemMock.mockReturnValue({ data: { id: "ep-1", type: "MEDIA_ITEM_TYPE_MOVIE", title: "Film" } });
+    render(<PlayerScreen />);
+    expect(progressGetters.warmUp?.isEpisode).toBe(false);
   });
 });
 

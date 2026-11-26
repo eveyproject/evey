@@ -10,6 +10,15 @@ vi.mock("@evey/api", () => ({
   reportProgressWithWitness: (...args: unknown[]) => mockReportProgress(...args),
 }));
 
+// The browser's capabilities have their own tests; here they are a fixed list.
+vi.mock("@evey/client/web/hlsCodecParams", () => ({
+  appendCodecParams: (params: URLSearchParams) => {
+    params.set("videoCodecs", "h264,vp9");
+    params.set("containers", "mp4,webm");
+  },
+}));
+vi.mock("@/utils/codec", () => ({ canWasmDecodeAC3: () => true }));
+
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
@@ -350,7 +359,11 @@ describe("ProgressReporter - next-episode warm-up", () => {
     );
 
     await vi.advanceTimersByTimeAsync(3_000);
-    expect(eveyFetch).toHaveBeenCalledWith({ url: "/api/v1/media/ep1/prewarm-next", method: "POST" });
+    // With what this browser plays: the server judges the next episode for it.
+    expect(eveyFetch).toHaveBeenCalledWith({
+      url: "/api/v1/media/ep1/prewarm-next?wasmAudio=1&videoCodecs=h264%2Cvp9&containers=mp4%2Cwebm&startRung=top",
+      method: "POST",
+    });
     await vi.advanceTimersByTimeAsync(3_000);
     expect(eveyFetch).toHaveBeenCalledTimes(1);
   });

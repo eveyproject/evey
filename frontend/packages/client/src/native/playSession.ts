@@ -194,6 +194,24 @@ export function buildStreamUrl(
   return `${serverUrl}/api/v1/media/${id}/hls/master.m3u8?${params.toString()}`;
 }
 
+/**
+ * What this device plays, as the master URL declares it, without what belongs
+ * to one title (its token, its tracks, where it starts). The next-episode
+ * warm-up sends it: asked bare, the server judged a default browser - a remux
+ * or an encode for an episode this device plays as a file.
+ */
+export function streamCapabilityQuery(opts: StreamUrlOptions = {}): string {
+  const master = buildStreamUrl("", "-", { playMethod: "PLAY_METHOD_TRANSCODE" }, "", {
+    ...opts,
+    audioTrack: undefined,
+    subtitleTrack: undefined,
+    startSec: 0,
+  });
+  const params = new URLSearchParams(master.slice(master.indexOf("?") + 1));
+  params.delete("token");
+  return params.toString();
+}
+
 // The 0-based position of an absolute media-stream index among streams of one
 // type. Undefined when the index is unset (<=0) or not found, so the param is
 // omitted and the server keeps its default.
@@ -279,6 +297,8 @@ export interface PlaySessionResult {
   shedReason: ShedReason;
   stopSession: () => void;
   restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
+  /** The device's capabilities as a query string (streamCapabilityQuery), once negotiated. */
+  capabilityQuery: string | null;
   /**
    * The device's demuxer refused the file it was direct-playing. True when the
    * next stream will ask the server to remux it instead (the caller restarts
@@ -332,6 +352,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
   const deviceRef = useRef(device);
   deviceRef.current = device;
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [capabilityQuery, setCapabilityQuery] = useState<string | null>(null);
   const [streamToken, setStreamToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<V1StreamInfo | null>(null);
@@ -463,7 +484,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         const firstStream = firstStartRef.current;
         const startMs = firstStartMs(firstStartRef, initialRef.current, wp);
         const resumeSec = startMs / 1000;
-        const url = buildStreamUrl(serverUrl, mediaId, info, token, {
+        const urlOptions: StreamUrlOptions = {
           audioTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex),
           subtitleTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex),
           maxAudioChannels: ceiling,
@@ -474,7 +495,8 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           networkType,
           maxBitrateKbps: saver?.maxBitrateKbps,
           containers,
-        });
+        };
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, urlOptions);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the HLS path.
@@ -513,6 +535,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           setServerUrl(serverUrl);
           setRestartPositionMs(firstStream ? null : startMs);
           setStreamUrl(url);
+          setCapabilityQuery(streamCapabilityQuery(urlOptions));
           if (session.id) {
             sessionIdRef.current = session.id;
             setSessionId(session.id);
@@ -625,5 +648,5 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, refuseDirectPlay, selectAudioStream, progress, restartPositionMs };
+  return { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, capabilityQuery, refuseDirectPlay, selectAudioStream, progress, restartPositionMs };
 }

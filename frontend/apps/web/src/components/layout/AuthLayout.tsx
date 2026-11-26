@@ -11,6 +11,11 @@ import { KeyboardShortcutsHelp } from "@/components/ui/KeyboardShortcutsHelp";
 import { GlobalAudioPlayer } from "@/features/music/GlobalAudioPlayer";
 import { useMusicPlayerStore } from "@evey/store";
 import { ProfileLockOverlay } from "@/features/profile/ProfileLockOverlay";
+import type { FileRouteTypes } from "@/routeTree.gen";
+
+// Typed against the route tree: renaming the player's route fails the build
+// here instead of quietly putting the menus back around the player.
+const PLAYER_ROUTE_ID: FileRouteTypes["id"] = "/_auth/player/$mediaId";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -18,9 +23,13 @@ interface AuthLayoutProps {
 
 export function AuthLayout({ children }: AuthLayoutProps) {
   const { t } = useTranslation();
-  const { location } = useRouterState();
+  const { location, matches } = useRouterState();
   const isHome = location.pathname === "/home";
-  const isPlayer = location.pathname.startsWith("/player/");
+  // Read off the route being RENDERED, not the address: on the way out of the
+  // player the address changes one render before the outlet does, and a layout
+  // switched on it mounted the player a second time inside <main> - a second
+  // play session started and stopped on every exit.
+  const isPlayer = matches.some((m) => m.routeId === PLAYER_ROUTE_ID);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // The phone-width drawer is a dialog in all but name: Escape closes it and
   // Tab stays inside it while it is open, as the modals already do.

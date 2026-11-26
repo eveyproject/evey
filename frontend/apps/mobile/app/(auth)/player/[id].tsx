@@ -282,7 +282,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
-  const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, refuseDirectPlay, selectAudioStream, progress, restartPositionMs } =
+  const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, capabilityQuery, refuseDirectPlay, selectAudioStream, progress, restartPositionMs } =
     usePlaySession(sessionMediaId, {
       ...(trackPick.audio === undefined ? {} : { audioStreamIndex: trackPick.audio }),
       // The encoder is pre-warmed where the player will start.
@@ -1374,6 +1374,11 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     mediaId,
     isEpisode,
     getDurationMs: () => effectiveDuration * 1000,
+    capabilities: capabilityQuery,
+    // This player opens the next episode on the rung it is playing.
+    getPlayingHeight: () => {
+      try { return player?.videoTrack?.size?.height ?? null; } catch { return null; /* released */ }
+    },
   }, () => castDeviceName);
 
   // The playhead of a LOCAL file, kept on disk. useProgressReporter above only
