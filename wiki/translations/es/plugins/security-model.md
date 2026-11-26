@@ -1,5 +1,5 @@
 ---
-source_sha: 1b3b5ce7c086e1f2a42545c9d6c6895b8fcdf7c5f78287e1ea52cecfe7cd45a4
+source_sha: a1de84dea91860a7535fcc1955cfb979226912021d29fef6996df4ec4ac6e065
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -153,7 +153,9 @@ generado. El host solo la atiende en ese slot.
 El puente limita lo que un marco puede pedir a la página: `evey.toast` como
 mucho 3 mensajes por segundo, 200 caracteres, sin HTML; `evey.navigate` solo
 `/home`, `/library`, `/media`, `/player`, `/settings` y `/search`;
-`evey.resize` limitado a 50-800 px. El marco no tiene ningún token: la página
+`evey.openExternal` solo páginas https de `themoviedb.org` e `imdb.com`, en
+una pestaña nueva, tras un clic en el marco (solo web); `evey.resize`
+limitado a 50-800 px. El marco no tiene ningún token: la página
 anfitriona emite un token de cinco minutos limitado a (plugin, usuario) para
 las llamadas `public` y `prefs`, y el servidor rechaza por defecto cualquier
 método que ese token no nombre.

@@ -138,8 +138,10 @@ form. The host answers it in that slot only.
 
 The bridge limits what a frame can ask of the page: `evey.toast` at most 3
 messages per second, 200 characters, no HTML; `evey.navigate` only `/home`,
-`/library`, `/media`, `/player`, `/settings` and `/search`; `evey.resize`
-clamped to 50-800 px. The frame holds no token: the host mints a five-minute
+`/library`, `/media`, `/player`, `/settings` and `/search`;
+`evey.openExternal` only https pages of `themoviedb.org` and `imdb.com`, in a
+new tab, on a click in the frame (web only); `evey.resize` clamped to
+50-800 px. The frame holds no token: the host mints a five-minute
 token scoped to (plugin, user) for the `public` and `prefs` calls, and the
 server refuses by default every method that token does not name.
 

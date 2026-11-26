@@ -93,7 +93,7 @@ func ep(s, e int) library.OwnedEpisode { return library.OwnedEpisode{Season: s, 
 // specials do not count.
 func TestGaps_FromCatalog(t *testing.T) {
 	repo := &fakeRepo{
-		series: []library.SeriesRef{{ItemID: "got", Title: "Game of Thrones", Year: 2011}},
+		series: []library.SeriesRef{{ItemID: "got", Title: "Game of Thrones", Year: 2011, TmdbID: "1399", ImdbID: "tt0944947"}},
 		expected: map[string][]library.ExpectedEpisode{"got": {
 			{Season: 0, Episode: 1, AirDate: day(2010, 12, 5)}, // special: never counted
 			{Season: 1, Episode: 1, AirDate: day(2011, 4, 17)},
@@ -112,6 +112,8 @@ func TestGaps_FromCatalog(t *testing.T) {
 	require.Len(t, g.Series, 1)
 	s := g.Series[0]
 	assert.True(t, s.FromCatalog)
+	assert.Equal(t, 1399, s.TmdbID)
+	assert.Equal(t, "tt0944947", s.ImdbID)
 	require.Len(t, s.Seasons, 2)
 	assert.Equal(t, 2, s.Seasons[0].Season)
 	assert.False(t, s.Seasons[0].Whole)
@@ -156,7 +158,7 @@ func TestGaps_CompleteSeriesIsSilent(t *testing.T) {
 // A saga started: its released films not held; one not out yet does not count.
 func TestGaps_Sagas(t *testing.T) {
 	repo := &fakeRepo{
-		sagas:   []library.CollectionRef{{ID: "c1", Name: "Rocky"}},
+		sagas:   []library.CollectionRef{{ID: "c1", Name: "Rocky", TmdbID: 1575}},
 		ownedIn: map[string][]int{"c1": {1366, 1367}},
 		parts: map[string][]library.CollectionPart{"c1": {
 			{TmdbID: 1366, Title: "Rocky", ReleaseDate: day(1976, 11, 21)},
@@ -169,6 +171,7 @@ func TestGaps_Sagas(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, g.Sagas, 1)
 	assert.Equal(t, 2, g.Sagas[0].Owned)
+	assert.Equal(t, 1575, g.Sagas[0].TmdbID)
 	require.Len(t, g.Sagas[0].Missing, 1)
 	assert.Equal(t, "Rocky III", g.Sagas[0].Missing[0].Title)
 }

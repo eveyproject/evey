@@ -1847,6 +1847,14 @@
         "quality": {
           "$ref": "#/definitions/v1PublicMediaQuality",
           "description": "quality describes the file, under the same rule as file_path."
+        },
+        "tmdbId": {
+          "type": "integer",
+          "format": "int32",
+          "description": "tmdb_id and imdb_id are the public catalog ids of a film or a series,\n0 and empty when unknown."
+        },
+        "imdbId": {
+          "type": "string"
         }
       },
       "description": "PublicMediaItem is the non-sensitive projection exposed via the `public`\npermission. It omits provider_ids, streams and any server-side detail."
@@ -1932,6 +1940,11 @@
             "type": "object",
             "$ref": "#/definitions/v1SagaPart"
           }
+        },
+        "tmdbId": {
+          "type": "integer",
+          "format": "int32",
+          "description": "tmdb_id is the saga's TMDB collection id."
         }
       },
       "description": "SagaGaps is a saga the libraries started and its released films they lack."
@@ -1948,6 +1961,11 @@
         },
         "posterUrl": {
           "type": "string"
+        },
+        "tmdbId": {
+          "type": "integer",
+          "format": "int32",
+          "description": "tmdb_id is the film's TMDB id."
         }
       }
     },
@@ -2058,6 +2076,14 @@
             "type": "object",
             "$ref": "#/definitions/v1MissingSeason"
           }
+        },
+        "tmdbId": {
+          "type": "integer",
+          "format": "int32",
+          "description": "tmdb_id and imdb_id are the series' public catalog ids, 0 and empty when unknown."
+        },
+        "imdbId": {
+          "type": "string"
         }
       },
       "description": "SeriesGaps is what one series misses. from_catalog: worked out from the\ncatalog source; otherwise from the gaps in the library's own numbering."

@@ -1,5 +1,5 @@
 ---
-source_sha: 1b3b5ce7c086e1f2a42545c9d6c6895b8fcdf7c5f78287e1ea52cecfe7cd45a4
+source_sha: a1de84dea91860a7535fcc1955cfb979226912021d29fef6996df4ec4ac6e065
 reviewed: true
 ---
 # Permissions et emplacements { #permissions-and-slots }
@@ -156,7 +156,9 @@ formulaire généré. L'hôte ne le traite que dans cet emplacement.
 Le pont limite ce qu'un cadre peut demander à la page : `evey.toast` au plus
 3 messages par seconde, 200 caractères, sans HTML ; `evey.navigate` seulement
 `/home`, `/library`, `/media`, `/player`, `/settings` et `/search` ;
-`evey.resize` borné à 50-800 px. Le cadre ne détient aucun jeton : l'hôte
+`evey.openExternal` seulement des pages https de `themoviedb.org` et
+`imdb.com`, dans un nouvel onglet, après un clic dans le cadre (web
+seulement) ; `evey.resize` borné à 50-800 px. Le cadre ne détient aucun jeton : l'hôte
 émet un jeton de cinq minutes limité à (plugin, utilisateur) pour les appels
 `public` et `prefs`, et le serveur refuse par défaut toute méthode que ce
 jeton ne nomme pas.

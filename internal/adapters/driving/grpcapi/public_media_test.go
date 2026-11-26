@@ -24,7 +24,7 @@ func TestPublicMediaItemToProto_ProjectsSafeFields(t *testing.T) {
 		Type:     library.MovieItem,
 		Title:    "Some Movie",
 		Overview: "a computer hacker",
-		Catalog:  &library.MediaCatalog{Year: &year},
+		Catalog:  &library.MediaCatalog{Year: &year, ProviderIDs: map[string]string{"tmdb": "603", "imdb": "tt0133093"}},
 		// File carries the path that must NEVER reach the public projection.
 		File: &library.MediaFile{Path: "/secret/movies/some-movie.mkv"},
 	}
@@ -34,6 +34,8 @@ func TestPublicMediaItemToProto_ProjectsSafeFields(t *testing.T) {
 	assert.Equal(t, "Some Movie", pb.Title)
 	assert.Equal(t, int32(1999), pb.Year)
 	assert.Equal(t, "a computer hacker", pb.Overview)
+	assert.Equal(t, int32(603), pb.TmdbId)
+	assert.Equal(t, "tt0133093", pb.ImdbId)
 	assert.Equal(t, "https://host/poster.jpg", pb.PosterUrl)
 	assert.Empty(t, pb.FilePath, "the path is only for a media.files plugin token")
 	assert.Zero(t, pb.FileSize)

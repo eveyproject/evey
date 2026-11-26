@@ -34,6 +34,7 @@ func TestCatalogRepo_RoundTrip(t *testing.T) {
 		it.Catalog.ProviderIDs = map[string]string{}
 		if tmdb != "" {
 			it.Catalog.ProviderIDs["tmdb"] = tmdb
+			it.Catalog.ProviderIDs["imdb"] = "tt" + tmdb
 		}
 		require.NoError(t, items.Create(ctx, it))
 	}
@@ -74,6 +75,11 @@ func TestCatalogRepo_RoundTrip(t *testing.T) {
 	series, err := repo.ListSeries(ctx, nil)
 	require.NoError(t, err)
 	assert.Len(t, series, 2)
+	for _, s := range series {
+		if s.ItemID == "got" {
+			assert.Equal(t, "tt1399", s.ImdbID)
+		}
+	}
 	none, err := repo.ListSeries(ctx, []shared.LibraryID{"elsewhere"})
 	require.NoError(t, err)
 	assert.Empty(t, none)

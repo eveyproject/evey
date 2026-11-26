@@ -15,6 +15,9 @@ line - earlier history lives in git.
   `evey.media.gaps()` (permission `media.gaps`, administrators only) list the
   aired episodes and released films a library lacks; a series TMDB does not
   know is read from the holes in its own numbering. Plugins never call TMDB.
+- Plugins: the catalog gaps and the public media items carry the TMDB and IMDb
+  ids, and the bridge's `evey.openExternal(url)` opens their public pages
+  (https TMDB and IMDb only, on a click, web only) in a new tab.
 
 ### Changed
 - Demo: the demo's own plugins update on their own: the hourly check takes a
