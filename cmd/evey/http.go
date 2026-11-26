@@ -292,7 +292,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
 			}
 		},
-		ServedRecord: func(ctx context.Context, profileID, mediaItemID string, leg domainplayback.Leg, l domainplayback.ServedLeg) error {
+		ServedRecord: func(ctx context.Context, profileID, mediaItemID string, leg domainplayback.Leg, l domainplayback.ServedLeg, viaCast bool) error {
+			if viaCast {
+				return deps.media.playbackSvc.CommandService().RecordServedCast(ctx, profileID, mediaItemID, leg, l)
+			}
 			return deps.media.playbackSvc.CommandService().RecordServed(ctx, profileID, mediaItemID, leg, l)
 		},
 		PlayedRecord: func(ctx context.Context, profileID, mediaItemID string, p domainplayback.Played) {

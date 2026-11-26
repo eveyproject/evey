@@ -25,14 +25,25 @@ const (
 	// remembered as such: bytes requested without a session (a prewarm, a
 	// player that has not called StartStream yet) do not cost a query each.
 	witnessMissTTL = 5 * time.Second
+	// castYield is how long the player's own bytes of a leg outrank bytes
+	// fetched under a cast token. A sender page keeps a hidden cast element
+	// that loads the cast URL to learn its duration: what that element pulled
+	// is not what the session plays. Once a receiver really plays, the
+	// sender's player stands down, its fetches stop, and the cast bytes are
+	// the playback.
+	castYield = 20 * time.Second
 )
 
 type witnessKey struct{ profileID, mediaID string }
 
 type witnessEntry struct {
-	sessionID   string
-	served      playback.Served
-	servedAt    time.Time // last write of served
+	sessionID string
+	served    playback.Served
+	servedAt  time.Time // last write of served
+	// ownVideoAt / ownAudioAt: start of the last response that carried the leg
+	// under the player's own token.
+	ownVideoAt  time.Time
+	ownAudioAt  time.Time
 	played      *playback.Played
 	playedAt    time.Time // last write of played
 	missedUntil time.Time // no live session until then
@@ -83,6 +94,17 @@ func (s *CommandService) witnessEntry(ctx context.Context, k witnessKey, now tim
 // of the (profile, media) playback, described by l. Only a change of what is
 // served (or the refresh) reaches the row.
 func (s *CommandService) RecordServed(ctx context.Context, profileID, mediaID string, leg playback.Leg, l playback.ServedLeg) error {
+	return s.recordServed(ctx, profileID, mediaID, leg, l, false)
+}
+
+// RecordServedCast is RecordServed for a response fetched under a cast token.
+// It yields to the player's own bytes of the same leg while those are fresh
+// (castYield).
+func (s *CommandService) RecordServedCast(ctx context.Context, profileID, mediaID string, leg playback.Leg, l playback.ServedLeg) error {
+	return s.recordServed(ctx, profileID, mediaID, leg, l, true)
+}
+
+func (s *CommandService) recordServed(ctx context.Context, profileID, mediaID string, leg playback.Leg, l playback.ServedLeg, viaCast bool) error {
 	if profileID == "" || mediaID == "" {
 		return nil
 	}
@@ -99,9 +121,15 @@ func (s *CommandService) RecordServed(ctx context.Context, profileID, mediaID st
 		return err
 	}
 	next := e.served
-	cur := next.Audio
+	cur, own := next.Audio, &e.ownAudioAt
 	if leg == playback.LegVideo {
-		cur = next.Video
+		cur, own = next.Video, &e.ownVideoAt
+	}
+	switch {
+	case viaCast && l.At.Sub(*own) < castYield:
+		return nil
+	case !viaCast && l.At.After(*own):
+		*own = l.At
 	}
 	// A response that began before the one already recorded is older news,
 	// whatever order the two finished in.
