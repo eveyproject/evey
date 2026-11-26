@@ -95,3 +95,40 @@ func isTimeout(err error) bool {
 	var te interface{ Timeout() bool }
 	return errors.As(err, &te) && te.Timeout()
 }
+
+// A POST without a body that runs longer than the deadline (a trash that
+// copies a film across disks, sent with no body by the web page) must not
+// cancel anything: with no body to read, net/http already runs its background
+// read, the deadline fired it, and the CONNECTION's context was canceled. The
+// connection stayed in the proxy's keep-alive pool and every request any
+// client later sent over it was refused in a millisecond (prod: 3 minutes of
+// "context canceled" for everyone).
+func TestBodyReadTimeout_EmptyPostOutlivingDeadlineDoesNotPoisonConnection(t *testing.T) {
+	ctxErr := make(chan error, 4)
+	h := bodyReadTimeoutMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/slow" {
+			time.Sleep(300 * time.Millisecond)
+		}
+		ctxErr <- r.Context().Err()
+		w.WriteHeader(http.StatusOK)
+	}), 100*time.Millisecond)
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	client := srv.Client() // one keep-alive connection, as a reverse proxy's pool
+
+	for _, path := range []string{"/slow", "/next", "/next"} {
+		req, err := http.NewRequest(http.MethodPost, srv.URL+path, http.NoBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if e := <-ctxErr; e != nil {
+			t.Fatalf("%s: request context canceled (%v): the empty POST poisoned the connection", path, e)
+		}
+	}
+}
