@@ -408,6 +408,11 @@ func (a AudioFingerprint) hashWithDownmixPolicy(downmixPolicy string) string {
 		// The track now keeps its start against the video (audioOriginFilter)
 		// instead of being rebased onto its first sample: bytes moved again.
 		b.WriteString("origin=file\n")
+	} else {
+		// A seeked copy now starts on its target instead of the index point
+		// before it (-copypriorss 0): segments cut before carry up to a GOP of
+		// audio stamped seconds late and must not be served.
+		b.WriteString("seek=target\n")
 	}
 	if a.AudioOffsetMs != 0 {
 		fmt.Fprintf(&b, "aoffset=%d\n", a.AudioOffsetMs)
