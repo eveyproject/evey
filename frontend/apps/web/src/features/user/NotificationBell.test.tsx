@@ -33,6 +33,14 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useNotificationServiceMarkAllRead: () => ({ mutate: mockMutate }),
 }));
 
+const demoRef = vi.hoisted(() => ({ current: false }));
+vi.mock("@/hooks/useDemoMode", () => ({
+  useDemoLock: () => ({
+    demo: demoRef.current,
+    lock: demoRef.current ? { disabled: true, title: "Not available on the demo server" } : {},
+  }),
+}));
+
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) => (
@@ -44,6 +52,7 @@ describe("NotificationBell", () => {
   beforeEach(() => {
     mockMutate.mockReset();
     navigateSpy.mockReset();
+    demoRef.current = false;
     notificationsRef.current = [
       { id: "1", title: "New movie added", message: "Some Movie was added", createdAt: new Date().toISOString() },
     ];
@@ -68,6 +77,20 @@ describe("NotificationBell", () => {
     await user.click(screen.getByRole("button", { name: "Notifications" }));
     await user.click(screen.getByText("Mark all read"));
     expect(mockMutate).toHaveBeenCalledWith({ data: {} });
+  });
+
+  // The server refuses the read marks on the demo (the unread list is the
+  // shared account's): the control is greyed like the one on the notifications
+  // page, instead of letting the click fail in a toast.
+  it("greys mark all read on the demo", async () => {
+    demoRef.current = true;
+    const user = userEvent.setup();
+    render(<NotificationBell />, { wrapper: createWrapper() });
+    await user.click(screen.getByRole("button", { name: "Notifications" }));
+    const button = screen.getByText("Mark all read");
+    expect(button).toBeDisabled();
+    await user.click(button);
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   // The 2026-08-26 prod gap: media requests paged nobody. Now that the server
