@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/shared"
 	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/pkg/network"
 )
 
 // countingPrefsGetter counts how many times the profile preferences are
@@ -365,4 +367,22 @@ func TestProbePlan_IndexesKeyframesInlineAtFirstPlay(t *testing.T) {
 	_, err = h.probePlan(req(), "m1", item, blocked)
 	require.NoError(t, err)
 	assert.Equal(t, 2, calls, "a source blocked for another reason is not walked")
+}
+
+// lanClient decides who the remote bitrate cap bites on the HLS side. The
+// server's own gateway is private but hides clients from anywhere, so it is
+// not local; a neighbour on the same private range still is.
+func TestLanClient_GatewayRelayIsNotLocal(t *testing.T) {
+	network.SetRelays([]net.IP{net.ParseIP("172.17.0.1")})
+	t.Cleanup(func() { network.SetRelays(nil) })
+	at := func(ip string) *http.Request {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		return r.WithContext(network.WithClientIP(r.Context(), net.ParseIP(ip)))
+	}
+	if lanClient(at("172.17.0.1"), []string{"172.16.0.0/12"}) {
+		t.Error("the gateway relay counted as a local client")
+	}
+	if !lanClient(at("172.17.0.5"), []string{"172.16.0.0/12"}) {
+		t.Error("a neighbour on the private range must stay local")
+	}
 }

@@ -136,5 +136,6 @@ func raConfigToProto(c *config.RemoteAccessConfig, serverBaseURL string) *eveyv1
 		ServerBaseUrl:        serverBaseURL,
 		Published:            published,
 		LockoutRisk:          lockoutRisk,
+		RelayedClients:       network.RelayedSeen(),
 	}
 }

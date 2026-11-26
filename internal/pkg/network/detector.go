@@ -93,6 +93,12 @@ func (d *Detector) DetectIP(ip net.IP) NetworkType {
 	if ip == nil {
 		return WAN
 	}
+	// A relay hides the client behind it, so its address says nothing about
+	// where the request comes from: unknown, hence WAN. Checked before the LAN
+	// list, which holds the relay's private range.
+	if IsRelay(ip) {
+		return WAN
+	}
 	if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
 		return LAN
 	}

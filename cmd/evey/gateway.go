@@ -131,8 +131,8 @@ const remoteAccessRefusalCode = "remote_access_disabled"
 
 // remoteAccessRefusalLogTTL bounds how often ONE client's refusal is logged. An
 // app that retries on a schedule must not bury the log, but the very first
-// refusal has to be visible immediately - a silent gate is what made the
-// 2026-07-29 lockout undiagnosable.
+// refusal has to be visible immediately - a silent gate once made a lockout
+// undiagnosable.
 const remoteAccessRefusalLogTTL = 5 * time.Minute
 
 // networkGateExempt reports whether path must be served even to a client the
@@ -153,6 +153,29 @@ func networkGateExempt(path string) bool {
 	return path == "/healthz" ||
 		path == "/api/v1/setup/status" ||
 		strings.HasPrefix(path, "/api/v1/i18n/")
+}
+
+// recordRelays records this server's IPv4 default gateway as a relay: a
+// request from it has an unknown origin and counts as remote (network.IsRelay).
+// Read once at boot - a container's gateway is fixed for its lifetime.
+func recordRelays(ctx context.Context, trustedProxies []string) {
+	gws, err := network.DefaultGateways()
+	if err != nil {
+		slog.WarnContext(ctx, "routing table unreadable: the default gateway is not treated as a relay", slog.Any("err", err))
+		return
+	}
+	network.SetRelays(gws)
+	trusted := network.NewLiveCIDRSet(func() []string { return trustedProxies })
+	for _, gw := range gws {
+		slog.InfoContext(ctx, "default gateway recorded as a relay: a request from it hides the real client and counts as remote",
+			slog.String("gateway", gw.String()))
+		if trusted.Contains(gw) {
+			// Legitimate for a reverse proxy running on the host, but then
+			// whatever reaches the server through the gateway is believed.
+			slog.WarnContext(ctx, "the default gateway is a trusted proxy, so the client address it forwards is believed. If the port is also published on IPv6 for an IPv4-only Docker network, IPv6 clients come through that gateway too and can choose the address they are seen with: publish the port on IPv4 only (\"0.0.0.0:9091:9091\", or 127.0.0.1 behind a host proxy)",
+				slog.String("gateway", gw.String()))
+		}
+	}
 }
 
 // remoteEnabled is read on every request and flipped by an admin PUT at any
@@ -195,6 +218,17 @@ func networkMiddleware(detector func() *network.Detector, remoteEnabled func() b
 				return
 			}
 			nt := detector().Detect(r)
+			if relay := network.ClientIPFromContext(r.Context()); network.IsRelay(relay) {
+				// The request came from this server's own gateway, which hides
+				// the client: Detect already counted it as remote. Said once per
+				// TTL in the log, and kept for the admin panel's warning.
+				network.NoteRelayed()
+				if shouldLog("relay " + relay.String()) {
+					logger.WarnContext(r.Context(), "a request came from this server's own gateway, which hides the real client, so it is treated as remote. Usual cause: Docker publishing the port on IPv6 for an IPv4-only network - publish it as \"0.0.0.0:9091:9091\" or give the network IPv6. A reverse proxy on the host must be listed in Admin > Remote access > Trusted proxies",
+						slog.String("gateway", relay.String()),
+						slog.String("path", r.URL.Path))
+				}
+			}
 			if nt == network.WAN && !remoteEnabled() {
 				clientIP := "unknown"
 				if ip := network.ClientIP(r); ip != nil {

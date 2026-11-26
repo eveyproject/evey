@@ -1,5 +1,5 @@
 ---
-source_sha: d79dc0926b3cccaf395cc08d77b10dd374b052ab566b42de9e7a26ebea4fbff2
+source_sha: e85405185138c1c5b3ce105f7c028831886d0b4412a7b255b04f2fbfb83c4821
 reviewed: true
 ---
 # Instalación { #install }
@@ -62,7 +62,7 @@ services:
     image: eveyproject/evey:latest # (1)!
     container_name: evey-server
     ports:
-      - "9091:9091" # (2)!
+      - "0.0.0.0:9091:9091" # (2)!
     volumes:
       - ./evey-data:/data # (3)!
       - evey-cache:/cache # (4)!
@@ -80,6 +80,9 @@ volumes:
    [Copias de seguridad y actualizaciones](backups.md#updating-evey).
 2. El puerto. El número de la izquierda es el que escribirás en el navegador
    y en las apps. Deja `9091`, salvo que otro programa ya lo use.
+   `0.0.0.0:` lo publica solo en IPv4, para que Evey vea siempre la
+   dirección real de cada dispositivo: consulta
+   [Docker e IPv6](administration/remote-access.md#docker-and-ipv6).
 3. Los datos de Evey: base de datos, claves, contraseñas generadas, índice de
    búsqueda, imágenes, registros, copias de seguridad, plugins. **Esta es la
    carpeta de la que hay que hacer copia de seguridad.**

@@ -117,6 +117,27 @@ function RemoteAccessPage() {
         </div>
       )}
 
+      {!isLoading && data?.relayedClients && (
+        <div
+          role="alert"
+          className="rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--color-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_5%,transparent)] p-3 flex items-start gap-3"
+        >
+          <TriangleAlert
+            size={20}
+            className="text-[var(--color-warning)] flex-shrink-0 mt-0.5"
+            strokeWidth={1.5}
+          />
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-semibold text-[var(--color-warning)]">
+              {t("admin.remoteAccess.relayedClientsTitle")}
+            </p>
+            <p className="text-sm text-[var(--text)]">
+              {t("admin.remoteAccess.relayedClientsMessage")}
+            </p>
+          </div>
+        </div>
+      )}
+
       {!isLoading && !data?.lockoutRisk && data?.enabled && data?.published && (
         <div
           className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] p-3 flex items-center gap-3"

@@ -23,7 +23,7 @@ services:
     image: eveyproject/evey:latest        # the full image; pin a tag here (e.g. 0.1, 0.1.0, sha-1a2b3c4)
     container_name: evey-server
     ports:
-      - "9091:9091"
+      - "0.0.0.0:9091:9091"
     volumes:
       - ./evey-data:/data              # database, JWT key, generated secrets, search index, logs, backups
       - evey-cache:/cache              # transcode + trickplay cache (safe to prune)
