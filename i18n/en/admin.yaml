@@ -1043,7 +1043,7 @@ remoteAccess:
   lockoutRiskMessage: "This server is reachable from the Internet, but remote access is disabled. Anyone outside your local network gets a 403 error on every page. Enable remote access above to fix this."
   publishedInfo: "Remote access is enabled and this server is reachable from the Internet."
   relayedClientsTitle: "Some clients reach this server through its gateway"
-  relayedClientsMessage: "Requests arrive from this server's own gateway, which hides the real address of the client. They are treated as remote: refused while remote access is off, and held to the maximum remote bitrate. With Docker, the usual cause is a port published on IPv6 for a network without IPv6: publish it as \"0.0.0.0:9091:9091\" in your compose file. A reverse proxy running on the host goes in Trusted proxies."
+  relayedClientsMessage: "Requests arrive from this server's own gateway, which hides the real address of the client. They are let through as local. That is expected from a browser or a reverse proxy on the host itself. Otherwise, with Docker, a port published on IPv6 for a network without IPv6 lets IPv6 visitors from anywhere pass as local: publish it as \"0.0.0.0:9091:9091\" in your compose file."
 
 systemHealth:
   iowaitSub: "of which {{percent}}% waiting on disks"

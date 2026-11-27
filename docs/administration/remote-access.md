@@ -129,10 +129,12 @@ remote limit applies.
 Docker publishes a port on IPv4 with a firewall rule that keeps the visitor's
 address. On IPv6, when the container's network has no IPv6, it uses a relay
 instead: every IPv6 visitor reaches Evey from the network's gateway, a private
-address, wherever they really are. Evey cannot tell who is behind its own
-gateway, so it counts such a request as remote: refused while remote access is
-off, and held to the remote quality limit. **Remote access** shows a warning
-as soon as one arrives.
+address, wherever they really are. That address is in the local networks, so
+those visitors pass as local even with remote access off. Evey cannot tell them
+apart from the host itself, which reaches a port published on `127.0.0.1`
+through the same gateway: it lets such a request through, writes a warning in
+its log and shows one on **Remote access**. On a server only used at home, or
+opened from the host itself, the warning can be ignored.
 
 The compose files in this documentation publish the port on IPv4 only
 (`0.0.0.0:9091:9091`), so the relay never starts. To serve IPv6 as well, give
@@ -158,8 +160,9 @@ Older Docker versions also need `ip6tables` turned on in the daemon
 configuration: see Docker's IPv6 documentation.
 
 A reverse proxy running on the host, outside Docker, reaches Evey from the
-same gateway. List it in the trusted proxies, and publish Evey's port on
-`127.0.0.1` so that nothing else can arrive that way.
+same gateway. Publish Evey's port on `127.0.0.1` so that nothing else can
+arrive that way, and list the gateway in the trusted proxies so that Evey sees
+the visitor's address the proxy passes on.
 
 <!-- sources
 inference and explicit choice: docs/adr/0026-remote-access-inferred-from-a-published-url.md ; internal/config/remote_access_resolve.go - ResolveRemoteAccess, IsPubliclyReachableURL
@@ -170,6 +173,6 @@ proxy settings: docs/reverse-proxy.md
 https mode and trusted proxies live: internal/config/network_live.go - EffectiveHTTPS, EffectiveTrustedProxies ; internal/adapters/driving/http/access_handler_live_test.go
 catch-all range refused: internal/config/trusted_proxies.go - IsCatchAllProxyRange ; internal/config/network_live.go
 doctor check: cmd/evey/admin_ops.go - checkTrustedProxies
-docker gateway relay: internal/pkg/network/relay.go - DefaultGateways, IsRelay ; internal/pkg/network/relay_test.go - TestDetectIP_RelayIsWANEvenInsideTheLANList ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_GatewayRelayIsRemote ; i18n admin.remoteAccess.relayedClientsTitle
+docker gateway relay: internal/pkg/network/relay.go - DefaultGateways, IsRelay ; internal/pkg/network/relay_test.go - TestDetectIP_RelayKeepsTheLANListVerdict ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_GatewayRelayIsReportedNotRefused ; i18n admin.remoteAccess.relayedClientsTitle
 exact field labels: i18n admin.remoteAccess.trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle ; apps message: i18n auth.remoteAccess.title
 -->

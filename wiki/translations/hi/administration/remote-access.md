@@ -1,5 +1,5 @@
 ---
-source_sha: 0014f2b4d6fd34c806d0e09d8798d1255dc6f5082cbae209faa82a7e2808b97c
+source_sha: 36caf5ec515d397a772da003df3906205b4127b77b0884c937aea9f89605a500
 reviewed: true
 ---
 # रिमोट एक्सेस और HTTPS { #remote-access-and-https }
@@ -137,10 +137,13 @@ HTTPS मोड चालू कर देता है, भले ही base U
 Docker IPv4 पर पोर्ट एक फ़ायरवॉल नियम से प्रकाशित करता है, जो विज़िटर का पता
 बनाए रखता है। IPv6 पर, जब कंटेनर के नेटवर्क में IPv6 नहीं होता, तो Docker इसकी
 जगह एक रिले का इस्तेमाल करता है: हर IPv6 विज़िटर Evey तक नेटवर्क के गेटवे से
-पहुँचता है, जो एक प्राइवेट पता है, चाहे वह असल में कहीं भी हो। Evey यह नहीं
-जान सकता कि उसके अपने गेटवे के पीछे कौन है, इसलिए वह ऐसे अनुरोध को रिमोट
-गिनता है: रिमोट एक्सेस बंद होने पर अस्वीकार, और रिमोट क्वालिटी की सीमा के
-अधीन। ऐसा अनुरोध आते ही **रिमोट एक्सेस** एक चेतावनी दिखाता है।
+पहुँचता है, जो एक प्राइवेट पता है, चाहे वह असल में कहीं भी हो। यह पता लोकल
+नेटवर्क में आता है, इसलिए रिमोट एक्सेस बंद होने पर भी ये विज़िटर लोकल माने
+जाते हैं। Evey इन्हें खुद होस्ट से अलग नहीं कर सकता, जो `127.0.0.1` पर
+प्रकाशित पोर्ट तक उसी गेटवे से पहुँचता है: वह ऐसे अनुरोध को आने देता है, अपने
+लॉग में एक चेतावनी लिखता है और **रिमोट एक्सेस** में एक चेतावनी दिखाता है। जो
+सर्वर सिर्फ़ घर पर इस्तेमाल होता है, या होस्ट से ही खोला जाता है, उस पर इस
+चेतावनी को अनदेखा किया जा सकता है।
 
 इस दस्तावेज़ की compose फ़ाइलें पोर्ट को सिर्फ़ IPv4 पर प्रकाशित करती हैं
 (`0.0.0.0:9091:9091`), इसलिए रिले कभी शुरू नहीं होता। IPv6 भी सर्व करने के
@@ -166,8 +169,9 @@ Docker के पुराने वर्ज़न में daemon की क�
 करना पड़ता है: Docker का IPv6 दस्तावेज़ देखें।
 
 होस्ट पर, Docker के बाहर चलने वाला रिवर्स प्रॉक्सी भी Evey तक उसी गेटवे से
-पहुँचता है। उसे विश्वसनीय प्रॉक्सी में जोड़ें, और Evey का पोर्ट `127.0.0.1`
-पर प्रकाशित करें, ताकि उस रास्ते से और कुछ न आ सके।
+पहुँचता है। Evey का पोर्ट `127.0.0.1` पर प्रकाशित करें, ताकि उस रास्ते से और
+कुछ न आ सके, और गेटवे को विश्वसनीय प्रॉक्सी में जोड़ें, ताकि Evey को वह
+विज़िटर पता दिखे जो प्रॉक्सी आगे भेजता है।
 
 <!-- sources
 inference and explicit choice: docs/adr/0026-remote-access-inferred-from-a-published-url.md ; internal/config/remote_access_resolve.go - ResolveRemoteAccess, IsPubliclyReachableURL
@@ -176,7 +180,7 @@ remote cap live: internal/adapters/driving/grpcapi/playback_remote_bitrate_test.
 labels: i18n admin.remoteAccess.* (enableRemoteAccess, externalUrl, trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle)
 proxy settings: docs/reverse-proxy.md
 https mode and trusted proxies live: internal/config/network_live.go - EffectiveHTTPS, EffectiveTrustedProxies ; internal/adapters/driving/http/access_handler_live_test.go
-docker gateway relay: internal/pkg/network/relay.go - DefaultGateways, IsRelay ; internal/pkg/network/relay_test.go - TestDetectIP_RelayIsWANEvenInsideTheLANList ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_GatewayRelayIsRemote ; i18n admin.remoteAccess.relayedClientsTitle
+docker gateway relay: internal/pkg/network/relay.go - DefaultGateways, IsRelay ; internal/pkg/network/relay_test.go - TestDetectIP_RelayKeepsTheLANListVerdict ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_GatewayRelayIsReportedNotRefused ; i18n admin.remoteAccess.relayedClientsTitle
 catch-all range refused: internal/config/trusted_proxies.go - IsCatchAllProxyRange ; internal/config/network_live.go
 doctor check: cmd/evey/admin_ops.go - checkTrustedProxies
 exact field labels: i18n admin.remoteAccess.trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle ; apps message: i18n auth.remoteAccess.title

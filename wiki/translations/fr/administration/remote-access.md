@@ -1,5 +1,5 @@
 ---
-source_sha: 0014f2b4d6fd34c806d0e09d8798d1255dc6f5082cbae209faa82a7e2808b97c
+source_sha: 36caf5ec515d397a772da003df3906205b4127b77b0884c937aea9f89605a500
 reviewed: true
 ---
 # Accès distant et HTTPS { #remote-access-and-https }
@@ -145,11 +145,14 @@ aucun effet, et aucune limite à distance ne s'applique.
 Docker publie un port en IPv4 avec une règle de pare-feu qui conserve
 l'adresse du visiteur. En IPv6, quand le réseau du conteneur n'a pas d'IPv6, il
 passe par un relais : chaque visiteur IPv6 arrive chez Evey depuis la
-passerelle du réseau, une adresse privée, où qu'il se trouve vraiment. Evey ne
-peut pas savoir qui se trouve derrière sa propre passerelle : il compte donc
-une telle demande comme distante, refusée tant que l'accès distant est
-désactivé et soumise à la limite de qualité à distance. **Accès distant**
-affiche un avertissement dès qu'une telle demande arrive.
+passerelle du réseau, une adresse privée, où qu'il se trouve vraiment. Cette
+adresse fait partie des réseaux locaux, si bien que ces visiteurs passent pour
+locaux même avec l'accès distant désactivé. Evey ne peut pas les distinguer de
+l'hôte lui-même, qui atteint un port publié sur `127.0.0.1` par la même
+passerelle : il laisse passer une telle demande, écrit un avertissement dans
+son journal et en affiche un dans **Accès distant**. Sur un serveur utilisé
+seulement à la maison, ou ouvert depuis l'hôte lui-même, l'avertissement peut
+être ignoré.
 
 Les fichiers compose de cette documentation publient le port en IPv4
 uniquement (`0.0.0.0:9091:9091`), si bien que le relais ne démarre jamais.
@@ -175,8 +178,9 @@ Les versions plus anciennes de Docker demandent aussi d'activer `ip6tables`
 dans la configuration du démon : voir la documentation IPv6 de Docker.
 
 Un reverse proxy installé sur l'hôte, hors de Docker, arrive chez Evey par la
-même passerelle. Déclarez-le dans les proxys de confiance, et publiez le port
-d'Evey sur `127.0.0.1` pour que rien d'autre ne puisse arriver par là.
+même passerelle. Publiez le port d'Evey sur `127.0.0.1` pour que rien d'autre
+ne puisse arriver par là, et déclarez la passerelle dans les proxys de
+confiance pour qu'Evey voie l'adresse du visiteur que le proxy lui transmet.
 
 <!-- sources
 inference and explicit choice: docs/adr/0026-remote-access-inferred-from-a-published-url.md ; internal/config/remote_access_resolve.go - ResolveRemoteAccess, IsPubliclyReachableURL
@@ -185,7 +189,7 @@ remote cap live: internal/adapters/driving/grpcapi/playback_remote_bitrate_test.
 labels: i18n admin.remoteAccess.* (enableRemoteAccess, externalUrl, trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle)
 proxy settings: docs/reverse-proxy.md
 https mode and trusted proxies live: internal/config/network_live.go - EffectiveHTTPS, EffectiveTrustedProxies ; internal/adapters/driving/http/access_handler_live_test.go
-docker gateway relay: internal/pkg/network/relay.go - DefaultGateways, IsRelay ; internal/pkg/network/relay_test.go - TestDetectIP_RelayIsWANEvenInsideTheLANList ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_GatewayRelayIsRemote ; i18n admin.remoteAccess.relayedClientsTitle
+docker gateway relay: internal/pkg/network/relay.go - DefaultGateways, IsRelay ; internal/pkg/network/relay_test.go - TestDetectIP_RelayKeepsTheLANListVerdict ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_GatewayRelayIsReportedNotRefused ; i18n admin.remoteAccess.relayedClientsTitle
 catch-all range refused: internal/config/trusted_proxies.go - IsCatchAllProxyRange ; internal/config/network_live.go
 doctor check: cmd/evey/admin_ops.go - checkTrustedProxies
 exact field labels: i18n admin.remoteAccess.trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle ; apps message: i18n auth.remoteAccess.title

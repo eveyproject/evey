@@ -33,10 +33,13 @@ line - earlier history lives in git.
 - Remote access: behind Docker, a client reaching the published port over IPv6
   arrived with the bridge gateway's address, which sits in the default local
   networks, so it passed as local: remote access turned off and the remote
-  bitrate cap did not hold for it. The server's own gateway now counts as
-  remote, the admin's remote access page warns when such requests come in,
-  and the compose publishes its ports on IPv4 only (`0.0.0.0:9091:9091`).
-  See "Docker and IPv6" in the remote access guide to keep IPv6.
+  bitrate cap did not hold for it. The compose now publishes its ports on IPv4
+  only (`0.0.0.0:9091:9091`), and the server logs a warning and the admin's
+  remote access page shows one when requests come from its own gateway. Such
+  requests are still let through, since the host itself arrives the same way:
+  an existing install keeps working as it is, and changing its `ports` line
+  closes the gap. See "Docker and IPv6" in the remote access guide to keep
+  IPv6.
 - Playback: an audio track copied after a seek started on the keyframe before
   the target, so the sound ran a second or two behind the picture, and that
   offset stayed in the cache. The copy now starts on its target and the copies

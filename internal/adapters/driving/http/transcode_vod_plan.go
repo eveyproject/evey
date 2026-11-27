@@ -313,15 +313,10 @@ func (h *hlsVODServe) userBitrateLimitFor(ctx context.Context, userID string) in
 // link-local address, or from one of the admin's LAN Networks - the same rule
 // Stream info applies (grpcapi playback_handler), so both agree on who is capped.
 // An unknown address counts as LAN: the cap must never bite on a missing signal.
-// A relay (the server's own gateway) is the exception: its address is private
-// but it hides clients from anywhere, so it is capped like the remote side.
 func lanClient(r *http.Request, lanNetworks []string) bool {
 	ip := network.ClientIP(r)
 	if ip == nil {
 		return true
-	}
-	if network.IsRelay(ip) {
-		return false
 	}
 	if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
 		return true
