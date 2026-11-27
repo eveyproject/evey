@@ -87,7 +87,7 @@ puede reducir los canales.
 Cómo la descodifica la página y qué pasa cuando no puede:
 [ac3go en Evey](ac3go.md).
 
-!!! warning
+!!! warning "Advertencia"
     Un proxy inverso que pone su propia Content-Security-Policy debe
     permitir `'wasm-unsafe-eval'` en `script-src`; si no, el descodificador
     no puede arrancar y la película se reproduce sin sonido. Consulta
@@ -106,7 +106,7 @@ Información del flujo muestra **Resincronización de audio solicitada**.
 Cuando el desfase está en el propio archivo (una pista de audio que empieza
 después de la imagen, o pistas que no coinciden entre sí),
 **Administración → Salud de medios** lo señala pero nunca lo reescribe por su
-cuenta: un desfase al principio suele ser un ajuste deliberado del doblaje.
+cuenta: un audio que empieza tarde suele ser un ajuste deliberado del doblaje.
 **Comprobar sincronía**, en la fila del archivo, te deja juzgarlo a ojo y
 aplicar un desplazamiento, que su historial puede deshacer. Consulta
 [Salud de medios](../runbooks/media-health.md#checking-the-sync-by-eye).

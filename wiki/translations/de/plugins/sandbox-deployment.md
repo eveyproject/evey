@@ -65,7 +65,7 @@ zusätzliche, redundante Schicht.
 | `on` | immer an, ein zweiter, unabhängiger Schutz zusätzlich zur Dateibeschränkung | Sie beide Schutzmaßnahmen wollen und die kleinen Kosten unten in Kauf nehmen |
 | `off` | nie | ein bestimmtes Plugin sich damit falsch verhält (selten) |
 
-!!! warning
+!!! warning "Warnung"
     Die UID-Trennung ist nicht mit der Docker-Option `no-new-privileges`
     vereinbar: Entscheiden Sie sich für eines von beiden. Kann der Wechsel
     auf einer alten Maschine (`basic`) nicht gewährt werden, weigert sich der

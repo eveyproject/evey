@@ -87,7 +87,7 @@ sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
   Dateien eines anderen Plugins lesen kann. Diese UIDs brauchen kein Konto in
   `/etc/passwd`.
 
-!!! warning
+!!! warning "Warnung"
     Die Gruppen-ID ist wichtig: Der Launcher lässt ein Plugin zu seiner UID
     und zur eigenen Gruppe des Servers wechseln und lehnt jede UID oder GID unter
     1000 ab. Eine Gruppe, die nur durch `useradd --system` entsteht, bekommt
@@ -208,7 +208,7 @@ wechseln (Capability fehlt, `no_new_privs` gesetzt), wird ein Plugin im Modus
 Landlock schreibt er eine Warnung ins Protokoll und startet das Plugin mit der
 UID des Servers.
 
-!!! warning
+!!! warning "Warnung"
     Die UID-Trennung ist nicht mit `no_new_privs` vereinbar. Läuft der
     Server unter systemd mit `NoNewPrivileges=yes`, wird die
     Datei-Capability beim exec ignoriert: Plugins werden im Modus `basic`

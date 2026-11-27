@@ -75,7 +75,7 @@ Evey 项目发布了下面这些插件和主题，每个都有自己的仓库。
     ```
 
     设为 `enforce` 时，只有受信任的发布者才能安装：Evey 项目的密钥一开始就受信任，其他发布者的密钥可以在安装预览里设为受信任。设为 `warn` 时，只显示结论，不阻止任何东西。插件作者请看
-    [编写插件](plugins/dev-setup.md#7-sign-your-plugin)。
+    [给插件签名](plugins/dev-setup.md#7-sign-your-plugin)。
 
 ## 更新插件 { #update-a-plugin }
 

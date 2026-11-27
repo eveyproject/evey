@@ -66,7 +66,7 @@ inaccessibles, et la séparation n'est qu'une couche redondante.
 | `on` | toujours active, une seconde protection indépendante en plus de la restriction d'accès aux fichiers | vous voulez une double protection et acceptez le petit coût ci-dessous |
 | `off` | jamais | un plugin précis se comporte mal sous elle (rare) |
 
-!!! warning
+!!! warning "Attention"
     La séparation d'uid est incompatible avec l'option Docker
     `no-new-privileges` : choisissez l'une ou l'autre. Quand l'abaissement
     ne peut pas être accordé sur une vieille machine (`basic`), le serveur

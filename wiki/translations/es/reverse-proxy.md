@@ -94,7 +94,7 @@ y una capa compose lista para usar,
 ### Lo que ya resuelve { #what-it-already-handles }
 
 Reenvía a `evey:9091` con el búfer y los tiempos límite desactivados en las
-rutas de streaming, el WebSocket de SyncPlay actualizado, `X-Forwarded-For` y
+rutas de streaming, el upgrade del WebSocket de SyncPlay, `X-Forwarded-For` y
 `X-Forwarded-Proto` transmitidos, y `client_max_body_size 2G` para subir
 plugins y restaurar copias de seguridad. Deja pasar las cabeceras de
 seguridad y la CSP propias de la aplicación.

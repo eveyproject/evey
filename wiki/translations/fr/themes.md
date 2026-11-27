@@ -52,7 +52,7 @@ dont le navigateur se souvient s'applique aussi avant la connexion.
 
 L'interface tire ses surfaces, son texte, son accent, ses bordures et ses
 rayons d'un jeu de propriétés personnalisées sur `:root` ;
-[`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) les liste avec un commentaire
+[`theme.css` d'evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) les liste avec un commentaire
 chacune. Les redéfinir restyle tous les écrans d'un coup :
 
 ```css title="theme.css"

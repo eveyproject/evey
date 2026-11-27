@@ -23,7 +23,7 @@ supervision externe. Le quotidien est décrit dans
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
 | `EVEY_LOG_LEVEL` | `info` | `debug`, `info`, `warn` ou `error`. | Configuration du serveur → Général → **Niveau de journalisation**, immédiat |
-| `EVEY_LOG_DIR` | `/data/logs` | L'emplacement du fichier de log quotidien `evey-AAAA-MM-JJ.log`. Définie par l'image (avec un suffixe d'heure quand un fichier dépasse 50 Mo). Ce fichier fait référence : `docker logs` montre le même flux, mais Docker le fait tourner. | aucun |
+| `EVEY_LOG_DIR` | `/data/logs` | L'emplacement du fichier de log quotidien `evey-AAAA-MM-JJ.log` (avec un suffixe d'heure quand un fichier dépasse 50 Mo). Définie par l'image. Ce fichier fait référence : `docker logs` montre le même flux, mais Docker le fait tourner. | aucun |
 | `EVEY_LOG_MAX_SIZE_MB` | `50` | Taille d'un fichier de log avant rotation. | aucun |
 | `EVEY_LOG_RETENTION_DAYS` | `90` | Nombre de jours de conservation des fichiers de log. | aucun |
 

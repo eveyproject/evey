@@ -48,7 +48,7 @@ Configuration transcodage**.
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | La taille de tout le cache de transcodage (segments, remux, téléchargements préparés), les éléments les moins récemment utilisés partant en premier. | Transcodage → **Budget du cache de transcodage**, redémarrage |
+| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | La taille de tout le cache de transcodage (segments, remux, téléchargements préparés), les éléments les moins récemment utilisés partant en premier. | Configuration transcodage → **Budget du cache de transcodage**, redémarrage |
 | `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | L'espace libre gardé sur le disque du cache. En dessous, les segments inutilisés sont évincés, puis les nouveaux segments sont refusés plutôt qu'écrits ; les sous-titres extraits ne sont plus conservés et les administrateurs sont prévenus. `0` désactive cette marge. Voir [Le cache de transcodage](../playback/transcoding.md#the-transcoding-cache). | aucun |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Son emplacement. Définie par l'image. | aucun |
 | `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | L'emplacement des miniatures de la barre de lecture. Définie par l'image : elles coûtent cher à régénérer, elles restent donc dans `/data`. | aucun |

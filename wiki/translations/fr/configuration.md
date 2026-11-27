@@ -169,7 +169,7 @@ compose. L'entrypoint détecte le démarrage sans root et saute le remappage (y
 compris la détection du propriétaire des médias) : c'est alors à vous de
 garder `./evey-data` modifiable par cet uid.
 
-!!! note
+!!! note "Remarque"
     `PUID=1001` est refusé tant que les plugins sont activés : c'est l'utilisateur interne `evey-plugin`,
     séparé pour que les plugins ne partagent jamais l'identité du serveur.
     Les médias sont montés en lecture-écriture par défaut pour que les

@@ -70,7 +70,7 @@ reste du titre et redemande au serveur le flux normal, avec le son converti
 en AAC. Le film garde son son ; les **Infos du flux** affichent alors la
 conversion au lieu de *décodé client*.
 
-!!! warning
+!!! warning "Attention"
     Un reverse proxy qui impose sa propre Content-Security-Policy doit autoriser
     `'wasm-unsafe-eval'` dans `script-src`, sinon le décodeur ne peut pas
     démarrer. Il doit aussi servir les fichiers du décodeur sous `/wasm/`,

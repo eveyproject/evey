@@ -21,7 +21,7 @@ los registros y `evey admin doctor` (más abajo) dan más información.
 | Faltan pósteres o están rotos | **Administración → Caché de artworks** | [Biblioteca y pósteres](#library-and-posters) más abajo |
 | Los archivos nuevos no aparecen | El resultado del escaneo en la fila de la biblioteca, en **Administración → Bibliotecas** | [Biblioteca y pósteres](#library-and-posters) más abajo |
 | Los correos no llegan | **Enviar correo de prueba** en **Administración → Configuración del servidor → Correo / SMTP** | [Los correos no llegan](#e-mails-do-not-arrive) más abajo |
-| Un plugin falla | Sus **Registros**, en su tarjeta de **Administración → Plugins** | [Un plugin se ha bloqueado](../runbooks/incident-runbook.md#a-plugin-crashed) |
+| Un plugin falla | Sus **Registros**, en su tarjeta de **Administración → Plugins** | [Un plugin se ha caído](../runbooks/incident-runbook.md#a-plugin-crashed) |
 | Un envío a la tele (cast) se ha congelado o se ha quedado sin sonido | **Administración → Reproduciendo ahora**: ¿sigue apareciendo la reproducción? | [Un envío se ha congelado, se ha quedado sin sonido, o el teléfono no deja de cargar](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
 | El disco se llena | **Administración → Caché de transcodificación** | [El disco de la caché está lleno](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
 
@@ -96,7 +96,7 @@ Dos causas habituales:
 El procedimiento paso a paso:
 [Todos los inicios de sesión devuelven 401](../runbooks/incident-runbook.md#every-login-returns-401).
 
-!!! note
+!!! note "Nota"
     Perder o sustituir la clave de firma no cierra por sí solo la sesión de
     nadie: las apps renuevan sus tokens. Para cerrar todas las sesiones a
     propósito está `evey admin rotate-jwt-key`, ver

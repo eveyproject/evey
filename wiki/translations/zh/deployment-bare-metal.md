@@ -69,7 +69,7 @@ sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
 - 开启 uid 分离时，每个插件切换到它自己的 uid，由它的 id 在 40000 到 59999 的范围内得出。这样，被攻破的插件会以另一个无特权用户的身份运行，
   单凭普通的文件权限，它既无法读取服务器的密钥，也无法读取另一个插件的文件。这些 uid 不需要在 `/etc/passwd` 里有账户。
 
-!!! warning
+!!! warning "警告"
     组 id 很重要：启动器会把插件切换到它的 uid 和服务器自己的组，并且拒绝任何小于 1000 的 uid 或 gid。
     只用 `useradd --system` 创建的组会得到一个小于 1000 的系统 id，这时 `basic` 模式下的插件就会被拒绝。
 
@@ -157,7 +157,7 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 启动器拒绝任何小于 1000 的目标 uid 或 gid。如果无法切换（缺少能力，或者设置了 `no_new_privs`），
 `basic` 模式下的插件会被拒绝，因为在那里 uid 是它唯一的保护；在 Landlock 下，它会记录一条警告，然后以服务器的 uid 运行。
 
-!!! warning
+!!! warning "警告"
     uid 分离和 `no_new_privs` 不能同时使用。如果服务器在 systemd 的 `NoNewPrivileges=yes` 下运行，
     文件能力在 exec 时会被忽略：`basic` 模式下的插件会被拒绝，而在 Landlock 下，uid 分离会退化为使用同一个 uid。只能二选一。
 

@@ -48,7 +48,7 @@ stylesheet हर पेज के head में एक `<link rel="stylesheet"
 ### custom properties से शुरू करें
 
 इंटरफ़ेस अपनी सतहें, टेक्स्ट, accent रंग, किनारे और गोलाई `:root` पर रखी custom
-properties के एक समूह से बनाता है; [`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css)
+properties के एक समूह से बनाता है; [evey-theme-dark-blue की `theme.css`](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css)
 हर एक को एक comment के साथ बताती है। इन्हें बदलने से हर स्क्रीन एक साथ बदल जाती
 है:
 

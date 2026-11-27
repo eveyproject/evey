@@ -82,7 +82,7 @@ docker exec evey-server evey admin doctor
 | `permission denied` sur `/cache/...`, en boucle de redémarrage | Le volume `evey-cache` appartient à un autre utilisateur que celui sous lequel tourne le serveur. Mettez l'image à jour ; sur une image antérieure au 17/09/2026, lancez une fois `docker run --rm -v <projet>_evey-cache:/c alpine chown -R <PUID>:<PGID> /c`. |
 
 Mot de passe administrateur perdu, clé de signature compromise ou base
-endommagée : [Restauration](../runbooks/recovery.md).
+endommagée : [Récupération](../runbooks/recovery.md).
 
 ## Personne ne peut se connecter { #nobody-can-sign-in }
 
@@ -97,11 +97,11 @@ Deux causes habituelles :
 La procédure pas à pas :
 [Toutes les connexions renvoient 401](../runbooks/incident-runbook.md#every-login-returns-401).
 
-!!! note
+!!! note "Remarque"
     Une clé de signature perdue ou remplacée ne déconnecte personne à elle
     seule : les applications renouvellent leurs jetons. Pour mettre fin à
     toutes les sessions volontairement, c'est `evey admin rotate-jwt-key`,
-    voir [Restauration](../runbooks/recovery.md#rotate-the-key-that-signs-access-tokens).
+    voir [Récupération](../runbooks/recovery.md#rotate-the-key-that-signs-access-tokens).
 
 Le serveur répond sur le réseau domestique mais pas ailleurs, ou les
 applications indiquent que l'accès distant est désactivé :

@@ -41,7 +41,7 @@ webhook abonné à **Tous les événements** reçoit aussi.
 `client` quand le lecteur a demandé l'arrêt, `stale` quand le serveur a clos une
 session dont le signal de vie s'est tu (un onglet fermé, une télévision éteinte).
 
-**Envoi.** Chaque événement est un `POST` JSON, accompagné de les en-têtes suivants :
+**Envoi.** Chaque événement est un `POST` JSON, accompagné des en-têtes suivants :
 
 - `X-Evey-Delivery` : un identifiant identique pour toutes les tentatives
   d'un même envoi, qui permet à votre récepteur d'ignorer un doublon ;

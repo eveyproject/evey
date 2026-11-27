@@ -40,7 +40,7 @@ ZIP 包的根目录里，在清单旁边放 `theme.css` 和/或 `theme.js`。两
 ### 从自定义属性入手
 
 界面的各种表面、文字、强调色、边框和圆角，都取自 `:root` 上的一组自定义属性；
-[`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) 列出了它们，每一个都有注释。覆盖这些属性，就能一次改变所有界面的外观：
+[evey-theme-dark-blue 的 `theme.css`](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) 列出了它们，每一个都有注释。覆盖这些属性，就能一次改变所有界面的外观：
 
 ```css title="theme.css"
 :root {

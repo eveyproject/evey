@@ -45,7 +45,7 @@ von Anfang an vertraut wird.
 | Marquee | Plugin | Eine Plakatwand aus Ihrer Bibliothek, mit einem Roulette für die Wahl des Films am Abend. | [evey-plugin-marquee](https://github.com/eveyproject/evey-plugin-marquee) |
 | Librarian | Plugin | Listet wahrscheinliche Duplikate und die Filme auf, die in einer nummerierten Filmreihe fehlen. Es liest die Bibliothek und rührt nie eine Datei an. | [evey-plugin-librarian](https://github.com/eveyproject/evey-plugin-librarian) |
 | CShell | Theme | Ein Terminal-Look: reines Schwarz, Bernstein, Festbreitenschrift. | [evey-theme-cshell](https://github.com/eveyproject/evey-theme-cshell) |
-| Dunkelblau | Theme | Ein dunkelblaues Farbthema. | [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) |
+| Dark Blue | Theme | Ein dunkelblaues Farbthema. | [evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue) |
 
 Für ein eigenes Plugin ist [evey-plugin-template](https://github.com/eveyproject/evey-plugin-template) ein Repository als
 Ausgangspunkt: ein minimales Plugin, seine Tests und der Workflow, der seine

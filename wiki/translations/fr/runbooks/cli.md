@@ -9,7 +9,7 @@ Le binaire du serveur sert aussi de ligne de commande d'exploitation :
 avec la même configuration et la même base de données que le serveur, puis
 s'arrête. Cette page liste les commandes et la façon de les lancer dans le
 conteneur ; les procédures du quotidien (mot de passe perdu, rotation de clé,
-restauration) sont dans [Restauration](recovery.md).
+restauration) sont dans [Récupération](recovery.md).
 
 ## Lancer une commande { #running-a-command }
 
@@ -90,7 +90,7 @@ evey admin rollback                          Read-only advisor: running version,
 celles de l'utilisateur pour le premier, celles de tout le monde pour le
 second. Les applications ouvertes s'en aperçoivent en 30 secondes environ et
 redemandent une connexion. Les procédures complètes sont dans
-[Restauration](recovery.md).
+[Récupération](recovery.md).
 
 ### Schéma { #schema }
 
@@ -241,6 +241,6 @@ l'image Docker ne les contient pas :
 
 ## Runbooks liés { #related-runbooks }
 
-- [Restauration](recovery.md) : réinitialisation de mot de passe, rotation de la clé JWT, restauration d'une sauvegarde.
+- [Récupération](recovery.md) : réinitialisation de mot de passe, rotation de la clé JWT, restauration d'une sauvegarde.
 - [Procédures de migration](migration-runbook.md) : déploiement du schéma, retour en arrière, récupération d'un état « dirty ».
 - [Procédures d'incident](incident-runbook.md) : les premiers gestes quand le serveur présente un problème.

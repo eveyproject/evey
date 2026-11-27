@@ -71,7 +71,7 @@ resto del título y pide al servidor el flujo normal, con el sonido
 convertido a AAC. La película conserva el sonido; **Información del flujo**
 muestra entonces la conversión en lugar de *descodificado en el cliente*.
 
-!!! warning
+!!! warning "Advertencia"
     Un proxy inverso que pone su propia Content-Security-Policy debe
     permitir `'wasm-unsafe-eval'` en `script-src`; si no, el descodificador
     no puede arrancar. También debe servir los archivos del descodificador

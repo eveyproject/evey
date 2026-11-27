@@ -82,7 +82,7 @@ ended (restart the server, then run this again)`: haz exactamente eso.
 escritos desde entonces. El comando pasa una copia `.sql.gz` por
 `gunzip | psql` hacia la base de datos configurada.
 
-!!! warning
+!!! warning "Advertencia"
     La restauración borra y vuelve a crear cada tabla antes de cargarla, así que las filas actuales se sustituyen. Haz antes una copia de
     seguridad del estado actual (**Administración → Copia de seguridad y
     restauración → Ejecutar ahora**) si hay alguna posibilidad de que lo

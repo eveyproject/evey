@@ -65,7 +65,7 @@ docker exec evey-server evey admin doctor
 
 逐步操作见：[每次登录都返回 401](../runbooks/incident-runbook.md#every-login-returns-401)。
 
-!!! note
+!!! note "注意"
     只是丢失或更换签名密钥，并不会让任何人被登出：应用会更新自己的令牌。要有意结束所有会话，请使用 `evey admin rotate-jwt-key`，见[恢复](../runbooks/recovery.md#rotate-the-key-that-signs-access-tokens)。
 
 服务器在家里有应答，在别处却没有，或者应用说远程访问已禁用：见[远程访问和 HTTPS](../administration/remote-access.md)。如果服务器能从互联网访问，而远程访问却是关闭的，**管理 → 远程访问**会用红字提示。

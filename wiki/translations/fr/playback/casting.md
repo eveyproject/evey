@@ -84,7 +84,7 @@ et prend le premier appareil trouvé à chaque étape :
    lecteur renvoie vers **Lire sur** pour choisir ;
 4. le sélecteur d'appareils du navigateur lui-même.
 
-!!! note
+!!! note "Remarque"
     Les étapes 1 et 2 prennent le premier appareil trouvé, pas celui que vous
     choisissez. Avec plusieurs Chromecast chez vous, diffusez depuis Chrome
     sur ordinateur ou depuis l'application Android, qui affichent tous deux

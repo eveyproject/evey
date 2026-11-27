@@ -74,7 +74,7 @@ et rien d'autre :
 - l'accès dure tant qu'il sert, expire après trois heures sans lecture et
   après 24 heures dans tous les cas, et prend fin dès que la salle se ferme.
 
-!!! warning
+!!! warning "Attention"
     Le code est la seule protection d'une salle : ne le donnez qu'aux
     personnes que vous voulez y voir. Les codes erronés sont limités par
     adresse et sur l'ensemble du serveur, ce qui empêche de le trouver par essais

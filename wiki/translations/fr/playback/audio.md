@@ -87,7 +87,7 @@ de canaux.
 Comment la page décode le Dolby Digital, et ce qui se passe quand elle ne le peut pas :
 [ac3go dans Evey](ac3go.md).
 
-!!! warning
+!!! warning "Attention"
     Un reverse proxy qui impose sa propre Content-Security-Policy doit
     autoriser `'wasm-unsafe-eval'` dans `script-src`, faute de quoi le
     décodeur ne peut pas démarrer et le film se lit sans le son. Voir

@@ -292,7 +292,7 @@ Administrator ist, trägt jeder Eintrag zusätzlich `filePath`, `fileSize`
 `videoCodec`, `hdrType` (leer bei SDR), `bitDepth`, `bitrate` (Bit pro
 Sekunde), `durationMs`, `container`, `audioCodec` und `audioChannels`, aus der
 ersten Videospur und der Standard-Audiospur. Für alle anderen wird das Token
-ohne diese Berechtigung ausgestellt und beide Felder bleiben leer: Ein Modul,
+ohne diese Berechtigung ausgestellt und diese Felder bleiben leer: Ein Modul,
 das allen gezeigt wird, darf sich nicht darauf verlassen, ihr Platz ist der
 Slot `admin.nav`.
 
@@ -429,7 +429,7 @@ Seite des Plugins im selben Sandbox-Frame öffnet, auf einer Route nur für
 Administratoren; `admin.plugin.config` ersetzt das aus `config_schema`
 generierte Formular innerhalb der eigenen Karte des Plugins, für einen Wert,
 den ein einfaches Feld schlecht auswählen kann (etwa eine Stadt unter
-gleichnamigen). Wer einen von beiden verlangt, erscheint in der Übersicht der
+gleichnamigen). Die Anforderung eines der beiden erscheint in der Übersicht der
 Änderungen, die bestätigt werden müssen. Jeder andere Slot `admin.*`,
 `login.*`, `setup.*` und `profile.security.*` wird bei der Installation
 abgelehnt.

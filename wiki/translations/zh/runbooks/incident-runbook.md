@@ -126,7 +126,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
   -d '{"value":"false"}'
 ```
 
-!!! note
+!!! note "注意"
     不在排查问题时，请让进度日志保持关闭：每个编码器一个文件，每个会话几 MB，这台机器上的每次播放都会产生。文件名里带有决策哈希、档位（`-vN-`）和起始片段（`-sN-`），所以能和 JSON 日志对应起来；在同一位置重新启动的编码器会有自己单独的文件，正是这一点让编码器的反复启动清晰可见。
 
 **修复**：

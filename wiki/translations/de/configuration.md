@@ -169,7 +169,7 @@ Das Startskript erkennt den Start ohne root und überspringt die Umstellung
 (auch die Erkennung des Medienbesitzers). Dann sorgen Sie selbst dafür, dass
 `./evey-data` für diese UID beschreibbar bleibt.
 
-!!! note
+!!! note "Hinweis"
     `PUID=1001` wird abgelehnt, solange Plugins aktiviert sind: Das ist der interne Benutzer `evey-plugin`.
     Er bleibt getrennt, damit Plugins nie die Identität des Servers teilen.
     Medien werden standardmäßig mit Lese- und Schreibzugriff eingebunden,

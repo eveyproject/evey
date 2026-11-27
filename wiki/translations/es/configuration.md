@@ -169,7 +169,7 @@ punto de entrada detecta el arranque sin root y se salta la reasignación
 (incluida la detección del propietario de los medios); entonces tienes que
 mantener tú `./evey-data` con permiso de escritura para ese UID.
 
-!!! note
+!!! note "Nota"
     `PUID=1001` se rechaza mientras los plugins estén activados: es el usuario interno `evey-plugin`, que se
     mantiene aparte para que los plugins nunca compartan la identidad del
     servidor. Los medios se montan en lectura y escritura por defecto para

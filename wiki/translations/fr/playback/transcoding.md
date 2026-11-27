@@ -108,7 +108,7 @@ Quand la place vient à manquer, le serveur répond dans cet ordre :
 3. **Un refus.** Quand aucun n'en a, le lecteur affiche **Le serveur est
    occupé par d'autres transcodages** et peut réessayer.
 
-Un refus est définitif et ne tient pas à la place disponible. Un fichier dont
+Un refus en particulier est définitif et ne tient pas à la place disponible. Un fichier dont
 l'encodage pour cet appareil coûterait plus que toute la capacité mesurée, sur
 un serveur où rien d'autre n'est en cours, est refusé avec **Ce serveur n'est
 pas assez puissant pour ce fichier**, et le lecteur ne réessaie pas. Cela
@@ -152,7 +152,7 @@ Les segments encodés sont gardés sur disque dans le volume `evey-cache` et
 réutilisés quand un autre spectateur, ou le même plus tard, lit le même titre
 avec la même décision. **Administration → Cache de transcodage** affiche sa taille et
 permet de le vider ; le **Budget du cache de transcodage** (**Administration →
-Transcodage**) le plafonne. **Tout
+Configuration transcodage**) le plafonne. **Tout
 vider** supprime aussi les sous-titres extraits de vos fichiers, gardés dans
 `./evey-data/subtitles` : ils sont extraits de nouveau à la demande.
 
@@ -169,7 +169,7 @@ extrait de nouveau, et les administrateurs reçoivent **Cache des sous-titres
 plein** (au plus une fois par heure, envoyé aussi aux webhooks sous
 `transcoding.derived_cache_full`).
 
-!!! tip
+!!! tip "Astuce"
     Videz le cache après une mise à jour qui modifie la façon dont les vidéos
     sont encodées, pour que personne ne reçoive de segments de la version
     précédente. Le vider pendant qu'une personne regarde fait remettre son

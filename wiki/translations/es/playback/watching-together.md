@@ -74,7 +74,7 @@ título y nada más:
 - el acceso dura mientras se usa, caduca tras tres horas sin reproducción y,
   en cualquier caso, tras 24 horas, y termina en cuanto se cierra la sala.
 
-!!! warning
+!!! warning "Advertencia"
     El código es lo único que protege una sala, así que compártelo solo con
     las personas que quieres en ella. Los intentos con códigos erróneos están
     limitados por dirección y en todo el servidor, así que no se pueden

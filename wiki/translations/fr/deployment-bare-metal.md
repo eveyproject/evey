@@ -58,7 +58,7 @@ services avec lesquels le serveur communique :
 
 | Dépendance | Pourquoi |
 |---|---|
-| **ffmpeg** et **ffprobe** | transcodage, analyse ; l'image embarque aussi les pilotes VAAPI et `fpcalc` (chromaprint) pour la détection des génériques |
+| **ffmpeg** et **ffprobe** | transcodage, analyse ; l'image embarque aussi les pilotes VAAPI et `fpcalc` (chromaprint) pour la détection des intros |
 | **PostgreSQL** (serveur plus une base) et **`pg_dump`** | la base ; `pg_dump` écrit le dump automatique de pré-migration |
 | **Meilisearch** | l'index de recherche ; sans lui la recherche se replie sur SQL |
 | **`bwrap`** (bubblewrap) | uniquement pour le moteur de sandbox bubblewrap |
@@ -86,7 +86,7 @@ sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
   fichiers d'un autre plugin. Ces uid n'ont besoin d'aucun compte dans
   `/etc/passwd`.
 
-!!! warning
+!!! warning "Attention"
     L'identifiant du groupe compte : le launcher abaisse un plugin vers son
     uid et vers le groupe du serveur lui-même, et refuse tout uid ou gid
     inférieur à 1000. Un groupe créé par `useradd --system` seul reçoit un
@@ -204,7 +204,7 @@ pas abaisser (capability absente, `no_new_privs` positionné), un plugin en
 mode `basic` est refusé, puisque l'uid y est sa seule protection ; sous
 Landlock il journalise un avertissement et tourne sous l'uid du serveur.
 
-!!! warning
+!!! warning "Attention"
     La séparation d'uid est incompatible avec `no_new_privs`. Si le serveur
     tourne sous systemd avec `NoNewPrivileges=yes`, la capability de fichier
     est ignorée à l'exec : les plugins sont refusés en mode `basic`, et sous

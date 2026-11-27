@@ -54,7 +54,7 @@ Die Gründe fallen in vier Gruppen:
 
 | Woher der Grund kommt | Beispiele, wie angezeigt |
 | --- | --- |
-| Der Player kann die Spur nicht so nutzen, wie sie ist | Videocodec, den dieser Player nicht dekodieren kann · Audiocodec, den dieser Player nicht dekodieren kann · Auflösung über dem Limit des Players · Mehr Audiokanäle, als dieser Player unterstützt · Pixelformat, das der Player nicht decodiert (10-Bit-H.264, 4:2:2) · Container nicht direkt abspielbar (zu HLS umverpackt) |
+| Der Player kann die Spur nicht so nutzen, wie sie ist | Videocodec, den dieser Player nicht dekodieren kann · Audiocodec, den dieser Player nicht dekodieren kann · Auflösung über dem Limit des Players · Mehr Audiokanäle, als dieser Player unterstützt · Pixelformat, das der Player nicht dekodiert (10-Bit-H.264, 4:2:2) · Container nicht direkt abspielbar (zu HLS umverpackt) |
 | Eine Grenze dieser Sitzung | Bitrate über dem erlaubten Limit · Die vom Client gemessene Leitung trägt die Kopie nicht |
 | Eine Folge für Bild oder Ton | HDR nach SDR konvertiert (Tone-Mapping) · Untertitel ins Bild eingebrannt · Audio-Resynchronisation angefordert |
 | Eine Einstellung oder eine bereits getroffene Entscheidung | Bevorzugter Video-Codec (Profileinstellung) · Auswahl für diese Sitzung fixiert |

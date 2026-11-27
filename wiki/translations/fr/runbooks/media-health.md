@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Santé des médias { #media-health }
 
-Un titre se déplace lentement, cale toujours au même endroit, ou son audio
+La recherche dans un titre est lente, cale toujours au même endroit, ou son audio
 se décale peu à peu : **Administration → Santé des médias** lit chaque fichier MKV/WebM de vos
 bibliothèques et donne à chacun une seule réponse. Le but est une page qui se
 vide : ce qu'Evey sait réparer, il le répare (**Tout réparer**) ; le reste est

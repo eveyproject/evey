@@ -97,7 +97,7 @@ ha borrado datos (una columna eliminada, un cambio de tipo).
 `evey admin migrate down`, en cambio, retrocede una migración cada vez,
 cuando el `.down.sql` de ese paso basta.
 
-!!! warning
+!!! warning "Advertencia"
     No modifiques `schema_migrations` a mano salvo para quitar un estado
     «dirty» (más abajo), y haz antes una copia.
 

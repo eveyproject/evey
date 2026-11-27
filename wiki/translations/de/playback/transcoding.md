@@ -109,7 +109,7 @@ Wird der Platz knapp, reagiert der Server in dieser Reihenfolge:
 3. **Eine Ablehnung.** Hat keiner von beiden Platz, zeigt der Player **Der
    Server transkodiert gerade andere Streams** und kann es erneut versuchen.
 
-Eine Ablehnung ist endgültig und keine Frage des Platzes. Eine Datei, deren
+Eine bestimmte Ablehnung ist endgültig und keine Frage des Platzes. Eine Datei, deren
 Kodierung für dieses Gerät mehr kosten würde als die gesamte gemessene
 Kapazität, auf einem Server, auf dem sonst nichts läuft, wird mit **Dieser
 Server ist für diese Datei nicht leistungsstark genug** abgelehnt, und der
