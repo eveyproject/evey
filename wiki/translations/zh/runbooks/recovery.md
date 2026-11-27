@@ -58,7 +58,7 @@ docker exec evey-server evey admin rotate-jwt-key
 
 当某次更新必须撤销、而且之后写入的数据可以丢弃时使用。这条命令会把一个 `.sql.gz` 转储通过 `gunzip | psql` 导入到配置好的数据库里。
 
-!!! warning
+!!! warning "警告"
     恢复会先删除并重建每张数据表再加载，因此当前的数据会被替换。如果您有可能还需要当前的状态，请先给它做一次备份（**管理 → 数据库备份 → 立即运行**）。
 
 ```sh

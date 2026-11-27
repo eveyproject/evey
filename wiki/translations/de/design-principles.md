@@ -16,7 +16,7 @@ Prinzipien widersprechen, hat das Vorrang, das weiter oben in der Liste steht.
 | 1. Zugang wird verweigert, wenn er sich nicht prüfen lässt | Kindersicherung, Plugin-Installation, Fernzugriff | [ADR-0026](adr/0026-remote-access-inferred-from-a-published-url.md) |
 | 2. Fremder Code wird isoliert, ihm wird nicht vertraut | Plugin-Sandbox | [ADR-0012](adr/0012-plugin-token-deny-by-default.md), [ADR-0014](adr/0014-landlock-plugin-sandbox.md) |
 | 3. Das Original wird geliefert, wann immer es geht | Wiedergabeentscheidung | [ADR-0030](adr/0030-one-plan-one-decision.md) |
-| 4. Entscheidungen beruhen auf Nachweisen, nicht auf Namen | Streamen, Hardware-Beschleunigung | [ADR-0029](adr/0029-transcoding-routes-are-measured-not-assumed.md) |
+| 4. Entscheidungen beruhen auf Nachweisen, nicht auf Namen | Streamen auf Chromecast, Hardware-Beschleunigung | [ADR-0029](adr/0029-transcoding-routes-are-measured-not-assumed.md) |
 | 5. Eine Wiedergabe, eine Entscheidung | Wiedergabeplan, Stream-Info | [ADR-0030](adr/0030-one-plan-one-decision.md), [ADR-0024](adr/0024-playback-plan-resolver.md) |
 | 6. Der Server richtet sich nach der Maschine | Kalibrierung, Hintergrundarbeiten | - |
 | 7. Wenige Einstellungen, jede an einem Ort | Installation, Verwaltungsbereich | [ADR-0028](adr/0028-install-is-one-compose-file.md) |

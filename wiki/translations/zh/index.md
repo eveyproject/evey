@@ -21,7 +21,7 @@ Evey 是一个在您家中运行的媒体服务器。它存放您的电影、剧
 
 <p class="evey-platforms">
 <strong>您需要：</strong>一台装了 Docker 的电脑或 NAS（x86-64，或树莓派这类 ARM64：<a href="operations/advanced-deployments/#arm-hosts">ARM 主机</a>），以及一个放着您媒体文件的文件夹。安装只要一个文件和一条命令。<br>
-<strong>观看方式：</strong>网页浏览器、Android 手机和平板、Android TV、电视的网页浏览器，以及 Chromecast。Android 和 Android TV 应用已上架 [Google Play](https://play.google.com/store/apps/details?id=com.evey.app)；网页应用随服务器一起提供，电视浏览器版应用位于 `/tv`。
+<strong>观看方式：</strong>网页浏览器、Android 手机和平板、Android TV、电视的网页浏览器，以及 Chromecast。Android 和 Android TV 应用已上架 <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a>；网页应用随服务器一起提供，电视浏览器版应用位于 <code>/tv</code>。
 </p>
 
 <div class="grid cards" markdown>

@@ -231,7 +231,7 @@ const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pag
 
 有 `media.files` 权限，并且只有当正在查看的人是管理员时，每个条目才会额外带上 `filePath`、`fileSize`
 （一个字符串，和 API 里所有 64 位数字一样）和 `quality`：`width`、`height`、`videoCodec`、`hdrType`（SDR 时为空）、
-`bitDepth`、`bitrate`（每秒比特数）、`durationMs`、`container`、`audioCodec` 和 `audioChannels`，取自第一条视频轨和默认音轨。对其他任何人，令牌在签发时就不带这个权限，两个字段都是空的：
+`bitDepth`、`bitrate`（每秒比特数）、`durationMs`、`container`、`audioCodec` 和 `audioChannels`，取自第一条视频轨和默认音轨。对其他任何人，令牌在签发时就不带这个权限，这些字段都是空的：
 展示给所有人的模块不能依赖它们，它们该出现在 `admin.nav` 插槽里。
 
 `poster` 返回 `data:` URL，是因为框架的策略禁止直接从服务器加载图片；可以把它用作 `<img>` 的来源，或者当作纹理。

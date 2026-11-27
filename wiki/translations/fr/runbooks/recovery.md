@@ -79,7 +79,7 @@ be ended (restart the server, then run this again)`. Faites exactement cela.
 depuis peuvent être perdues. La commande passe un dump `.sql.gz` par
 `gunzip | psql` dans la base configurée.
 
-!!! warning
+!!! warning "Attention"
     La restauration supprime et recrée chaque table avant de la charger, donc les lignes actuelles sont remplacées. Prenez d'abord une
     sauvegarde de l'état courant (**Administration → Sauvegarde BDD et restauration →
     Lancer maintenant**) s'il y a la moindre chance d'en avoir besoin.

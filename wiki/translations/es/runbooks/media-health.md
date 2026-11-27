@@ -67,7 +67,7 @@ archivo se reproduce correctamente, no hay nada que hacer.
 - **Sonido a N s de la imagen**: una pista de audio está lejos de donde los
   subtítulos, sincronizados con la imagen, sitúan los diálogos.
 - **Pista de audio llevada a 0**: la marca que deja una reparación anterior
-  cuando retrasó una pista para quitarle su retardo declarado. Si el doblaje
+  cuando adelantó una pista en su retardo declarado. Si el doblaje
   suena ahora demasiado pronto, la cantidad quitada ya no está en el archivo.
 - **Audio -N s**: una pista de audio termina antes que la imagen. La
   reproducción rellena el hueco con silencio.

@@ -83,7 +83,7 @@ sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
   अनुमतियों की वजह से न सर्वर के secret पढ़ सकता है, न किसी दूसरे प्लगइन की फ़ाइलें।
   इन uid के लिए `/etc/passwd` में किसी खाते की ज़रूरत नहीं है।
 
-!!! warning
+!!! warning "चेतावनी"
     ग्रुप id मायने रखती है: launcher प्लगइन को उसके uid और सर्वर के अपने ग्रुप
     पर स्विच करता है, और 1000 से नीचे की कोई भी uid या gid मना कर देता है। सिर्फ़
     `useradd --system` से बने ग्रुप को 1000 से नीचे की system id मिलती है, और तब
@@ -193,7 +193,7 @@ launcher 1000 से नीचे की कोई भी लक्ष्य uid
 मना कर दिया जाता है, क्योंकि वहाँ uid ही उसकी एकमात्र सुरक्षा है; Landlock में वह लॉग
 में चेतावनी लिखता है और सर्वर की uid पर चलता है।
 
-!!! warning
+!!! warning "चेतावनी"
     uid separation `no_new_privs` के साथ नहीं चलता। अगर सर्वर systemd
     `NoNewPrivileges=yes` के साथ चलता है, तो exec पर file capability अनदेखी हो
     जाती है: `basic` मोड में प्लगइन मना कर दिए जाते हैं, और Landlock में uid

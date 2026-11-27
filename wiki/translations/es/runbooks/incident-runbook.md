@@ -203,7 +203,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
   -d '{"value":"false"}'
 ```
 
-!!! note
+!!! note "Nota"
     Deja el registro de progreso desactivado fuera de una investigación: un
     archivo por codificador, unos pocos MB por sesión, para cada
     reproducción en la máquina. El nombre del archivo lleva el hash de la
@@ -353,7 +353,7 @@ docker volume inspect evey_evey-cache   # el prefijo del compose puede cambiar
   sea el presupuesto, la limpieza automática mantiene 2 GiB libres en el
   volumen de la caché.
 
-## Un plugin se ha bloqueado { #a-plugin-crashed }
+## Un plugin se ha caído { #a-plugin-crashed }
 
 **Síntoma**: un plugin deja de responder; el registro muestra panics del
 ejecutor de plugins.

@@ -52,7 +52,7 @@ sie bei Bedarf wieder. **Automatisch (empfohlen)** wählt Niedrig auf Rechnern m
 Einige Einstellungen werden nur einmal gelesen, wenn der Server startet: Beim
 Speichern wird Ihre Wahl festgehalten, ein Neustart wendet sie an. Der
 Verwaltungsbereich zeigt daneben einen Hinweis darauf. Es sind die Karte
-**Hintergrundarbeiten** (Pausieren und Tempo der Durchgänge für Keyframes und
+**Hintergrundaufgaben** (Pausieren und Tempo der Durchgänge für Keyframes und
 Codec-Level), der Schalter **Intro-Skip-Anbieter** und die **Erweiterte
 Grenzwerte** der Transkodierung.
 

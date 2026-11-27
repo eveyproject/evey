@@ -80,7 +80,7 @@ puede (VAAPI con OpenCL, por ejemplo), y si no en el procesador: con un
 filtro optimizado SIMD (AVX2) cuando la versión de ffmpeg lo incluye, y con
 una cadena de filtros portátil si no.
 
-!!! note
+!!! note "Nota"
     En el procesador, convertir HDR a SDR es la transcodificación más cara
     que existe. El servidor mide un techo de resolución aparte para el HDR,
     normalmente más bajo, así que un título HDR puede convertirse a una

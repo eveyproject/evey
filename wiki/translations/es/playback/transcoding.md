@@ -110,7 +110,7 @@ Cuando falta sitio, el servidor responde en este orden:
    muestra **El servidor está ocupado transcodificando otros flujos** y puede
    volver a intentarlo.
 
-Un rechazo es definitivo y no depende del sitio disponible. Un archivo cuya
+Hay un rechazo que es definitivo y no una cuestión de sitio disponible. Un archivo cuya
 codificación para este dispositivo costaría más que toda la capacidad medida,
 en un servidor sin nada más en curso, se rechaza con **Este servidor no es lo
 bastante potente para este archivo**, y el reproductor no vuelve a
@@ -172,7 +172,7 @@ vuelve a extraer, y los administradores reciben **Caché de subtítulos
 llena** (como mucho una vez por hora, también enviado a los webhooks como
 `transcoding.derived_cache_full`).
 
-!!! tip
+!!! tip "Consejo"
     Vacía la caché después de una actualización que cambie la forma de
     codificar los vídeos, para que nadie reciba segmentos de la versión
     anterior. Si la vacías mientras alguien ve algo, su flujo vuelve a cargar

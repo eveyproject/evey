@@ -91,7 +91,7 @@ docker exec -it evey-server sh -c \
 `evey admin migrate down` इसके बजाय एक बार में एक माइग्रेशन पीछे जाता है, जब उस
 कदम की `.down.sql` काफ़ी हो।
 
-!!! warning
+!!! warning "चेतावनी"
     `schema_migrations` को हाथ से न बदलें, सिवाय dirty हालत हटाने के (नीचे
     देखें), और पहले एक डंप ले लें।
 

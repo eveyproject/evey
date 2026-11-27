@@ -132,7 +132,7 @@ la ligne de la bibliothèque :
       bibliothèques dont la surveillance en temps réel est activée. Pour
       vérifier que cela fonctionne toujours, il écrit un petit fichier de test
       dans le dossier pendant quelques secondes. Une bibliothèque où cela
-      fonctionne n'est lue qu'une fois par heure au lieu de toutes les
+      fonctionne de façon vérifiée n'est lue qu'une fois par heure au lieu de toutes les
       2 minutes.
     - Les formulaires de bibliothèque du web et de l'application mobile
       proposent tous deux un interrupteur **Surveillance en temps réel**,

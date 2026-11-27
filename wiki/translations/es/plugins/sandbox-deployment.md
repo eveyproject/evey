@@ -66,7 +66,7 @@ la separación es una capa extra redundante.
 | `on` | siempre activa, una segunda protección independiente además de la restricción de archivos | quieres las dos protecciones y aceptas el pequeño coste descrito más abajo |
 | `off` | nunca | un plugin concreto funciona mal con ella (poco frecuente) |
 
-!!! warning
+!!! warning "Advertencia"
     La separación de uid es incompatible con la opción de Docker
     `no-new-privileges`: elige una de las dos. Cuando no se puede cambiar de
     usuario en una máquina antigua (`basic`), el servidor se niega a arrancar

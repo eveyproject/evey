@@ -159,7 +159,7 @@ Richtlinien:
 - **Eine Spalte ersetzen (erweitern, migrieren, zusammenziehen)**: Packen Sie
   `ADD COLUMN` + Nachfüllen + `SET NOT NULL` + `DROP COLUMN` nicht in eine
   Datei. Diese Form funktioniert nur, weil Evey als einzelne Instanz läuft
-  und die Migrationen beim Start der Reihe nach angewendet werden; bei einem
+  und die Migrationen beim Start synchron angewendet werden; bei einem
   schrittweisen Ausrollen würden die noch nicht aktualisierten Instanzen Fehler liefern.
   `000077` und `000098_playlists_profile_id.up.sql` wurden so geschrieben und
   bleiben so, weil sie schon ausgeliefert sind. Verteilen Sie eine neue auf

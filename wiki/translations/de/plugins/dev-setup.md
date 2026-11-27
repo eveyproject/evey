@@ -423,7 +423,7 @@ das Serverprotokoll enthält die Einzelheiten.
    ebenfalls ab, und `native_code`, kompilierte Binärdateien und eingebettete
    Archive lehnen es ab, außer das Manifest gibt `native-binary` an.
 7. **Speichern und starten.** Das Zwischenverzeichnis ersetzt das bisherige
-   Verzeichnis, der Datensatz geschrieben und der Prozess gestartet.
+   Verzeichnis, der Datensatz wird geschrieben und der Prozess gestartet.
 
 Wonach die Analyse sucht, steht in
 [Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md#static-analysis). Kommentare

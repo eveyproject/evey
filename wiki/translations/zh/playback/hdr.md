@@ -46,7 +46,7 @@ reviewed: true
 
 播放器没有报告 HDR 屏幕时，收到的是经过色调映射的 SDR 画面。如果显卡已经证明它能做色调映射（例如带 OpenCL 的 VAAPI），就在显卡上做；否则在处理器上做：如果 ffmpeg 版本提供了 SIMD 优化的滤镜（AVX2），就用它，否则用一组可移植的滤镜。
 
-!!! note
+!!! note "注意"
     在处理器上，色调映射是开销最大的一种转码。服务器会为 HDR 单独测量一个分辨率上限，通常更低，所以在同一台机器上，HDR 影片转换后的分辨率可能比 SDR 影片低。见[转码](transcoding.md#the-server-measures-itself)。
 
 ## 杜比视界 { #dolby-vision }

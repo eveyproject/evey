@@ -148,7 +148,7 @@ de sesión.
 | Ubicación | Qué contiene | ¿Se puede borrar? |
 | --- | --- | --- |
 | `./evey-data` | Base de datos, claves, contraseñas generadas, índice de búsqueda, miniaturas de la barra de reproducción, imágenes, registros, copias de seguridad, plugins | **No.** Si la pierdes, pierdes todas las cuentas, el historial y los ajustes. La única excepción es `meili/`, que está dentro: es el índice de búsqueda, y el comando `evey admin reindex-search` lo vuelve a crear a partir de la base de datos. |
-| Volumen `evey-cache` | Vídeo convertido, fotos y portadas redimensionadas | Sí. Se vuelve a llenar solo. |
+| Volumen `evey-cache` | Vídeo convertido, fotos y portadas redimensionadas (las variantes de pósteres están en `evey-data/artworks`) | Sí. Se vuelve a llenar solo. |
 | Tus carpetas de archivos | Tus archivos | Evey nunca los borra. Quitar un título en Evey lo quita de la biblioteca, no del disco. |
 
 Evey solo escribe en tus carpetas de archivos en tres casos:

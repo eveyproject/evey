@@ -80,7 +80,7 @@ en était capable (VAAPI avec OpenCL, par exemple), sinon sur le processeur :
 avec un filtre optimisé SIMD (AVX2) quand la version de ffmpeg le fournit,
 avec une chaîne de filtres portable sinon.
 
-!!! note
+!!! note "Remarque"
     Sur le processeur, le tone mapping est le transcodage le plus coûteux qui
     soit. Le serveur mesure un plafond de résolution distinct pour le HDR,
     généralement plus bas, si bien qu'un titre HDR peut être converti dans une

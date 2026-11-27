@@ -111,7 +111,7 @@ ce qui a changé depuis cette sauvegarde est perdu.
 
 Si le serveur ne démarre plus, la ligne de commande peut restaurer les copies
 de secours faites avant une mise à jour (`pre-migration-*.sql.gz`), pas les
-sauvegardes `.tar.gz` de ce panneau : voir [Restauration](runbooks/recovery.md).
+sauvegardes `.tar.gz` de ce panneau : voir [Récupération](runbooks/recovery.md).
 
 ## Mettre à jour Evey { #updating-evey }
 
@@ -157,12 +157,12 @@ C'est toute la mise à jour.
    avec le chemin du fichier.
 3. Lancez `docker compose up -d`.
 
-Les empreintes de détection des génériques sont les seules données qui ne vous
+Les empreintes de détection des intros sont les seules données qui ne vous
 suivent pas. Le premier démarrage d'une version qui les garde dans
 `./evey-data/fingerprints` les y déplace depuis la base de données et efface
 les lignes déplacées. Une version plus ancienne ne les lit que dans la base,
 n'en trouve aucune et les recalcule à partir des fichiers au fil de la
-détection des génériques : rien n'est perdu, mais le serveur est plus occupé
+détection des intros : rien n'est perdu, mais le serveur est plus occupé
 pendant un moment. Une sauvegarde faite avant la mise à jour contient encore
 ces lignes, et la restaurer les ramène.
 

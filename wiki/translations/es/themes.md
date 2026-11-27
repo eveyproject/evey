@@ -51,7 +51,7 @@ navegador recuerda se aplica también antes de iniciar sesión.
 
 La interfaz toma sus superficies, su texto, su color de acento, sus bordes y
 sus radios de un conjunto de propiedades personalizadas en `:root`;
-[`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) las enumera, cada una con un
+[`theme.css` de evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) las enumera, cada una con un
 comentario. Cambiarlas cambia el aspecto de todas las pantallas a la vez:
 
 ```css title="theme.css"

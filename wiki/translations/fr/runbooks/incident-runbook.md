@@ -195,7 +195,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
   -d '{"value":"false"}'
 ```
 
-!!! note
+!!! note "Remarque"
     Laissez le journal de progression désactivé hors investigation : un fichier
     par encodeur, quelques Mo par session, pour chaque lecture sur la machine.
     Le nom du fichier porte le hachage de décision, le palier (`-vN-`) et le
@@ -371,7 +371,7 @@ machine n'est nécessaire. Les heures sont en UTC. Chaque balise est une ligne
 
 1. **Le récepteur était-il actif, et jusqu'à quand ?** Cherchez
    `cast_receiver_alive`. Le récepteur en envoie une toutes les 30 s pendant
-   la lecture ; `details` porte `buf=<arrière>/<avant>/<plages>` (secondes en
+   la lecture ; `details` porte `buf=<behind>/<ahead>/<ranges>` (secondes en
    tampon autour de la tête de lecture) et `pos_sec`. Une lecture saine
    montre `ahead` à plusieurs dizaines de secondes. L'heure de la dernière
    balise est le moment où le récepteur s'est arrêté ou a été arrêté de force : rien après

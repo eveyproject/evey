@@ -95,7 +95,7 @@ plutôt que de migrer vers le bas quand la mise à jour a supprimé des données
 (une colonne retirée, un changement de type). `evey admin migrate down`
 revient d'une migration à la fois, quand le `.down.sql` de cette migration suffit.
 
-!!! warning
+!!! warning "Attention"
     Ne modifiez pas `schema_migrations` à la main, sauf pour effacer un état
     « dirty » (ci-dessous), et prenez un dump avant.
 

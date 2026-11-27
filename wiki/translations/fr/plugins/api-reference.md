@@ -287,7 +287,7 @@ chaîne, comme tout nombre 64 bits de l'API) et `quality` : `width`, `height`,
 `videoCodec`, `hdrType` (vide en SDR), `bitDepth`, `bitrate` (bits par
 seconde), `durationMs`, `container`, `audioCodec` et `audioChannels`, tirés de
 la première piste vidéo et de la piste audio par défaut. Pour toute autre personne le
-jeton est émis sans cette permission et les deux champs restent vides : un
+jeton est émis sans cette permission et ces champs restent vides : un
 module montré à tout le monde ne doit pas compter dessus, leur place est
 l'emplacement `admin.nav`.
 

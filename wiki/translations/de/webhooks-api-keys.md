@@ -47,15 +47,15 @@ ausgeschalteter Fernseher).
 - `X-Evey-Delivery`: eine Kennung, die über alle Wiederholungen einer
   Zustellung gleich bleibt. So kann Ihr Empfänger ein Duplikat ignorieren.
 - `X-Evey-Signature`: `sha256=`, gefolgt vom HMAC-SHA256 des Inhalts,
-  berechnet mit dem Secret des Webhooks. Prüfen Sie ihn mit demselben Secret,
-  dann wissen Sie, dass die Anfrage von Ihrem Server kommt. Ohne Secret
+  berechnet mit dem **Geheimnis** des Webhooks. Prüfen Sie ihn mit demselben Geheimnis,
+  dann wissen Sie, dass die Anfrage von Ihrem Server kommt. Ohne Geheimnis
   beweist die Signatur nichts. Sie deckt nur den Inhalt ab und verhindert daher
   nicht, dass eine abgefangene Anfrage erneut gesendet wird: Nutzen Sie lieber
   die zwei folgenden Header.
 - `X-Evey-Timestamp`: der Zeitpunkt des Versuchs in Unix-Sekunden. Jede
   Wiederholung trägt einen neuen Wert.
 - `X-Evey-Signature-V2`: `sha256=`, gefolgt vom HMAC-SHA256, berechnet mit dem
-  Secret des Webhooks, über den Text `<timestamp>.<delivery id>.<body>` (der
+  Geheimnis des Webhooks, über den Text `<timestamp>.<delivery id>.<body>` (der
   Wert von `X-Evey-Timestamp`, ein Punkt, der Wert von `X-Evey-Delivery`, ein
   Punkt, dann der rohe Inhalt).
 

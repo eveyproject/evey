@@ -185,7 +185,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
   -d '{"value":"false"}'
 ```
 
-!!! note
+!!! note "नोट"
     जाँच के अलावा प्रगति लॉग बंद रखें: हर एन्कोडर के लिए एक फ़ाइल, हर सेशन
     के कुछ MB, मशीन पर हर प्लेबैक के लिए। फ़ाइल के नाम में फ़ैसले का hash, rung
     (`-vN-`) और शुरुआती सेगमेंट (`-sN-`) होता है, ताकि वह JSON लॉग से

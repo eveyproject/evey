@@ -89,7 +89,7 @@ cada paso:
    elegir;
 4. el selector de dispositivos del propio navegador.
 
-!!! note
+!!! note "Nota"
     Los pasos 1 y 2 eligen el primer dispositivo que encuentran, no uno que
     elijas tú. Si tienes varios Chromecast en casa, envía desde Chrome en un
     ordenador o desde la app de Android, que muestran los dos un selector.

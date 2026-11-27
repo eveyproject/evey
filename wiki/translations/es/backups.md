@@ -154,7 +154,7 @@ Eso es toda la actualización.
    rollback` muestra los pasos exactos, con la ruta del archivo.
 3. Ejecuta `docker compose up -d`.
 
-Las huellas de la detección de intros son los únicos datos que no te siguen. El primer
+Las huellas de la detección de intros son los únicos datos que no vuelven atrás contigo. El primer
 arranque de una versión que las guarda en `./evey-data/fingerprints` las mueve
 allí desde la base de datos y borra las filas que movió. Una versión anterior
 solo las lee de la base de datos, no encuentra ninguna y las vuelve a calcular

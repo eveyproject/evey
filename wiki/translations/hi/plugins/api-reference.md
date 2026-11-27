@@ -278,7 +278,7 @@ const page = await evey.media.list({ type: "MEDIA_ITEM_TYPE_MOVIE", page: 2, pag
 होते हैं: `width`, `height`, `videoCodec`, `hdrType` (SDR में खाली), `bitDepth`,
 `bitrate` (बिट प्रति सेकंड), `durationMs`, `container`, `audioCodec` और
 `audioChannels`, पहले वीडियो ट्रैक और डिफ़ॉल्ट ऑडियो ट्रैक से।
-बाकी सबके लिए टोकन इस अनुमति के बिना बनता है और दोनों फ़ील्ड खाली रहते हैं: जो
+बाकी सबके लिए टोकन इस अनुमति के बिना बनता है और ये फ़ील्ड खाली रहते हैं: जो
 मॉड्यूल सबको दिखता है वह इन पर भरोसा न करे, इनकी जगह `admin.nav` स्लॉट है।
 
 `poster` एक `data:` URL लौटाता है, क्योंकि फ़्रेम की नीति सर्वर से सीधे तस्वीर

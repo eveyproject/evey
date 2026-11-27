@@ -66,7 +66,7 @@ docker exec -it evey-server sh -c \
 
 通常的回退方法是：使用上一个镜像，再加上更新前做的转储：见[退回旧版本](../backups.md#going-back)。如果这次更新删掉了数据（删除了某一列、改变了类型），请恢复转储，而不是向下迁移。如果某一步的 `.down.sql` 就够用，`evey admin migrate down` 则可以一次回退一个迁移。
 
-!!! warning
+!!! warning "警告"
     除了清除“脏”状态（见下文），不要手动修改 `schema_migrations`，而且修改之前要先做一次转储。
 
 ## 迁移中途停止 { #a-migration-that-stopped-halfway }

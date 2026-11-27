@@ -71,7 +71,7 @@ cuando el servidor no llega a arrancar. Ver
 ## Cómo ha ido de verdad la reproducción { #how-playback-actually-went }
 
 **Administración → Calidad de streaming** se construye con lo que informan
-los reproductores mientras reproducen (nivel del búfer, recargas,
+los reproductores mientras reproducen (nivel del búfer, rebuffering,
 velocidad, en formato CMCD): cada cuánto han tenido que esperar los
 espectadores, los títulos que más se detienen y los tipos de dispositivo que
 tienen problemas, en el último día o la última semana.

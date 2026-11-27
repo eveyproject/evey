@@ -88,7 +88,7 @@ docker exec evey-server evey admin doctor
 कदम-दर-कदम तरीका:
 [हर लॉगिन 401 देता है](../runbooks/incident-runbook.md#every-login-returns-401)।
 
-!!! note
+!!! note "नोट"
     सिर्फ़ साइन करने वाली कुंजी खोने या बदलने से कोई साइन आउट नहीं होता: ऐप अपने टोकन
     नए कर लेते हैं। जानबूझकर हर सेशन खत्म करना है `evey admin
     rotate-jwt-key`, देखें [रिकवरी](../runbooks/recovery.md#rotate-the-key-that-signs-access-tokens)।

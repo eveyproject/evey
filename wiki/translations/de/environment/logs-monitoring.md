@@ -16,14 +16,14 @@ Aufbewahrungsdauer des Verlaufs und den Endpunkten für eine externe
 | --- | --- | --- | --- |
 | `EVEY_BACKUP_DIR` | `/data/backups` | Wohin die Datenbanksicherungen geschrieben werden. | keine |
 | `EVEY_BACKUP_INTERVAL_HOURS` | `0` (aus) | Eine Sicherung alle N Stunden, unabhängig vom Zeitplan im Verwaltungsbereich, der der übliche Weg ist. | Sicherung & Wiederherstellung → **Zeitplan** (Cron-Ausdruck), sofort |
-| `EVEY_BACKUP_RETENTION_DAYS` | `30` | Ältere Sicherungen werden gelöscht, wenn das Intervall darüber gesetzt ist: beim Start und nach jedem seiner Läufe. Der Zeitplan im Verwaltungsbereich hat seine eigene **Aufbewahrung**. | Sicherung & Wiederherstellung → Zeitplan → **Aufbewahrung**, sofort |
+| `EVEY_BACKUP_RETENTION_DAYS` | `30` | Sicherungen, die älter sind, werden gelöscht, wenn das Intervall darüber gesetzt ist: beim Start und nach jedem seiner Läufe. Der Zeitplan im Verwaltungsbereich hat seine eigene **Aufbewahrung**. | Sicherung & Wiederherstellung → Zeitplan → **Aufbewahrung**, sofort |
 
 ## Protokoll { #log }
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
 | `EVEY_LOG_LEVEL` | `info` | `debug`, `info`, `warn` oder `error`. | Serverkonfiguration → Allgemein → **Protokollstufe**, sofort |
-| `EVEY_LOG_DIR` | `/data/logs` | Wohin die tägliche Protokolldatei `evey-YYYY-MM-DD.log` geschrieben wird. Vom Image gesetzt. Diese Datei ist maßgeblich: `docker logs` zeigt denselben Strom, aber Docker rotiert ihn. | keine |
+| `EVEY_LOG_DIR` | `/data/logs` | Wohin die tägliche Protokolldatei `evey-YYYY-MM-DD.log` geschrieben wird (mit einem Stundensuffix, sobald eine Datei 50 MB überschreitet). Vom Image gesetzt. Diese Datei ist maßgeblich: `docker logs` zeigt denselben Strom, aber Docker rotiert ihn. | keine |
 | `EVEY_LOG_MAX_SIZE_MB` | `50` | Größe einer Protokolldatei, bevor sie rotiert wird. | keine |
 | `EVEY_LOG_RETENTION_DAYS` | `90` | Tage, die Protokolldateien aufbewahrt werden. | keine |
 

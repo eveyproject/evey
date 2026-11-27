@@ -95,7 +95,7 @@ Lo que ve entonces el niño:
     - Los perfiles y los ajustes parentales solo se pueden gestionar desde un
       perfil que no sea infantil.
     - Los PIN erróneos bloquean el perfil un rato, cada vez más tiempo si los
-      intentos siguen. Un PIN de padres escrito en la pantalla de bloqueo de
+      intentos siguen. Un PIN parental escrito en la pantalla de bloqueo de
       un perfil infantil cuenta como intento fallido en los perfiles adultos
       con los que se probó. Para levantar un bloqueo antes, un administrador, o el dueño de
       la cuenta con la contraseña de la cuenta, llama a
@@ -219,7 +219,7 @@ episodios. Los plugins pueden añadir sus propias filas.
 - Después, cada perfil puede organizar su propia página de inicio con
   **Personalizar** (en la página de inicio de la web y de las apps del
   teléfono, en la barra superior de la app de TV): mostrar u ocultar una
-  fila, moverla, o **Restablecer**. Esto se guarda en el servidor y se aplica
+  fila, moverla, o **Restablecer valores predeterminados**. Esto se guarda en el servidor y se aplica
   al perfil en todos sus dispositivos.
 - Un perfil puede mostrar una fila que tú has ocultado, salvo la fila de un
   plugin: ahí, tu decisión es definitiva.

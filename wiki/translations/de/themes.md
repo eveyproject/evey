@@ -53,7 +53,7 @@ Browser merkt, gilt also schon vor der Anmeldung.
 
 Die Oberfläche nimmt ihre Flächen, Texte, Akzentfarbe, Rahmen und Radien aus
 einer Reihe von Custom Properties auf `:root`.
-[`theme.css` of evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) listet sie auf, jede mit einem
+[`theme.css` von evey-theme-dark-blue](https://github.com/eveyproject/evey-theme-dark-blue/blob/main/theme.css) listet sie auf, jede mit einem
 Kommentar. Wer sie überschreibt, gestaltet jeden Bildschirm auf einmal um:
 
 ```css title="theme.css"

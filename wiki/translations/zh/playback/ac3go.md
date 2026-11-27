@@ -40,7 +40,7 @@ ac3go 作为一个独立的库开发，用 Go 编写，没有任何依赖：[git
 
 当解码器加载失败、在某个分段上出错，或者服务器没有给它指定音频流时，播放器会在这部影片剩下的时间里不再使用它，并向服务器请求普通的视频流，其中的声音已转换为 AAC。电影仍然有声音；此时**流信息**会显示转换，而不是*客户端解码*。
 
-!!! warning
+!!! warning "警告"
     如果反向代理设置了自己的 Content-Security-Policy，就必须在 `script-src` 里允许 `'wasm-unsafe-eval'`，否则解码器无法启动。它还必须像网页应用的其他部分一样，提供 `/wasm/` 下的解码器文件。见[反向代理配置](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own)。
 
 ## 在投屏接收器上 { #on-a-cast-receiver }

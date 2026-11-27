@@ -45,7 +45,7 @@ Android 应用会在每次开始播放时检测输出：插上耳机后，从下
 
 网页如何解码，以及无法解码时会发生什么：[Evey 中的 ac3go](ac3go.md)。
 
-!!! warning
+!!! warning "警告"
     如果反向代理设置了自己的 Content-Security-Policy，就必须在 `script-src` 里允许 `'wasm-unsafe-eval'`，否则解码器无法启动，电影会没有声音。见[反向代理配置](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own)。
 
 ## 声音不同步 { #sound-out-of-sync }

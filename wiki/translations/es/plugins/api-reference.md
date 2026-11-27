@@ -289,7 +289,7 @@ de 64 bits de la API) y `quality`: `width`, `height`, `videoCodec`, `hdrType`
 (vacío en SDR), `bitDepth`, `bitrate` (bits por segundo), `durationMs`,
 `container`, `audioCodec` y `audioChannels`, de la primera pista de vídeo y
 de la pista de audio por defecto. Para cualquier otra persona el token se emite sin ese
-permiso y los dos campos quedan vacíos: un módulo que ve todo el mundo no
+permiso y esos campos quedan vacíos: un módulo que ve todo el mundo no
 debe contar con ellos, su sitio es el slot `admin.nav`.
 
 `poster` devuelve una URL `data:` porque la política del marco prohíbe cargar

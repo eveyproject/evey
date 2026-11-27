@@ -94,7 +94,7 @@ Zwei übliche Ursachen:
 Das Vorgehen Schritt für Schritt:
 [Jede Anmeldung liefert 401](../runbooks/incident-runbook.md#every-login-returns-401).
 
-!!! note
+!!! note "Hinweis"
     Ein verlorener oder ersetzter Signaturschlüssel allein meldet niemanden
     ab: Die Apps erneuern ihre Tokens. Wer absichtlich jede Sitzung beenden
     will, nutzt `evey admin rotate-jwt-key`, siehe

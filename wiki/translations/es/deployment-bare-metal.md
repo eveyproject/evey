@@ -86,7 +86,7 @@ sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
   simples permisos de archivo ni los secretos del servidor ni los archivos de
   otro plugin. Estos uid no necesitan ninguna cuenta en `/etc/passwd`.
 
-!!! warning
+!!! warning "Advertencia"
     El id del grupo importa: el lanzador hace pasar un plugin a su uid y al
     grupo del propio servidor, y rechaza cualquier uid o gid por debajo de
     1000. Un grupo creado solo con `useradd --system` recibe un id de sistema
@@ -204,7 +204,7 @@ no puede cambiar de usuario (falta la capacidad, `no_new_privs` activado), un
 plugin en modo `basic` se rechaza, porque ahí el uid es su única protección; con
 Landlock, registra un aviso y se ejecuta con el uid del servidor.
 
-!!! warning
+!!! warning "Advertencia"
     La separación de uid es incompatible con `no_new_privs`. Si el servidor
     funciona bajo systemd con `NoNewPrivileges=yes`, la capacidad de archivo
     se ignora al ejecutar: los plugins se rechazan en modo `basic` y, con
