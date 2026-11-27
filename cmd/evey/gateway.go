@@ -156,7 +156,8 @@ func networkGateExempt(path string) bool {
 }
 
 // recordRelays records this server's IPv4 default gateway as a relay: a
-// request from it has an unknown origin and counts as remote (network.IsRelay).
+// request from it hides its real origin, which is logged and shown to the admin
+// (network.IsRelay). It is still classified by the LAN list.
 // Read once at boot - a container's gateway is fixed for its lifetime.
 func recordRelays(ctx context.Context, trustedProxies []string) {
 	gws, err := network.DefaultGateways()
@@ -167,7 +168,7 @@ func recordRelays(ctx context.Context, trustedProxies []string) {
 	network.SetRelays(gws)
 	trusted := network.NewLiveCIDRSet(func() []string { return trustedProxies })
 	for _, gw := range gws {
-		slog.InfoContext(ctx, "default gateway recorded as a relay: a request from it hides the real client and counts as remote",
+		slog.InfoContext(ctx, "default gateway recorded as a relay: a request from it hides the real client and is reported",
 			slog.String("gateway", gw.String()))
 		if trusted.Contains(gw) {
 			// Legitimate for a reverse proxy running on the host, but then
@@ -220,11 +221,12 @@ func networkMiddleware(detector func() *network.Detector, remoteEnabled func() b
 			nt := detector().Detect(r)
 			if relay := network.ClientIPFromContext(r.Context()); network.IsRelay(relay) {
 				// The request came from this server's own gateway, which hides
-				// the client: Detect already counted it as remote. Said once per
-				// TTL in the log, and kept for the admin panel's warning.
+				// the client: the host itself, or an IPv6 client relayed by
+				// docker-proxy. Said once per TTL in the log, and kept for the
+				// admin panel's warning.
 				network.NoteRelayed()
 				if shouldLog("relay " + relay.String()) {
-					logger.WarnContext(r.Context(), "a request came from this server's own gateway, which hides the real client, so it is treated as remote. Usual cause: Docker publishing the port on IPv6 for an IPv4-only network - publish it as \"0.0.0.0:9091:9091\" or give the network IPv6. A reverse proxy on the host must be listed in Admin > Remote access > Trusted proxies",
+					logger.WarnContext(r.Context(), "a request came from this server's own gateway, which hides the real client and counts it as local. Expected from a browser or a reverse proxy on the host itself. Otherwise Docker is publishing the port on IPv6 for an IPv4-only network, and IPv6 clients from anywhere pass as local: publish it as \"0.0.0.0:9091:9091\" or give the network IPv6",
 						slog.String("gateway", relay.String()),
 						slog.String("path", r.URL.Path))
 				}

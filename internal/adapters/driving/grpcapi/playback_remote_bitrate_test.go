@@ -2,7 +2,6 @@ package grpcapi
 
 import (
 	"context"
-	"net"
 	"testing"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -13,7 +12,6 @@ import (
 	"github.com/eveyproject/evey/internal/domain/transcoding"
 	"github.com/eveyproject/evey/internal/domain/user"
 	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
-	"github.com/eveyproject/evey/internal/pkg/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -272,22 +270,4 @@ func TestResolvePlaybackPrefs_AccountBitrateCap(t *testing.T) {
 	assert.Equal(t, 2000, mb, "a tighter profile cap wins")
 	_, mb = h.resolvePlaybackPrefs(ctxFor("prf-free"), &eveyv1.GetStreamInfoRequest{MaxBitrate: 3_000_000}, nil)
 	assert.Equal(t, 3000, mb, "a tighter client ceiling wins")
-}
-
-// The server's own gateway hides clients from anywhere (docker-proxy relaying
-// IPv6): its address is private, yet the cap must apply to it like to the
-// remote side, while another private address stays uncapped.
-func TestResolvePlaybackPrefs_GatewayRelayIsCapped(t *testing.T) {
-	network.SetRelays([]net.IP{net.ParseIP("172.17.0.1")})
-	t.Cleanup(func() { network.SetRelays(nil) })
-	h := &playbackHandler{
-		remoteAccess: func() (int, []string) { return 4000, []string{"172.16.0.0/12"} },
-	}
-	ctx := interceptors.WithClientIP(context.Background(), "172.17.0.1")
-	_, mb := h.resolvePlaybackPrefs(ctx, &eveyv1.GetStreamInfoRequest{}, nil)
-	assert.Equal(t, 4000, mb)
-
-	ctx = interceptors.WithClientIP(context.Background(), "172.17.0.5")
-	_, mb = h.resolvePlaybackPrefs(ctx, &eveyv1.GetStreamInfoRequest{}, nil)
-	assert.Equal(t, 0, mb)
 }
