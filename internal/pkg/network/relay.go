@@ -14,7 +14,12 @@ import (
 
 // A relay is an address that hands over connections it did not originate:
 // the server's own default gateway. A request whose client IP is a relay has
-// an unknown origin, and unknown is remote (see DetectIP).
+// an origin the server cannot see. It is still classified by the LAN list,
+// because the same address also carries the host's own connections: Docker
+// relays a connection to a port published on 127.0.0.1 through docker-proxy as
+// well, so a browser or a reverse proxy on the host arrives from the gateway
+// too, and nothing inside the container tells it from a relayed IPv6 client.
+// A relay is therefore detected and reported (NoteRelayed), not refused.
 //
 // The case that makes this necessary: a container on an IPv4-only Docker
 // network, whose port is published on the host's IPv6 addresses too. Docker

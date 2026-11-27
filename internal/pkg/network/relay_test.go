@@ -94,16 +94,15 @@ func TestDefaultGateways_ReadsTheTable(t *testing.T) {
 	}
 }
 
-// The hole this closes: an IPv6 client relayed by docker-proxy arrives as the
-// bridge gateway, which sits in the default LAN list. It must be WAN, while
-// the other addresses of the same range stay LAN.
-func TestDetectIP_RelayIsWANEvenInsideTheLANList(t *testing.T) {
+// The gateway also carries the host's own connections (a browser or a reverse
+// proxy on the host reaching a port published on 127.0.0.1), so a relay keeps
+// the verdict of the LAN list: refusing it would lock the host out.
+func TestDetectIP_RelayKeepsTheLANListVerdict(t *testing.T) {
 	withRelays(t, "172.17.0.1")
 	d := NewDetector([]string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"})
 	cases := map[string]NetworkType{
-		"172.17.0.1":  WAN,
+		"172.17.0.1":  LAN,
 		"172.17.0.5":  LAN,
-		"192.168.1.5": LAN,
 		"127.0.0.1":   LAN,
 		"203.0.113.9": WAN,
 	}
@@ -111,6 +110,9 @@ func TestDetectIP_RelayIsWANEvenInsideTheLANList(t *testing.T) {
 		if got := d.DetectIP(net.ParseIP(ip)); got != want {
 			t.Errorf("DetectIP(%s) = %s, want %s", ip, got, want)
 		}
+	}
+	if got := NewDetector([]string{"192.168.0.0/16"}).DetectIP(net.ParseIP("172.17.0.1")); got != WAN {
+		t.Errorf("relay outside the LAN list: DetectIP = %s, want WAN", got)
 	}
 }
 

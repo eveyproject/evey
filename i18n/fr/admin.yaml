@@ -1042,7 +1042,7 @@ remoteAccess:
   lockoutRiskMessage: "Ce serveur est accessible depuis Internet, mais l'accès distant est désactivé. Toute personne hors de votre réseau local reçoit une erreur 403 sur toutes les pages. Activez l'accès distant ci-dessus pour corriger ceci."
   publishedInfo: "L'accès distant est activé et ce serveur est accessible depuis Internet."
   relayedClientsTitle: "Des clients passent par la passerelle de ce serveur"
-  relayedClientsMessage: "Des requêtes arrivent depuis la passerelle de ce serveur, qui masque la vraie adresse du client. Elles sont traitées comme distantes : refusées tant que l'accès distant est désactivé, et limitées au débit distant maximal. Avec Docker, la cause habituelle est un port publié en IPv6 pour un réseau sans IPv6 : publiez-le en \"0.0.0.0:9091:9091\" dans votre fichier compose. Un reverse proxy installé sur l'hôte se déclare dans les proxys de confiance."
+  relayedClientsMessage: "Des requêtes arrivent depuis la passerelle de ce serveur, qui masque la vraie adresse du client. Elles sont acceptées comme locales. C'est normal pour un navigateur ou un reverse proxy installé sur l'hôte lui-même. Sinon, avec Docker, un port publié en IPv6 pour un réseau sans IPv6 laisse passer pour locaux des visiteurs IPv6 venus de n'importe où : publiez-le en \"0.0.0.0:9091:9091\" dans votre fichier compose."
 
 systemHealth:
   iowaitSub: "dont {{percent}} % en attente des disques"
