@@ -1014,6 +1014,8 @@
   "admin.remoteAccess.maxRemoteBitrate": "Max Remote Bitrate (Kbps, 0 = unlimited)",
   "admin.remoteAccess.networkInterfaces": "Server Network Interfaces",
   "admin.remoteAccess.publishedInfo": "Remote access is enabled and this server is reachable from the Internet.",
+  "admin.remoteAccess.relayedClientsMessage": "Requests arrive from this server's own gateway, which hides the real address of the client. They are treated as remote: refused while remote access is off, and held to the maximum remote bitrate. With Docker, the usual cause is a port published on IPv6 for a network without IPv6: publish it as \"0.0.0.0:9091:9091\" in your compose file. A reverse proxy running on the host goes in Trusted proxies.",
+  "admin.remoteAccess.relayedClientsTitle": "Some clients reach this server through its gateway",
   "admin.remoteAccess.saved": "Remote access settings saved",
   "admin.remoteAccess.title": "Remote Access",
   "admin.remoteAccess.trustedProxies": "Trusted proxies (IP or CIDR, comma-separated)",

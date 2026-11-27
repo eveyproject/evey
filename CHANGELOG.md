@@ -15,6 +15,9 @@ line - earlier history lives in git.
   `evey.media.gaps()` (permission `media.gaps`, administrators only) list the
   aired episodes and released films a library lacks; a series TMDB does not
   know is read from the holes in its own numbering. Plugins never call TMDB.
+- Plugins: the catalog gaps and the public media items carry the TMDB and IMDb
+  ids, and the bridge's `evey.openExternal(url)` opens their public pages
+  (https TMDB and IMDb only, on a click, web only) in a new tab.
 
 ### Changed
 - Demo: the demo's own plugins update on their own: the hourly check takes a
@@ -27,6 +30,31 @@ line - earlier history lives in git.
   longer depends on the page staying open.
 
 ### Fixed
+- Remote access: behind Docker, a client reaching the published port over IPv6
+  arrived with the bridge gateway's address, which sits in the default local
+  networks, so it passed as local: remote access turned off and the remote
+  bitrate cap did not hold for it. The server's own gateway now counts as
+  remote, the admin's remote access page warns when such requests come in,
+  and the compose publishes its ports on IPv4 only (`0.0.0.0:9091:9091`).
+  See "Docker and IPv6" in the remote access guide to keep IPv6.
+- Playback: an audio track copied after a seek started on the keyframe before
+  the target, so the sound ran a second or two behind the picture, and that
+  offset stayed in the cache. The copy now starts on its target and the copies
+  cached before are dropped.
+- Admin now playing: in a browser on Android, the web player's hidden Cast
+  element loads the first audio track, and the panel then showed that track
+  as served while the viewer heard the one picked. What the player itself was
+  just sent now wins over bytes fetched under a Cast token.
+- Demo: the bell's "mark all read" is greyed like the one on the
+  notifications page.
+- Web player: leaving the player (the close button, Escape or the browser's
+  back button) opened a second play session that was stopped at once, so the
+  administrator counted two plays for one. One viewing is one session again.
+- Next episode: the warm-up sent near the end of an episode started a remux
+  nobody read when the next episode plays as a file or straight off the file
+  through the packager. It now runs only where a first segment has to be made,
+  for what the device plays, and on the rung the player opens on. The
+  television app sends it too.
 - Server: a request sent without a body that took more than 30 seconds (a
   move to the trash copying a large film across disks) cut its own
   connection's context, and behind a reverse proxy that connection went back

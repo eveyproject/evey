@@ -85,6 +85,14 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	args = append(args, "-c:a", encoder)
 	if encoder == "copy" {
 		args = append(args, adtsReframeArgs(opts.SourceAudioCodec, opts.FilePath)...)
+		if !silence && opts.StartSec > 0 {
+			// A copy has no accurate seek: the demuxer lands on the index point
+			// before the target (a video keyframe in a Matroska's cues) and every
+			// packet from there would be copied, seconds of audio the rebase then
+			// stamps as starting at the target. Dropping them starts the rendition
+			// on the first frame at or after the target, at its own time.
+			args = append(args, "-copypriorss", "0")
+		}
 	}
 
 	// Passthrough (wasm-audio path): the coded AC-3/E-AC-3 samples are muxed into
@@ -268,8 +276,10 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 		// variantIdx = the audio track: the pump's segment matcher and metrics
 		// are per-rendition. No expected-start tripwire on audio (the video
 		// pipeline's copy plan supplies one; audio has no such plan).
-		// Audio seeks are trimmed to the sample by ffmpeg's accurate seek, so
-		// the grid start is the exact landing (no frame-landing probe here).
+		// A re-encode is trimmed to the sample by ffmpeg's accurate seek, a copy
+		// starts on its first frame at or after the target (-copypriorss 0):
+		// either way the fragments carry their offset from the target, so the
+		// target is the delta (no frame-landing probe here).
 		deltaUs := int64(math.Round(opts.StartSec * 1e6))
 		h.finished = finishAfterPump(h.done, func() {
 			runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaUs, "audio", opts.SourceTrackIdx, nil, "audio")
@@ -399,7 +409,7 @@ func (h *audioHandle) Done() <-chan struct{} {
 
 // Err/setErr guard h.err with the handle mutex: the orchestrator's natural
 // exit bookkeeping calls Err() at any moment, concurrently with run()'s error
-// paths writing it (race detector-proven, 2026-07-29).
+// paths writing it (race detector-proven).
 func (h *audioHandle) Err() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -454,7 +464,7 @@ var _ transcoding.AudioProcess = (*HLSTranscoder)(nil)
 // aacPrimingSec is the priming an AAC encoder puts before the first real
 // sample, at the rendition's 48 kHz: the output starts that much early and,
 // with no room before 0, the muxer moves the whole track late by it. Measured
-// 2026-09-24 through BuildFFmpegAudioOnlyArgs: 22 ms native, 43 ms libfdk_aac,
+// through BuildFFmpegAudioOnlyArgs: 22 ms native, 43 ms libfdk_aac,
 // whatever the source rate; content-measured on a copy rung, 42.6 ms late.
 func aacPrimingSec(encoder string) float64 {
 	switch encoder {

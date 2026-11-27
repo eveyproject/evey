@@ -35,7 +35,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		cfg.WithReadLock(func() {
 			// published/lockoutRisk are the panel's warning signal: "this server is
 			// reachable from the internet AND refusing everyone who arrives that
-			// way". That state used to be invisible everywhere (2026-07-29), so it
+			// way". That state was once invisible everywhere, so it
 			// is now part of the payload rather than something an operator has to
 			// deduce from two unrelated fields.
 			// RemoteAccessStatus is a pure function over the struct - it takes no
@@ -49,6 +49,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 				"maxRemoteBitrateKbps": cfg.RemoteAccess.MaxRemoteBitrateKbps,
 				"published":            published,
 				"lockoutRisk":          lockoutRisk,
+				"relayedClients":       network.RelayedSeen(),
 			}
 		})
 		// Outside the lock: TrustedProxiesView takes it itself.

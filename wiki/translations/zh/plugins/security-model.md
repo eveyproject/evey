@@ -1,5 +1,5 @@
 ---
-source_sha: 1b3b5ce7c086e1f2a42545c9d6c6895b8fcdf7c5f78287e1ea52cecfe7cd45a4
+source_sha: a1de84dea91860a7535fcc1955cfb979226912021d29fef6996df4ec4ac6e065
 reviewed: true
 ---
 # 权限与插槽 { #permissions-and-slots }
@@ -108,7 +108,7 @@ reviewed: true
 宿主只在该插槽里响应它。
 
 桥接层限制了框架能向页面提出的请求：`evey.toast` 每秒最多 3 条消息，每条 200 个字符，不能含 HTML；
-`evey.navigate` 只能导航到 `/home`、`/library`、`/media`、`/player`、`/settings` 和 `/search`；`evey.resize` 被限制在 50 到 800 px 之间。
+`evey.navigate` 只能导航到 `/home`、`/library`、`/media`、`/player`、`/settings` 和 `/search`；`evey.openExternal` 只能在新标签页中打开 `themoviedb.org` 和 `imdb.com` 的 https 页面，且必须是在框架内点击之后（仅限网页端）；`evey.resize` 被限制在 50 到 800 px 之间。
 框架本身不持有令牌：宿主为 `public` 和 `prefs` 调用签发一个限定于（插件，用户）、有效期五分钟的令牌，
 而服务器默认拒绝这个令牌没有列出的所有方法。
 

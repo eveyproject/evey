@@ -1,5 +1,5 @@
 ---
-source_sha: d79dc0926b3cccaf395cc08d77b10dd374b052ab566b42de9e7a26ebea4fbff2
+source_sha: e85405185138c1c5b3ce105f7c028831886d0b4412a7b255b04f2fbfb83c4821
 reviewed: true
 ---
 # 安装 { #install }
@@ -37,7 +37,7 @@ services:
     image: eveyproject/evey:latest # (1)!
     container_name: evey-server
     ports:
-      - "9091:9091" # (2)!
+      - "0.0.0.0:9091:9091" # (2)!
     volumes:
       - ./evey-data:/data # (3)!
       - evey-cache:/cache # (4)!
@@ -51,6 +51,7 @@ volumes:
 
 1. Evey 的版本。`latest` 是最新的正式版本。如果想固定在某个版本，请使用 `0.1.0` 这样的版本标签，或 `sha-<commit>` 标签：见[备份与更新](backups.md#updating-evey)。
 2. 端口。左边的数字就是您以后在浏览器和应用里要输入的那个。除非已经有别的程序占用了 `9091`，否则保持不变。
+   `0.0.0.0:` 表示只在 IPv4 上发布，这样 Evey 总能看到每台设备的真实地址：参见 [Docker 与 IPv6](administration/remote-access.md#docker-and-ipv6)。
 3. Evey 自己的数据：数据库、密钥、自动生成的密码、搜索索引、海报图片、日志、备份、插件。**需要备份的就是这个文件夹。**
 4. 缓存：转换过的视频、缩放过的照片和音乐封面。随时可以删除，它会自动重新生成。海报的各种尺寸不在其中，它们位于 `evey-data/artworks`。
 5. 您的媒体。把 `/path/to/your/media` 换成真实的文件夹。在 Evey 里，这个文件夹叫 `/media`。它特意设成可写，这样您要求时，[媒体健康](runbooks/media-health.md)才能修复文件。在末尾加上 `:ro` 就变成只读：Evey 就无法在其中写入，修复也会失败。

@@ -155,7 +155,7 @@ func (r *CatalogRepo) ListSeries(ctx context.Context, libraryIDs []shared.Librar
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT mi.id, COALESCE(mc.provider_ids->>'tmdb', ''), mi.title, COALESCE(mc.year, 0), mi.library_id
+		`SELECT mi.id, COALESCE(mc.provider_ids->>'tmdb', ''), COALESCE(mc.provider_ids->>'imdb', ''), mi.title, COALESCE(mc.year, 0), mi.library_id
 		   FROM media_items mi
 		   LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
 		  WHERE mi.type = 'series'
@@ -169,7 +169,7 @@ func (r *CatalogRepo) ListSeries(ctx context.Context, libraryIDs []shared.Librar
 	for rows.Next() {
 		var s library.SeriesRef
 		var lib string
-		if err := rows.Scan(&s.ItemID, &s.TmdbID, &s.Title, &s.Year, &lib); err != nil {
+		if err := rows.Scan(&s.ItemID, &s.TmdbID, &s.ImdbID, &s.Title, &s.Year, &lib); err != nil {
 			return nil, fmt.Errorf("CatalogRepo.ListSeries scan: %w", err)
 		}
 		s.Library = shared.LibraryID(lib)

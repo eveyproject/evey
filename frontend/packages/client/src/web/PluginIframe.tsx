@@ -10,6 +10,7 @@ import {
   createPluginRpc,
   createToastLimiter,
   frameLoadMessage,
+  isAllowedExternalUrl,
   isAllowedNavPath,
   isFrameShellMessage,
   isValidPluginId,
@@ -283,6 +284,14 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
         case "navigate":
           if (isAllowedNavPath(msg.path)) {
             onNavigate(msg.path);
+          }
+          break;
+        case "external":
+          // The click in the frame gives this window its user activation,
+          // so the tab opens like a link would; without one the browser
+          // blocks it, which keeps a plugin from opening tabs on its own.
+          if (isAllowedExternalUrl(msg.url)) {
+            window.open(msg.url, "_blank", "noopener,noreferrer");
           }
           break;
         case "toast":

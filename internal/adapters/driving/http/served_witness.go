@@ -28,8 +28,9 @@ import (
 // Nothing here consults a verdict or a plan. A handler declares the machinery
 // it actually ran, at the point it ran it.
 
-// ServedRecorder receives what a response carried (CommandService.RecordServed).
-type ServedRecorder func(ctx context.Context, profileID, mediaID string, leg domainplayback.Leg, l domainplayback.ServedLeg) error
+// ServedRecorder receives what a response carried (CommandService.RecordServed,
+// RecordServedCast when viaCast). viaCast: the request rode a cast token.
+type ServedRecorder func(ctx context.Context, profileID, mediaID string, leg domainplayback.Leg, l domainplayback.ServedLeg, viaCast bool) error
 
 // stampLeg is a leg a handler declares it wrote.
 type stampLeg struct {
@@ -377,6 +378,10 @@ func (sw *servedWitness) observe(r *http.Request, st *deliveryStamp, captured []
 	if now.IsZero() {
 		now = time.Now()
 	}
+	viaCast := false
+	if tok, ok := StreamTokenFromContext(r.Context()); ok && tok != nil {
+		viaCast = tok.Cast
+	}
 	for _, leg := range []domainplayback.Leg{domainplayback.LegVideo, domainplayback.LegAudio} {
 		decl := st.audio
 		kind := "audio"
@@ -415,7 +420,7 @@ func (sw *servedWitness) observe(r *http.Request, st *deliveryStamp, captured []
 		if l.Copy && l.SourceCodec == l.Codec {
 			l.SourceCodec = ""
 		}
-		if err := sw.record(ctx, claims.ProfileID, st.mediaID, leg, l); err != nil {
+		if err := sw.record(ctx, claims.ProfileID, st.mediaID, leg, l, viaCast); err != nil {
 			slog.WarnContext(ctx, "served witness: record failed",
 				slog.String("media_id", st.mediaID), slog.String("leg", string(leg)), slog.Any("err", err))
 		}

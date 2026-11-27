@@ -36,6 +36,7 @@ type CatalogSource interface {
 type SeriesRef struct {
 	ItemID  string
 	TmdbID  string
+	ImdbID  string
 	Title   string
 	Year    int
 	Library shared.LibraryID

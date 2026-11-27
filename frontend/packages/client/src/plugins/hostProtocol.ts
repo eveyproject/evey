@@ -20,6 +20,23 @@ export function isAllowedNavPath(path: string): boolean {
   return ALLOWED_NAV_PREFIXES.some((p) => path === p || path.startsWith(p + "/") || path.startsWith(p + "?"));
 }
 
+// The public pages a plugin may open in a new tab with evey.openExternal: the
+// catalogs a finding is about, over https, nothing else. A plugin has no
+// other way out of its sandbox (no popups, no top navigation).
+const EXTERNAL_HOSTS = ["themoviedb.org", "www.themoviedb.org", "imdb.com", "www.imdb.com", "m.imdb.com"];
+
+export function isAllowedExternalUrl(url: string): boolean {
+  if (typeof url !== "string" || url.length > 2048) return false;
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:" || u.username || u.password || u.port) return false;
+  return EXTERNAL_HOSTS.includes(u.hostname.toLowerCase());
+}
+
 // Gates what a host accepts at the HTML boundary. The server issues
 // `plg-<24 hex>` slugs (`id.New("plg-")`); re-asserting here means a malformed
 // pluginId (typo, manipulated state, future bug) can never terminate the
@@ -134,6 +151,7 @@ export function createToastLimiter(sink: ToastSink, now: () => number = Date.now
 export type HostMessage =
   | { type: "ready" }
   | { type: "navigate"; path: string }
+  | { type: "external"; url: string }
   | { type: "toast"; level: unknown; message: string }
   | { type: "resize"; height: number }
   | { type: "rpc"; id: unknown; method: string; args: Record<string, unknown> };
@@ -159,6 +177,8 @@ export function parseHostMessage(raw: unknown): HostMessage | null {
       return { type: "ready" };
     case "navigate":
       return typeof m.path === "string" ? { type: "navigate", path: m.path } : null;
+    case "external":
+      return typeof m.url === "string" ? { type: "external", url: m.url } : null;
     case "toast":
       return typeof m.message === "string" ? { type: "toast", level: m.level, message: m.message } : null;
     case "resize":

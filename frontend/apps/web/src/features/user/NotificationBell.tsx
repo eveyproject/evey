@@ -9,6 +9,7 @@ import {
   useNotificationServiceMarkAllRead,
 } from "@evey/api";
 import { toast } from "@evey/store";
+import { useDemoLock } from "@/hooks/useDemoMode";
 import { translateNotificationTitle, translateNotificationMessage, useRelativeTime, notificationUrl } from "./notificationUtils";
 
 interface Notification {
@@ -54,6 +55,9 @@ export function NotificationBell() {
     .filter((n: Notification) => !n.type || !HIDDEN_TYPES.has(n.type))
     .slice(0, DROPDOWN_LIMIT);
   const queryClient = useQueryClient();
+  // Demo: the unread list is the shared account's and the server refuses the
+  // read marks.
+  const { lock } = useDemoLock();
   const markAllRead = useNotificationServiceMarkAllRead({
     mutation: {
       onSuccess: () => {
@@ -117,7 +121,8 @@ export function NotificationBell() {
             {count > 0 && (
               <button
                 onClick={() => markAllRead.mutate({ data: {} })}
-                className="text-xs text-[var(--accent)] font-medium hover:underline"
+                className="text-xs text-[var(--accent)] font-medium hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
+                {...lock}
               >
                 {t("common.markAllRead")}
               </button>

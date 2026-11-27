@@ -19,6 +19,7 @@ interface RemoteAccessConfig {
   // The server derives these from the current request/config (mirror web).
   lockoutRisk?: boolean;
   published?: boolean;
+  relayedClients?: boolean;
 }
 
 interface NetworkInterface {
@@ -142,6 +143,17 @@ export default function AdminRemoteAccessScreen() {
             <View style={{ flexDirection: "row", gap: 10, padding: 12, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised, marginBottom: 12 }}>
               <Ionicons name="information-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }}>{t("admin.remoteAccess.publishedInfo", "Remote access is published and reachable.")}</Text>
+            </View>
+          ) : null}
+
+          {/* Requests from the server's own gateway hide the real client. */}
+          {data?.relayedClients ? (
+            <View style={{ flexDirection: "row", gap: 10, padding: 12, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.warning, backgroundColor: theme.colors.warning + "1A", marginBottom: 12 }}>
+              <Ionicons name="warning-outline" size={20} color={theme.colors.warning} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: theme.colors.warning, fontWeight: "700", fontSize: 14 }}>{t("admin.remoteAccess.relayedClientsTitle")}</Text>
+                <Text style={{ color: theme.colors.text, fontSize: 13, marginTop: 2 }}>{t("admin.remoteAccess.relayedClientsMessage")}</Text>
+              </View>
             </View>
           ) : null}
 

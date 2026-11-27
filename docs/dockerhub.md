@@ -15,7 +15,7 @@ services:
     image: eveyproject/evey:latest
     container_name: evey-server
     ports:
-      - "9091:9091"
+      - "0.0.0.0:9091:9091"
     volumes:
       - ./evey-data:/data              # database, JWT key, generated secrets, search index, logs, backups
       - evey-cache:/cache              # transcode cache (safe to prune)
